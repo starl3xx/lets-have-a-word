@@ -11,11 +11,41 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.1 Complete
+## 🎯 Current Status: Milestone 4.2 Complete
 
-All core game mechanics and onchain integration are fully implemented and production-ready:
+All core game mechanics, onchain integration, and social features are fully implemented and production-ready:
 
-### ✅ Milestone 4.1 - CLANKTON Integration (Latest)
+### ✅ Milestone 4.2 - Share-for-Bonus System (Latest)
+
+Social engagement rewards:
+
+- **Share Prompt Modal**
+  - Appears after each guess (correct or incorrect)
+  - Invites users to share to Farcaster for +1 free guess
+  - Clean, user-friendly modal UI with "Share" and "Not now" options
+
+- **Farcaster Composer Integration**
+  - Opens Farcaster's native composer with prefilled text
+  - Includes guess word, round number, and game link
+  - Seamless integration with Farcaster SDK
+
+- **Share Verification**
+  - `/api/share-callback` endpoint verifies share completion
+  - Awards +1 free guess instantly
+  - One share bonus per day maximum
+  - Updates user state in real-time
+
+- **User State Display**
+  - Share bonus shown in guess allocation breakdown
+  - Visual indicator for share bonus (+1)
+  - Clear messaging about daily limit
+
+- **Database Tracking**
+  - `hasSharedToday` flag prevents duplicate claims
+  - `freeAllocatedShareBonus` tracks bonus allocation
+  - Resets daily at UTC midnight
+
+### ✅ Milestone 4.1 - CLANKTON Integration
 
 Onchain token bonus system:
 
@@ -273,6 +303,11 @@ npm test
   - Requires: `devFid` or `frameMessage` param
   - Returns: `{ fid, freeGuessesRemaining, paidGuessesRemaining, totalGuessesRemaining, clanktonBonusActive, freeAllocations, paidPacksPurchased, maxPaidPacksPerDay, canBuyMorePacks }`
 
+- `POST /api/share-callback` - Award share bonus (Milestone 4.2)
+  - Requires: `{ fid, castHash }`
+  - Returns: `{ ok, newFreeGuessesRemaining?, message? }`
+  - Awards +1 free guess if share bonus not claimed today
+
 ## Database Schema
 
 ### Core Tables
@@ -331,6 +366,20 @@ npm test
 **Paid Guesses (per day)**
 - Buy packs of 3 guesses for 0.0003 ETH each
 - Up to 3 packs per day (9 paid guesses max)
+
+### Share Bonus
+
+Users can earn **1 extra free guess per day** by sharing their previous guess to Farcaster.
+
+- After each guess, a modal invites the user to share.
+- Sharing opens a prefilled Farcaster composer.
+- When the cast is successfully published, the app verifies via `/api/share-callback`.
+- Bonus is added instantly: +1 free guess for the current day.
+- Share bonus can only be earned once per day.
+- Maximum free guesses per day:
+  - 1 (base)
+  - +3 if holding ≥100M CLANKTON
+  - +1 share bonus
 
 ### Economics (Milestone 3.1)
 
@@ -419,14 +468,16 @@ pages/
 │   ├── guess.ts           # Guess submission
 │   ├── round-state.ts     # Round status
 │   ├── user-state.ts      # User daily allocations
+│   ├── share-callback.ts  # Share bonus verification
 │   └── wheel.ts           # Wheel data
 ├── _app.tsx           # App wrapper (Wagmi + Farcaster SDK)
 └── index.tsx          # Main game UI
 
 components/
-├── Wheel.tsx          # Spinning word wheel
-├── TopTicker.tsx      # Live status ticker
-└── UserState.tsx      # User guess allocations & CLANKTON bonus
+├── Wheel.tsx            # Spinning word wheel
+├── TopTicker.tsx        # Live status ticker
+├── UserState.tsx        # User guess allocations & CLANKTON bonus
+└── SharePromptModal.tsx # Share-to-earn modal (Milestone 4.2)
 
 drizzle/               # Database migrations
 ```
@@ -494,7 +545,6 @@ await resolveRound(roundId, winnerFid, referrerFid);
 ## What's Next?
 
 Planned future milestones:
-- **Milestone 4.2**: Share-to-earn callbacks (Farcaster webhook)
 - **Milestone 5.1**: Announcer bot (automated round announcements)
 - **Milestone 5.2**: ETH payment processing (actual payments)
 - **Milestone 5.3**: Performance optimizations (caching, indexes)

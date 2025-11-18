@@ -3,6 +3,7 @@ import type { SubmitGuessResult } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
+import SharePromptModal from '../components/SharePromptModal';
 import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
@@ -23,6 +24,10 @@ export default function Home() {
 
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
+
+  // Share modal state (Milestone 4.2)
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
 
   /**
    * Get Farcaster context on mount
@@ -180,6 +185,13 @@ export default function Home() {
       // This updates the guess counts in real-time
       setUserStateKey(prev => prev + 1);
 
+      // Show share modal for correct/incorrect guesses (Milestone 4.2)
+      // Only show if the guess was actually submitted (not an error)
+      if (data.status === 'correct' || data.status === 'incorrect') {
+        setPendingShareResult(data);
+        setShowShareModal(true);
+      }
+
       // Clear input on success (optional)
       // setWord('');
 
@@ -247,6 +259,22 @@ export default function Home() {
 
   const feedback = getFeedbackMessage();
   const isButtonDisabled = word.length !== 5 || isLoading;
+
+  /**
+   * Handle share modal close
+   */
+  const handleShareModalClose = () => {
+    setShowShareModal(false);
+    setPendingShareResult(null);
+  };
+
+  /**
+   * Handle successful share
+   * Refetch user state to show updated share bonus
+   */
+  const handleShareSuccess = () => {
+    setUserStateKey(prev => prev + 1);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -358,6 +386,16 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Share Prompt Modal (Milestone 4.2) */}
+      {showShareModal && pendingShareResult && (
+        <SharePromptModal
+          fid={fid}
+          guessResult={pendingShareResult}
+          onClose={handleShareModalClose}
+          onShareSuccess={handleShareSuccess}
+        />
+      )}
     </div>
   );
 }
