@@ -2,7 +2,7 @@
  * CLANKTON Integration
  * Milestone 4.1
  *
- * Implements on-chain balance checking for CLANKTON token bonus
+ * Implements onchain balance checking for CLANKTON token bonus
  */
 
 import { ethers } from 'ethers';
@@ -37,7 +37,7 @@ export function getBaseProvider(): ethers.Provider {
 
 /**
  * Check if wallet has CLANKTON bonus
- * Milestone 4.1: On-chain balance verification
+ * Milestone 4.1: Onchain balance verification
  *
  * Checks if the wallet holds >= 100,000,000 CLANKTON tokens.
  *
