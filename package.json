@@ -25,7 +25,10 @@
     "dotenv": "^16.4.5",
     "next": "^14.2.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.5.0",
@@ -34,9 +37,6 @@
     "drizzle-kit": "^0.24.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.0"
+    "vitest": "^2.0.5"
   }
 }
