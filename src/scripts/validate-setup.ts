@@ -38,7 +38,7 @@ async function validate() {
 
     // Step 3: Test round creation
     console.log('Step 3: Testing round creation with commit-reveal...');
-    const testAnswer = 'crane'; // Example test word
+    const testAnswer = 'about'; // Example test word (must be in ANSWER_WORDS)
     const testRound = await createRound({ forceAnswer: testAnswer });
     console.log(`✅ Test round created successfully`);
     console.log(`   Round ID: ${testRound.id}`);
