@@ -36,8 +36,18 @@ async function validate() {
     console.log(`   Config:`, JSON.stringify(rules.config, null, 2));
     console.log('');
 
-    // Step 3: Test round creation
-    console.log('Step 3: Testing round creation with commit-reveal...');
+    // Step 3: Check for existing active round and resolve if needed
+    console.log('Step 3: Checking for existing active round...');
+    const existingRound = await getActiveRound();
+    if (existingRound) {
+      console.log(`   Found existing active round ${existingRound.id}, resolving it first...`);
+      await resolveRound(existingRound.id, 99999, null);
+      console.log(`   Resolved round ${existingRound.id}`);
+    }
+    console.log('');
+
+    // Step 4: Test round creation with commit-reveal
+    console.log('Step 4: Testing round creation with commit-reveal...');
     const testAnswer = 'about'; // Example test word (must be in ANSWER_WORDS)
     const testRound = await createRound({ forceAnswer: testAnswer });
     console.log(`✅ Test round created successfully`);
@@ -47,8 +57,8 @@ async function validate() {
     console.log(`   Commit Hash: ${testRound.commitHash}`);
     console.log('');
 
-    // Step 4: Verify commitment
-    console.log('Step 4: Verifying commit-reveal integrity...');
+    // Step 5: Verify commitment
+    console.log('Step 5: Verifying commit-reveal integrity...');
     const isValid = verifyRoundCommitment(testRound);
     if (!isValid) {
       throw new Error('Commit-reveal verification failed!');
@@ -57,8 +67,8 @@ async function validate() {
     console.log(`   H(salt||answer) === commit_hash: ${isValid}`);
     console.log('');
 
-    // Step 5: Test getActiveRound()
-    console.log('Step 5: Testing getActiveRound()...');
+    // Step 6: Test getActiveRound()
+    console.log('Step 6: Testing getActiveRound()...');
     const activeRound = await getActiveRound();
     if (!activeRound) {
       throw new Error('No active round found');
@@ -66,8 +76,8 @@ async function validate() {
     console.log(`✅ Active round retrieved: ${activeRound.id}`);
     console.log('');
 
-    // Step 6: Test round resolution
-    console.log('Step 6: Testing round resolution...');
+    // Step 7: Test round resolution
+    console.log('Step 7: Testing round resolution...');
     const winnerFid = 12345;
     const referrerFid = 67890;
     const resolvedRound = await resolveRound(testRound.id, winnerFid, referrerFid);
@@ -77,14 +87,14 @@ async function validate() {
     console.log(`   Resolved At: ${resolvedRound.resolvedAt}`);
     console.log('');
 
-    // Step 7: Test ensureActiveRound()
-    console.log('Step 7: Testing ensureActiveRound()...');
+    // Step 8: Test ensureActiveRound()
+    console.log('Step 8: Testing ensureActiveRound()...');
     const ensuredRound = await ensureActiveRound({ forceAnswer: 'brain' });
     console.log(`✅ Ensured active round: ${ensuredRound.id}`);
     console.log('');
 
-    // Step 8: Test guess submission
-    console.log('Step 8: Testing guess submission...');
+    // Step 9: Test guess submission
+    console.log('Step 9: Testing guess submission...');
 
     // Submit incorrect guess
     const incorrectGuess = await submitGuess({
@@ -98,8 +108,8 @@ async function validate() {
     }
     console.log('');
 
-    // Step 9: Test wrong words tracking
-    console.log('Step 9: Testing wrong words tracking...');
+    // Step 10: Test wrong words tracking
+    console.log('Step 10: Testing wrong words tracking...');
     await submitGuess({ fid: 2000, word: 'phone' });
     await submitGuess({ fid: 3000, word: 'table' });
 
@@ -107,16 +117,16 @@ async function validate() {
     console.log(`✅ Wrong words for round: ${wrongWords.join(', ')}`);
     console.log('');
 
-    // Step 10: Test global deduplication
-    console.log('Step 10: Testing global deduplication...');
+    // Step 11: Test global deduplication
+    console.log('Step 11: Testing global deduplication...');
     const duplicateGuess = await submitGuess({ fid: 4000, word: 'house' });
     if (duplicateGuess.status === 'already_guessed_word') {
       console.log(`✅ Duplicate guess blocked: ${duplicateGuess.word}`);
     }
     console.log('');
 
-    // Step 11: Test top guessers
-    console.log('Step 11: Testing top guessers...');
+    // Step 12: Test top guessers
+    console.log('Step 12: Testing top guessers...');
     await submitGuess({ fid: 1000, word: 'chair' }); // User 1000's 2nd guess
     const topGuessers = await getTopGuessersForRound(ensuredRound.id, 5);
     console.log(`✅ Top guessers (${topGuessers.length}):`);
@@ -125,8 +135,8 @@ async function validate() {
     });
     console.log('');
 
-    // Step 12: Test correct guess and round resolution
-    console.log('Step 12: Testing correct guess...');
+    // Step 13: Test correct guess and round resolution
+    console.log('Step 13: Testing correct guess...');
     const correctGuess = await submitGuess({
       fid: 5000,
       word: ensuredRound.answer,
@@ -137,8 +147,8 @@ async function validate() {
     }
     console.log('');
 
-    // Step 13: Verify round is closed
-    console.log('Step 13: Verifying round is closed...');
+    // Step 14: Verify round is closed
+    console.log('Step 14: Verifying round is closed...');
     const afterGuess = await submitGuess({ fid: 9999, word: 'apple' });
     if (afterGuess.status === 'round_closed') {
       console.log(`✅ Round correctly closed to new guesses`);
