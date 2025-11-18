@@ -20,7 +20,7 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     question: 'How do I get more guesses?',
-    answer: 'You can earn bonus free guesses by: (1) Holding CLANKTON tokens (+3 guesses/day), (2) Sharing the game on Farcaster (+1 guess/day). You can also buy paid guess packs (up to 3 packs/day, 10 guesses each).',
+    answer: 'You can earn bonus free guesses by: (1) Holding CLANKTON tokens (+3 guesses/day), (2) Sharing the game on Farcaster (+1 guess/day). You can also buy paid guess packs (up to 3 packs/day, 3 guesses each).',
   },
   {
     question: 'What is CLANKTON bonus?',
@@ -32,7 +32,7 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     question: 'How are paid guesses different?',
-    answer: 'Paid guesses cost ETH and contribute to the prize pool. You can buy up to 3 packs per day (10 guesses each). Paid guesses increase the jackpot for everyone.',
+    answer: 'Paid guesses cost ETH and contribute to the prize pool. You can buy up to 3 packs per day (3 guesses each). Paid guesses increase the jackpot for everyone.',
   },
   {
     question: 'How is the jackpot split?',
