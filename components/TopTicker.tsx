@@ -138,45 +138,36 @@ export default function TopTicker() {
     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 shadow-md">
       <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-4">
         {/* Prize Pool */}
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">💰</span>
-          <div>
-            <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
-              Prize Pool
-            </p>
-            <p className="text-lg font-bold">
-              {formatEth(status.prizePoolEth)} ETH
-              {status.prizePoolUsd && (
-                <span className="text-sm font-normal opacity-90 ml-2">
-                  ({formatUsd(status.prizePoolUsd)})
-                </span>
-              )}
-            </p>
-          </div>
+        <div>
+          <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
+            Prize Pool
+          </p>
+          <p className="text-lg font-bold">
+            {formatEth(status.prizePoolEth)} ETH
+            {status.prizePoolUsd && (
+              <span className="text-sm font-normal opacity-90 ml-2">
+                ({formatUsd(status.prizePoolUsd)})
+              </span>
+            )}
+          </p>
         </div>
 
         {/* Global Guess Count */}
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🎯</span>
-          <div>
-            <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
-              Global Guesses
-            </p>
-            <p className="text-lg font-bold">
-              {status.globalGuessCount.toLocaleString()}
-            </p>
-          </div>
+        <div>
+          <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
+            Global Guesses
+          </p>
+          <p className="text-lg font-bold">
+            {status.globalGuessCount.toLocaleString()}
+          </p>
         </div>
 
         {/* Round Number */}
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🔢</span>
-          <div>
-            <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
-              Round
-            </p>
-            <p className="text-lg font-bold">#{status.roundId}</p>
-          </div>
+        <div>
+          <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
+            Round
+          </p>
+          <p className="text-lg font-bold">#{status.roundId}</p>
         </div>
       </div>
     </div>
