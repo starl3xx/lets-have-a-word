@@ -26,6 +26,7 @@
   "author": "starl3xx",
   "license": "MIT",
   "dependencies": {
+    "@farcaster/miniapp-sdk": "^0.2.1",
     "@neynar/nodejs-sdk": "^3.89.0",
     "autoprefixer": "^10.4.20",
     "dotenv": "^16.4.5",
