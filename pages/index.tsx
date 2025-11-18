@@ -436,8 +436,6 @@ export default function Home() {
                   ✨ XP
                 </button>
               </div>
-            </div>
-
           </div>
         </div>
       </div>
