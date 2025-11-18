@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import type { UserStateResponse } from '../pages/api/user-state';
 
 interface UserStateProps {
@@ -20,6 +21,9 @@ export default function UserState({ fid }: UserStateProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get connected wallet from Wagmi
+  const { address: walletAddress, isConnected } = useAccount();
+
   /**
    * Fetch user state from API
    */
@@ -30,7 +34,17 @@ export default function UserState({ fid }: UserStateProps) {
     }
 
     try {
-      const response = await fetch(`/api/user-state?devFid=${fid}`);
+      // Build query params
+      const params = new URLSearchParams();
+      params.append('devFid', fid.toString());
+
+      // Include wallet address if connected
+      if (walletAddress) {
+        params.append('walletAddress', walletAddress);
+        console.log('[UserState] Using connected wallet:', walletAddress);
+      }
+
+      const response = await fetch(`/api/user-state?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch user state');
@@ -48,11 +62,11 @@ export default function UserState({ fid }: UserStateProps) {
   };
 
   /**
-   * Fetch on mount and when FID changes
+   * Fetch on mount and when FID or wallet changes
    */
   useEffect(() => {
     fetchUserState();
-  }, [fid]);
+  }, [fid, walletAddress]);
 
   /**
    * Loading state
@@ -79,13 +93,15 @@ export default function UserState({ fid }: UserStateProps) {
   }
 
   /**
-   * Not authenticated
+   * Not authenticated or wallet not connected
    */
   if (!fid || !userState) {
     return (
       <div className="bg-yellow-50 rounded-lg shadow-md p-4 border-2 border-yellow-200">
         <p className="text-sm text-yellow-800 text-center">
-          Please connect your Farcaster account
+          {!fid && 'Please connect your Farcaster account'}
+          {fid && !isConnected && 'Connecting wallet...'}
+          {fid && isConnected && !userState && 'Loading...'}
         </p>
       </div>
     );
