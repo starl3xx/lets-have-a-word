@@ -241,9 +241,17 @@ export default function Home() {
           {/* Foreground Layer: Input & Controls */}
           <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
 
-            {/* Input Area */}
+            {/* Input Area with subtle background */}
             <div className="relative z-10 w-full px-8">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Subtle white background for legibility */}
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl" style={{
+                top: '-20px',
+                bottom: '-20px',
+                left: '16px',
+                right: '16px',
+              }}></div>
+
+              <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
                 {/* 5-Letter Input Boxes */}
                 <div>
                   <input
