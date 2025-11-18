@@ -247,11 +247,11 @@ describe('Economics Module - Milestone 3.1', () => {
     });
 
     it('should give referrer share to winner when no referrer exists', async () => {
-      // Create winner without referrer
+      // Create winner without referrer (use unique FID to avoid conflicts)
       const [winner] = await db
         .insert(users)
         .values({
-          fid: 12345,
+          fid: 99999,
           referrerFid: null,
           xp: 0,
         })

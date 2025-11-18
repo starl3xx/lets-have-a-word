@@ -181,7 +181,7 @@ export async function resolveRoundAndCreatePayouts(
   });
 
   // 3. Top 10 guessers payout (10% split equally)
-  const topGuessers = await getTop10Guessers(roundId);
+  const topGuessers = await getTop10Guessers(roundId, winnerFid);
 
   if (topGuessers.length > 0) {
     const perGuesser = toTopGuessers / topGuessers.length;
@@ -228,19 +228,10 @@ export async function resolveRoundAndCreatePayouts(
  * - Tiebreaker: earliest first guess time
  *
  * @param roundId - The round ID
+ * @param winnerFid - The FID of the winner to exclude
  * @returns Array of FIDs (up to 10)
  */
-async function getTop10Guessers(roundId: number): Promise<number[]> {
-  // Get round to find winner
-  const [round] = await db
-    .select()
-    .from(rounds)
-    .where(eq(rounds.id, roundId))
-    .limit(1);
-
-  if (!round || !round.winnerFid) {
-    return [];
-  }
+async function getTop10Guessers(roundId: number, winnerFid: number): Promise<number[]> {
 
   // Get all paid guesses for this round (excluding winner's guesses)
   const allGuesses = await db
@@ -262,7 +253,7 @@ async function getTop10Guessers(roundId: number): Promise<number[]> {
 
   for (const guess of allGuesses) {
     // Skip winner
-    if (guess.fid === round.winnerFid) {
+    if (guess.fid === winnerFid) {
       continue;
     }
 
