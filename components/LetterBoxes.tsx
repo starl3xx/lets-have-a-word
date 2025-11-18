@@ -6,6 +6,7 @@ interface LetterBoxesProps {
   onSubmit?: () => void;
   disabled?: boolean;
   isShaking?: boolean;
+  resultState?: 'typing' | 'wrong' | 'correct'; // Three-state system
 }
 
 /**
@@ -14,6 +15,12 @@ interface LetterBoxesProps {
  *
  * Displays 5 letter boxes for word input with smooth typing behavior
  * Supports mobile keyboard, backspace, and visual feedback
+ *
+ * Color states:
+ * - Empty: Gray border, white background
+ * - Filled (typing): Blue background, white text
+ * - Wrong result: Red background (after GUESS)
+ * - Correct result: Green background (after GUESS)
  */
 export default function LetterBoxes({
   letters,
@@ -21,6 +28,7 @@ export default function LetterBoxes({
   onSubmit,
   disabled = false,
   isShaking = false,
+  resultState = 'typing',
 }: LetterBoxesProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -119,19 +127,34 @@ export default function LetterBoxes({
   };
 
   /**
-   * Get border color for a letter box
+   * Get box styling based on state
+   * Three-state system:
+   * - Empty: gray border, white bg
+   * - Filled (typing): blue bg, white text
+   * - Wrong result: red bg
+   * - Correct result: green bg
    */
-  const getBorderColor = (letter: string, index: number) => {
-    if (disabled) return 'border-gray-300';
-    if (letter) return 'border-green-500'; // Green when has letter
-
-    // Show blue border on first empty box when focused
-    const firstEmptyIndex = letters.findIndex(l => l === '');
-    if (isFocused && index === firstEmptyIndex) {
-      return 'border-blue-500';
+  const getBoxStyle = (letter: string) => {
+    // Result states (after GUESS pressed)
+    if (resultState === 'wrong') {
+      return 'bg-red-500 border-red-600 text-white';
+    }
+    if (resultState === 'correct') {
+      return 'bg-green-500 border-green-600 text-white';
     }
 
-    return 'border-gray-300';
+    // Typing states (before GUESS)
+    if (disabled) {
+      return 'bg-gray-100 border-gray-300 text-gray-400';
+    }
+
+    if (letter) {
+      // Filled while typing: blue background
+      return 'bg-blue-500 border-blue-600 text-white';
+    }
+
+    // Empty: gray border
+    return 'bg-white border-gray-300 text-gray-300';
   };
 
   return (
@@ -168,10 +191,8 @@ export default function LetterBoxes({
               text-3xl font-bold uppercase
               border-4 rounded-lg
               transition-all duration-150
-              ${disabled ? 'bg-gray-100 text-gray-400' : 'bg-white'}
-              ${letter ? 'text-gray-900' : 'text-gray-300'}
-              ${getBorderColor(letter, index)}
-              ${!disabled && 'cursor-text hover:border-blue-400'}
+              ${getBoxStyle(letter)}
+              ${!disabled && resultState === 'typing' && 'cursor-text hover:border-blue-400'}
               shadow-md
             `}
           >
