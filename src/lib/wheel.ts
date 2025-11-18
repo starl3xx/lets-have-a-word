@@ -45,32 +45,46 @@ export async function populateRoundSeedWords(
   roundId: number,
   count: number = 30
 ): Promise<void> {
-  // Check if already populated
-  const existing = await db
-    .select()
-    .from(roundSeedWords)
-    .where(eq(roundSeedWords.roundId, roundId))
-    .limit(1);
+  try {
+    console.log(`[populateRoundSeedWords] Starting for round ${roundId}, count: ${count}`);
 
-  if (existing.length > 0) {
-    console.log(`⚠️  Round ${roundId} already has seed words, skipping population`);
-    return;
-  }
+    // Check if already populated
+    const existing = await db
+      .select()
+      .from(roundSeedWords)
+      .where(eq(roundSeedWords.roundId, roundId))
+      .limit(1);
 
-  // Select random seed words
-  // Shuffle SEED_WORDS and take first N
-  const shuffled = [...SEED_WORDS].sort(() => Math.random() - 0.5);
-  const selectedWords = shuffled.slice(0, Math.min(count, SEED_WORDS.length));
+    if (existing.length > 0) {
+      console.log(`⚠️  Round ${roundId} already has seed words, skipping population`);
+      return;
+    }
 
-  // Insert into database
-  const seedWordInserts: RoundSeedWordInsert[] = selectedWords.map((word) => ({
-    roundId,
-    word: word.toUpperCase(),
-  }));
+    console.log(`[populateRoundSeedWords] No existing seed words, creating new ones...`);
+    console.log(`[populateRoundSeedWords] Available SEED_WORDS: ${SEED_WORDS.length}`);
 
-  if (seedWordInserts.length > 0) {
-    await db.insert(roundSeedWords).values(seedWordInserts);
-    console.log(`✅ Populated ${seedWordInserts.length} seed words for round ${roundId}`);
+    // Select random seed words
+    // Shuffle SEED_WORDS and take first N
+    const shuffled = [...SEED_WORDS].sort(() => Math.random() - 0.5);
+    const selectedWords = shuffled.slice(0, Math.min(count, SEED_WORDS.length));
+
+    console.log(`[populateRoundSeedWords] Selected ${selectedWords.length} words`);
+    console.log(`[populateRoundSeedWords] First 5 words: ${selectedWords.slice(0, 5).join(', ')}`);
+
+    // Insert into database
+    const seedWordInserts: RoundSeedWordInsert[] = selectedWords.map((word) => ({
+      roundId,
+      word: word.toUpperCase(),
+    }));
+
+    if (seedWordInserts.length > 0) {
+      console.log(`[populateRoundSeedWords] Inserting ${seedWordInserts.length} seed words into database...`);
+      await db.insert(roundSeedWords).values(seedWordInserts);
+      console.log(`✅ Populated ${seedWordInserts.length} seed words for round ${roundId}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error populating seed words for round ${roundId}:`, error);
+    throw error;
   }
 }
 
@@ -87,11 +101,15 @@ export async function populateRoundSeedWords(
  * @returns Sorted array of words to display in the wheel
  */
 export async function getWheelWordsForRound(roundId: number): Promise<string[]> {
+  console.log(`[getWheelWordsForRound] Fetching wheel words for round ${roundId}`);
+
   // Get seed words
   const seedWordsData = await db
     .select({ word: roundSeedWords.word })
     .from(roundSeedWords)
     .where(eq(roundSeedWords.roundId, roundId));
+
+  console.log(`[getWheelWordsForRound] Found ${seedWordsData.length} seed words`);
 
   const seedWordSet = new Set(seedWordsData.map((row) => row.word));
 
@@ -101,6 +119,8 @@ export async function getWheelWordsForRound(roundId: number): Promise<string[]> 
     .from(guesses)
     .where(and(eq(guesses.roundId, roundId), eq(guesses.isCorrect, false)));
 
+  console.log(`[getWheelWordsForRound] Found ${wrongGuessesData.length} wrong guesses`);
+
   const wrongGuessSet = new Set(wrongGuessesData.map((row) => row.word));
 
   // Union of both sets
@@ -108,6 +128,11 @@ export async function getWheelWordsForRound(roundId: number): Promise<string[]> 
 
   // Convert to sorted array
   const sortedWords = Array.from(allWords).sort();
+
+  console.log(`[getWheelWordsForRound] Returning ${sortedWords.length} total words`);
+  if (sortedWords.length > 0) {
+    console.log(`[getWheelWordsForRound] First 5 words: ${sortedWords.slice(0, 5).join(', ')}`);
+  }
 
   return sortedWords;
 }
@@ -193,8 +218,13 @@ export async function getActiveWheelData(): Promise<{
   roundId: number;
   words: string[];
 }> {
+  console.log(`[getActiveWheelData] Getting active wheel data...`);
   const activeRound = await ensureActiveRound();
+  console.log(`[getActiveWheelData] Active round ID: ${activeRound.id}`);
+
   const words = await getWheelWordsForRound(activeRound.id);
+
+  console.log(`[getActiveWheelData] Returning ${words.length} words for round ${activeRound.id}`);
 
   return {
     roundId: activeRound.id,
