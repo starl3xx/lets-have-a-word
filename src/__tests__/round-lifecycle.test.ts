@@ -39,10 +39,10 @@ describe('Round Lifecycle', () => {
     });
 
     it('should create a round with forced answer', async () => {
-      const opts: CreateRoundOptions = { forceAnswer: 'crane' };
+      const opts: CreateRoundOptions = { forceAnswer: 'brain' };
       const round = await createRound(opts);
 
-      expect(round.answer).toBe('crane');
+      expect(round.answer).toBe('brain');
 
       // Clean up
       await resolveRound(round.id, 12345);
@@ -142,10 +142,10 @@ describe('Round Lifecycle', () => {
         await resolveRound(active.id, 12345);
       }
 
-      const opts: CreateRoundOptions = { forceAnswer: 'slate' };
+      const opts: CreateRoundOptions = { forceAnswer: 'house' };
       const ensured = await ensureActiveRound(opts);
 
-      expect(ensured.answer).toBe('slate');
+      expect(ensured.answer).toBe('house');
 
       // Clean up
       await resolveRound(ensured.id, 12345);
@@ -234,10 +234,10 @@ describe('Round Lifecycle', () => {
     });
 
     it('should fail verification for tampered answer', async () => {
-      const round = await createRound({ forceAnswer: 'crane' });
+      const round = await createRound({ forceAnswer: 'brain' });
 
       // Tamper with the answer
-      const tamperedRound = { ...round, answer: 'slate' };
+      const tamperedRound = { ...round, answer: 'house' };
 
       const isValid = verifyRoundCommitment(tamperedRound);
 
