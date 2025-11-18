@@ -822,4 +822,4 @@ Contributions welcome! Please:
 
 ---
 
-**Built with ❤️ by starl3xx**
+**Built with 🌠 by starl3xx**
