@@ -25,7 +25,7 @@ describe('Guess Logic - Milestone 1.3', () => {
     }
 
     // Create a new round with a known answer
-    testAnswer = 'crane';
+    testAnswer = 'brain';
     const round = await createRound({ forceAnswer: testAnswer });
     testRoundId = round.id;
   });

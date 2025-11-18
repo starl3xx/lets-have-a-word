@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, index, date, unique } from 'drizzle-orm/pg-core';
 import type { GameRulesConfig } from '../types';
 
 /**
@@ -22,6 +22,7 @@ export const users = pgTable('users', {
   fid: integer('fid').notNull().unique(), // Farcaster ID
   signerWalletAddress: varchar('signer_wallet_address', { length: 42 }), // Ethereum address
   referrerFid: integer('referrer_fid'), // FK to another user's FID
+  spamScore: integer('spam_score'), // Neynar spam/trust score (higher = more trustworthy)
   xp: integer('xp').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -81,3 +82,93 @@ export type RoundInsert = typeof rounds.$inferInsert;
 
 export type GuessRow = typeof guesses.$inferSelect;
 export type GuessInsert = typeof guesses.$inferInsert;
+
+/**
+ * Daily Guess State Table
+ * Tracks per-user, per-day guess allocations and usage
+ * Milestone 2.2: Daily & bonus mechanics
+ */
+export const dailyGuessState = pgTable('daily_guess_state', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull(), // FK to users.fid
+  date: date('date').notNull(), // UTC date (YYYY-MM-DD)
+
+  // Free guess allocations for this day
+  freeAllocatedBase: integer('free_allocated_base').default(0).notNull(), // Base free guesses (usually 1)
+  freeAllocatedClankton: integer('free_allocated_clankton').default(0).notNull(), // CLANKTON holder bonus (0 or 3)
+  freeAllocatedShareBonus: integer('free_allocated_share_bonus').default(0).notNull(), // Share bonus (0 or 1)
+  freeUsed: integer('free_used').default(0).notNull(), // How many free guesses consumed
+
+  // Paid guess state for this day
+  paidGuessCredits: integer('paid_guess_credits').default(0).notNull(), // Remaining paid guesses
+  paidPacksPurchased: integer('paid_packs_purchased').default(0).notNull(), // How many packs bought today (max 3)
+
+  // Share bonus tracking
+  hasSharedToday: boolean('has_shared_today').default(false).notNull(), // Once share detected, set true
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  // Unique constraint: one row per user per day
+  fidDateUnique: unique('daily_guess_state_fid_date_unique').on(table.fid, table.date),
+  // Index for lookups
+  fidDateIdx: index('daily_guess_state_fid_date_idx').on(table.fid, table.date),
+}));
+
+export type DailyGuessStateRow = typeof dailyGuessState.$inferSelect;
+export type DailyGuessStateInsert = typeof dailyGuessState.$inferInsert;
+
+/**
+ * Round Seed Words Table
+ * Stores seed words (cosmetic "fake guesses") for each round's wheel
+ * Milestone 2.3: Wheel visual state
+ */
+export const roundSeedWords = pgTable('round_seed_words', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  word: varchar('word', { length: 5 }).notNull(), // Uppercase 5-letter seed word
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  // Unique constraint: one occurrence of each seed word per round
+  roundWordUnique: unique('round_seed_words_round_word_unique').on(table.roundId, table.word),
+  // Index for lookups by round
+  roundIdx: index('round_seed_words_round_idx').on(table.roundId),
+}));
+
+export type RoundSeedWordRow = typeof roundSeedWords.$inferSelect;
+export type RoundSeedWordInsert = typeof roundSeedWords.$inferInsert;
+
+/**
+ * System State Table
+ * Stores singleton system-wide state (creator balance, etc.)
+ * Milestone 3.1: Jackpot + split logic
+ */
+export const systemState = pgTable('system_state', {
+  id: serial('id').primaryKey(),
+  creatorBalanceEth: decimal('creator_balance_eth', { precision: 20, scale: 18 }).default('0').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type SystemStateRow = typeof systemState.$inferSelect;
+export type SystemStateInsert = typeof systemState.$inferInsert;
+
+/**
+ * Round Payouts Table
+ * Stores payouts for each round (winner, referrer, top 10 guessers)
+ * Milestone 3.1: Jackpot + split logic
+ */
+export const roundPayouts = pgTable('round_payouts', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  fid: integer('fid').notNull(), // FK to users.fid - recipient of payout
+  amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('round_payouts_round_idx').on(table.roundId),
+  fidIdx: index('round_payouts_fid_idx').on(table.fid),
+}));
+
+export type RoundPayoutRow = typeof roundPayouts.$inferSelect;
+export type RoundPayoutInsert = typeof roundPayouts.$inferInsert;

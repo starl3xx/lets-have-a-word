@@ -1,0 +1,315 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  getOrCreateDailyState,
+  submitGuessWithDailyLimits,
+  canBuyAnotherPack,
+  awardPaidPack,
+  awardShareBonus,
+  getFreeGuessesRemaining,
+  getTodayUTC,
+  DAILY_LIMITS_RULES,
+} from '../lib/daily-limits';
+import { createRound, resolveRound } from '../lib/rounds';
+import { db } from '../db';
+import { dailyGuessState } from '../db/schema';
+import { eq, and } from 'drizzle-orm';
+
+/**
+ * Daily Limits & Bonus Mechanics Tests
+ * Milestone 2.2
+ *
+ * Note: These tests require a running PostgreSQL database
+ * Set DATABASE_URL in .env before running tests
+ */
+
+describe('Daily Limits & Bonuses - Milestone 2.2', () => {
+  let testFid: number;
+  let testDate: string;
+  let testRoundId: number;
+
+  beforeEach(async () => {
+    // Use unique FID for each test to avoid conflicts
+    testFid = Math.floor(Math.random() * 1000000) + 100000;
+    testDate = getTodayUTC();
+
+    // Create a test round
+    const round = await createRound({ forceAnswer: 'brain' });
+    testRoundId = round.id;
+  });
+
+  describe('Daily State Management', () => {
+    it('should create daily state for new user with base free guesses', async () => {
+      const state = await getOrCreateDailyState(testFid, testDate);
+
+      expect(state).toBeDefined();
+      expect(state.fid).toBe(testFid);
+      expect(state.date).toBe(testDate);
+      expect(state.freeAllocatedBase).toBe(DAILY_LIMITS_RULES.freeGuessesPerDayBase);
+      expect(state.freeAllocatedClankton).toBe(0); // Stub returns false
+      expect(state.freeAllocatedShareBonus).toBe(0);
+      expect(state.freeUsed).toBe(0);
+      expect(state.paidGuessCredits).toBe(0);
+      expect(state.paidPacksPurchased).toBe(0);
+      expect(state.hasSharedToday).toBe(false);
+    });
+
+    it('should return existing state on subsequent calls', async () => {
+      const state1 = await getOrCreateDailyState(testFid, testDate);
+      const state2 = await getOrCreateDailyState(testFid, testDate);
+
+      expect(state1.id).toBe(state2.id);
+      expect(state1.createdAt).toEqual(state2.createdAt);
+    });
+
+    it('should calculate free guesses remaining correctly', async () => {
+      const state = await getOrCreateDailyState(testFid, testDate);
+
+      // Initially: 1 base + 0 CLANKTON + 0 share = 1 total
+      expect(getFreeGuessesRemaining(state)).toBe(1);
+
+      // After using 1
+      await db
+        .update(dailyGuessState)
+        .set({ freeUsed: 1 })
+        .where(eq(dailyGuessState.id, state.id));
+      const updatedState = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(updatedState)).toBe(0);
+    });
+  });
+
+  describe('Free Guess Consumption', () => {
+    it('should consume free guesses before paid guesses', async () => {
+      // User has 1 free guess
+      const state = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(state)).toBe(1);
+
+      // Submit first guess (should use free)
+      const result1 = await submitGuessWithDailyLimits({
+        fid: testFid,
+        word: 'house',
+      });
+
+      expect(result1.status).toBe('incorrect');
+
+      // Check state after first guess
+      const stateAfter1 = await getOrCreateDailyState(testFid, testDate);
+      expect(stateAfter1.freeUsed).toBe(1);
+      expect(getFreeGuessesRemaining(stateAfter1)).toBe(0);
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+
+    it('should reject guess when no free or paid guesses remain', async () => {
+      // User has 1 free guess initially
+      const state = await getOrCreateDailyState(testFid, testDate);
+
+      // Use the free guess
+      await submitGuessWithDailyLimits({
+        fid: testFid,
+        word: 'house',
+      });
+
+      // Try to guess again (should be rejected)
+      const result = await submitGuessWithDailyLimits({
+        fid: testFid,
+        word: 'phone',
+      });
+
+      expect(result.status).toBe('no_guesses_left_today');
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+
+    it('should use paid guesses when free guesses exhausted', async () => {
+      const state = await getOrCreateDailyState(testFid, testDate);
+
+      // Award a paid pack (3 credits)
+      await awardPaidPack(testFid, testDate);
+
+      // Use free guess first
+      await submitGuessWithDailyLimits({
+        fid: testFid,
+        word: 'house',
+      });
+
+      // Now use paid guess
+      const result2 = await submitGuessWithDailyLimits({
+        fid: testFid,
+        word: 'phone',
+      });
+
+      expect(result2.status).toBe('incorrect');
+
+      // Check state
+      const finalState = await getOrCreateDailyState(testFid, testDate);
+      expect(finalState.freeUsed).toBe(1);
+      expect(finalState.paidGuessCredits).toBe(2); // 3 - 1 = 2 remaining
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+  });
+
+  describe('Paid Pack Purchases', () => {
+    it('should award paid pack and add credits', async () => {
+      const stateBefore = await getOrCreateDailyState(testFid, testDate);
+      expect(stateBefore.paidPacksPurchased).toBe(0);
+      expect(stateBefore.paidGuessCredits).toBe(0);
+
+      await awardPaidPack(testFid, testDate);
+
+      const stateAfter = await getOrCreateDailyState(testFid, testDate);
+      expect(stateAfter.paidPacksPurchased).toBe(1);
+      expect(stateAfter.paidGuessCredits).toBe(DAILY_LIMITS_RULES.paidGuessPackSize);
+    });
+
+    it('should allow up to max packs per day', async () => {
+      // Buy first pack
+      const canBuy1 = await canBuyAnotherPack(testFid, testDate);
+      expect(canBuy1).toBe(true);
+      await awardPaidPack(testFid, testDate);
+
+      // Buy second pack
+      const canBuy2 = await canBuyAnotherPack(testFid, testDate);
+      expect(canBuy2).toBe(true);
+      await awardPaidPack(testFid, testDate);
+
+      // Buy third pack
+      const canBuy3 = await canBuyAnotherPack(testFid, testDate);
+      expect(canBuy3).toBe(true);
+      await awardPaidPack(testFid, testDate);
+
+      // Try to buy fourth pack (should fail)
+      const canBuy4 = await canBuyAnotherPack(testFid, testDate);
+      expect(canBuy4).toBe(false);
+
+      await expect(awardPaidPack(testFid, testDate)).rejects.toThrow('Cannot buy more packs');
+
+      // Verify state
+      const finalState = await getOrCreateDailyState(testFid, testDate);
+      expect(finalState.paidPacksPurchased).toBe(DAILY_LIMITS_RULES.maxPaidPacksPerDay);
+      expect(finalState.paidGuessCredits).toBe(
+        DAILY_LIMITS_RULES.paidGuessPackSize * DAILY_LIMITS_RULES.maxPaidPacksPerDay
+      );
+    });
+
+    it('should correctly consume paid credits across multiple guesses', async () => {
+      // Award 1 pack (3 credits)
+      await awardPaidPack(testFid, testDate);
+
+      // Use free guess first
+      await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+
+      // Use 3 paid guesses
+      await submitGuessWithDailyLimits({ fid: testFid, word: 'phone' });
+      await submitGuessWithDailyLimits({ fid: testFid, word: 'table' });
+      await submitGuessWithDailyLimits({ fid: testFid, word: 'chair' });
+
+      // Try another guess (should be rejected)
+      const result = await submitGuessWithDailyLimits({ fid: testFid, word: 'light' });
+      expect(result.status).toBe('no_guesses_left_today');
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+  });
+
+  describe('Share Bonus', () => {
+    it('should award share bonus once per day', async () => {
+      const stateBefore = await getOrCreateDailyState(testFid, testDate);
+      expect(stateBefore.hasSharedToday).toBe(false);
+      expect(stateBefore.freeAllocatedShareBonus).toBe(0);
+
+      // Award share bonus
+      const result = await awardShareBonus(testFid, testDate);
+      expect(result).toBeDefined();
+      expect(result?.hasSharedToday).toBe(true);
+      expect(result?.freeAllocatedShareBonus).toBe(DAILY_LIMITS_RULES.shareBonusGuesses);
+
+      // Try to award again (should return null)
+      const result2 = await awardShareBonus(testFid, testDate);
+      expect(result2).toBeNull();
+    });
+
+    it('should increase free guesses available after share bonus', async () => {
+      const state1 = await getOrCreateDailyState(testFid, testDate);
+      const initialFree = getFreeGuessesRemaining(state1);
+      expect(initialFree).toBe(1); // Base only
+
+      // Award share bonus
+      await awardShareBonus(testFid, testDate);
+
+      const state2 = await getOrCreateDailyState(testFid, testDate);
+      const newFree = getFreeGuessesRemaining(state2);
+      expect(newFree).toBe(initialFree + DAILY_LIMITS_RULES.shareBonusGuesses);
+    });
+
+    it('should allow using share bonus guess', async () => {
+      // Use base free guess
+      await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+
+      // Would be out of guesses, but award share bonus
+      await awardShareBonus(testFid, testDate);
+
+      // Should be able to guess again
+      const result = await submitGuessWithDailyLimits({ fid: testFid, word: 'phone' });
+      expect(result.status).toBe('incorrect');
+
+      // Now should be out of guesses
+      const result2 = await submitGuessWithDailyLimits({ fid: testFid, word: 'table' });
+      expect(result2.status).toBe('no_guesses_left_today');
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+  });
+
+  describe('Full Day Scenario', () => {
+    it('should handle complete daily flow with all guess types', async () => {
+      // Initial state: 1 base free guess
+      const state1 = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(state1)).toBe(1);
+
+      // 1. Use base free guess
+      const guess1 = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(guess1.status).toBe('incorrect');
+
+      // 2. Award share bonus
+      await awardShareBonus(testFid, testDate);
+      const state2 = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(state2)).toBe(1); // Share bonus guess
+
+      // 3. Use share bonus guess
+      const guess2 = await submitGuessWithDailyLimits({ fid: testFid, word: 'phone' });
+      expect(guess2.status).toBe('incorrect');
+
+      // 4. Buy a pack (3 paid guesses)
+      await awardPaidPack(testFid, testDate);
+
+      // 5. Use all 3 paid guesses
+      const guess3 = await submitGuessWithDailyLimits({ fid: testFid, word: 'table' });
+      expect(guess3.status).toBe('incorrect');
+
+      const guess4 = await submitGuessWithDailyLimits({ fid: testFid, word: 'chair' });
+      expect(guess4.status).toBe('incorrect');
+
+      const guess5 = await submitGuessWithDailyLimits({ fid: testFid, word: 'light' });
+      expect(guess5.status).toBe('incorrect');
+
+      // 6. No more guesses
+      const guess6 = await submitGuessWithDailyLimits({ fid: testFid, word: 'bread' });
+      expect(guess6.status).toBe('no_guesses_left_today');
+
+      // Verify final state
+      const finalState = await getOrCreateDailyState(testFid, testDate);
+      expect(finalState.freeUsed).toBe(2); // base + share
+      expect(finalState.paidGuessCredits).toBe(0); // all used
+      expect(finalState.hasSharedToday).toBe(true);
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+  });
+});

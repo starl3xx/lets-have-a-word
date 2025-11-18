@@ -1,11 +1,87 @@
-import { useState, FormEvent, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult } from '../src/types';
+import TopTicker from '../components/TopTicker';
+import Wheel from '../components/Wheel';
+import UserState from '../components/UserState';
+import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
   const [word, setWord] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Input ref for auto-focus on mobile
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Farcaster context
+  const [fid, setFid] = useState<number | null>(null);
+
+  // Wheel state (Milestone 2.3)
+  const [wheelWords, setWheelWords] = useState<string[]>([]);
+  const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+
+  // User state refetch trigger (Milestone 4.1)
+  const [userStateKey, setUserStateKey] = useState(0);
+
+  /**
+   * Get Farcaster context on mount
+   */
+  useEffect(() => {
+    const getFarcasterContext = async () => {
+      try {
+        const context = await sdk.context;
+        if (context?.user?.fid) {
+          setFid(context.user.fid);
+          console.log('Farcaster FID:', context.user.fid);
+        }
+      } catch (error) {
+        console.log('Not in Farcaster context, using dev mode');
+      }
+    };
+
+    getFarcasterContext();
+  }, []);
+
+  /**
+   * Fetch wheel words on mount (Milestone 2.3)
+   */
+  useEffect(() => {
+    const fetchWheelWords = async () => {
+      try {
+        const response = await fetch('/api/wheel');
+        if (response.ok) {
+          const data = await response.json();
+          setWheelWords(data.words || []);
+        }
+      } catch (error) {
+        console.error('Error fetching wheel words:', error);
+        setWheelWords([]);
+      } finally {
+        setIsLoadingWheel(false);
+      }
+    };
+
+    fetchWheelWords();
+  }, []);
+
+  /**
+   * Auto-focus input on mobile
+   */
+  useEffect(() => {
+    if (!inputRef.current) return;
+
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // Small delay helps iOS Safari actually show the keyboard
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 200);
+    }
+  }, []);
 
   /**
    * Handle input change
@@ -32,20 +108,21 @@ export default function Home() {
   };
 
   /**
-   * Handle Enter key press
+   * Handle Enter key press - PREVENT submission, user must tap GUESS button
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && word.length === 5 && !isLoading) {
-      handleSubmit(e as any);
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Do NOT submit - user must tap the GUESS button
+      return;
     }
   };
 
   /**
    * Submit guess to backend
+   * Only called when GUESS button is tapped
    */
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     // Validate word length
     if (word.length !== 5) {
       setErrorMessage('Word must be exactly 5 letters.');
@@ -58,13 +135,24 @@ export default function Home() {
     setErrorMessage(null);
 
     try {
+      // Use Farcaster FID if available, otherwise use dev FID
+      const requestBody: any = { word };
+
+      if (fid) {
+        // Use Farcaster context FID
+        requestBody.devFid = fid;
+      } else {
+        // Fallback to dev FID when not in Farcaster context
+        requestBody.devFid = 12345;
+      }
+
       // Call API
       const response = await fetch('/api/guess', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ word }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -73,6 +161,24 @@ export default function Home() {
 
       const data: SubmitGuessResult = await response.json();
       setResult(data);
+
+      // Refetch wheel data after guess (Milestone 2.3)
+      // Wrong guesses will now appear in the wheel
+      if (data.status === 'incorrect') {
+        try {
+          const wheelResponse = await fetch('/api/wheel');
+          if (wheelResponse.ok) {
+            const wheelData = await wheelResponse.json();
+            setWheelWords(wheelData.words || []);
+          }
+        } catch (err) {
+          console.error('Error refetching wheel:', err);
+        }
+      }
+
+      // Refetch user state after any guess (Milestone 4.1)
+      // This updates the guess counts in real-time
+      setUserStateKey(prev => prev + 1);
 
       // Clear input on success (optional)
       // setWord('');
@@ -143,78 +249,113 @@ export default function Home() {
   const isButtonDisabled = word.length !== 5 || isLoading;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-        {/* Title */}
-        <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
-          Let's Have A Word
-        </h1>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Top Ticker (Milestone 2.3) */}
+      <TopTicker />
 
-        {/* Subtitle */}
-        <p className="text-center text-gray-600 mb-8">
-          Guess the secret 5-letter word
-        </p>
+      {/* User State (Milestone 4.1) */}
+      <div className="px-4 pt-4">
+        <div className="max-w-md mx-auto">
+          <UserState key={userStateKey} fid={fid} />
+        </div>
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Input */}
-          <div>
-            <input
-              type="text"
-              value={word}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter word"
-              className="w-full px-4 py-3 text-2xl font-mono text-center uppercase border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 tracking-widest"
-              maxLength={5}
-              autoFocus
-              disabled={isLoading}
-            />
-            <p className="text-xs text-gray-500 text-center mt-2">
-              {word.length}/5 letters
-            </p>
+      {/* Main Game Container with Layered Wheel */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="max-w-md w-full relative" style={{ height: '600px' }}>
+
+          {/* Background Layer: Wheel */}
+          <div className="absolute inset-0" style={{ zIndex: 1 }}>
+            {isLoadingWheel ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-400 animate-pulse">Loading...</p>
+              </div>
+            ) : (
+              <Wheel words={wheelWords} currentGuess={word} />
+            )}
           </div>
 
-          {/* Button */}
-          <button
-            type="submit"
-            disabled={isButtonDisabled}
-            className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors ${
-              isButtonDisabled
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-            }`}
-          >
-            {isLoading ? 'Submitting...' : 'Guess'}
-          </button>
-        </form>
+          {/* Foreground Layer: Input & Controls */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
 
-        {/* Feedback area */}
-        <div className="mt-6 min-h-[60px]">
-          {/* Error message */}
-          {errorMessage && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-600 text-center">{errorMessage}</p>
+            {/* Input Area */}
+            <div className="relative z-10 w-full px-8">
+              <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+                {/* 5-Letter Input Boxes */}
+                <div>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={word}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="     "
+                    className="w-full px-4 py-4 text-4xl font-mono text-center uppercase border-4 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 tracking-[0.5em] bg-white shadow-lg"
+                    maxLength={5}
+                    disabled={isLoading}
+                    style={{
+                      fontWeight: 'bold',
+                      letterSpacing: '0.5em',
+                    }}
+                  />
+                  <div className="text-center mt-2">
+                    <p className="text-xs text-gray-500 font-semibold inline-block relative">
+                      <span className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded px-2 py-1" style={{
+                        left: '-8px',
+                        right: '-8px',
+                        top: '-4px',
+                        bottom: '-4px',
+                      }}></span>
+                      <span className="relative z-10">{word.length}/5 letters</span>
+                    </p>
+                  </div>
+                </div>
+              </form>
+
+              {/* Feedback area below input */}
+              {(errorMessage || feedback) && (
+                <div className="mt-4">
+                  {errorMessage && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                      <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
+                    </div>
+                  )}
+
+                  {feedback && !errorMessage && (
+                    <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                      <p className={`${feedback.color} text-center text-sm font-medium`}>
+                        {feedback.text}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Result feedback */}
-          {feedback && !errorMessage && (
-            <div className={`bg-gray-50 border border-gray-200 rounded-lg p-4`}>
-              <p className={`${feedback.color} text-center font-medium`}>
-                {feedback.text}
-              </p>
+            {/* Guess Button - positioned below the input area */}
+            <div className="absolute bottom-8 left-0 right-0 px-8 z-10">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isButtonDisabled}
+                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
+                  isButtonDisabled
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:scale-95'
+                }`}
+              >
+                {isLoading ? 'SUBMITTING...' : 'GUESS'}
+              </button>
+
+              {/* Info footer */}
+              <div className="mt-4">
+                <p className="text-xs text-gray-400 text-center">
+                  Milestone 2.3 - Faux-3D Wheel
+                </p>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Info footer */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center">
-            Milestone 1.4 - Minimal Frontend
-            <br />
-            Everyone in the world is guessing the same word
-          </p>
+          </div>
         </div>
       </div>
     </div>
