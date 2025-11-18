@@ -10,9 +10,9 @@ A global, persistent 5-letter word guessing game with ETH jackpots.
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## Milestone 1.2 - Round Lifecycle ✅
+## Milestone 1.3 - Guess Logic Basic ✅
 
-This milestone implements the complete round lifecycle with pack-based purchases:
+This milestone implements the core guess submission and validation logic:
 
 ### Features Implemented
 
@@ -20,7 +20,7 @@ This milestone implements the complete round lifecycle with pack-based purchases
   - `game_rules` - Configurable rulesets
   - `users` - Player accounts (Farcaster integration pending)
   - `rounds` - Game rounds with commit-reveal proofs
-  - `guesses` - Player guess history
+  - `guesses` - Player guess history with `isCorrect` tracking
 
 - ✅ **Word Lists**
   - `ANSWER_WORDS` (~500 curated answer candidates)
@@ -52,6 +52,31 @@ This milestone implements the complete round lifecycle with pack-based purchases
   - `verifyRoundCommitment(round)` - Verify fairness
   - Prevents creating multiple active rounds
   - Prevents resolving already-resolved rounds
+
+- ✅ **Guess Submission & Validation**
+  - `submitGuess({ fid, word, isPaidGuess? })` - Core guess function
+  - Word normalization (uppercase, trim)
+  - Format validation (5 letters, A-Z only)
+  - Dictionary validation (must be in GUESS_WORDS)
+  - Automatic round resolution on correct guess
+  - Race condition protection for concurrent correct guesses
+
+- ✅ **Global Wrong Word Tracking**
+  - `getWrongWordsForRound(roundId)` - Alphabetically sorted wrong guesses
+  - Global deduplication: no one can re-guess a wrong word
+  - Prevents wasting guesses on known wrong answers
+  - Ready for wheel UI integration
+
+- ✅ **Per-User Guess Tracking**
+  - `getGuessCountForUserInRound(fid, roundId)` - Total guess count
+  - Counts both free and paid guesses
+  - Used for user feedback and top guesser ranking
+
+- ✅ **Top 10 Guesser Logic**
+  - `getTopGuessersForRound(roundId, limit)` - Leaderboard ranking
+  - Ordered by: guess count DESC, first guess timestamp ASC
+  - Tiebreaker: earlier first guess wins
+  - Foundation for top 10 prize pool distribution
 
 ## Tech Stack
 
@@ -178,6 +203,51 @@ const valid = isValidGuess('crane'); // true
 const answers = getAnswerWords();
 ```
 
+### Submitting Guesses
+
+```typescript
+import {
+  submitGuess,
+  getWrongWordsForRound,
+  getGuessCountForUserInRound,
+  getTopGuessersForRound,
+} from './src/lib/guesses';
+
+// Submit a guess
+const result = await submitGuess({
+  fid: 12345,
+  word: 'crane',
+  isPaidGuess: false, // Optional, defaults to false
+});
+
+// Handle result
+if (result.status === 'correct') {
+  console.log(`Winner! Round ${result.roundId} won by FID ${result.winnerFid}`);
+} else if (result.status === 'incorrect') {
+  console.log(`Wrong! Total guesses: ${result.totalGuessesForUserThisRound}`);
+} else if (result.status === 'already_guessed_word') {
+  console.log(`Word "${result.word}" already guessed by someone else`);
+} else if (result.status === 'invalid_word') {
+  console.log(`Invalid word: ${result.reason}`);
+} else if (result.status === 'round_closed') {
+  console.log('Round is already resolved');
+}
+
+// Get all wrong words for the wheel
+const wrongWords = await getWrongWordsForRound(roundId);
+console.log('Wrong guesses:', wrongWords); // ['APPLE', 'HOUSE', 'PHONE']
+
+// Get user's total guess count
+const count = await getGuessCountForUserInRound(fid, roundId);
+console.log(`User has made ${count} guesses`);
+
+// Get top 10 guessers (leaderboard)
+const topGuessers = await getTopGuessersForRound(roundId, 10);
+topGuessers.forEach((guesser, i) => {
+  console.log(`${i + 1}. FID ${guesser.fid}: ${guesser.guessCount} guesses`);
+});
+```
+
 ## Game Mechanics (Overview)
 
 ### Guessing System
@@ -208,7 +278,8 @@ src/
 ├── __tests__/         # Unit tests (Vitest)
 │   ├── word-lists.test.ts
 │   ├── commit-reveal.test.ts
-│   └── round-lifecycle.test.ts
+│   ├── round-lifecycle.test.ts
+│   └── guess-logic.test.ts
 ├── data/              # Word list data files
 │   ├── answer-words.ts
 │   ├── guess-words.ts
@@ -221,7 +292,8 @@ src/
 │   ├── word-lists.ts
 │   ├── game-rules.ts
 │   ├── commit-reveal.ts
-│   └── rounds.ts
+│   ├── rounds.ts
+│   └── guesses.ts
 ├── scripts/           # Utility scripts
 │   ├── seed.ts
 │   └── validate-setup.ts
@@ -230,26 +302,32 @@ src/
 └── index.ts           # Main entry point
 ```
 
-## What's NOT in Milestone 1.2
+## What's NOT in Milestone 1.3
 
 The following features are planned for future milestones:
-- ❌ Farcaster integration (Neynar API) - **Milestone 1.3**
-- ❌ Guess submission endpoints - **Milestone 1.3**
-- ❌ Daily reset logic - **Milestone 1.3**
-- ❌ CLANKTON balance checking - **Milestone 1.4**
-- ❌ Share-to-earn callbacks - **Milestone 1.4**
-- ❌ ETH jackpot processing - **Milestone 1.5**
-- ❌ Referral tracking - **Milestone 1.5**
-- ❌ Leaderboards - **Milestone 2.0**
-- ❌ UI/Frontend - **Milestone 2.0**
-- ❌ Announcer bot - **Milestone 2.1**
+- ❌ Farcaster integration (Neynar API) - **Milestone 1.4/2.1**
+- ❌ HTTP API endpoints - **Milestone 1.4**
+- ❌ Daily reset logic - **Milestone 2.2**
+- ❌ CLANKTON balance checking - **Milestone 4.1**
+- ❌ Share-to-earn callbacks - **Milestone 4.2**
+- ❌ ETH jackpot processing - **Milestone 3.1**
+- ❌ Referral tracking - **Milestone 2.1**
+- ❌ Daily limits enforcement - **Milestone 2.2**
+- ❌ UI/Frontend - **Milestone 1.4/2.0**
+- ❌ Announcer bot - **Milestone 5.1**
 
-### What IS in Milestone 1.2
+### What IS in Milestone 1.3
 - ✅ Complete round lifecycle (create → active → resolve)
 - ✅ Pack-based guess purchases (3 guesses per pack)
 - ✅ Commit-reveal integrity checks
 - ✅ Round state management
 - ✅ Comprehensive test coverage
+- ✅ Guess submission with full validation
+- ✅ Global wrong word deduplication
+- ✅ Per-user guess counting
+- ✅ Top 10 guesser ranking
+- ✅ Automatic round resolution on correct guess
+- ✅ Race condition protection
 
 ## Scripts
 

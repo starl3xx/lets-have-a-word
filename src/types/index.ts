@@ -69,7 +69,36 @@ export interface Guess {
   fid: number;
   word: string; // 5-letter guessed word
   isPaid: boolean;
+  isCorrect: boolean; // True if this guess won the round
   createdAt: Date;
+}
+
+/**
+ * Submit Guess Result Types
+ */
+export type SubmitGuessResult =
+  | { status: 'round_closed' }
+  | { status: 'invalid_word'; reason: 'not_5_letters' | 'non_alpha' | 'not_in_dictionary' }
+  | { status: 'already_guessed_word'; word: string }
+  | { status: 'incorrect'; word: string; totalGuessesForUserThisRound: number }
+  | { status: 'correct'; word: string; roundId: number; winnerFid: number };
+
+/**
+ * Submit Guess Parameters
+ */
+export interface SubmitGuessParams {
+  fid: number;
+  word: string;
+  isPaidGuess?: boolean;
+}
+
+/**
+ * Top Guesser Stats
+ */
+export interface TopGuesser {
+  fid: number;
+  guessCount: number;
+  firstGuessAt: Date;
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * Let's Have A Word - Main Entry Point
  *
- * Milestone 1.2: Round Lifecycle
+ * Milestone 1.3: Guess Logic Basic
  */
 
 // Export all modules
@@ -10,6 +10,7 @@ export * from './lib/word-lists';
 export * from './lib/game-rules';
 export * from './lib/commit-reveal';
 export * from './lib/rounds';
+export * from './lib/guesses';
 export * from './db';
 
 // Validation on import
@@ -20,4 +21,4 @@ if (process.env.SKIP_WORD_LIST_VALIDATION !== 'true') {
   validateWordLists();
 }
 
-console.log('✅ Let\'s Have A Word - Milestone 1.2 (Round Lifecycle) initialized');
+console.log('✅ Let\'s Have A Word - Milestone 1.3 (Guess Logic Basic) initialized');
