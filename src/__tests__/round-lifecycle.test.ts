@@ -27,8 +27,8 @@ describe('Round Lifecycle', () => {
       expect(round.salt).toBeDefined();
       expect(round.commitHash).toBeDefined();
       expect(round.rulesetId).toBe(1);
-      expect(round.prizePoolEth).toBe('0');
-      expect(round.seedNextRoundEth).toBe('0');
+      expect(round.prizePoolEth).toBe('0.000000000000000000');
+      expect(round.seedNextRoundEth).toBe('0.000000000000000000');
       expect(round.winnerFid).toBeNull();
       expect(round.referrerFid).toBeNull();
       expect(round.startedAt).toBeInstanceOf(Date);
