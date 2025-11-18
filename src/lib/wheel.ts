@@ -18,19 +18,37 @@ import type { RoundSeedWordInsert } from '../db/schema';
 
 /**
  * Round Status - displayed in top ticker
+ * Milestone 3.2: Polished with live data and USD conversion
  */
 export interface RoundStatus {
   roundId: number;
   prizePoolEth: string; // Decimal as string
   prizePoolUsd?: string; // Optional USD conversion
   globalGuessCount: number; // Total guesses for this round
+  lastUpdatedAt: string; // ISO timestamp when status was computed
 }
 
 /**
- * ETH to USD conversion rate (placeholder for Milestone 2.3)
- * In production, this would come from an oracle or price feed
+ * Get ETH to USD conversion rate
+ * Milestone 3.2: Configurable via environment variable
+ *
+ * For now uses a placeholder rate. In production, this would:
+ * - Query CoinGecko or on-chain oracle
+ * - Cache the result for a reasonable duration
+ *
+ * @returns Current ETH/USD rate
  */
-const ETH_USD_RATE = 3000;
+export function getEthUsdRate(): number {
+  const envRate = process.env.ETH_USD_RATE;
+  if (envRate) {
+    const parsed = parseFloat(envRate);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  // Default placeholder rate
+  return 3000;
+}
 
 /**
  * Populate seed words for a round
@@ -157,11 +175,13 @@ export async function getGlobalGuessCount(roundId: number): Promise<number> {
 
 /**
  * Get round status (for top ticker)
+ * Milestone 3.2: Returns live, correct data for the top ticker
  *
  * Returns:
  * - Current prize pool (in ETH)
- * - Approximate USD value
- * - Global guess count
+ * - Approximate USD value (using configurable rate)
+ * - Global guess count (total guesses, not seed words)
+ * - Timestamp when computed
  *
  * @param roundId - The round to get status for
  * @returns Round status object
@@ -181,15 +201,17 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
   // Get global guess count
   const globalGuessCount = await getGlobalGuessCount(roundId);
 
-  // Convert prize pool to USD
+  // Convert prize pool to USD using configurable rate
   const prizePoolEthNum = parseFloat(round.prizePoolEth);
-  const prizePoolUsd = (prizePoolEthNum * ETH_USD_RATE).toFixed(2);
+  const ethUsdRate = getEthUsdRate();
+  const prizePoolUsd = (prizePoolEthNum * ethUsdRate).toFixed(2);
 
   return {
     roundId: round.id,
     prizePoolEth: round.prizePoolEth,
     prizePoolUsd,
     globalGuessCount,
+    lastUpdatedAt: new Date().toISOString(),
   };
 }
 
