@@ -29,6 +29,13 @@ Onchain token bonus system:
   - Verified onchain at daily reset
   - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
 
+- **User State UI**
+  - Live display of remaining guesses (free + paid)
+  - CLANKTON bonus status indicator
+  - Daily allocation breakdown
+  - Buy more guesses button
+  - Real-time updates after each guess
+
 - **Configuration**
   - `BASE_RPC_URL` environment variable
   - Defaults to `https://mainnet.base.org`
@@ -249,6 +256,10 @@ npm test
 - `GET /api/wheel` - Get wheel words
   - Returns: `{ roundId, words[] }` (seed words + wrong guesses)
 
+- `GET /api/user-state` - Get user's daily guess allocations (Milestone 4.1)
+  - Requires: `devFid` or `frameMessage` param
+  - Returns: `{ fid, freeGuessesRemaining, paidGuessesRemaining, totalGuessesRemaining, clanktonBonusActive, freeAllocations, paidPacksPurchased, maxPaidPacksPerDay, canBuyMorePacks }`
+
 ## Database Schema
 
 ### Core Tables
@@ -391,7 +402,8 @@ pages/
 
 components/
 ├── Wheel.tsx          # Spinning word wheel
-└── TopTicker.tsx      # Live status ticker
+├── TopTicker.tsx      # Live status ticker
+└── UserState.tsx      # User guess allocations & CLANKTON bonus
 
 drizzle/               # Database migrations
 ```
