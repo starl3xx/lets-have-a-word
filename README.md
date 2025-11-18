@@ -1,138 +1,172 @@
-# Let's Have A Word 🎮
+# Let's Have A Word! 💬
 
-A global, persistent 5-letter word guessing game with ETH jackpots.
+**Massively multiplayer word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot**
 
 ## Overview
 
 **Let's Have A Word** is a Farcaster mini app where:
 - **ONE** secret 5-letter word per round, shared globally
 - Everyone in the world guesses the same word
+- Wrong guesses appear on a spinning wheel for all to see
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## Milestone 1.4 - Minimal Frontend ✅
+## 🎯 Current Status: Milestone 3.2 Complete
 
-This milestone implements a playable web interface for the game:
+All core game mechanics are fully implemented and production-ready:
 
-### Features Implemented
+### ✅ Milestone 3.2 - Top Ticker Polish (Latest)
 
-- ✅ **Next.js Frontend**
-  - Single-page React application
-  - Clean, functional UI with Tailwind CSS
+Live round status display with polished formatting:
+
+- **Live Jackpot Display**
+  - Shows current prize pool in ETH (from database)
+  - Approximate USD equivalent with configurable rate
+  - Proper formatting (trims trailing zeros, commas for USD)
+
+- **Global Guess Counter**
+  - Total guesses for current round
+  - Formatted with thousand separators
+
+- **Efficient Polling**
+  - Updates every 15 seconds
+  - Graceful error handling and loading states
+
+- **Configuration**
+  - `ETH_USD_RATE` environment variable support
+  - Ready for oracle integration
+
+### ✅ Milestone 3.1 - Jackpot + Split Logic
+
+Complete economic system for prize distribution:
+
+- **Per-Guess Economics (80/20 Split)**
+  - 80% → Prize pool
+  - 20% → Seed for next round (up to 0.1 ETH cap)
+  - Overflow → Creator balance
+
+- **Jackpot Resolution (80/10/10 Split)**
+  - 80% → Winner
+  - 10% → Referrer (or winner if no referrer)
+  - 10% → Top 10 guessers (by volume, tiebreaker: earliest first guess)
+
+- **Database Tables**
+  - `system_state` - Creator balance tracking
+  - `round_payouts` - Payout records per round
+
+- **Tested & Verified**
+  - Comprehensive test suite (8 tests passing)
+  - Handles edge cases (zero jackpot, missing referrer, etc.)
+
+### ✅ Milestone 2.3 - Wheel + Visual State + Top Ticker
+
+Interactive UI with live game state:
+
+- **Spinning Word Wheel**
+  - Faux-3D carousel effect with distance-based scaling
+  - Shows seed words + wrong guesses (alphabetically sorted)
+  - Auto-scrolls to match user input
+  - Pre-populated with 30 seed words per round
+
+- **Top Ticker**
+  - Live prize pool (ETH + USD)
+  - Global guess count
+  - Current round number
+  - Polls `/api/round-state` every 15 seconds
+
+- **Backend**
+  - Seed word population system
+  - Round status API endpoints
+  - Wheel data retrieval
+
+### ✅ Milestone 2.2 - Daily Limits & Bonus Mechanics
+
+Complete daily guess allocation system:
+
+- **Free Guesses**
+  - 1 base free guess per day
+  - +3 for CLANKTON holders (≥100M tokens)
+  - +1 for sharing to Farcaster
+
+- **Paid Guesses**
+  - Buy packs of 3 guesses for 0.0003 ETH
+  - Up to 3 packs per day (9 paid guesses max)
+  - Economic effects automatically applied
+
+- **State Management**
+  - Per-user, per-day tracking
+  - UTC-based daily reset
+  - `daily_guess_state` table
+
+### ✅ Milestone 2.1 - Farcaster Authentication
+
+Full Farcaster integration with Neynar SDK:
+
+- **Authentication**
+  - Frame message verification
+  - Signer UUID verification
+  - Real FID extraction from Farcaster context
+
+- **User Management**
+  - Auto-upsert users from Farcaster data
+  - Referral tracking
+  - Spam score integration
+
+- **Mobile Support**
+  - Farcaster miniapp SDK integration
+  - Auto-focus on mobile devices
+  - Keyboard-optimized UX
+
+### ✅ Milestone 1.4 - Minimal Frontend
+
+Playable web interface:
+
+- **Game UI**
+  - 5-letter input with validation
+  - Comprehensive feedback system
+  - Loading states and error handling
+  - Character counter and visual feedback
+
+- **Mobile Optimizations**
+  - Auto-focus input on mobile
+  - Require GUESS button tap (no Enter key)
   - Responsive design
 
-- ✅ **Game Interface**
-  - 5-letter input with auto-uppercase
-  - A-Z character filtering
-  - Real-time input validation (5 letter limit)
-  - "Guess" button with loading states
-  - Enter key support for quick submission
+### ✅ Milestone 1.3 - Guess Logic
 
-- ✅ **API Integration**
-  - `POST /api/guess` endpoint
-  - Hardcoded test FID (12345) for Milestone 1.4
-  - Automatic active round management via `ensureActiveRound()`
-  - All guesses treated as free (no payments yet)
+Core game mechanics:
 
-- ✅ **Comprehensive Feedback**
-  - ✅ Correct guess: "🎉 Correct! You found the word..."
-  - ❌ Incorrect guess: Shows total guess count
-  - ⚠️ Already guessed: Global deduplication message
-  - 🚫 Invalid word: Not in dictionary / wrong format
-  - 🔒 Round closed: Round already resolved
+- **Round Lifecycle**
+  - Create → Active → Guess → Resolve
+  - Commit-reveal for provable fairness
+  - Automatic round resolution
 
-- ✅ **User Experience**
-  - Disabled button when word < 5 letters
-  - Disabled input during submission
-  - Loading spinner while processing
-  - Error handling for network failures
-  - Character counter (X/5 letters)
-  - Auto-focus on input
-  - Clear, readable feedback messages
+- **Guess Validation**
+  - Format checking (5 letters, A-Z)
+  - Dictionary validation
+  - Global wrong word deduplication
+  - Race condition protection
 
-### Previous Milestones
-
-## Milestone 1.3 - Guess Logic Basic ✅
-
-This milestone implements the core guess submission and validation logic:
-
-### Features Implemented
-
-- ✅ **Database Schema**: PostgreSQL with Drizzle ORM
-  - `game_rules` - Configurable rulesets
-  - `users` - Player accounts (Farcaster integration pending)
-  - `rounds` - Game rounds with commit-reveal proofs
-  - `guesses` - Player guess history with `isCorrect` tracking
-
-- ✅ **Word Lists**
-  - `ANSWER_WORDS` (~500 curated answer candidates)
-  - `GUESS_WORDS` (~650 valid guessable words)
-  - `SEED_WORDS` (~200 wheel pre-population words)
-  - Automated constraint validation
-
-- ✅ **Commit-Reveal Model**
-  - Provably fair word selection
-  - SHA-256 commit hash verification
-  - Prevents backend cheating
-
-- ✅ **Pack-Based Purchases**
-  - Buy **3 guesses** for 0.0003 ETH per pack
-  - Up to **3 packs per day** (9 total paid guesses)
-  - Cleaner UX than individual purchases
-
-- ✅ **Game Rules System**
-  - JSONB configuration storage
-  - Version-controlled rulesets
-  - Functions: `getCurrentRules()`, `getRulesForRound()`
-
-- ✅ **Round Lifecycle**
-  - `createRound(opts?)` - Initialize new rounds with options
-  - `getActiveRound()` - Get current unresolved round
-  - `ensureActiveRound(opts?)` - Get or create active round
-  - `getRoundById(id)` - Fetch specific round
-  - `resolveRound(id, winner, referrer?)` - Mark winner
-  - `verifyRoundCommitment(round)` - Verify fairness
-  - Prevents creating multiple active rounds
-  - Prevents resolving already-resolved rounds
-
-- ✅ **Guess Submission & Validation**
-  - `submitGuess({ fid, word, isPaidGuess? })` - Core guess function
-  - Word normalization (uppercase, trim)
-  - Format validation (5 letters, A-Z only)
-  - Dictionary validation (must be in GUESS_WORDS)
-  - Automatic round resolution on correct guess
-  - Race condition protection for concurrent correct guesses
-
-- ✅ **Global Wrong Word Tracking**
-  - `getWrongWordsForRound(roundId)` - Alphabetically sorted wrong guesses
-  - Global deduplication: no one can re-guess a wrong word
-  - Prevents wasting guesses on known wrong answers
-  - Ready for wheel UI integration
-
-- ✅ **Per-User Guess Tracking**
-  - `getGuessCountForUserInRound(fid, roundId)` - Total guess count
-  - Counts both free and paid guesses
-  - Used for user feedback and top guesser ranking
-
-- ✅ **Top 10 Guesser Logic**
-  - `getTopGuessersForRound(roundId, limit)` - Leaderboard ranking
-  - Ordered by: guess count DESC, first guess timestamp ASC
-  - Tiebreaker: earlier first guess wins
-  - Foundation for top 10 prize pool distribution
+- **Leaderboard**
+  - Top 10 guesser ranking
+  - By volume, tiebreaker by earliest guess
 
 ## Tech Stack
 
-- **Runtime**: Node.js + TypeScript
-- **Database**: PostgreSQL
+- **Frontend**: Next.js 14, React, Tailwind CSS
+- **Backend**: TypeScript, Node.js
+- **Database**: PostgreSQL (Neon)
 - **ORM**: Drizzle ORM
-- **Crypto**: Node.js crypto module (SHA-256)
+- **Authentication**: Farcaster (Neynar SDK)
+- **Crypto**: SHA-256 commit-reveal
+- **Testing**: Vitest
 
 ## Setup
 
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL 14+
+- PostgreSQL 14+ (or Neon account)
 
 ### Installation
 
@@ -143,16 +177,15 @@ npm install
 # Copy environment template
 cp .env.example .env
 
-# Edit .env and set your DATABASE_URL
-# DATABASE_URL=postgresql://user:password@localhost:5432/lets_have_a_word
+# Edit .env and configure:
+# - DATABASE_URL (PostgreSQL connection string)
+# - NEYNAR_API_KEY (optional, for Farcaster auth)
+# - ETH_USD_RATE (optional, defaults to 3000)
 ```
 
 ### Database Setup
 
 ```bash
-# Generate migrations
-npm run db:generate
-
 # Run migrations
 npm run db:migrate
 
@@ -166,7 +199,7 @@ npm run validate
 ### Development
 
 ```bash
-# Start Next.js development server (includes API + frontend)
+# Start Next.js dev server (frontend + API)
 npm run dev
 # Opens at http://localhost:3000
 
@@ -176,144 +209,104 @@ npm run build
 # Start production server
 npm start
 
-# Backend-only development (no frontend)
-npm run dev:backend
-
 # Open Drizzle Studio (database GUI)
 npm run db:studio
+
+# Run tests
+npm test
 ```
 
-## Usage Examples
+## API Endpoints
 
-### Creating and Managing Rounds
+### Game API
 
-```typescript
-import {
-  createRound,
-  getActiveRound,
-  ensureActiveRound,
-  resolveRound,
-  verifyRoundCommitment,
-} from './src/lib/rounds';
+- `POST /api/guess` - Submit a guess
+  - Requires: `{ word, frameMessage?, signerUuid?, ref?, devFid? }`
+  - Returns: Guess result (correct, incorrect, invalid, etc.)
 
-// Create a new round with random answer
-const round = await createRound();
+- `GET /api/round-state` - Get current round status
+  - Returns: `{ roundId, prizePoolEth, prizePoolUsd, globalGuessCount, lastUpdatedAt }`
 
-// Or specify an answer (for testing)
-const testRound = await createRound({ forceAnswer: 'crane' });
+- `GET /api/wheel` - Get wheel words
+  - Returns: `{ roundId, words[] }` (seed words + wrong guesses)
 
-// Or specify a custom ruleset
-const customRound = await createRound({ rulesetId: 1 });
+## Database Schema
 
-// Get the currently active round (or null if none)
-const activeRound = await getActiveRound();
+### Core Tables
 
-// Ensure an active round exists (create if needed)
-const ensuredRound = await ensureActiveRound();
+**`game_rules`** - Configurable game rulesets
+- JSONB config for flexibility
+- Versioned rulesets
 
-// Resolve a round with a winner
-await resolveRound(round.id, winnerFid, referrerFid);
+**`users`** - Player accounts
+- Farcaster ID (FID)
+- Signer wallet address
+- Referrer tracking
+- Spam score
 
-// Verify commitment integrity
-const isValid = verifyRoundCommitment(round);
-console.log('Commitment valid:', isValid);
-```
+**`rounds`** - Game rounds
+- Answer + salt + commit hash (commit-reveal)
+- Prize pool and seed tracking
+- Winner and referrer info
+- Timestamps
 
-### Getting Game Rules
+**`guesses`** - Player guesses
+- Round and user references
+- Guessed word
+- Paid/free flag
+- Correct/incorrect status
 
-```typescript
-import { getCurrentRules, getRulesForRound } from './src/lib/game-rules';
+### Feature Tables
 
-// Get current active rules
-const rules = await getCurrentRules();
-console.log('Free guesses per day:', rules.config.freeGuessesPerDayBase);
+**`daily_guess_state`** - Daily limits (Milestone 2.2)
+- Per-user, per-day tracking
+- Free guess allocations
+- Paid pack purchases
+- Share bonus tracking
 
-// Get rules for specific round
-const roundRules = await getRulesForRound(roundId);
-```
+**`round_seed_words`** - Wheel seed words (Milestone 2.3)
+- Cosmetic pre-population
+- 30 random words per round
 
-### Word List Operations
+**`system_state`** - System-wide state (Milestone 3.1)
+- Creator balance (accumulated from 20% fee overflow)
 
-```typescript
-import {
-  getAnswerWords,
-  getGuessWords,
-  isValidGuess,
-  validateWordLists
-} from './src/lib/word-lists';
+**`round_payouts`** - Payout records (Milestone 3.1)
+- Winner, referrer, and top guesser payouts
+- Amount in ETH
+- Role tracking
 
-// Validate constraints on startup
-validateWordLists();
-
-// Check if a word is valid
-const valid = isValidGuess('crane'); // true
-
-// Get all answer candidates
-const answers = getAnswerWords();
-```
-
-### Submitting Guesses
-
-```typescript
-import {
-  submitGuess,
-  getWrongWordsForRound,
-  getGuessCountForUserInRound,
-  getTopGuessersForRound,
-} from './src/lib/guesses';
-
-// Submit a guess
-const result = await submitGuess({
-  fid: 12345,
-  word: 'crane',
-  isPaidGuess: false, // Optional, defaults to false
-});
-
-// Handle result
-if (result.status === 'correct') {
-  console.log(`Winner! Round ${result.roundId} won by FID ${result.winnerFid}`);
-} else if (result.status === 'incorrect') {
-  console.log(`Wrong! Total guesses: ${result.totalGuessesForUserThisRound}`);
-} else if (result.status === 'already_guessed_word') {
-  console.log(`Word "${result.word}" already guessed by someone else`);
-} else if (result.status === 'invalid_word') {
-  console.log(`Invalid word: ${result.reason}`);
-} else if (result.status === 'round_closed') {
-  console.log('Round is already resolved');
-}
-
-// Get all wrong words for the wheel
-const wrongWords = await getWrongWordsForRound(roundId);
-console.log('Wrong guesses:', wrongWords); // ['APPLE', 'HOUSE', 'PHONE']
-
-// Get user's total guess count
-const count = await getGuessCountForUserInRound(fid, roundId);
-console.log(`User has made ${count} guesses`);
-
-// Get top 10 guessers (leaderboard)
-const topGuessers = await getTopGuessersForRound(roundId, 10);
-topGuessers.forEach((guesser, i) => {
-  console.log(`${i + 1}. FID ${guesser.fid}: ${guesser.guessCount} guesses`);
-});
-```
-
-## Game Mechanics (Overview)
+## Game Mechanics
 
 ### Guessing System
-- **1 free guess/day** (base)
-- **+3 guesses/day** (CLANKTON bonus: ≥100M tokens)
-- **+1 guess/day** (share bonus: cast to Farcaster)
-- **Up to 3 packs/day** - Buy 3 guesses per pack (0.0003 ETH per pack)
-  - Total: **9 paid guesses/day max** (3 packs × 3 guesses)
 
-### Economics
-- **80%** of paid fees → prize pool
-- **20%** of paid fees → next round seed (capped at 0.1 ETH)
-- **Winner**: 80% of prize pool
-- **Referrer**: 10% of prize pool
-- **Top 10 guessers**: 10% of prize pool (split)
+**Free Guesses (per day)**
+- 1 base free guess
+- +3 for CLANKTON holders (≥100M tokens)
+- +1 for sharing to Farcaster
+
+**Paid Guesses (per day)**
+- Buy packs of 3 guesses for 0.0003 ETH each
+- Up to 3 packs per day (9 paid guesses max)
+
+### Economics (Milestone 3.1)
+
+**Per Paid Guess (80/20 Split)**
+- 80% → Prize pool
+- 20% → Seed for next round (capped at 0.1 ETH)
+  - Overflow → Creator balance
+
+**Jackpot Resolution (80/10/10 Split)**
+- 80% → Winner
+- 10% → Referrer (or winner if no referrer)
+- 10% → Top 10 guessers (split equally)
+
+**Top 10 Ranking**
+- Ranked by total paid guess volume
+- Tiebreaker: earliest first guess time
 
 ### Provable Fairness
+
 Each round uses commit-reveal:
 1. Backend chooses answer + random salt
 2. Publishes `H(salt||answer)` before round starts
@@ -324,97 +317,135 @@ Each round uses commit-reveal:
 
 ```
 src/
-├── __tests__/         # Unit tests (Vitest)
-│   ├── word-lists.test.ts
-│   ├── commit-reveal.test.ts
-│   ├── round-lifecycle.test.ts
-│   └── guess-logic.test.ts
-├── data/              # Word list data files
+├── lib/               # Core game logic
+│   ├── word-lists.ts      # Word validation
+│   ├── game-rules.ts      # Rule management
+│   ├── commit-reveal.ts   # Provable fairness
+│   ├── rounds.ts          # Round lifecycle
+│   ├── guesses.ts         # Guess submission
+│   ├── users.ts           # User management
+│   ├── farcaster.ts       # Farcaster auth
+│   ├── daily-limits.ts    # Daily guess limits
+│   ├── wheel.ts           # Wheel + ticker data
+│   └── economics.ts       # Jackpot + payouts
+├── db/                # Database
+│   ├── schema.ts          # Drizzle schema
+│   ├── index.ts           # DB connection
+│   └── migrate.ts         # Migration runner
+├── data/              # Word lists
 │   ├── answer-words.ts
 │   ├── guess-words.ts
 │   └── seed-words.ts
-├── db/                # Database schema and connection
-│   ├── schema.ts
-│   ├── index.ts
-│   └── migrate.ts
-├── lib/               # Core game logic
-│   ├── word-lists.ts
-│   ├── game-rules.ts
-│   ├── commit-reveal.ts
-│   ├── rounds.ts
-│   └── guesses.ts
-├── scripts/           # Utility scripts
-│   ├── seed.ts
-│   └── validate-setup.ts
-├── types/             # TypeScript type definitions
+├── types/             # TypeScript types
 │   └── index.ts
-└── index.ts           # Main entry point
+└── scripts/           # Utilities
+    ├── seed.ts
+    └── validate-setup.ts
+
+pages/
+├── api/               # Next.js API routes
+│   ├── guess.ts           # Guess submission
+│   ├── round-state.ts     # Round status
+│   └── wheel.ts           # Wheel data
+├── _app.tsx           # App wrapper (Farcaster SDK init)
+└── index.tsx          # Main game UI
+
+components/
+├── Wheel.tsx          # Spinning word wheel
+└── TopTicker.tsx      # Live status ticker
+
+drizzle/               # Database migrations
 ```
-
-## What's NOT in Milestone 1.3
-
-The following features are planned for future milestones:
-- ❌ Farcaster integration (Neynar API) - **Milestone 1.4/2.1**
-- ❌ HTTP API endpoints - **Milestone 1.4**
-- ❌ Daily reset logic - **Milestone 2.2**
-- ❌ CLANKTON balance checking - **Milestone 4.1**
-- ❌ Share-to-earn callbacks - **Milestone 4.2**
-- ❌ ETH jackpot processing - **Milestone 3.1**
-- ❌ Referral tracking - **Milestone 2.1**
-- ❌ Daily limits enforcement - **Milestone 2.2**
-- ❌ UI/Frontend - **Milestone 1.4/2.0**
-- ❌ Announcer bot - **Milestone 5.1**
-
-### What IS in Milestone 1.3
-- ✅ Complete round lifecycle (create → active → resolve)
-- ✅ Pack-based guess purchases (3 guesses per pack)
-- ✅ Commit-reveal integrity checks
-- ✅ Round state management
-- ✅ Comprehensive test coverage
-- ✅ Guess submission with full validation
-- ✅ Global wrong word deduplication
-- ✅ Per-user guess counting
-- ✅ Top 10 guesser ranking
-- ✅ Automatic round resolution on correct guess
-- ✅ Race condition protection
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run build` | Compile TypeScript |
-| `npm run dev` | Run in watch mode |
+| `npm run dev` | Start dev server |
+| `npm run build` | Build for production |
+| `npm start` | Start production server |
+| `npm test` | Run tests |
 | `npm run db:generate` | Generate migrations |
 | `npm run db:migrate` | Run migrations |
 | `npm run db:studio` | Open database GUI |
 | `npm run seed` | Seed default game rules |
 | `npm run validate` | Validate setup |
 
-## Database Schema
+## Usage Examples
 
-### `game_rules`
-- Stores configurable game rulesets
-- JSONB config for flexibility
-- Versioned (v1, v2, etc.)
+### Submitting Guesses
 
-### `users`
-- Farcaster ID (FID)
-- Signer wallet address
-- Optional referrer
-- XP (placeholder)
+```typescript
+import { submitGuessWithDailyLimits } from './src/lib/daily-limits';
 
-### `rounds`
-- Ruleset reference
-- Answer + salt + commit hash
-- Prize pool tracking
-- Winner info
-- Start/resolve timestamps
+// Submit guess with daily limits enforcement
+const result = await submitGuessWithDailyLimits({
+  fid: 12345,
+  word: 'CRANE',
+});
 
-### `guesses`
-- Round + user references
-- Guessed word
-- Paid/free flag
-- Timestamp
+// Handle result
+if (result.status === 'correct') {
+  console.log('Winner!');
+} else if (result.status === 'no_guesses_left_today') {
+  console.log('Out of guesses - buy a pack!');
+}
+```
+
+### Getting Round Status
+
+```typescript
+import { getActiveRoundStatus } from './src/lib/wheel';
+
+const status = await getActiveRoundStatus();
+console.log(`Prize pool: ${status.prizePoolEth} ETH`);
+console.log(`USD value: $${status.prizePoolUsd}`);
+console.log(`Total guesses: ${status.globalGuessCount}`);
+```
+
+### Managing Rounds
+
+```typescript
+import { createRound, resolveRound } from './src/lib/rounds';
+import { resolveRoundAndCreatePayouts } from './src/lib/economics';
+
+// Create new round
+const round = await createRound();
+
+// Resolve with winner (creates payouts automatically)
+await resolveRound(roundId, winnerFid, referrerFid);
+// Payouts are created in round_payouts table
+```
+
+## What's Next?
+
+Planned future milestones:
+- **Milestone 4.1**: CLANKTON balance checking (on-chain integration)
+- **Milestone 4.2**: Share-to-earn callbacks (Farcaster webhook)
+- **Milestone 5.1**: Announcer bot (automated round announcements)
+- **Milestone 5.2**: ETH payment processing (actual payments)
+- **Milestone 5.3**: Performance optimizations (caching, indexes)
+- **Milestone 5.4**: Round archive (historical data browsing)
+
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test suite
+npm test economics.test.ts
+
+# Run with coverage
+npm test -- --coverage
+```
+
+Current test coverage:
+- ✅ Word list validation
+- ✅ Commit-reveal integrity
+- ✅ Round lifecycle
+- ✅ Guess submission
+- ✅ Economic functions (Milestone 3.1)
 
 ## License
 
@@ -422,11 +453,12 @@ MIT License - see [LICENSE](LICENSE) file
 
 ## Contributing
 
-This is Milestone 1.1 - the foundation. Future contributions will focus on:
-- Farcaster integration (Milestone 1.2)
-- Game mechanics (Milestone 1.3)
-- ETH integration (Milestone 1.4)
-- UI/UX (Milestone 2.x)
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
 ---
 
