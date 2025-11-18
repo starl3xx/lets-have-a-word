@@ -241,17 +241,9 @@ export default function Home() {
           {/* Foreground Layer: Input & Controls */}
           <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
 
-            {/* Input Area with subtle background */}
+            {/* Input Area */}
             <div className="relative z-10 w-full px-8">
-              {/* Subtle white background for legibility */}
-              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl" style={{
-                top: '-20px',
-                bottom: '-20px',
-                left: '16px',
-                right: '16px',
-              }}></div>
-
-              <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {/* 5-Letter Input Boxes */}
                 <div>
                   <input
@@ -269,9 +261,17 @@ export default function Home() {
                       letterSpacing: '0.5em',
                     }}
                   />
-                  <p className="text-xs text-gray-500 text-center mt-2 font-semibold">
-                    {word.length}/5 letters
-                  </p>
+                  <div className="text-center mt-2">
+                    <p className="text-xs text-gray-500 font-semibold inline-block relative">
+                      <span className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded px-2 py-1" style={{
+                        left: '-8px',
+                        right: '-8px',
+                        top: '-4px',
+                        bottom: '-4px',
+                      }}></span>
+                      <span className="relative z-10">{word.length}/5 letters</span>
+                    </p>
+                  </div>
                 </div>
               </form>
 
