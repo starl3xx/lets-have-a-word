@@ -11,11 +11,30 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 3.2 Complete
+## 🎯 Current Status: Milestone 4.1 Complete
 
-All core game mechanics are fully implemented and production-ready:
+All core game mechanics and on-chain integration are fully implemented and production-ready:
 
-### ✅ Milestone 3.2 - Top Ticker Polish (Latest)
+### ✅ Milestone 4.1 - CLANKTON Integration (Latest)
+
+On-chain token bonus system:
+
+- **Real Balance Checking**
+  - Queries CLANKTON balance on Base network
+  - Uses ethers.js and Base RPC
+  - Checks user's Farcaster signer wallet
+
+- **Bonus System**
+  - Holding ≥ 100M CLANKTON → +3 free guesses per day
+  - Verified on-chain at daily reset
+  - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
+
+- **Configuration**
+  - `BASE_RPC_URL` environment variable
+  - Defaults to `https://mainnet.base.org`
+  - Graceful error handling
+
+### ✅ Milestone 3.2 - Top Ticker Polish
 
 Live round status display with polished formatting:
 
@@ -313,6 +332,25 @@ Each round uses commit-reveal:
 3. On resolution, reveals `salt` and `answer`
 4. Anyone can verify: `H(salt||answer) === commit_hash`
 
+### CLANKTON Bonus (Milestone 4.1)
+
+Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra free guesses per day**.
+
+- **On-Chain Verification**: Balance checked using `balanceOf` on Base network
+- **CLANKTON Contract**: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07` (Base)
+- **Signer Wallet Only**: v1 checks only the Farcaster signer wallet
+- **Future**: Multi-wallet support planned for later milestone
+
+**How it works:**
+1. User connects with Farcaster (provides signer wallet)
+2. Backend queries CLANKTON balance on-chain
+3. If balance ≥ 100M tokens → +3 free guesses per day
+4. Bonus recalculated daily at UTC reset
+
+**Configuration:**
+- Set `BASE_RPC_URL` in `.env` for custom RPC endpoint
+- Defaults to `https://mainnet.base.org`
+
 ## Project Structure
 
 ```
@@ -327,7 +365,8 @@ src/
 │   ├── farcaster.ts       # Farcaster auth
 │   ├── daily-limits.ts    # Daily guess limits
 │   ├── wheel.ts           # Wheel + ticker data
-│   └── economics.ts       # Jackpot + payouts
+│   ├── economics.ts       # Jackpot + payouts
+│   └── clankton.ts        # CLANKTON bonus checking
 ├── db/                # Database
 │   ├── schema.ts          # Drizzle schema
 │   ├── index.ts           # DB connection
@@ -420,7 +459,6 @@ await resolveRound(roundId, winnerFid, referrerFid);
 ## What's Next?
 
 Planned future milestones:
-- **Milestone 4.1**: CLANKTON balance checking (on-chain integration)
 - **Milestone 4.2**: Share-to-earn callbacks (Farcaster webhook)
 - **Milestone 5.1**: Announcer bot (automated round announcements)
 - **Milestone 5.2**: ETH payment processing (actual payments)

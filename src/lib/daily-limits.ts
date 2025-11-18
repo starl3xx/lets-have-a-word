@@ -15,6 +15,7 @@ import { eq, and } from 'drizzle-orm';
 import { submitGuess } from './guesses';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
+import { hasClanktonBonus } from './clankton';
 
 /**
  * Game rules for daily limits
@@ -39,23 +40,34 @@ export function getTodayUTC(): string {
 }
 
 /**
- * CLANKTON Bonus Check (Stub for Milestone 2.2)
+ * CLANKTON Bonus Check
+ * Milestone 4.1: Real on-chain balance checking
  *
- * In Milestone 4.1, this will:
- * - Look up user's signer_wallet_address
- * - Query on-chain CLANKTON balance via RPC
- * - Return true if balance >= 100M
+ * Checks if the user's signer wallet holds >= 100M CLANKTON tokens.
  *
- * For now, returns false (or can be configured via whitelist)
+ * @param fid - Farcaster ID of the user
+ * @returns true if user has CLANKTON bonus, false otherwise
  */
 export async function hasCLANKTONBonus(fid: number): Promise<boolean> {
-  // TODO Milestone 4.1: Implement real on-chain balance check
-  // For now, always return false
-  return false;
+  try {
+    // Look up user's signer wallet address
+    const [user] = await db
+      .select({ signerWalletAddress: users.signerWalletAddress })
+      .from(users)
+      .where(eq(users.fid, fid))
+      .limit(1);
 
-  // Alternative stub for testing: whitelist specific FIDs
-  // const CLANKTON_HOLDERS_WHITELIST = [12345, 67890];
-  // return CLANKTON_HOLDERS_WHITELIST.includes(fid);
+    if (!user || !user.signerWalletAddress) {
+      console.log(`[CLANKTON] No signer wallet found for FID ${fid}`);
+      return false;
+    }
+
+    // Query on-chain CLANKTON balance
+    return await hasClanktonBonus(user.signerWalletAddress);
+  } catch (error) {
+    console.error(`[CLANKTON] Error checking bonus for FID ${fid}:`, error);
+    return false;
+  }
 }
 
 /**
