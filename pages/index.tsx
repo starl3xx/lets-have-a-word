@@ -22,12 +22,11 @@ export default function Home() {
         const response = await fetch('/api/wheel');
         if (response.ok) {
           const data = await response.json();
-          if (data && data.words) {
-            setWheelWords(data.words);
-          }
+          setWheelWords(data.words || []);
         }
       } catch (error) {
         console.error('Error fetching wheel words:', error);
+        setWheelWords([]);
       } finally {
         setIsLoadingWheel(false);
       }
@@ -116,12 +115,14 @@ export default function Home() {
       // Refetch wheel data after guess (Milestone 2.3)
       // Wrong guesses will now appear in the wheel
       if (data.status === 'incorrect') {
-        const wheelResponse = await fetch('/api/wheel');
-        if (wheelResponse.ok) {
-          const wheelData = await wheelResponse.json();
-          if (wheelData && wheelData.words) {
-            setWheelWords(wheelData.words);
+        try {
+          const wheelResponse = await fetch('/api/wheel');
+          if (wheelResponse.ok) {
+            const wheelData = await wheelResponse.json();
+            setWheelWords(wheelData.words || []);
           }
+        } catch (err) {
+          console.error('Error refetching wheel:', err);
         }
       }
 

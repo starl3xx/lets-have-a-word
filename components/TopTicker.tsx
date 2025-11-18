@@ -27,7 +27,7 @@ export default function TopTicker() {
         throw new Error('Failed to fetch round status');
       }
 
-      const data: RoundStatus | null = await response.json();
+      const data: RoundStatus = await response.json();
       setStatus(data);
       setError(null);
     } catch (err) {

@@ -17,11 +17,11 @@ import { getActiveWheelData } from '../../src/lib/wheel';
  * - Seed words (cosmetic pre-population)
  * - Wrong guesses from real players
  *
- * Returns null if no active round exists.
+ * Automatically creates a round if none exists.
  */
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<{ roundId: number; words: string[] } | null | { error: string }>
+  res: NextApiResponse<{ roundId: number; words: string[] } | { error: string }>
 ) {
   // Only allow GET
   if (req.method !== 'GET') {
@@ -30,14 +30,7 @@ export default async function handler(
 
   try {
     const wheelData = await getActiveWheelData();
-
-    // Return null if no active round
-    if (!wheelData) {
-      return res.status(200).json(null);
-    }
-
     return res.status(200).json(wheelData);
-
   } catch (error: any) {
     console.error('Error in /api/wheel:', error);
     return res.status(500).json({ error: 'Internal server error' });
