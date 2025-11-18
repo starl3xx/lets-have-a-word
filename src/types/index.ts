@@ -6,8 +6,10 @@ export interface GameRulesConfig {
   freeGuessesPerDayBase: number;
   clanktonBonusGuesses: number;
   shareBonusGuesses: number;
-  paidGuessPriceEth: string; // decimal as string
-  maxPaidGuessesPerDay: number;
+  paidGuessPackSize: number; // Number of guesses per pack (e.g., 3)
+  paidGuessPackPriceEth: string; // Price per pack (e.g., "0.0003")
+  maxPaidPacksPerDay: number; // Max packs purchasable per day (e.g., 3)
+  maxPaidGuessesPerDay: number; // Derived: packSize × maxPacks (e.g., 9)
   jackpotSplit: {
     winner: number; // 0.8 = 80%
     referrer: number; // 0.1 = 10%

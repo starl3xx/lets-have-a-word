@@ -10,9 +10,9 @@ A global, persistent 5-letter word guessing game with ETH jackpots.
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## Milestone 1.1 - Foundation ✅
+## Milestone 1.2 - Round Lifecycle ✅
 
-This milestone implements the core data model and game mechanics:
+This milestone implements the complete round lifecycle with pack-based purchases:
 
 ### Features Implemented
 
@@ -33,16 +33,25 @@ This milestone implements the core data model and game mechanics:
   - SHA-256 commit hash verification
   - Prevents backend cheating
 
+- ✅ **Pack-Based Purchases**
+  - Buy **3 guesses** for 0.0003 ETH per pack
+  - Up to **3 packs per day** (9 total paid guesses)
+  - Cleaner UX than individual purchases
+
 - ✅ **Game Rules System**
   - JSONB configuration storage
   - Version-controlled rulesets
   - Functions: `getCurrentRules()`, `getRulesForRound()`
 
-- ✅ **Round Management**
-  - `createRound()` - Initialize new rounds
-  - `getCurrentRound()` - Get active round
-  - `resolveRound()` - Mark winner
-  - `verifyRoundCommitment()` - Verify fairness
+- ✅ **Round Lifecycle**
+  - `createRound(opts?)` - Initialize new rounds with options
+  - `getActiveRound()` - Get current unresolved round
+  - `ensureActiveRound(opts?)` - Get or create active round
+  - `getRoundById(id)` - Fetch specific round
+  - `resolveRound(id, winner, referrer?)` - Mark winner
+  - `verifyRoundCommitment(round)` - Verify fairness
+  - Prevents creating multiple active rounds
+  - Prevents resolving already-resolved rounds
 
 ## Tech Stack
 
@@ -102,16 +111,34 @@ npm run db:studio
 
 ## Usage Examples
 
-### Creating a Round
+### Creating and Managing Rounds
 
 ```typescript
-import { createRound, verifyRoundCommitment } from './src/lib/rounds';
+import {
+  createRound,
+  getActiveRound,
+  ensureActiveRound,
+  resolveRound,
+  verifyRoundCommitment,
+} from './src/lib/rounds';
 
 // Create a new round with random answer
 const round = await createRound();
 
 // Or specify an answer (for testing)
-const testRound = await createRound(1, 'crane');
+const testRound = await createRound({ forceAnswer: 'crane' });
+
+// Or specify a custom ruleset
+const customRound = await createRound({ rulesetId: 1 });
+
+// Get the currently active round (or null if none)
+const activeRound = await getActiveRound();
+
+// Ensure an active round exists (create if needed)
+const ensuredRound = await ensureActiveRound();
+
+// Resolve a round with a winner
+await resolveRound(round.id, winnerFid, referrerFid);
 
 // Verify commitment integrity
 const isValid = verifyRoundCommitment(round);
@@ -157,7 +184,8 @@ const answers = getAnswerWords();
 - **1 free guess/day** (base)
 - **+3 guesses/day** (CLANKTON bonus: ≥100M tokens)
 - **+1 guess/day** (share bonus: cast to Farcaster)
-- **Up to 10 paid guesses/day** (0.0001 ETH each)
+- **Up to 3 packs/day** - Buy 3 guesses per pack (0.0003 ETH per pack)
+  - Total: **9 paid guesses/day max** (3 packs × 3 guesses)
 
 ### Economics
 - **80%** of paid fees → prize pool
@@ -177,6 +205,10 @@ Each round uses commit-reveal:
 
 ```
 src/
+├── __tests__/         # Unit tests (Vitest)
+│   ├── word-lists.test.ts
+│   ├── commit-reveal.test.ts
+│   └── round-lifecycle.test.ts
 ├── data/              # Word list data files
 │   ├── answer-words.ts
 │   ├── guess-words.ts
@@ -198,19 +230,26 @@ src/
 └── index.ts           # Main entry point
 ```
 
-## What's NOT in Milestone 1.1
+## What's NOT in Milestone 1.2
 
 The following features are planned for future milestones:
-- ❌ Farcaster integration (Neynar API)
-- ❌ Guess submission endpoints
-- ❌ Daily reset logic
-- ❌ CLANKTON balance checking
-- ❌ Share-to-earn callbacks
-- ❌ ETH jackpot processing
-- ❌ Referral tracking
-- ❌ Leaderboards
-- ❌ UI/Frontend
-- ❌ Announcer bot
+- ❌ Farcaster integration (Neynar API) - **Milestone 1.3**
+- ❌ Guess submission endpoints - **Milestone 1.3**
+- ❌ Daily reset logic - **Milestone 1.3**
+- ❌ CLANKTON balance checking - **Milestone 1.4**
+- ❌ Share-to-earn callbacks - **Milestone 1.4**
+- ❌ ETH jackpot processing - **Milestone 1.5**
+- ❌ Referral tracking - **Milestone 1.5**
+- ❌ Leaderboards - **Milestone 2.0**
+- ❌ UI/Frontend - **Milestone 2.0**
+- ❌ Announcer bot - **Milestone 2.1**
+
+### What IS in Milestone 1.2
+- ✅ Complete round lifecycle (create → active → resolve)
+- ✅ Pack-based guess purchases (3 guesses per pack)
+- ✅ Commit-reveal integrity checks
+- ✅ Round state management
+- ✅ Comprehensive test coverage
 
 ## Scripts
 
