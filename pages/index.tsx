@@ -217,23 +217,7 @@ export default function Home() {
           {/* Foreground Layer: Input & Controls */}
           <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
 
-            {/* White mask behind input boxes for visibility */}
-            <div
-              className="absolute"
-              style={{
-                top: '35%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '100%',
-                height: '140px',
-                background: 'rgba(255, 255, 255, 0.92)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: '16px',
-                zIndex: 0,
-              }}
-            />
-
-            {/* Input Area (on top of mask) */}
+            {/* Input Area */}
             <div className="relative z-10 w-full px-8">
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* 5-Letter Input Boxes */}
