@@ -33,7 +33,7 @@ export interface RoundStatus {
  * Milestone 3.2: Configurable via environment variable
  *
  * For now uses a placeholder rate. In production, this would:
- * - Query CoinGecko or on-chain oracle
+ * - Query CoinGecko or onchain oracle
  * - Cache the result for a reasonable duration
  *
  * @returns Current ETH/USD rate

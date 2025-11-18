@@ -13,11 +13,11 @@
 
 ## 🎯 Current Status: Milestone 4.1 Complete
 
-All core game mechanics and on-chain integration are fully implemented and production-ready:
+All core game mechanics and onchain integration are fully implemented and production-ready:
 
 ### ✅ Milestone 4.1 - CLANKTON Integration (Latest)
 
-On-chain token bonus system:
+Onchain token bonus system:
 
 - **Real Balance Checking**
   - Queries CLANKTON balance on Base network
@@ -26,7 +26,7 @@ On-chain token bonus system:
 
 - **Bonus System**
   - Holding ≥ 100M CLANKTON → +3 free guesses per day
-  - Verified on-chain at daily reset
+  - Verified onchain at daily reset
   - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
 
 - **Configuration**
@@ -336,14 +336,14 @@ Each round uses commit-reveal:
 
 Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra free guesses per day**.
 
-- **On-Chain Verification**: Balance checked using `balanceOf` on Base network
+- **Onchain Verification**: Balance checked using `balanceOf` on Base network
 - **CLANKTON Contract**: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07` (Base)
 - **Signer Wallet Only**: v1 checks only the Farcaster signer wallet
 - **Future**: Multi-wallet support planned for later milestone
 
 **How it works:**
 1. User connects with Farcaster (provides signer wallet)
-2. Backend queries CLANKTON balance on-chain
+2. Backend queries CLANKTON balance onchain
 3. If balance ≥ 100M tokens → +3 free guesses per day
 4. Bonus recalculated daily at UTC reset
 

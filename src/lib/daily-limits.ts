@@ -41,7 +41,7 @@ export function getTodayUTC(): string {
 
 /**
  * CLANKTON Bonus Check
- * Milestone 4.1: Real on-chain balance checking
+ * Milestone 4.1: Real onchain balance checking
  *
  * Checks if the user's signer wallet holds >= 100M CLANKTON tokens.
  *
@@ -62,7 +62,7 @@ export async function hasCLANKTONBonus(fid: number): Promise<boolean> {
       return false;
     }
 
-    // Query on-chain CLANKTON balance
+    // Query onchain CLANKTON balance
     return await hasClanktonBonus(user.signerWalletAddress);
   } catch (error) {
     console.error(`[CLANKTON] Error checking bonus for FID ${fid}:`, error);
