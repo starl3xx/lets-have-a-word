@@ -117,3 +117,23 @@ export const dailyGuessState = pgTable('daily_guess_state', {
 
 export type DailyGuessStateRow = typeof dailyGuessState.$inferSelect;
 export type DailyGuessStateInsert = typeof dailyGuessState.$inferInsert;
+
+/**
+ * Round Seed Words Table
+ * Stores seed words (cosmetic "fake guesses") for each round's wheel
+ * Milestone 2.3: Wheel visual state
+ */
+export const roundSeedWords = pgTable('round_seed_words', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  word: varchar('word', { length: 5 }).notNull(), // Uppercase 5-letter seed word
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  // Unique constraint: one occurrence of each seed word per round
+  roundWordUnique: unique('round_seed_words_round_word_unique').on(table.roundId, table.word),
+  // Index for lookups by round
+  roundIdx: index('round_seed_words_round_idx').on(table.roundId),
+}));
+
+export type RoundSeedWordRow = typeof roundSeedWords.$inferSelect;
+export type RoundSeedWordInsert = typeof roundSeedWords.$inferInsert;
