@@ -1,4 +1,4 @@
-import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,7 +10,12 @@ if (!NEYNAR_API_KEY) {
   console.warn('WARNING: NEYNAR_API_KEY not set in environment variables');
 }
 
-const neynarClient = new NeynarAPIClient(NEYNAR_API_KEY);
+// SDK v2 requires Configuration object instead of direct API key
+const config = new Configuration({
+  apiKey: NEYNAR_API_KEY,
+});
+
+const neynarClient = new NeynarAPIClient(config);
 
 /**
  * Farcaster authentication context extracted from verified request
@@ -53,7 +58,8 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
 
     try {
       // Fetch full user data from Neynar
-      const userData = await neynarClient.fetchBulkUsers([fid]);
+      // SDK v2 requires object with fids property
+      const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
@@ -125,7 +131,8 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
     let username: string | null = null;
 
     try {
-      const userData = await neynarClient.fetchBulkUsers([fid]);
+      // SDK v2 requires object with fids property
+      const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
@@ -170,7 +177,8 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
  */
 export async function getUserByFid(fid: number): Promise<FarcasterContext | null> {
   try {
-    const userData = await neynarClient.fetchBulkUsers([fid]);
+    // SDK v2 requires object with fids property
+    const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
 
     if (!userData.users || userData.users.length === 0) {
       return null;

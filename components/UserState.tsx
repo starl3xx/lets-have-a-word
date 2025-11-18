@@ -29,6 +29,7 @@ export default function UserState({ fid }: UserStateProps) {
    */
   const fetchUserState = async () => {
     if (!fid) {
+      console.log('[UserState] No FID available yet');
       setIsLoading(false);
       return;
     }
@@ -42,20 +43,40 @@ export default function UserState({ fid }: UserStateProps) {
       if (walletAddress) {
         params.append('walletAddress', walletAddress);
         console.log('[UserState] Using connected wallet:', walletAddress);
+      } else {
+        console.log('[UserState] No wallet connected yet, using FID only');
       }
 
-      const response = await fetch(`/api/user-state?${params.toString()}`);
+      const url = `/api/user-state?${params.toString()}`;
+      console.log('[UserState] Fetching:', url);
+
+      const response = await fetch(url);
+
+      console.log('[UserState] Response status:', response.status);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch user state');
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('[UserState] API error response:', errorData);
+        } catch (parseError) {
+          console.error('[UserState] Failed to parse error response:', parseError);
+          errorData = { error: 'Server error (invalid JSON response)' };
+        }
+
+        // Use detailed error message if available
+        const errorMsg = errorData.details || errorData.error || `HTTP ${response.status}`;
+        throw new Error(errorMsg);
       }
 
       const data: UserStateResponse = await response.json();
+      console.log('[UserState] Success! User state:', data);
       setUserState(data);
       setError(null);
     } catch (err) {
-      console.error('Error fetching user state:', err);
-      setError('Failed to load user status');
+      console.error('[UserState] Error fetching user state:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load user status';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
