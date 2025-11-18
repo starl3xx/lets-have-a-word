@@ -29,12 +29,23 @@ Onchain token bonus system:
   - Verified onchain at daily reset
   - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
 
+- **Wallet Integration (Wagmi)**
+  - Automatic wallet connection via Farcaster SDK
+  - Uses `@farcaster/miniapp-wagmi-connector`
+  - Live balance checking from connected wallet
+  - Supports both Farcaster verified addresses and connected wallets
+
 - **User State UI**
   - Live display of remaining guesses (free + paid)
   - CLANKTON bonus status indicator
   - Daily allocation breakdown
   - Buy more guesses button
   - Real-time updates after each guess
+
+- **On-Demand User Creation**
+  - Users created automatically on first visit
+  - Fetches data from Neynar API
+  - Stores wallet address for bonus checking
 
 - **Configuration**
   - `BASE_RPC_URL` environment variable
@@ -184,6 +195,8 @@ Core game mechanics:
 - **Database**: PostgreSQL (Neon)
 - **ORM**: Drizzle ORM
 - **Authentication**: Farcaster (Neynar SDK)
+- **Wallet**: Wagmi + @farcaster/miniapp-wagmi-connector
+- **Blockchain**: ethers.js v6 (Base network)
 - **Crypto**: SHA-256 commit-reveal
 - **Testing**: Vitest
 
@@ -353,10 +366,17 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 - **Future**: Multi-wallet support planned for later milestone
 
 **How it works:**
-1. User connects with Farcaster (provides signer wallet)
-2. Backend queries CLANKTON balance onchain
-3. If balance ≥ 100M tokens → +3 free guesses per day
-4. Bonus recalculated daily at UTC reset
+1. User opens mini app → Wallet auto-connects via Farcaster SDK
+2. Frontend gets wallet address using Wagmi
+3. Backend queries CLANKTON balance onchain (live check)
+4. If balance ≥ 100M tokens → +3 free guesses per day
+5. Bonus recalculated at daily UTC reset
+
+**Wallet Connection:**
+- Uses Wagmi with Farcaster miniapp connector
+- Automatically connects to user's wallet via Farcaster SDK
+- If no connected wallet, falls back to Farcaster verified addresses
+- Live CLANKTON balance check from connected wallet
 
 **Configuration:**
 - Set `BASE_RPC_URL` in `.env` for custom RPC endpoint
@@ -366,6 +386,8 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 
 ```
 src/
+├── config/            # Configuration
+│   └── wagmi.ts           # Wagmi wallet config
 ├── lib/               # Core game logic
 │   ├── word-lists.ts      # Word validation
 │   ├── game-rules.ts      # Rule management
@@ -396,8 +418,9 @@ pages/
 ├── api/               # Next.js API routes
 │   ├── guess.ts           # Guess submission
 │   ├── round-state.ts     # Round status
+│   ├── user-state.ts      # User daily allocations
 │   └── wheel.ts           # Wheel data
-├── _app.tsx           # App wrapper (Farcaster SDK init)
+├── _app.tsx           # App wrapper (Wagmi + Farcaster SDK)
 └── index.tsx          # Main game UI
 
 components/

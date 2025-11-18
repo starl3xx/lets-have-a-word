@@ -7,7 +7,11 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
-import { verifyFrameMessage } from '../../src/lib/farcaster';
+import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
+import { hasClanktonBonus } from '../../src/lib/clankton';
+import { db } from '../../src/db';
+import { users } from '../../src/db/schema';
+import { eq } from 'drizzle-orm';
 
 export interface UserStateResponse {
   fid: number;
@@ -36,6 +40,13 @@ export default async function handler(
   try {
     // Get FID from query params or frame message
     let fid: number | null = null;
+    let walletAddress: string | null = null;
+
+    // Check for wallet address (from Wagmi connection)
+    if (req.query.walletAddress) {
+      walletAddress = req.query.walletAddress as string;
+      console.log(`[user-state] Using connected wallet: ${walletAddress}`);
+    }
 
     // Check for devFid (development mode)
     if (req.query.devFid) {
@@ -56,7 +67,49 @@ export default async function handler(
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Get or create daily state
+    // Ensure user exists in database
+    // If not, fetch from Neynar and create record
+    console.log(`[user-state] Checking if user ${fid} exists...`);
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.fid, fid))
+      .limit(1);
+
+    if (existingUser.length === 0) {
+      console.log(`[user-state] User ${fid} not found, fetching from Neynar...`);
+
+      // Fetch user data from Neynar
+      const farcasterUser = await getUserByFid(fid);
+
+      if (!farcasterUser) {
+        console.error(`[user-state] Could not fetch user ${fid} from Neynar`);
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Create user record
+      // If connected wallet provided, use it; otherwise use Farcaster verified address
+      const userWallet = walletAddress || farcasterUser.signerWallet;
+      console.log(`[user-state] Creating user ${fid} with wallet ${userWallet || 'null'}`);
+      await db.insert(users).values({
+        fid,
+        username: farcasterUser.username,
+        signerWalletAddress: userWallet,
+        custodyAddress: farcasterUser.custodyAddress,
+        spamScore: farcasterUser.spamScore,
+      });
+
+      console.log(`[user-state] User ${fid} created successfully`);
+    } else if (walletAddress && existingUser[0].signerWalletAddress !== walletAddress) {
+      // Update wallet address if different from what's in database
+      console.log(`[user-state] Updating wallet for user ${fid} to ${walletAddress}`);
+      await db
+        .update(users)
+        .set({ signerWalletAddress: walletAddress })
+        .where(eq(users.fid, fid));
+    }
+
+    // Get or create daily state (now that user exists)
     const dailyState = await getOrCreateDailyState(fid);
 
     // Calculate remaining guesses
@@ -65,7 +118,15 @@ export default async function handler(
     const totalRemaining = freeRemaining + paidRemaining;
 
     // Check if CLANKTON bonus is active
-    const clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
+    // If connected wallet provided, check it directly; otherwise use database value
+    let clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
+
+    // If wallet address provided, do live check
+    if (walletAddress) {
+      console.log(`[user-state] Performing live CLANKTON check for wallet ${walletAddress}`);
+      clanktonBonusActive = await hasClanktonBonus(walletAddress);
+      console.log(`[user-state] Live CLANKTON check result: ${clanktonBonusActive}`);
+    }
 
     // Check if can buy more packs
     const canBuyMorePacks = dailyState.paidPacksPurchased < 3; // DAILY_LIMITS_RULES.maxPaidPacksPerDay
