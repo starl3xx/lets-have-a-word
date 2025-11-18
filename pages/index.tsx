@@ -1,11 +1,40 @@
-import { useState, FormEvent, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, FormEvent, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult } from '../src/types';
+import TopTicker from '../components/TopTicker';
+import Wheel from '../components/Wheel';
 
 export default function Home() {
   const [word, setWord] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Wheel state (Milestone 2.3)
+  const [wheelWords, setWheelWords] = useState<string[]>([]);
+  const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+
+  /**
+   * Fetch wheel words on mount (Milestone 2.3)
+   */
+  useEffect(() => {
+    const fetchWheelWords = async () => {
+      try {
+        const response = await fetch('/api/wheel');
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.words) {
+            setWheelWords(data.words);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching wheel words:', error);
+      } finally {
+        setIsLoadingWheel(false);
+      }
+    };
+
+    fetchWheelWords();
+  }, []);
 
   /**
    * Handle input change
@@ -84,6 +113,18 @@ export default function Home() {
       const data: SubmitGuessResult = await response.json();
       setResult(data);
 
+      // Refetch wheel data after guess (Milestone 2.3)
+      // Wrong guesses will now appear in the wheel
+      if (data.status === 'incorrect') {
+        const wheelResponse = await fetch('/api/wheel');
+        if (wheelResponse.ok) {
+          const wheelData = await wheelResponse.json();
+          if (wheelData && wheelData.words) {
+            setWheelWords(wheelData.words);
+          }
+        }
+      }
+
       // Clear input on success (optional)
       // setWord('');
 
@@ -153,8 +194,15 @@ export default function Home() {
   const isButtonDisabled = word.length !== 5 || isLoading;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Top Ticker (Milestone 2.3) */}
+      <TopTicker />
+
+      {/* Main Content */}
+      <div className="flex-1 flex items-start justify-center p-4 pt-8">
+        <div className="max-w-5xl w-full grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column: Guess Form */}
+          <div className="bg-white rounded-lg shadow-md p-8">
         {/* Title */}
         <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
           Let's Have A Word
@@ -221,10 +269,23 @@ export default function Home() {
         {/* Info footer */}
         <div className="mt-8 pt-6 border-t border-gray-200">
           <p className="text-xs text-gray-500 text-center">
-            Milestone 1.4 - Minimal Frontend
+            Milestone 2.3 - Wheel + Visual State
             <br />
             Everyone in the world is guessing the same word
           </p>
+        </div>
+          </div>
+
+          {/* Right Column: Wheel (Milestone 2.3) */}
+          <div className="bg-white rounded-lg shadow-md p-8">
+            {isLoadingWheel ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-500 animate-pulse">Loading wheel...</p>
+              </div>
+            ) : (
+              <Wheel words={wheelWords} currentGuess={word} />
+            )}
+          </div>
         </div>
       </div>
     </div>

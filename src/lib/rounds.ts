@@ -3,6 +3,7 @@ import { eq, isNull } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
+import { populateRoundSeedWords } from './wheel';
 
 /**
  * Options for creating a new round
@@ -62,6 +63,9 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   const round = result[0];
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);
+
+  // Populate seed words for the wheel (Milestone 2.3)
+  await populateRoundSeedWords(round.id);
 
   return {
     id: round.id,
