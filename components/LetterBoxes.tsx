@@ -128,19 +128,19 @@ export default function LetterBoxes({
 
   /**
    * Get box styling based on state
-   * Three-state system:
+   * Three-state system (border colors only):
    * - Empty: gray border, white bg
-   * - Filled (typing): blue bg, white text
-   * - Wrong result: red bg
-   * - Correct result: green bg
+   * - Filled (typing): blue border, white bg
+   * - Wrong result: red border, white bg
+   * - Correct result: green border, white bg (only on correct secret word)
    */
   const getBoxStyle = (letter: string) => {
     // Result states (after GUESS pressed)
     if (resultState === 'wrong') {
-      return 'bg-red-500 border-red-600 text-white';
+      return 'bg-white border-red-500 text-gray-900';
     }
     if (resultState === 'correct') {
-      return 'bg-green-500 border-green-600 text-white';
+      return 'bg-white border-green-500 text-gray-900';
     }
 
     // Typing states (before GUESS)
@@ -149,8 +149,8 @@ export default function LetterBoxes({
     }
 
     if (letter) {
-      // Filled while typing: blue background
-      return 'bg-blue-500 border-blue-600 text-white';
+      // Filled while typing: blue border
+      return 'bg-white border-blue-500 text-gray-900';
     }
 
     // Empty: gray border
