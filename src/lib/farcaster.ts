@@ -1,4 +1,4 @@
-import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,7 +10,12 @@ if (!NEYNAR_API_KEY) {
   console.warn('WARNING: NEYNAR_API_KEY not set in environment variables');
 }
 
-const neynarClient = new NeynarAPIClient(NEYNAR_API_KEY);
+// SDK v2 requires Configuration object instead of direct API key
+const config = new Configuration({
+  apiKey: NEYNAR_API_KEY,
+});
+
+const neynarClient = new NeynarAPIClient(config);
 
 /**
  * Farcaster authentication context extracted from verified request
