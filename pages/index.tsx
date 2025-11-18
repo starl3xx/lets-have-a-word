@@ -1,6 +1,5 @@
 import { useState, FormEvent, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult } from '../src/types';
-import './styles.css';
 
 export default function Home() {
   const [word, setWord] = useState('');
