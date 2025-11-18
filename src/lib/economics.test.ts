@@ -161,12 +161,12 @@ describe('Economics Module - Milestone 3.1', () => {
 
   describe('resolveRoundAndCreatePayouts', () => {
     it('should create payouts with 80% winner, 10% referrer, 10% top guessers', async () => {
-      // Create test users
+      // Create test users (use unique FIDs to avoid conflicts)
       const [winner] = await db
         .insert(users)
         .values({
-          fid: 12345,
-          referrerFid: 67890,
+          fid: 88888,
+          referrerFid: 77777,
           xp: 0,
         })
         .returning();
@@ -174,7 +174,7 @@ describe('Economics Module - Milestone 3.1', () => {
       const [referrer] = await db
         .insert(users)
         .values({
-          fid: 67890,
+          fid: 77777,
           xp: 0,
         })
         .returning();
