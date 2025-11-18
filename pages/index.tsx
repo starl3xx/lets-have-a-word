@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
@@ -9,6 +9,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Input ref for auto-focus on mobile
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
@@ -59,6 +62,24 @@ export default function Home() {
   }, []);
 
   /**
+   * Auto-focus input on mobile
+   */
+  useEffect(() => {
+    if (!inputRef.current) return;
+
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // Small delay helps iOS Safari actually show the keyboard
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 200);
+    }
+  }, []);
+
+  /**
    * Handle input change
    * - Strip non-alphabetic characters
    * - Convert to uppercase
@@ -83,20 +104,21 @@ export default function Home() {
   };
 
   /**
-   * Handle Enter key press
+   * Handle Enter key press - PREVENT submission, user must tap GUESS button
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && word.length === 5 && !isLoading) {
-      handleSubmit(e as any);
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Do NOT submit - user must tap the GUESS button
+      return;
     }
   };
 
   /**
    * Submit guess to backend
+   * Only called when GUESS button is tapped
    */
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     // Validate word length
     if (word.length !== 5) {
       setErrorMessage('Word must be exactly 5 letters.');
@@ -243,10 +265,11 @@ export default function Home() {
 
             {/* Input Area */}
             <div className="relative z-10 w-full px-8">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
                 {/* 5-Letter Input Boxes */}
                 <div>
                   <input
+                    ref={inputRef}
                     type="text"
                     value={word}
                     onChange={handleChange}
@@ -254,7 +277,6 @@ export default function Home() {
                     placeholder="     "
                     className="w-full px-4 py-4 text-4xl font-mono text-center uppercase border-4 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 tracking-[0.5em] bg-white shadow-lg"
                     maxLength={5}
-                    autoFocus
                     disabled={isLoading}
                     style={{
                       fontWeight: 'bold',
@@ -298,7 +320,7 @@ export default function Home() {
             {/* Guess Button - positioned below the input area */}
             <div className="absolute bottom-8 left-0 right-0 px-8 z-10">
               <button
-                type="submit"
+                type="button"
                 onClick={handleSubmit}
                 disabled={isButtonDisabled}
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
