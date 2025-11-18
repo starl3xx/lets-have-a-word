@@ -22,6 +22,7 @@ export const users = pgTable('users', {
   fid: integer('fid').notNull().unique(), // Farcaster ID
   signerWalletAddress: varchar('signer_wallet_address', { length: 42 }), // Ethereum address
   referrerFid: integer('referrer_fid'), // FK to another user's FID
+  spamScore: integer('spam_score'), // Neynar spam/trust score (higher = more trustworthy)
   xp: integer('xp').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

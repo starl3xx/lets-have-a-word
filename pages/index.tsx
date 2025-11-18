@@ -58,13 +58,23 @@ export default function Home() {
     setErrorMessage(null);
 
     try {
+      // For Milestone 2.1: In development mode (no NEYNAR_API_KEY), send devFid
+      // In production, the Farcaster SDK will provide frameMessage or signerUuid
+      const requestBody: any = { word };
+
+      // Development mode: use a test FID (when not in a Farcaster context)
+      // In production, this will be replaced by Farcaster frame/miniapp authentication
+      if (process.env.NODE_ENV === 'development') {
+        requestBody.devFid = 12345;
+      }
+
       // Call API
       const response = await fetch('/api/guess', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ word }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
