@@ -2,14 +2,53 @@ import { useEffect, useState } from 'react';
 import type { RoundStatus } from '../src/lib/wheel';
 
 /**
+ * Format ETH value for display
+ * Milestone 3.2: Show 2-4 decimal places, trim trailing zeros
+ *
+ * @param value - ETH value as string or number
+ * @returns Formatted ETH string (e.g. "0.42" or "1.2345")
+ */
+function formatEth(value: string | number): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+
+  if (isNaN(num)) return '0';
+
+  // Show up to 4 decimal places, but trim trailing zeros
+  const formatted = num.toFixed(4);
+
+  // Remove trailing zeros after decimal point
+  return formatted.replace(/\.?0+$/, '');
+}
+
+/**
+ * Format USD value for display
+ * Milestone 3.2: Show with $ prefix and commas
+ *
+ * @param value - USD value as string or number
+ * @returns Formatted USD string (e.g. "$1,260" or "$1,260.50")
+ */
+function formatUsd(value: string | number): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+
+  if (isNaN(num)) return '$0';
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(num);
+}
+
+/**
  * TopTicker Component
- * Milestone 2.3: Displays live round status at the top of the page
+ * Milestone 3.2: Displays live round status with polished formatting
  *
  * Shows:
- * - Prize pool in ETH and USD
- * - Global guess count for the current round
+ * - Prize pool in ETH and USD (formatted properly)
+ * - Global guess count for the current round (with commas)
  *
- * Polls /api/round-state every 5 seconds for live updates.
+ * Polls /api/round-state every 15 seconds for live updates.
  */
 export default function TopTicker() {
   const [status, setStatus] = useState<RoundStatus | null>(null);
@@ -40,13 +79,14 @@ export default function TopTicker() {
 
   /**
    * Set up polling on mount
+   * Milestone 3.2: Polls every 15 seconds for efficient updates
    */
   useEffect(() => {
     // Initial fetch
     fetchRoundStatus();
 
-    // Poll every 5 seconds
-    const interval = setInterval(fetchRoundStatus, 5000);
+    // Poll every 15 seconds
+    const interval = setInterval(fetchRoundStatus, 15000);
 
     // Cleanup on unmount
     return () => clearInterval(interval);
@@ -105,10 +145,10 @@ export default function TopTicker() {
               Prize Pool
             </p>
             <p className="text-lg font-bold">
-              {status.prizePoolEth} ETH
+              {formatEth(status.prizePoolEth)} ETH
               {status.prizePoolUsd && (
                 <span className="text-sm font-normal opacity-90 ml-2">
-                  (≈${status.prizePoolUsd})
+                  ({formatUsd(status.prizePoolUsd)})
                 </span>
               )}
             </p>
