@@ -1,7 +1,7 @@
 /**
  * Let's Have A Word - Main Entry Point
  *
- * Milestone 1.1: Core data model and game rules
+ * Milestone 1.2: Round Lifecycle
  */
 
 // Export all modules
@@ -20,4 +20,4 @@ if (process.env.SKIP_WORD_LIST_VALIDATION !== 'true') {
   validateWordLists();
 }
 
-console.log('✅ Let\'s Have A Word - Milestone 1.1 initialized');
+console.log('✅ Let\'s Have A Word - Milestone 1.2 (Round Lifecycle) initialized');

@@ -9,8 +9,10 @@ export const DEFAULT_RULES_CONFIG: GameRulesConfig = {
   freeGuessesPerDayBase: 1,
   clanktonBonusGuesses: 3,
   shareBonusGuesses: 1,
-  paidGuessPriceEth: '0.0001',
-  maxPaidGuessesPerDay: 10,
+  paidGuessPackSize: 3, // Buy 3 guesses at a time
+  paidGuessPackPriceEth: '0.0003', // 0.0003 ETH per pack of 3
+  maxPaidPacksPerDay: 3, // Max 3 packs per day
+  maxPaidGuessesPerDay: 9, // 3 packs × 3 guesses = 9 total
   jackpotSplit: {
     winner: 0.8,
     referrer: 0.1,
