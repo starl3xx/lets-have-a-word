@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
+import UserState from '../components/UserState';
 import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
@@ -19,6 +20,9 @@ export default function Home() {
   // Wheel state (Milestone 2.3)
   const [wheelWords, setWheelWords] = useState<string[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+
+  // User state refetch trigger (Milestone 4.1)
+  const [userStateKey, setUserStateKey] = useState(0);
 
   /**
    * Get Farcaster context on mount
@@ -172,6 +176,10 @@ export default function Home() {
         }
       }
 
+      // Refetch user state after any guess (Milestone 4.1)
+      // This updates the guess counts in real-time
+      setUserStateKey(prev => prev + 1);
+
       // Clear input on success (optional)
       // setWord('');
 
@@ -244,6 +252,13 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top Ticker (Milestone 2.3) */}
       <TopTicker />
+
+      {/* User State (Milestone 4.1) */}
+      <div className="px-4 pt-4">
+        <div className="max-w-md mx-auto">
+          <UserState key={userStateKey} fid={fid} />
+        </div>
+      </div>
 
       {/* Main Game Container with Layered Wheel */}
       <div className="flex-1 flex items-center justify-center p-4">
