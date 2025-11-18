@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent, ChangeEvent, KeyboardEvent } from 'reac
 import type { SubmitGuessResult } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
+import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
   const [word, setWord] = useState('');
@@ -9,9 +10,31 @@ export default function Home() {
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Farcaster context
+  const [fid, setFid] = useState<number | null>(null);
+
   // Wheel state (Milestone 2.3)
   const [wheelWords, setWheelWords] = useState<string[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+
+  /**
+   * Get Farcaster context on mount
+   */
+  useEffect(() => {
+    const getFarcasterContext = async () => {
+      try {
+        const context = await sdk.context;
+        if (context?.user?.fid) {
+          setFid(context.user.fid);
+          console.log('Farcaster FID:', context.user.fid);
+        }
+      } catch (error) {
+        console.log('Not in Farcaster context, using dev mode');
+      }
+    };
+
+    getFarcasterContext();
+  }, []);
 
   /**
    * Fetch wheel words on mount (Milestone 2.3)
@@ -86,13 +109,14 @@ export default function Home() {
     setErrorMessage(null);
 
     try {
-      // For Milestone 2.1: In development mode (no NEYNAR_API_KEY), send devFid
-      // In production, the Farcaster SDK will provide frameMessage or signerUuid
+      // Use Farcaster FID if available, otherwise use dev FID
       const requestBody: any = { word };
 
-      // Development mode: use a test FID (when not in a Farcaster context)
-      // In production, this will be replaced by Farcaster frame/miniapp authentication
-      if (process.env.NODE_ENV === 'development') {
+      if (fid) {
+        // Use Farcaster context FID
+        requestBody.devFid = fid;
+      } else {
+        // Fallback to dev FID when not in Farcaster context
         requestBody.devFid = 12345;
       }
 
