@@ -41,6 +41,7 @@ export default function Home() {
   const [showReferralSheet, setShowReferralSheet] = useState(false);
   const [showFAQSheet, setShowFAQSheet] = useState(false);
   const [showXPSheet, setShowXPSheet] = useState(false);
+  const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
 
   /**
    * Get Farcaster context on mount
@@ -112,6 +113,9 @@ export default function Home() {
   const handleLettersChange = (newLetters: string[]) => {
     setLetters(newLetters);
 
+    // Reset to typing state when user starts typing
+    setBoxResultState('typing');
+
     // Clear previous result and errors when user starts typing
     if (result || errorMessage) {
       setResult(null);
@@ -179,12 +183,18 @@ export default function Home() {
       const data: SubmitGuessResult = await response.json();
       setResult(data);
 
-      // Haptic feedback based on result (Milestone 4.3)
+      // Set box result state based on guess outcome (Milestone 4.3)
       if (data.status === 'correct') {
+        setBoxResultState('correct');
         triggerHaptic('success');
-      } else if (data.status === 'incorrect') {
-        triggerHaptic('light');
-      } else if (data.status === 'invalid_word' || data.status === 'already_guessed_word') {
+      } else if (data.status === 'incorrect' || data.status === 'already_guessed_word') {
+        setBoxResultState('wrong');
+        triggerHaptic(data.status === 'incorrect' ? 'light' : 'error');
+        if (data.status === 'already_guessed_word') {
+          triggerShake();
+        }
+      } else if (data.status === 'invalid_word') {
+        setBoxResultState('wrong');
         triggerHaptic('error');
         triggerShake();
       }
@@ -332,16 +342,23 @@ export default function Home() {
             )}
           </div>
 
-          {/* Foreground Layer: Input & Controls */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
-
-            {/* Input Area - LetterBoxes Component (Milestone 4.3) */}
-            <div className="relative z-10 w-full px-8">
+          {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
+          <div
+            className="absolute left-0 right-0 px-8"
+            style={{
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10,
+              pointerEvents: 'none' // Allow clicks through to wheel
+            }}
+          >
+            <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
               <LetterBoxes
                 letters={letters}
                 onChange={handleLettersChange}
                 disabled={isLoading}
                 isShaking={isShaking}
+                resultState={boxResultState}
               />
 
               {/* Feedback area below input */}
@@ -363,9 +380,10 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Guess Button - positioned below the input area */}
-            <div className="absolute bottom-8 left-0 right-0 px-8 z-10">
+          {/* Fixed Layer: Buttons - always at bottom */}
+          <div className="absolute bottom-8 left-0 right-0 px-8" style={{ zIndex: 10 }}>
               <button
                 type="button"
                 onClick={handleSubmit}
