@@ -81,7 +81,8 @@ export type SubmitGuessResult =
   | { status: 'invalid_word'; reason: 'not_5_letters' | 'non_alpha' | 'not_in_dictionary' }
   | { status: 'already_guessed_word'; word: string }
   | { status: 'incorrect'; word: string; totalGuessesForUserThisRound: number }
-  | { status: 'correct'; word: string; roundId: number; winnerFid: number };
+  | { status: 'correct'; word: string; roundId: number; winnerFid: number }
+  | { status: 'no_guesses_left_today' }; // Milestone 2.2: Daily limits enforced
 
 /**
  * Submit Guess Parameters

@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { submitGuess } from '../../src/lib/guesses';
 import { ensureActiveRound } from '../../src/lib/rounds';
 import { verifyFrameMessage, verifySigner } from '../../src/lib/farcaster';
 import { upsertUserFromFarcaster } from '../../src/lib/users';
+import { submitGuessWithDailyLimits } from '../../src/lib/daily-limits';
 import type { SubmitGuessResult } from '../../src/types';
 
 /**
@@ -11,6 +11,7 @@ import type { SubmitGuessResult } from '../../src/types';
  * Submit a guess for the current active round
  *
  * Milestone 2.1: Now uses Farcaster authentication
+ * Milestone 2.2: Now enforces daily limits (free + paid guesses)
  *
  * Request body:
  * {
@@ -27,6 +28,7 @@ import type { SubmitGuessResult } from '../../src/types';
  * }
  *
  * Response: SubmitGuessResult
+ *   May return { status: 'no_guesses_left_today' } if user has no guesses remaining
  */
 export default async function handler(
   req: NextApiRequest,
@@ -103,11 +105,10 @@ export default async function handler(
       });
     }
 
-    // Submit the guess with the authenticated FID
-    const result = await submitGuess({
+    // Submit the guess with daily limits enforcement (Milestone 2.2)
+    const result = await submitGuessWithDailyLimits({
       fid,
       word,
-      isPaidGuess: false, // All guesses are free for Milestone 2.1
     });
 
     // Return the result
