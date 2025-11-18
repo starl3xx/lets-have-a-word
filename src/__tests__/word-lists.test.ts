@@ -53,14 +53,14 @@ describe('Word Lists', () => {
   });
 
   it('should correctly validate guesses', () => {
-    expect(isValidGuess('crane')).toBe(true);
+    expect(isValidGuess('brain')).toBe(true);
     expect(isValidGuess('about')).toBe(true);
     expect(isValidGuess('xyzab')).toBe(false);
     expect(isValidGuess('notaword')).toBe(false);
   });
 
   it('should correctly validate answers', () => {
-    expect(isValidAnswer('crane')).toBe(true);
+    expect(isValidAnswer('brain')).toBe(true);
     expect(isValidAnswer('about')).toBe(true);
     // Seed words should NOT be valid answers
     expect(isValidAnswer('aahed')).toBe(false);

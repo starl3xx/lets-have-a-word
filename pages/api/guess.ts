@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { submitGuess } from '../../src/lib/guesses';
 import { ensureActiveRound } from '../../src/lib/rounds';
+import { verifyFrameMessage, verifySigner } from '../../src/lib/farcaster';
+import { upsertUserFromFarcaster } from '../../src/lib/users';
+import { submitGuessWithDailyLimits } from '../../src/lib/daily-limits';
 import type { SubmitGuessResult } from '../../src/types';
 
 /**
@@ -8,12 +10,25 @@ import type { SubmitGuessResult } from '../../src/types';
  *
  * Submit a guess for the current active round
  *
+ * Milestone 2.1: Now uses Farcaster authentication
+ * Milestone 2.2: Now enforces daily limits (free + paid guesses)
+ *
  * Request body:
  * {
- *   "word": "CRANE"
+ *   "word": "CRANE",
+ *   "frameMessage"?: "0x..." (for frame requests),
+ *   "signerUuid"?: "uuid-..." (for mini app SDK),
+ *   "ref"?: 12345 (optional referrer FID)
+ * }
+ *
+ * For development (when NEYNAR_API_KEY not set):
+ * {
+ *   "word": "CRANE",
+ *   "devFid": 12345 (bypasses Farcaster auth)
  * }
  *
  * Response: SubmitGuessResult
+ *   May return { status: 'no_guesses_left_today' } if user has no guesses remaining
  */
 export default async function handler(
   req: NextApiRequest,
@@ -25,7 +40,7 @@ export default async function handler(
   }
 
   try {
-    const { word } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid } = req.body;
 
     // Validate request
     if (typeof word !== 'string' || !word) {
@@ -35,15 +50,65 @@ export default async function handler(
     // Ensure there's an active round (create one if needed)
     await ensureActiveRound();
 
-    // For Milestone 1.4, use a hardcoded test FID
-    // In later milestones, this will come from Farcaster auth
-    const TEST_FID = 12345;
+    let fid: number;
+    let signerWallet: string | null = null;
+    let spamScore: number | null = null;
 
-    // Submit the guess
-    const result = await submitGuess({
-      fid: TEST_FID,
+    // Check if we're in development mode (no Neynar API key)
+    const isDevelopment = !process.env.NEYNAR_API_KEY;
+
+    if (isDevelopment && devFid) {
+      // Development mode: allow explicit FID for testing
+      fid = typeof devFid === 'number' ? devFid : parseInt(devFid, 10);
+      console.log(`⚠️  Development mode: using devFid ${fid}`);
+    } else {
+      // Production mode: require Farcaster authentication
+
+      // Verify Farcaster request and extract user context
+      let farcasterContext;
+
+      if (frameMessage) {
+        // Frame request (from Warpcast or other frame clients)
+        try {
+          farcasterContext = await verifyFrameMessage(frameMessage);
+        } catch (error: any) {
+          console.error('Frame verification failed:', error);
+          return res.status(401).json({ error: 'Invalid Farcaster frame signature' });
+        }
+      } else if (signerUuid) {
+        // Mini app SDK request (using Farcaster SDK signer)
+        try {
+          farcasterContext = await verifySigner(signerUuid);
+        } catch (error: any) {
+          console.error('Signer verification failed:', error);
+          return res.status(401).json({ error: 'Invalid Farcaster signer' });
+        }
+      } else {
+        return res.status(400).json({
+          error: 'Authentication required: provide frameMessage or signerUuid (or devFid in development)',
+        });
+      }
+
+      fid = farcasterContext.fid;
+      signerWallet = farcasterContext.signerWallet;
+      spamScore = farcasterContext.spamScore;
+
+      // Parse referral parameter
+      const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+
+      // Upsert user with Farcaster data
+      await upsertUserFromFarcaster({
+        fid,
+        signerWallet,
+        spamScore,
+        referrerFid,
+      });
+    }
+
+    // Submit the guess with daily limits enforcement (Milestone 2.2)
+    const result = await submitGuessWithDailyLimits({
+      fid,
       word,
-      isPaidGuess: false, // All guesses are free for Milestone 1.4
     });
 
     // Return the result

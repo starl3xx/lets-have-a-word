@@ -68,7 +68,7 @@ export const GUESS_WORDS: string[] = [
   'absit', 'abuna', 'abune', 'abuts', 'abuzz', 'abyes', 'abysm', 'abyss', 'acais', 'acari',
   'accas', 'accoy', 'acerb', 'acers', 'aceta', 'achar', 'ached', 'acher', 'aches', 'achoo',
   'acids', 'acidy', 'acing', 'acini', 'ackee', 'acker', 'acmes', 'acmic', 'acned', 'acnes',
-  'acock', 'acold', 'acorn', 'acred', 'acres', 'acrid', 'actin', 'acted', 'acton', 'acts',
+  'acock', 'acold', 'acorn', 'acred', 'acres', 'acrid', 'actin', 'acted', 'acton',
   'adage', 'adapt', 'adaws', 'adays', 'adbot', 'addax', 'added', 'adder', 'addio', 'addle',
   'adeem', 'adept', 'adhan', 'adieu', 'adios', 'adits', 'adman', 'admen', 'admin', 'admix',
   'adobe', 'adobo', 'adore', 'adorn', 'adown', 'adoze', 'adrad', 'adred', 'adsum',
