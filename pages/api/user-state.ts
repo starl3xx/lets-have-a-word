@@ -37,6 +37,8 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  console.log('[user-state] API called with query params:', req.query);
+
   try {
     // Get FID from query params or frame message
     let fid: number | null = null;
@@ -70,17 +72,31 @@ export default async function handler(
     // Ensure user exists in database
     // If not, fetch from Neynar and create record
     console.log(`[user-state] Checking if user ${fid} exists...`);
-    const existingUser = await db
-      .select()
-      .from(users)
-      .where(eq(users.fid, fid))
-      .limit(1);
+    let existingUser;
+    try {
+      existingUser = await db
+        .select()
+        .from(users)
+        .where(eq(users.fid, fid))
+        .limit(1);
+      console.log(`[user-state] Database query successful, found ${existingUser.length} users`);
+    } catch (dbError) {
+      console.error('[user-state] Database query failed:', dbError);
+      throw new Error(`Database error: ${dbError instanceof Error ? dbError.message : 'Unknown'}`);
+    }
 
     if (existingUser.length === 0) {
       console.log(`[user-state] User ${fid} not found, fetching from Neynar...`);
 
       // Fetch user data from Neynar
-      const farcasterUser = await getUserByFid(fid);
+      let farcasterUser;
+      try {
+        farcasterUser = await getUserByFid(fid);
+        console.log(`[user-state] Neynar API returned user:`, farcasterUser?.username || 'null');
+      } catch (neynarError) {
+        console.error('[user-state] Neynar API failed:', neynarError);
+        throw new Error(`Neynar API error: ${neynarError instanceof Error ? neynarError.message : 'Unknown'}`);
+      }
 
       if (!farcasterUser) {
         console.error(`[user-state] Could not fetch user ${fid} from Neynar`);
@@ -91,26 +107,44 @@ export default async function handler(
       // If connected wallet provided, use it; otherwise use Farcaster verified address
       const userWallet = walletAddress || farcasterUser.signerWallet;
       console.log(`[user-state] Creating user ${fid} with wallet ${userWallet || 'null'}`);
-      await db.insert(users).values({
-        fid,
-        username: farcasterUser.username,
-        signerWalletAddress: userWallet,
-        custodyAddress: farcasterUser.custodyAddress,
-        spamScore: farcasterUser.spamScore,
-      });
-
-      console.log(`[user-state] User ${fid} created successfully`);
+      try {
+        await db.insert(users).values({
+          fid,
+          username: farcasterUser.username,
+          signerWalletAddress: userWallet,
+          custodyAddress: farcasterUser.custodyAddress,
+          spamScore: farcasterUser.spamScore,
+        });
+        console.log(`[user-state] User ${fid} created successfully`);
+      } catch (insertError) {
+        console.error('[user-state] User insert failed:', insertError);
+        throw new Error(`Database insert error: ${insertError instanceof Error ? insertError.message : 'Unknown'}`);
+      }
     } else if (walletAddress && existingUser[0].signerWalletAddress !== walletAddress) {
       // Update wallet address if different from what's in database
       console.log(`[user-state] Updating wallet for user ${fid} to ${walletAddress}`);
-      await db
-        .update(users)
-        .set({ signerWalletAddress: walletAddress })
-        .where(eq(users.fid, fid));
+      try {
+        await db
+          .update(users)
+          .set({ signerWalletAddress: walletAddress })
+          .where(eq(users.fid, fid));
+        console.log(`[user-state] Wallet address updated successfully`);
+      } catch (updateError) {
+        console.error('[user-state] Wallet update failed:', updateError);
+        throw new Error(`Database update error: ${updateError instanceof Error ? updateError.message : 'Unknown'}`);
+      }
     }
 
     // Get or create daily state (now that user exists)
-    const dailyState = await getOrCreateDailyState(fid);
+    console.log(`[user-state] Fetching daily state for user ${fid}...`);
+    let dailyState;
+    try {
+      dailyState = await getOrCreateDailyState(fid);
+      console.log(`[user-state] Daily state retrieved successfully`);
+    } catch (dailyStateError) {
+      console.error('[user-state] getOrCreateDailyState failed:', dailyStateError);
+      throw new Error(`Daily state error: ${dailyStateError instanceof Error ? dailyStateError.message : 'Unknown'}`);
+    }
 
     // Calculate remaining guesses
     const freeRemaining = getFreeGuessesRemaining(dailyState);
@@ -124,8 +158,14 @@ export default async function handler(
     // If wallet address provided, do live check
     if (walletAddress) {
       console.log(`[user-state] Performing live CLANKTON check for wallet ${walletAddress}`);
-      clanktonBonusActive = await hasClanktonBonus(walletAddress);
-      console.log(`[user-state] Live CLANKTON check result: ${clanktonBonusActive}`);
+      try {
+        clanktonBonusActive = await hasClanktonBonus(walletAddress);
+        console.log(`[user-state] Live CLANKTON check result: ${clanktonBonusActive}`);
+      } catch (clanktonError) {
+        console.error('[user-state] CLANKTON check failed:', clanktonError);
+        // Non-fatal: continue with database value if live check fails
+        console.log(`[user-state] Falling back to database value: ${clanktonBonusActive}`);
+      }
     }
 
     // Check if can buy more packs
@@ -150,6 +190,18 @@ export default async function handler(
     return res.status(200).json(response);
   } catch (error) {
     console.error('[user-state] Error fetching user state:', error);
-    return res.status(500).json({ error: 'Failed to fetch user state' });
+
+    // Return detailed error in development
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error('[user-state] Error message:', errorMessage);
+    console.error('[user-state] Error stack:', errorStack);
+
+    return res.status(500).json({
+      error: 'Failed to fetch user state',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+    });
   }
 }
