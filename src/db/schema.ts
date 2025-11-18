@@ -137,3 +137,38 @@ export const roundSeedWords = pgTable('round_seed_words', {
 
 export type RoundSeedWordRow = typeof roundSeedWords.$inferSelect;
 export type RoundSeedWordInsert = typeof roundSeedWords.$inferInsert;
+
+/**
+ * System State Table
+ * Stores singleton system-wide state (creator balance, etc.)
+ * Milestone 3.1: Jackpot + split logic
+ */
+export const systemState = pgTable('system_state', {
+  id: serial('id').primaryKey(),
+  creatorBalanceEth: decimal('creator_balance_eth', { precision: 20, scale: 18 }).default('0').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type SystemStateRow = typeof systemState.$inferSelect;
+export type SystemStateInsert = typeof systemState.$inferInsert;
+
+/**
+ * Round Payouts Table
+ * Stores payouts for each round (winner, referrer, top 10 guessers)
+ * Milestone 3.1: Jackpot + split logic
+ */
+export const roundPayouts = pgTable('round_payouts', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  fid: integer('fid').notNull(), // FK to users.fid - recipient of payout
+  amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('round_payouts_round_idx').on(table.roundId),
+  fidIdx: index('round_payouts_fid_idx').on(table.fid),
+}));
+
+export type RoundPayoutRow = typeof roundPayouts.$inferSelect;
+export type RoundPayoutInsert = typeof roundPayouts.$inferInsert;

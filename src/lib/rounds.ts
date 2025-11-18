@@ -4,6 +4,7 @@ import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
 import { populateRoundSeedWords } from './wheel';
+import { resolveRoundAndCreatePayouts } from './economics';
 
 /**
  * Options for creating a new round
@@ -193,34 +194,20 @@ export async function resolveRound(
     );
   }
 
-  // Update the round
-  const result = await db
-    .update(rounds)
-    .set({
-      resolvedAt: new Date(),
-      winnerFid,
-      referrerFid: referrerFid ?? null,
-    })
-    .where(eq(rounds.id, roundId))
-    .returning();
+  // Create payouts and resolve round (Milestone 3.1)
+  // This marks the round as resolved and creates payout records
+  await resolveRoundAndCreatePayouts(roundId, winnerFid);
 
-  const round = result[0];
+  // Fetch the updated round
+  const updatedRound = await getRoundById(roundId);
+
+  if (!updatedRound) {
+    throw new Error(`Failed to fetch resolved round ${roundId}`);
+  }
 
   console.log(`✅ Resolved round ${roundId} with winner FID: ${winnerFid}`);
 
-  return {
-    id: round.id,
-    rulesetId: round.rulesetId,
-    answer: round.answer,
-    salt: round.salt,
-    commitHash: round.commitHash,
-    prizePoolEth: round.prizePoolEth,
-    seedNextRoundEth: round.seedNextRoundEth,
-    winnerFid: round.winnerFid,
-    referrerFid: round.referrerFid,
-    startedAt: round.startedAt,
-    resolvedAt: round.resolvedAt,
-  };
+  return updatedRound;
 }
 
 /**
