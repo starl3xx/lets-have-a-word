@@ -61,11 +61,13 @@ export const guesses = pgTable('guesses', {
   fid: integer('fid').notNull(), // FK to users.fid
   word: varchar('word', { length: 5 }).notNull(),
   isPaid: boolean('is_paid').default(false).notNull(),
+  isCorrect: boolean('is_correct').default(false).notNull(), // True if this guess won the round
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundFidIdx: index('guesses_round_fid_idx').on(table.roundId, table.fid),
   roundWordIdx: index('guesses_round_word_idx').on(table.roundId, table.word),
   createdAtIdx: index('guesses_created_at_idx').on(table.createdAt),
+  isCorrectIdx: index('guesses_is_correct_idx').on(table.isCorrect),
 }));
 
 export type GameRulesRow = typeof gameRules.$inferSelect;
