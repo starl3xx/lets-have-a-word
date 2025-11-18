@@ -55,9 +55,18 @@ export default function UserState({ fid }: UserStateProps) {
       console.log('[UserState] Response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('[UserState] API error:', errorData);
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('[UserState] API error response:', errorData);
+        } catch (parseError) {
+          console.error('[UserState] Failed to parse error response:', parseError);
+          errorData = { error: 'Server error (invalid JSON response)' };
+        }
+
+        // Use detailed error message if available
+        const errorMsg = errorData.details || errorData.error || `HTTP ${response.status}`;
+        throw new Error(errorMsg);
       }
 
       const data: UserStateResponse = await response.json();
