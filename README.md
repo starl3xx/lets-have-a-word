@@ -10,6 +10,48 @@ A global, persistent 5-letter word guessing game with ETH jackpots.
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
+## Milestone 1.4 - Minimal Frontend ✅
+
+This milestone implements a playable web interface for the game:
+
+### Features Implemented
+
+- ✅ **Next.js Frontend**
+  - Single-page React application
+  - Clean, functional UI with Tailwind CSS
+  - Responsive design
+
+- ✅ **Game Interface**
+  - 5-letter input with auto-uppercase
+  - A-Z character filtering
+  - Real-time input validation (5 letter limit)
+  - "Guess" button with loading states
+  - Enter key support for quick submission
+
+- ✅ **API Integration**
+  - `POST /api/guess` endpoint
+  - Hardcoded test FID (12345) for Milestone 1.4
+  - Automatic active round management via `ensureActiveRound()`
+  - All guesses treated as free (no payments yet)
+
+- ✅ **Comprehensive Feedback**
+  - ✅ Correct guess: "🎉 Correct! You found the word..."
+  - ❌ Incorrect guess: Shows total guess count
+  - ⚠️ Already guessed: Global deduplication message
+  - 🚫 Invalid word: Not in dictionary / wrong format
+  - 🔒 Round closed: Round already resolved
+
+- ✅ **User Experience**
+  - Disabled button when word < 5 letters
+  - Disabled input during submission
+  - Loading spinner while processing
+  - Error handling for network failures
+  - Character counter (X/5 letters)
+  - Auto-focus on input
+  - Clear, readable feedback messages
+
+### Previous Milestones
+
 ## Milestone 1.3 - Guess Logic Basic ✅
 
 This milestone implements the core guess submission and validation logic:
@@ -124,11 +166,18 @@ npm run validate
 ### Development
 
 ```bash
-# Build TypeScript
+# Start Next.js development server (includes API + frontend)
+npm run dev
+# Opens at http://localhost:3000
+
+# Build for production
 npm run build
 
-# Run in development mode
-npm run dev
+# Start production server
+npm start
+
+# Backend-only development (no frontend)
+npm run dev:backend
 
 # Open Drizzle Studio (database GUI)
 npm run db:studio
