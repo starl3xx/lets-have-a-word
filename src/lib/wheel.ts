@@ -13,7 +13,7 @@ import { db } from '../db';
 import { roundSeedWords, guesses, rounds } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { SEED_WORDS } from '../data/seed-words';
-import { getActiveRound } from './rounds';
+import { getActiveRound, ensureActiveRound } from './rounds';
 import type { RoundSeedWordInsert } from '../db/schema';
 
 /**
@@ -171,17 +171,13 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
 /**
  * Get active round status (for top ticker)
  *
- * Returns status for the currently active round, or null if no active round.
+ * Returns status for the currently active round.
+ * Automatically creates a round if none exists.
  *
- * @returns Active round status, or null
+ * @returns Active round status
  */
-export async function getActiveRoundStatus(): Promise<RoundStatus | null> {
-  const activeRound = await getActiveRound();
-
-  if (!activeRound) {
-    return null;
-  }
-
+export async function getActiveRoundStatus(): Promise<RoundStatus> {
+  const activeRound = await ensureActiveRound();
   return getRoundStatus(activeRound.id);
 }
 
@@ -189,19 +185,15 @@ export async function getActiveRoundStatus(): Promise<RoundStatus | null> {
  * Get wheel data for active round
  *
  * Convenience function that returns wheel words for the active round.
+ * Automatically creates a round if none exists.
  *
- * @returns Object with roundId and sorted wheel words, or null if no active round
+ * @returns Object with roundId and sorted wheel words
  */
 export async function getActiveWheelData(): Promise<{
   roundId: number;
   words: string[];
-} | null> {
-  const activeRound = await getActiveRound();
-
-  if (!activeRound) {
-    return null;
-  }
-
+}> {
+  const activeRound = await ensureActiveRound();
   const words = await getWheelWordsForRound(activeRound.id);
 
   return {
