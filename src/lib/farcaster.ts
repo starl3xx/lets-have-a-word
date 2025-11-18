@@ -58,7 +58,8 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
 
     try {
       // Fetch full user data from Neynar
-      const userData = await neynarClient.fetchBulkUsers([fid]);
+      // SDK v2 requires object with fids property
+      const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
@@ -130,7 +131,8 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
     let username: string | null = null;
 
     try {
-      const userData = await neynarClient.fetchBulkUsers([fid]);
+      // SDK v2 requires object with fids property
+      const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
@@ -175,7 +177,8 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
  */
 export async function getUserByFid(fid: number): Promise<FarcasterContext | null> {
   try {
-    const userData = await neynarClient.fetchBulkUsers([fid]);
+    // SDK v2 requires object with fids property
+    const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
 
     if (!userData.users || userData.users.length === 0) {
       return null;
