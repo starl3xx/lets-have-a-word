@@ -397,7 +397,7 @@ export default function Home() {
                   }}
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
-                  🔗 Refer
+                  🤝 Refer
                 </button>
                 <button
                   onClick={() => {
@@ -406,7 +406,7 @@ export default function Home() {
                   }}
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
-                  ❓ FAQ
+                  🤔 FAQ
                 </button>
                 <button
                   onClick={() => {
@@ -415,7 +415,7 @@ export default function Home() {
                   }}
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
-                  ⭐ XP
+                  ✨ XP
                 </button>
               </div>
             </div>

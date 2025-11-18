@@ -1,4 +1,4 @@
-import { useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import { useRef, useEffect, useState, KeyboardEvent, ChangeEvent } from 'react';
 
 interface LetterBoxesProps {
   letters: string[];
@@ -23,12 +23,13 @@ export default function LetterBoxes({
   isShaking = false,
 }: LetterBoxesProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   /**
-   * Auto-focus input on mount (especially for mobile)
+   * Auto-focus input on mount (all devices)
    */
   useEffect(() => {
-    if (!inputRef.current) return;
+    if (!inputRef.current || disabled) return;
 
     const isMobile =
       typeof navigator !== 'undefined' &&
@@ -39,8 +40,11 @@ export default function LetterBoxes({
       setTimeout(() => {
         inputRef.current?.focus();
       }, 200);
+    } else {
+      // Desktop: focus immediately
+      inputRef.current.focus();
     }
-  }, []);
+  }, [disabled]);
 
   /**
    * Handle keyboard input
@@ -114,6 +118,22 @@ export default function LetterBoxes({
     inputRef.current?.focus();
   };
 
+  /**
+   * Get border color for a letter box
+   */
+  const getBorderColor = (letter: string, index: number) => {
+    if (disabled) return 'border-gray-300';
+    if (letter) return 'border-green-500'; // Green when has letter
+
+    // Show blue border on first empty box when focused
+    const firstEmptyIndex = letters.findIndex(l => l === '');
+    if (isFocused && index === firstEmptyIndex) {
+      return 'border-blue-500';
+    }
+
+    return 'border-gray-300';
+  };
+
   return (
     <div className="relative">
       {/* Hidden input for keyboard handling */}
@@ -123,6 +143,8 @@ export default function LetterBoxes({
         value={letters.join('')}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         disabled={disabled}
         className="absolute opacity-0 pointer-events-none"
         maxLength={5}
@@ -146,33 +168,16 @@ export default function LetterBoxes({
               text-3xl font-bold uppercase
               border-4 rounded-lg
               transition-all duration-150
-              ${disabled ? 'bg-gray-100 border-gray-300 text-gray-400' : 'bg-white'}
-              ${letter ? 'border-green-500 text-gray-900' : 'border-gray-300 text-gray-300'}
-              ${!disabled && 'cursor-text hover:border-green-400'}
+              ${disabled ? 'bg-gray-100 text-gray-400' : 'bg-white'}
+              ${letter ? 'text-gray-900' : 'text-gray-300'}
+              ${getBorderColor(letter, index)}
+              ${!disabled && 'cursor-text hover:border-blue-400'}
               shadow-md
             `}
           >
             {letter || '_'}
           </div>
         ))}
-      </div>
-
-      {/* Character counter */}
-      <div className="text-center mt-2">
-        <p className="text-xs text-gray-500 font-semibold inline-block relative">
-          <span
-            className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded px-2 py-1"
-            style={{
-              left: '-8px',
-              right: '-8px',
-              top: '-4px',
-              bottom: '-4px',
-            }}
-          ></span>
-          <span className="relative z-10">
-            {letters.filter(l => l !== '').length}/5 letters
-          </span>
-        </p>
       </div>
     </div>
   );

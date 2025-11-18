@@ -49,7 +49,7 @@ export default function XPSheet({ fid, onClose }: XPSheetProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b pb-3">
-          <h2 className="text-2xl font-bold text-gray-900">⭐ XP & Progression</h2>
+          <h2 className="text-2xl font-bold text-gray-900">✨ XP & Progression</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
