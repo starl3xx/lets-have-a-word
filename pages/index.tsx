@@ -198,93 +198,109 @@ export default function Home() {
       {/* Top Ticker (Milestone 2.3) */}
       <TopTicker />
 
-      {/* Main Content */}
-      <div className="flex-1 flex items-start justify-center p-4 pt-8">
-        <div className="max-w-5xl w-full grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Left Column: Guess Form */}
-          <div className="bg-white rounded-lg shadow-md p-8">
-        {/* Title */}
-        <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
-          Let's Have A Word
-        </h1>
+      {/* Main Game Container with Layered Wheel */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="max-w-md w-full relative" style={{ height: '600px' }}>
 
-        {/* Subtitle */}
-        <p className="text-center text-gray-600 mb-8">
-          Guess the secret 5-letter word
-        </p>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Input */}
-          <div>
-            <input
-              type="text"
-              value={word}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter word"
-              className="w-full px-4 py-3 text-2xl font-mono text-center uppercase border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 tracking-widest"
-              maxLength={5}
-              autoFocus
-              disabled={isLoading}
-            />
-            <p className="text-xs text-gray-500 text-center mt-2">
-              {word.length}/5 letters
-            </p>
-          </div>
-
-          {/* Button */}
-          <button
-            type="submit"
-            disabled={isButtonDisabled}
-            className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors ${
-              isButtonDisabled
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-            }`}
-          >
-            {isLoading ? 'Submitting...' : 'Guess'}
-          </button>
-        </form>
-
-        {/* Feedback area */}
-        <div className="mt-6 min-h-[60px]">
-          {/* Error message */}
-          {errorMessage && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-600 text-center">{errorMessage}</p>
-            </div>
-          )}
-
-          {/* Result feedback */}
-          {feedback && !errorMessage && (
-            <div className={`bg-gray-50 border border-gray-200 rounded-lg p-4`}>
-              <p className={`${feedback.color} text-center font-medium`}>
-                {feedback.text}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Info footer */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center">
-            Milestone 2.3 - Wheel + Visual State
-            <br />
-            Everyone in the world is guessing the same word
-          </p>
-        </div>
-          </div>
-
-          {/* Right Column: Wheel (Milestone 2.3) */}
-          <div className="bg-white rounded-lg shadow-md p-8">
+          {/* Background Layer: Wheel */}
+          <div className="absolute inset-0" style={{ zIndex: 1 }}>
             {isLoadingWheel ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-gray-500 animate-pulse">Loading wheel...</p>
+                <p className="text-gray-400 animate-pulse">Loading...</p>
               </div>
             ) : (
               <Wheel words={wheelWords} currentGuess={word} />
             )}
+          </div>
+
+          {/* Foreground Layer: Input & Controls */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
+
+            {/* White mask behind input boxes for visibility */}
+            <div
+              className="absolute"
+              style={{
+                top: '35%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '100%',
+                height: '140px',
+                background: 'rgba(255, 255, 255, 0.92)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '16px',
+                zIndex: 0,
+              }}
+            />
+
+            {/* Input Area (on top of mask) */}
+            <div className="relative z-10 w-full px-8">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* 5-Letter Input Boxes */}
+                <div>
+                  <input
+                    type="text"
+                    value={word}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="     "
+                    className="w-full px-4 py-4 text-4xl font-mono text-center uppercase border-4 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 tracking-[0.5em] bg-white shadow-lg"
+                    maxLength={5}
+                    autoFocus
+                    disabled={isLoading}
+                    style={{
+                      fontWeight: 'bold',
+                      letterSpacing: '0.5em',
+                    }}
+                  />
+                  <p className="text-xs text-gray-500 text-center mt-2 font-semibold">
+                    {word.length}/5 letters
+                  </p>
+                </div>
+              </form>
+
+              {/* Feedback area below input */}
+              {(errorMessage || feedback) && (
+                <div className="mt-4">
+                  {errorMessage && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                      <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
+                    </div>
+                  )}
+
+                  {feedback && !errorMessage && (
+                    <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                      <p className={`${feedback.color} text-center text-sm font-medium`}>
+                        {feedback.text}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Guess Button - positioned below the input area */}
+            <div className="absolute bottom-8 left-0 right-0 px-8 z-10">
+              <button
+                type="submit"
+                onClick={handleSubmit}
+                disabled={isButtonDisabled}
+                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
+                  isButtonDisabled
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:scale-95'
+                }`}
+              >
+                {isLoading ? 'SUBMITTING...' : 'GUESS'}
+              </button>
+
+              {/* Info footer */}
+              <div className="mt-4">
+                <p className="text-xs text-gray-400 text-center">
+                  Milestone 2.3 - Faux-3D Wheel
+                </p>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
