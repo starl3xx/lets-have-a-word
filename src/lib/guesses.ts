@@ -201,12 +201,6 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     try {
       await db.transaction(async (tx) => {
         // Re-check that round is still unresolved (race condition protection)
-        const freshRound = await tx
-          .select({ resolvedAt: guesses.roundId })
-          .from(db.select().from(guesses).as('rounds_check'))
-          .limit(1);
-
-        // Check if round was just resolved by someone else
         const currentRound = await getActiveRound();
         if (!currentRound || currentRound.resolvedAt !== null) {
           throw new Error('ROUND_ALREADY_RESOLVED');
