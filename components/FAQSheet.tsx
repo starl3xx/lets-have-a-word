@@ -29,11 +29,14 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       onClick={async (e) => {
         e.stopPropagation();
         try {
-          await sdk.actions.openUrl({
-            url: `https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`,
+          console.log('[FAQ] Attempting to view token...');
+          const result = await sdk.actions.viewToken({
+            address: '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07',
+            chainId: 8453, // Base chain as number
           });
+          console.log('[FAQ] viewToken result:', result);
         } catch (error) {
-          console.error('Error opening token view:', error);
+          console.error('[FAQ] Error opening token view:', error);
         }
       }}
       className="text-blue-600 hover:text-blue-800 underline font-semibold"
