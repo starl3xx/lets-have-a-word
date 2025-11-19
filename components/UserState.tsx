@@ -76,7 +76,14 @@ export default function UserState({ fid }: UserStateProps) {
     } catch (err) {
       console.error('[UserState] Error fetching user state:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load user status';
-      setError(errorMessage);
+
+      // Don't show authentication errors as errors - they're expected during initial load
+      if (errorMessage.includes('Authentication') || errorMessage.includes('401')) {
+        console.log('[UserState] Authentication pending, will retry');
+        setError(null);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -118,9 +125,9 @@ export default function UserState({ fid }: UserStateProps) {
    */
   if (!fid || !userState) {
     return (
-      <div className="bg-yellow-50 rounded-lg shadow-md p-4 border-2 border-yellow-200">
-        <p className="text-sm text-yellow-800 text-center">
-          {!fid && 'Please connect your Farcaster account'}
+      <div className="bg-blue-50 rounded-lg shadow-md p-4 border-2 border-blue-200">
+        <p className="text-sm text-blue-800 text-center animate-pulse">
+          {!fid && 'Connecting to Farcaster...'}
           {fid && !isConnected && 'Connecting wallet...'}
           {fid && isConnected && !userState && 'Loading...'}
         </p>

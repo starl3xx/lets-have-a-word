@@ -66,21 +66,35 @@ export default function Home() {
   }, []);
 
   /**
-   * Auto-focus input on mobile
+   * Auto-focus input on mobile with retry logic
    */
   useEffect(() => {
-    if (!inputRef.current) return;
-
     const isMobile =
       typeof navigator !== 'undefined' &&
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    if (isMobile) {
-      // Small delay helps iOS Safari actually show the keyboard
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 200);
-    }
+    if (!isMobile) return;
+
+    // Attempt to focus the input with progressive delays
+    // This helps with Farcaster webview and iOS Safari
+    const attemptFocus = (attempt = 1) => {
+      if (!inputRef.current) {
+        if (attempt < 5) {
+          setTimeout(() => attemptFocus(attempt + 1), 100 * attempt);
+        }
+        return;
+      }
+
+      try {
+        inputRef.current.focus();
+        console.log(`[Mobile] Input focused successfully (attempt ${attempt})`);
+      } catch (error) {
+        console.error('[Mobile] Focus failed:', error);
+      }
+    };
+
+    // Initial delay for Farcaster webview to fully render
+    setTimeout(() => attemptFocus(), 500);
   }, []);
 
   /**
