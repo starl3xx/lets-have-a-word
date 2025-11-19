@@ -438,20 +438,20 @@ export default function Home() {
               className="absolute top-0 left-0 right-0 pointer-events-none"
               style={{
                 zIndex: 2,
-                height: '12vh', // Short fade band (10-15% of viewport)
+                height: '8vh', // Short fade band
                 background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.6) 40%, rgba(249, 250, 251, 0) 100%)',
-                backdropFilter: 'blur(0.5px)', // Very subtle blur
-                WebkitBackdropFilter: 'blur(0.5px)',
+                backdropFilter: 'blur(1px)', // Subtle blur
+                WebkitBackdropFilter: 'blur(1px)',
               }}
             />
             <div
               className="absolute bottom-0 left-0 right-0 pointer-events-none"
               style={{
                 zIndex: 2,
-                height: '12vh', // Short fade band (10-15% of viewport)
+                height: '8vh', // Short fade band
                 background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.6) 40%, rgba(249, 250, 251, 0) 100%)',
-                backdropFilter: 'blur(0.5px)', // Very subtle blur
-                WebkitBackdropFilter: 'blur(0.5px)',
+                backdropFilter: 'blur(1px)', // Subtle blur
+                WebkitBackdropFilter: 'blur(1px)',
               }}
             />
 
