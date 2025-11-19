@@ -101,11 +101,9 @@ export default function UserState({ fid }: UserStateProps) {
    */
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-4 border-2 border-gray-200">
-        <p className="text-sm text-gray-500 text-center animate-pulse">
-          Loading your status...
-        </p>
-      </div>
+      <p className="text-xs text-gray-400 text-center">
+        Loading...
+      </p>
     );
   }
 
@@ -114,9 +112,7 @@ export default function UserState({ fid }: UserStateProps) {
    */
   if (error) {
     return (
-      <div className="bg-red-50 rounded-lg shadow-md p-4 border-2 border-red-200">
-        <p className="text-sm text-red-600 text-center">{error}</p>
-      </div>
+      <p className="text-xs text-red-500 text-center">{error}</p>
     );
   }
 
@@ -125,129 +121,47 @@ export default function UserState({ fid }: UserStateProps) {
    */
   if (!fid || !userState) {
     return (
-      <div className="bg-blue-50 rounded-lg shadow-md p-4 border-2 border-blue-200">
-        <p className="text-sm text-blue-800 text-center animate-pulse">
-          {!fid && 'Connecting to Farcaster...'}
-          {fid && !isConnected && 'Connecting wallet...'}
-          {fid && isConnected && !userState && 'Loading...'}
-        </p>
-      </div>
+      <p className="text-xs text-gray-400 text-center">
+        {!fid && 'Connecting...'}
+        {fid && !isConnected && 'Connecting wallet...'}
+        {fid && isConnected && !userState && 'Loading...'}
+      </p>
     );
   }
 
   /**
-   * Display user state
+   * Display user state - minimal plain text format
    */
+  const parts = [];
+
+  // Free guesses with breakdown
+  if (userState.freeGuessesRemaining > 0) {
+    const breakdown = [];
+    if (userState.freeAllocations.base > 0) {
+      breakdown.push(`${userState.freeAllocations.base} free`);
+    }
+    if (userState.freeAllocations.clankton > 0) {
+      breakdown.push(`${userState.freeAllocations.clankton} CLANKTON`);
+    }
+    if (userState.freeAllocations.shareBonus > 0) {
+      breakdown.push(`${userState.freeAllocations.shareBonus} share bonus`);
+    }
+    parts.push(breakdown.join(' + '));
+  }
+
+  // Paid guesses
+  if (userState.paidGuessesRemaining > 0) {
+    parts.push(`${userState.paidGuessesRemaining} paid`);
+  }
+
+  // No guesses left
+  if (userState.totalGuessesRemaining === 0) {
+    parts.push('No guesses left today');
+  }
+
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 border-2 border-gray-200 space-y-3">
-      {/* Header */}
-      <div className="text-center border-b pb-2">
-        <p className="text-xs uppercase font-semibold text-gray-500 tracking-wide">
-          Your Daily Status
-        </p>
-      </div>
-
-      {/* Guess Counts */}
-      <div className="space-y-2">
-        {/* Total Guesses Remaining */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">
-            Total Guesses
-          </span>
-          <span className="text-lg font-bold text-green-600">
-            {userState.totalGuessesRemaining}
-          </span>
-        </div>
-
-        {/* Free Guesses Breakdown */}
-        {userState.freeGuessesRemaining > 0 && (
-          <div className="pl-4 space-y-1 text-xs text-gray-600">
-            <div className="flex justify-between">
-              <span>Free (Base)</span>
-              <span>{userState.freeAllocations.base}</span>
-            </div>
-            {userState.freeAllocations.clankton > 0 && (
-              <div className="flex justify-between text-purple-600 font-semibold">
-                <span>CLANKTON Bonus</span>
-                <span>+{userState.freeAllocations.clankton}</span>
-              </div>
-            )}
-            {userState.freeAllocations.shareBonus > 0 && (
-              <div className="flex justify-between text-blue-600">
-                <span>Share Bonus</span>
-                <span>+{userState.freeAllocations.shareBonus}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Paid Guesses */}
-        {userState.paidGuessesRemaining > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-700">Paid Guesses</span>
-            <span className="font-bold text-blue-600">
-              {userState.paidGuessesRemaining}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* CLANKTON Bonus Status */}
-      <div className="pt-2 border-t">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">
-            CLANKTON Bonus
-          </span>
-          <div className="flex items-center gap-1">
-            {userState.clanktonBonusActive ? (
-              <>
-                <span className="text-green-600 font-bold text-sm">Active</span>
-                <span className="text-green-600">✓</span>
-              </>
-            ) : (
-              <>
-                <span className="text-gray-400 text-sm">Inactive</span>
-                <span className="text-gray-400">✗</span>
-              </>
-            )}
-          </div>
-        </div>
-        {!userState.clanktonBonusActive && (
-          <p className="text-xs text-gray-500 mt-1">
-            Hold ≥100M CLANKTON for +3 free guesses/day
-          </p>
-        )}
-      </div>
-
-      {/* Buy More Packs */}
-      {userState.canBuyMorePacks && (
-        <div className="pt-2 border-t">
-          <button
-            className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-semibold py-2 px-4 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
-            onClick={() => {
-              // TODO: Implement buy pack flow in Milestone 5.2
-              alert('Pack purchase coming in Milestone 5.2 (ETH payments)');
-            }}
-          >
-            Buy More Guesses (0.0003 ETH)
-          </button>
-          <p className="text-xs text-gray-500 text-center mt-1">
-            {userState.paidPacksPurchased} of {userState.maxPaidPacksPerDay} packs purchased today
-          </p>
-        </div>
-      )}
-
-      {/* Out of Guesses */}
-      {userState.totalGuessesRemaining === 0 && !userState.canBuyMorePacks && (
-        <div className="pt-2 border-t">
-          <p className="text-sm text-center text-gray-600 font-medium">
-            No guesses left today
-          </p>
-          <p className="text-xs text-center text-gray-500 mt-1">
-            Come back tomorrow for more free guesses
-          </p>
-        </div>
-      )}
-    </div>
+    <p className="text-xs text-gray-600 text-center">
+      {parts.length > 0 ? parts.join(' • ') : 'No guesses remaining'}
+    </p>
   );
 }
