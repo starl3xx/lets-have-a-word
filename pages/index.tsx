@@ -439,7 +439,7 @@ export default function Home() {
               style={{
                 zIndex: 2,
                 height: '8vh', // Short fade band
-                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.6) 40%, rgba(249, 250, 251, 0) 100%)',
+                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 0.7) 0%, rgba(249, 250, 251, 0.3) 40%, rgba(249, 250, 251, 0) 100%)',
                 backdropFilter: 'blur(1px)', // Subtle blur
                 WebkitBackdropFilter: 'blur(1px)',
               }}
@@ -449,7 +449,7 @@ export default function Home() {
               style={{
                 zIndex: 2,
                 height: '8vh', // Short fade band
-                background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.6) 40%, rgba(249, 250, 251, 0) 100%)',
+                background: 'linear-gradient(to top, rgba(249, 250, 251, 0.7) 0%, rgba(249, 250, 251, 0.3) 40%, rgba(249, 250, 251, 0) 100%)',
                 backdropFilter: 'blur(1px)', // Subtle blur
                 WebkitBackdropFilter: 'blur(1px)',
               }}
@@ -461,7 +461,7 @@ export default function Home() {
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',
-                height: '14vh',
+                height: '12vh',
                 zIndex: 5,
                 backgroundColor: 'rgb(249, 250, 251)', // Match page background
                 pointerEvents: 'none'
