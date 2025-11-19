@@ -324,14 +324,14 @@ export default function Home() {
       <TopTicker />
 
       {/* User State (Milestone 4.1) - Minimal */}
-      <div className="px-4 pt-2">
+      <div className="px-4 pt-1">
         <div className="max-w-md mx-auto">
           <UserState key={userStateKey} fid={fid} />
         </div>
       </div>
 
       {/* Main Game Container with Layered Wheel */}
-      <div className="flex-1 flex flex-col p-4 overflow-hidden">
+      <div className="flex-1 flex flex-col px-4 pt-1 pb-4 overflow-hidden">
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
           {/* Wheel + Input Container - fills remaining space */}
