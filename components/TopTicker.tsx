@@ -139,7 +139,7 @@ export default function TopTicker() {
       <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-4">
         {/* Prize Pool */}
         <div>
-          <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
+          <p className="text-xs uppercase font-light tracking-wide opacity-90">
             Prize Pool
           </p>
           <p className="text-lg font-bold">
@@ -154,7 +154,7 @@ export default function TopTicker() {
 
         {/* Global Guess Count */}
         <div>
-          <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
+          <p className="text-xs uppercase font-light tracking-wide opacity-90">
             Global Guesses
           </p>
           <p className="text-lg font-bold">
@@ -164,7 +164,7 @@ export default function TopTicker() {
 
         {/* Round Number */}
         <div>
-          <p className="text-xs uppercase font-semibold tracking-wide opacity-90">
+          <p className="text-xs uppercase font-light tracking-wide opacity-90">
             Round
           </p>
           <p className="text-lg font-bold">#{status.roundId}</p>
