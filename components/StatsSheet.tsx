@@ -10,10 +10,11 @@ interface StatsSheetProps {
  * StatsSheet Component
  * Milestone 4.3
  *
- * Displays per-user gameplay statistics in a bottom sheet
+ * Displays per-user gameplay statistics and XP in a bottom sheet
  */
 export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
+  const [xp, setXp] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,14 +27,24 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       }
 
       try {
-        const response = await fetch(`/api/user/stats?devFid=${fid}`);
+        // Fetch both stats and XP in parallel
+        const [statsResponse, xpResponse] = await Promise.all([
+          fetch(`/api/user/stats?devFid=${fid}`),
+          fetch(`/api/user/state?devFid=${fid}`)
+        ]);
 
-        if (!response.ok) {
+        if (!statsResponse.ok) {
           throw new Error('Failed to fetch stats');
         }
 
-        const data = await response.json();
-        setStats(data);
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+
+        // Get XP from user state
+        if (xpResponse.ok) {
+          const xpData = await xpResponse.json();
+          setXp(xpData.xp || 0);
+        }
       } catch (err) {
         console.error('Error fetching stats:', err);
         setError('Failed to load stats');
@@ -124,6 +135,48 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* XP Section */}
+            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-6 text-center space-y-2">
+              <p className="text-sm text-orange-700 font-semibold">Your XP</p>
+              <p className="text-5xl font-bold text-orange-900">{xp.toLocaleString()}</p>
+            </div>
+
+            {/* Coming Soon Message */}
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 space-y-3">
+              <h3 className="text-lg font-bold text-blue-900 text-center">
+                🚧 Coming Soon
+              </h3>
+              <div className="text-sm text-blue-700 space-y-2">
+                <p>
+                  XP is currently being tracked but doesn't unlock any features yet.
+                </p>
+                <p className="font-semibold">
+                  Future updates will include:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>XP-based progression system</li>
+                  <li>Leaderboards and rankings</li>
+                  <li>Unlockable rewards and bonuses</li>
+                  <li>Achievement badges</li>
+                  <li>Special perks for high-XP players</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* How XP is Earned */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <h3 className="text-sm font-bold text-gray-900">How to Earn XP</h3>
+              <ul className="text-xs text-gray-700 space-y-1">
+                <li>• Making guesses (free or paid)</li>
+                <li>• Winning jackpots</li>
+                <li>• Referring new players</li>
+                <li>• Daily participation</li>
+              </ul>
+              <p className="text-xs text-gray-500 italic pt-2">
+                Keep playing to build up your XP before the progression system launches!
+              </p>
             </div>
           </div>
         )}

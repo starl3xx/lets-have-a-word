@@ -9,7 +9,6 @@ import FirstTimeOverlay from '../components/FirstTimeOverlay';
 import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
-import XPSheet from '../components/XPSheet';
 import { triggerHaptic } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 
@@ -40,7 +39,6 @@ export default function Home() {
   const [showStatsSheet, setShowStatsSheet] = useState(false);
   const [showReferralSheet, setShowReferralSheet] = useState(false);
   const [showFAQSheet, setShowFAQSheet] = useState(false);
-  const [showXPSheet, setShowXPSheet] = useState(false);
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
 
   /**
@@ -429,7 +427,7 @@ export default function Home() {
               </button>
 
               {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 grid grid-cols-4 gap-2">
+              <div className="mt-4 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -456,15 +454,6 @@ export default function Home() {
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
                   🤔 FAQ
-                </button>
-                <button
-                  onClick={() => {
-                    setShowXPSheet(true);
-                    triggerHaptic('light');
-                  }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
-                >
-                  ✨ XP
                 </button>
               </div>
           </div>
@@ -509,14 +498,6 @@ export default function Home() {
       {showFAQSheet && (
         <FAQSheet
           onClose={() => setShowFAQSheet(false)}
-        />
-      )}
-
-      {/* XP Sheet (Milestone 4.3) */}
-      {showXPSheet && (
-        <XPSheet
-          fid={fid}
-          onClose={() => setShowXPSheet(false)}
         />
       )}
     </div>
