@@ -401,8 +401,9 @@ export default function Home() {
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
                   isButtonDisabled
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:scale-95'
+                    : 'active:scale-95'
                 }`}
+                style={!isButtonDisabled ? { backgroundColor: '#A4A4F4' } : {}}
               >
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
