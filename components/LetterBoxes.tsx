@@ -34,25 +34,44 @@ export default function LetterBoxes({
   const [isFocused, setIsFocused] = useState(false);
 
   /**
-   * Auto-focus input on mount (all devices)
+   * Auto-focus input on mount and when boxes are cleared (all devices)
+   * Trigger focus when all letters are empty (fresh start or after submit)
    */
   useEffect(() => {
     if (!inputRef.current || disabled) return;
+
+    // Check if all letters are empty (fresh start)
+    const allEmpty = letters.every(l => l === '');
+    if (!allEmpty) return;
 
     const isMobile =
       typeof navigator !== 'undefined' &&
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     if (isMobile) {
-      // Small delay helps iOS Safari actually show the keyboard
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 200);
+      // Multiple attempts to ensure keyboard shows on mobile
+      const focusInput = () => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.click();
+          // Also try setting selection
+          inputRef.current.setSelectionRange(0, 0);
+        }
+      };
+
+      // Try immediately
+      focusInput();
+
+      // Try again after short delay
+      setTimeout(focusInput, 100);
+
+      // Final attempt after longer delay for Farcaster mobile
+      setTimeout(focusInput, 500);
     } else {
       // Desktop: focus immediately
       inputRef.current.focus();
     }
-  }, [disabled]);
+  }, [disabled, letters]);
 
   /**
    * Handle keyboard input
@@ -163,6 +182,7 @@ export default function LetterBoxes({
       <input
         ref={inputRef}
         type="text"
+        inputMode="text"
         value={letters.join('')}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -170,6 +190,7 @@ export default function LetterBoxes({
         onBlur={() => setIsFocused(false)}
         disabled={disabled}
         className="absolute opacity-0 pointer-events-none"
+        style={{ fontSize: '16px' }} // Prevent iOS zoom on focus
         maxLength={5}
         autoComplete="off"
         autoCapitalize="characters"
