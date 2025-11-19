@@ -119,10 +119,10 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
-        // Mask to create cutout in the middle for input boxes
-        // Top 30% visible, middle 40% hidden, bottom 30% visible
-        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 30%, transparent 35%, transparent 65%, black 70%, black 100%)',
-        maskImage: 'linear-gradient(to bottom, black 0%, black 30%, transparent 35%, transparent 65%, black 70%, black 100%)',
+        // Mask to create tight cutout around input boxes
+        // Boxes are at 50% with small fade area
+        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 43%, transparent 47%, transparent 53%, black 57%, black 100%)',
+        maskImage: 'linear-gradient(to bottom, black 0%, black 43%, transparent 47%, transparent 53%, black 57%, black 100%)',
       }}
     >
       {/* Hide scrollbar */}
