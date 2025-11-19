@@ -35,7 +35,7 @@ export default function GameKeyboard({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-2 pt-4 pb-2 bg-gray-100 rounded-t-lg">
+    <div className="w-full max-w-md mx-auto px-2 pt-2 pb-2 bg-gray-100 rounded-t-lg">
       {/* Row 1 */}
       <div className="flex justify-center gap-1 mb-1">
         {ROW1.map((letter) => (

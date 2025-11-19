@@ -22,6 +22,7 @@ export default function Home() {
 
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
+  const [isInMiniApp, setIsInMiniApp] = useState(false);
 
   // Wheel state (Milestone 2.3)
   const [wheelWords, setWheelWords] = useState<string[]>([]);
@@ -51,15 +52,18 @@ export default function Home() {
         const context = await sdk.context;
         if (context?.user?.fid) {
           setFid(context.user.fid);
+          setIsInMiniApp(true);
           console.log('Farcaster FID:', context.user.fid);
         } else {
           // No FID in context, use dev mode fallback
           console.log('No FID in context, using dev mode');
           setFid(12345); // Dev fallback
+          setIsInMiniApp(false);
         }
       } catch (error) {
         console.log('Not in Farcaster context, using dev mode');
         setFid(12345); // Dev fallback
+        setIsInMiniApp(false);
       }
     };
 
@@ -417,7 +421,12 @@ export default function Home() {
       </div>
 
       {/* Main Game Container with Layered Wheel */}
-      <div className="flex-1 flex flex-col px-4 pt-1 pb-4 overflow-hidden">
+      <div
+        className="flex-1 flex flex-col px-4 pt-1 overflow-hidden"
+        style={{
+          paddingBottom: 'max(13rem, calc(13rem + env(safe-area-inset-bottom)))',
+        }}
+      >
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
           {/* Wheel + Input Container - fills remaining space */}
@@ -495,7 +504,7 @@ export default function Home() {
           </div>
 
           {/* Fixed Layer: Buttons - at bottom */}
-          <div className="mt-4 px-8" style={{ zIndex: 10 }}>
+          <div className="mt-4 px-8" style={{ position: 'relative', zIndex: 5 }}>
               <button
                 type="button"
                 onClick={handleSubmit}
@@ -526,7 +535,7 @@ export default function Home() {
               </button>
 
               {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 mb-2 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -560,7 +569,15 @@ export default function Home() {
       </div>
 
       {/* Custom Keyboard (Milestone 4.4) */}
-      <div className="sticky bottom-0 left-0 right-0 bg-gray-100 pb-8">
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-gray-100"
+        style={{
+          zIndex: 50,
+          paddingBottom: isInMiniApp
+            ? 'max(2.5rem, env(safe-area-inset-bottom))'
+            : 'max(1.5rem, env(safe-area-inset-bottom))',
+        }}
+      >
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
