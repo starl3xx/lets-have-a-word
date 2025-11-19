@@ -52,47 +52,13 @@ export default function LetterBoxes({
   }, [disabled]);
 
   /**
-   * Handle keyboard input
+   * Handle keyboard input (Milestone 4.4: Minimal handling, main logic is in window listener)
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // Prevent Enter from submitting (user must tap GUESS button)
-    if (e.key === 'Enter') {
+    // Just prevent default for all keys to avoid any native behavior
+    // The window-level keyboard listener in index.tsx handles all input
+    if (e.key === 'Enter' || e.key === 'Backspace' || /^[a-zA-Z]$/.test(e.key)) {
       e.preventDefault();
-      return;
-    }
-
-    // Handle backspace
-    if (e.key === 'Backspace') {
-      e.preventDefault();
-      const newLetters = [...letters];
-
-      // Find last non-empty position and clear it
-      for (let i = 4; i >= 0; i--) {
-        if (newLetters[i] !== '') {
-          newLetters[i] = '';
-          break;
-        }
-      }
-
-      onChange(newLetters);
-      return;
-    }
-
-    // Handle letter input (A-Z only)
-    if (/^[a-zA-Z]$/.test(e.key)) {
-      e.preventDefault();
-      const newLetters = [...letters];
-
-      // Find first empty position and fill it
-      for (let i = 0; i < 5; i++) {
-        if (newLetters[i] === '') {
-          newLetters[i] = e.key.toUpperCase();
-          break;
-        }
-      }
-
-      onChange(newLetters);
-      return;
     }
   };
 
