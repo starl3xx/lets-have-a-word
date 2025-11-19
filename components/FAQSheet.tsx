@@ -29,9 +29,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       onClick={async (e) => {
         e.stopPropagation();
         try {
-          await sdk.actions.viewToken({
-            address: '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07',
-            chainId: 'eip155:8453', // Base chain
+          await sdk.actions.openUrl({
+            url: `https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`,
           });
         } catch (error) {
           console.error('Error opening token view:', error);
