@@ -31,6 +31,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         try {
           await sdk.actions.viewToken({
             address: '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07',
+            chainId: 'eip155:8453', // Base chain
           });
         } catch (error) {
           console.error('Error opening token view:', error);
@@ -72,7 +73,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do I get more guesses?",
       answer: (
         <>
-          You can earn bonus free guesses by: (1) Holding <ClanktonLink>100M CLANKTON</ClanktonLink> tokens (+3 guesses/day), and (2) Sharing your daily guess on Farcaster (+1 guess/day). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
+          You can earn bonus free guesses by: (1) Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens (+3 guesses/day), and (2) Sharing your daily guess on Farcaster (+1 guess/day). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
         </>
       ),
     },
@@ -80,7 +81,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What's the CLANKTON bonus?",
       answer: (
         <>
-          If you hold <ClanktonLink>100M CLANKTON</ClanktonLink> tokens in your connected wallet, you get 3 additional free guesses per day. This bonus is automatically detected when you connect.
+          If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens in your connected wallet, you get 3 additional free guesses per day. This bonus is automatically detected when you connect.
         </>
       ),
     },
