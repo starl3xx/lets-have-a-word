@@ -433,23 +433,25 @@ export default function Home() {
               )}
             </div>
 
-            {/* Blur overlays at top and bottom of wheel */}
+            {/* Subtle blur fade at top and bottom edges of wheel */}
             <div
-              className="absolute top-0 left-0 right-0 h-24 pointer-events-none"
+              className="absolute top-0 left-0 right-0 pointer-events-none"
               style={{
                 zIndex: 2,
-                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.95) 20%, rgba(249, 250, 251, 0.7) 50%, rgba(249, 250, 251, 0.3) 75%, rgba(249, 250, 251, 0) 100%)',
-                backdropFilter: 'blur(2px)',
-                WebkitBackdropFilter: 'blur(2px)',
+                height: '12vh', // Short fade band (10-15% of viewport)
+                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.6) 40%, rgba(249, 250, 251, 0) 100%)',
+                backdropFilter: 'blur(0.5px)', // Very subtle blur
+                WebkitBackdropFilter: 'blur(0.5px)',
               }}
             />
             <div
-              className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
+              className="absolute bottom-0 left-0 right-0 pointer-events-none"
               style={{
                 zIndex: 2,
-                background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.95) 20%, rgba(249, 250, 251, 0.7) 50%, rgba(249, 250, 251, 0.3) 75%, rgba(249, 250, 251, 0) 100%)',
-                backdropFilter: 'blur(2px)',
-                WebkitBackdropFilter: 'blur(2px)',
+                height: '12vh', // Short fade band (10-15% of viewport)
+                background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.6) 40%, rgba(249, 250, 251, 0) 100%)',
+                backdropFilter: 'blur(0.5px)', // Very subtle blur
+                WebkitBackdropFilter: 'blur(0.5px)',
               }}
             />
 
