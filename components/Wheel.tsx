@@ -16,6 +16,7 @@ interface WheelProps {
 export default function Wheel({ words, currentGuess }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const gapRef = useRef<HTMLDivElement>(null);
 
   /**
    * Find the alphabetical index where currentGuess should appear
@@ -41,12 +42,28 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
   const centerIndex = getCenterIndex();
 
   /**
-   * Auto-scroll to center the highlighted word
+   * Determine where to insert the gap
+   * - If typing: insert at centerIndex (alphabetical position)
+   * - If not typing: insert at middle of list (so words split above/below on load)
+   */
+  const getGapIndex = (): number => {
+    if (centerIndex !== -1) {
+      return centerIndex;
+    }
+    // Default to middle of word list when not typing
+    return Math.floor(words.length / 2);
+  };
+
+  const gapIndex = getGapIndex();
+
+  /**
+   * Auto-scroll to center the gap (where input boxes are)
+   * This makes words skip over the input box area
    */
   useEffect(() => {
-    if (centerIndex !== -1 && wordRefs.current[centerIndex]) {
-      wordRefs.current[centerIndex]?.scrollIntoView({
-        behavior: 'smooth',
+    if (gapRef.current) {
+      gapRef.current.scrollIntoView({
+        behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
         block: 'center',
       });
     }
@@ -57,17 +74,18 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
    */
   const getWordStyle = (index: number) => {
     if (centerIndex === -1) {
-      return { scale: 1.0, opacity: 0.3, fontWeight: 'normal' as const };
+      return { scale: 1.0, opacity: 0.3, fontWeight: 'normal' as const, letterSpacing: '0.05em' };
     }
 
     const distance = Math.abs(index - centerIndex);
     const isExactMatch = words[index] === currentGuess;
 
-    // Distance-based scale and opacity
+    // Distance-based scale, opacity, and letter spacing for 3D effect
     let scale = 1.0;
-    let opacity = 0.05;
+    let opacity = 0.25;
     let fontWeight: 'bold' | 'normal' | '300' = 'normal';
-    let color = '#ccc';
+    let color = '#bbb';
+    let letterSpacing = '0.05em';
 
     switch (distance) {
       case 0:
@@ -75,33 +93,38 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         opacity = 1.0;
         fontWeight = 'bold';
         color = isExactMatch ? '#dc2626' : '#000'; // Red if exact match
+        letterSpacing = '0.2em'; // Widest spacing at center
         break;
       case 1:
         scale = 1.2;
         opacity = 0.7;
         fontWeight = 'normal';
         color = '#666';
+        letterSpacing = '0.15em';
         break;
       case 2:
         scale = 1.1;
-        opacity = 0.4;
+        opacity = 0.5;
         fontWeight = 'normal';
         color = '#999';
+        letterSpacing = '0.1em';
         break;
       case 3:
         scale = 1.05;
-        opacity = 0.15;
+        opacity = 0.35;
         fontWeight = '300';
-        color = '#ccc';
+        color = '#aaa';
+        letterSpacing = '0.07em';
         break;
       default:
         scale = 1.0;
-        opacity = 0.05;
+        opacity = 0.25;
         fontWeight = '300';
-        color = '#ddd';
+        color = '#bbb';
+        letterSpacing = '0.05em'; // Tightest spacing at edges
     }
 
-    return { scale, opacity, fontWeight, color };
+    return { scale, opacity, fontWeight, color, letterSpacing };
   };
 
   /**
@@ -119,10 +142,6 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
-        // Mask to create cutout around input boxes (10% of viewport)
-        // Centered at 50% with fade transitions
-        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 42%, transparent 45%, transparent 55%, black 58%, black 100%)',
-        maskImage: 'linear-gradient(to bottom, black 0%, black 42%, transparent 45%, transparent 55%, black 58%, black 100%)',
       }}
     >
       {/* Hide scrollbar */}
@@ -139,29 +158,43 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
           </p>
         </div>
       ) : (
-        <div className="py-8">
+        <div className="py-8 flex flex-col">
           {words.map((word, index) => {
             const style = getWordStyle(index);
 
+            // Insert spacer at gap index to create physical gap for input boxes
+            // Always insert (even when not typing) to prevent words appearing behind boxes
+            const shouldInsertSpacer = index === gapIndex;
+
             return (
-              <div
-                key={`${word}-${index}`}
-                ref={(el) => {
-                  wordRefs.current[index] = el;
-                }}
-                className="text-center transition-all duration-300 ease-out"
-                style={{
-                  transform: `scale(${style.scale})`,
-                  opacity: style.opacity,
-                  fontWeight: style.fontWeight,
-                  color: style.color,
-                  fontSize: '2rem',
-                  lineHeight: '1.8',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                }}
-              >
-                {word}
+              <div key={`${word}-${index}`}>
+                {shouldInsertSpacer && (
+                  <div
+                    ref={gapRef}
+                    style={{
+                      height: '12vh', // Gap for input boxes + padding
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                <div
+                  ref={(el) => {
+                    wordRefs.current[index] = el;
+                  }}
+                  className="text-center transition-all duration-300 ease-out"
+                  style={{
+                    transform: `scale(${style.scale})`,
+                    opacity: style.opacity,
+                    fontWeight: style.fontWeight,
+                    color: style.color,
+                    fontSize: '1.3rem',
+                    lineHeight: '1.6',
+                    textTransform: 'uppercase',
+                    letterSpacing: style.letterSpacing,
+                  }}
+                >
+                  {word}
+                </div>
               </div>
             );
           })}

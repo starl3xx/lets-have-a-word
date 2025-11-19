@@ -9,7 +9,7 @@ import FirstTimeOverlay from '../components/FirstTimeOverlay';
 import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
-import XPSheet from '../components/XPSheet';
+import GameKeyboard from '../components/GameKeyboard';
 import { triggerHaptic } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 
@@ -40,7 +40,6 @@ export default function Home() {
   const [showStatsSheet, setShowStatsSheet] = useState(false);
   const [showReferralSheet, setShowReferralSheet] = useState(false);
   const [showFAQSheet, setShowFAQSheet] = useState(false);
-  const [showXPSheet, setShowXPSheet] = useState(false);
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
 
   /**
@@ -113,6 +112,42 @@ export default function Home() {
   }, []);
 
   /**
+   * Hardware keyboard support for desktop (Milestone 4.4)
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Don't process if loading or if any modal/sheet is open
+      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showShareModal || showFirstTimeOverlay) {
+        return;
+      }
+
+      // Handle A-Z letters
+      if (/^[a-zA-Z]$/.test(e.key)) {
+        e.preventDefault();
+        handleLetter(e.key);
+        return;
+      }
+
+      // Handle backspace
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+        return;
+      }
+
+      // Handle enter - submit guess
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSubmit();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [letters, isLoading, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+
+  /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
    */
   const handleLettersChange = (newLetters: string[]) => {
@@ -137,8 +172,57 @@ export default function Home() {
   };
 
   /**
+   * Handle letter input from GameKeyboard (Milestone 4.4)
+   */
+  const handleLetter = (letter: string) => {
+    // Find first empty slot
+    const idx = letters.findIndex((ch) => ch === '');
+    if (idx === -1) return; // Already full
+
+    const next = [...letters];
+    next[idx] = letter.toUpperCase();
+    setLetters(next);
+
+    // Reset to typing state when user starts typing
+    setBoxResultState('typing');
+
+    // Clear previous result and errors when user starts typing
+    if (result || errorMessage) {
+      setResult(null);
+      setErrorMessage(null);
+    }
+
+    triggerHaptic('light');
+  };
+
+  /**
+   * Handle backspace from GameKeyboard (Milestone 4.4)
+   */
+  const handleBackspace = () => {
+    // Find last non-empty slot
+    let idx = letters.length - 1;
+    while (idx >= 0 && letters[idx] === '') idx--;
+    if (idx < 0) return; // All empty
+
+    const next = [...letters];
+    next[idx] = '';
+    setLetters(next);
+
+    // Reset to typing state
+    setBoxResultState('typing');
+
+    // Clear previous result and errors
+    if (result || errorMessage) {
+      setResult(null);
+      setErrorMessage(null);
+    }
+
+    triggerHaptic('light');
+  };
+
+  /**
    * Submit guess to backend
-   * Only called when GUESS button is tapped
+   * Called when GUESS button is tapped or Enter is pressed
    */
   const handleSubmit = async () => {
     // Get word from letters array
@@ -326,14 +410,14 @@ export default function Home() {
       <TopTicker />
 
       {/* User State (Milestone 4.1) - Minimal */}
-      <div className="px-4 pt-2">
+      <div className="px-4 pt-1">
         <div className="max-w-md mx-auto">
           <UserState key={userStateKey} fid={fid} />
         </div>
       </div>
 
       {/* Main Game Container with Layered Wheel */}
-      <div className="flex-1 flex flex-col p-4 overflow-hidden">
+      <div className="flex-1 flex flex-col px-4 pt-1 pb-4 overflow-hidden">
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
           {/* Wheel + Input Container - fills remaining space */}
@@ -348,6 +432,19 @@ export default function Home() {
                 <Wheel words={wheelWords} currentGuess={word} />
               )}
             </div>
+
+            {/* Background blocker - prevents words from appearing behind input boxes during animation */}
+            <div
+              className="absolute left-0 right-0"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                height: '12vh',
+                zIndex: 5,
+                backgroundColor: 'rgb(249, 250, 251)', // Match page background
+                pointerEvents: 'none'
+              }}
+            />
 
             {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
             <div
@@ -418,7 +515,7 @@ export default function Home() {
                     e.currentTarget.style.backgroundColor = '#2D68C7'; // Reset if mouse leaves while pressed
                   }
                 }}
-                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
+                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
                   isButtonDisabled
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'active:scale-95'
@@ -429,7 +526,7 @@ export default function Home() {
               </button>
 
               {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 grid grid-cols-4 gap-2">
+              <div className="mt-4 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -457,18 +554,18 @@ export default function Home() {
                 >
                   🤔 FAQ
                 </button>
-                <button
-                  onClick={() => {
-                    setShowXPSheet(true);
-                    triggerHaptic('light');
-                  }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
-                >
-                  ✨ XP
-                </button>
               </div>
           </div>
         </div>
+      </div>
+
+      {/* Custom Keyboard (Milestone 4.4) */}
+      <div className="sticky bottom-0 left-0 right-0 bg-gray-100 pb-8">
+        <GameKeyboard
+          onLetter={handleLetter}
+          onBackspace={handleBackspace}
+          disabled={isLoading}
+        />
       </div>
 
       {/* Share Prompt Modal (Milestone 4.2) */}
@@ -509,14 +606,6 @@ export default function Home() {
       {showFAQSheet && (
         <FAQSheet
           onClose={() => setShowFAQSheet(false)}
-        />
-      )}
-
-      {/* XP Sheet (Milestone 4.3) */}
-      {showXPSheet && (
-        <XPSheet
-          fid={fid}
-          onClose={() => setShowXPSheet(false)}
         />
       )}
     </div>
