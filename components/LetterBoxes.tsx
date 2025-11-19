@@ -49,12 +49,24 @@ export default function LetterBoxes({
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     if (isMobile) {
-      // Longer delay for Farcaster mobile to ensure keyboard shows
-      setTimeout(() => {
-        inputRef.current?.focus();
-        // Try clicking to trigger keyboard on iOS
-        inputRef.current?.click();
-      }, 300);
+      // Multiple attempts to ensure keyboard shows on mobile
+      const focusInput = () => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.click();
+          // Also try setting selection
+          inputRef.current.setSelectionRange(0, 0);
+        }
+      };
+
+      // Try immediately
+      focusInput();
+
+      // Try again after short delay
+      setTimeout(focusInput, 100);
+
+      // Final attempt after longer delay for Farcaster mobile
+      setTimeout(focusInput, 500);
     } else {
       // Desktop: focus immediately
       inputRef.current.focus();
@@ -170,6 +182,7 @@ export default function LetterBoxes({
       <input
         ref={inputRef}
         type="text"
+        inputMode="text"
         value={letters.join('')}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -177,6 +190,7 @@ export default function LetterBoxes({
         onBlur={() => setIsFocused(false)}
         disabled={disabled}
         className="absolute opacity-0 pointer-events-none"
+        style={{ fontSize: '16px' }} // Prevent iOS zoom on focus
         maxLength={5}
         autoComplete="off"
         autoCapitalize="characters"
