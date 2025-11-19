@@ -181,8 +181,8 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                     opacity: style.opacity,
                     fontWeight: style.fontWeight,
                     color: style.color,
-                    fontSize: '2rem',
-                    lineHeight: '1.8',
+                    fontSize: '1.3rem',
+                    lineHeight: '2.2',
                     textTransform: 'uppercase',
                     letterSpacing: '0.1em',
                   }}

@@ -524,7 +524,7 @@ export default function Home() {
                     e.currentTarget.style.backgroundColor = '#2D68C7'; // Reset if mouse leaves while pressed
                   }
                 }}
-                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
+                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
                   isButtonDisabled
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'active:scale-95'
@@ -569,7 +569,7 @@ export default function Home() {
       </div>
 
       {/* Custom Keyboard (Milestone 4.4) */}
-      <div className="sticky bottom-0 left-0 right-0 bg-gray-100 pb-6">
+      <div className="sticky bottom-0 left-0 right-0 bg-gray-100 pb-8">
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
