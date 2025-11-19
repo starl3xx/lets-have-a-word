@@ -403,12 +403,27 @@ export default function Home() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isButtonDisabled}
+                onMouseDown={(e) => {
+                  if (!isButtonDisabled) {
+                    e.currentTarget.style.backgroundColor = '#1e4a8f'; // Darker on press
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (!isButtonDisabled) {
+                    e.currentTarget.style.backgroundColor = '#2D68C7'; // Back to normal
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isButtonDisabled) {
+                    e.currentTarget.style.backgroundColor = '#2D68C7'; // Reset if mouse leaves while pressed
+                  }
+                }}
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
                   isButtonDisabled
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'active:scale-95'
                 }`}
-                style={!isButtonDisabled ? { backgroundColor: '#A4A4F4' } : {}}
+                style={!isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}}
               >
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
