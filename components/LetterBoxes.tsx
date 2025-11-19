@@ -65,6 +65,9 @@ export default function LetterBoxes({
       // Try again after short delay
       setTimeout(focusInput, 100);
 
+      // Try after animation/render delays
+      setTimeout(focusInput, 300);
+
       // Final attempt after longer delay for Farcaster mobile
       setTimeout(focusInput, 500);
     } else {
@@ -72,6 +75,39 @@ export default function LetterBoxes({
       inputRef.current.focus();
     }
   }, [disabled, letters]);
+
+  /**
+   * Additional focus trigger on component mount (initial page load)
+   * This ensures keyboard activates on first render
+   */
+  useEffect(() => {
+    if (!inputRef.current || disabled) return;
+
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // Aggressive focus attempts for initial mount
+      const focusInput = () => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.click();
+          inputRef.current.setSelectionRange(0, 0);
+        }
+      };
+
+      // Multiple attempts with increasing delays
+      setTimeout(focusInput, 0);
+      setTimeout(focusInput, 50);
+      setTimeout(focusInput, 150);
+      setTimeout(focusInput, 300);
+      setTimeout(focusInput, 600);
+    } else {
+      // Desktop: single focus on mount
+      inputRef.current.focus();
+    }
+  }, []); // Empty dependency - runs only on mount
 
   /**
    * Handle keyboard input
