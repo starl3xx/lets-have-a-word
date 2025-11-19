@@ -4,7 +4,7 @@
  *
  * Custom in-app keyboard for A-Z letter input
  * - QWERTY layout (3 rows)
- * - Backspace and GUESS keys
+ * - Backspace key
  * - Touch-optimized for mobile
  * - Consistent behavior across devices
  */
@@ -12,7 +12,6 @@
 interface GameKeyboardProps {
   onLetter: (letter: string) => void;
   onBackspace: () => void;
-  onEnter: () => void;
   disabled?: boolean;
 }
 
@@ -23,7 +22,6 @@ const ROW3 = ['Z', 'X', 'C', 'V', 'B', 'N', 'M'];
 export default function GameKeyboard({
   onLetter,
   onBackspace,
-  onEnter,
   disabled = false,
 }: GameKeyboardProps) {
   const handleLetterClick = (letter: string) => {
@@ -34,11 +32,6 @@ export default function GameKeyboard({
   const handleBackspaceClick = () => {
     if (disabled) return;
     onBackspace();
-  };
-
-  const handleEnterClick = () => {
-    if (disabled) return;
-    onEnter();
   };
 
   return (
@@ -97,31 +90,8 @@ export default function GameKeyboard({
         ))}
       </div>
 
-      {/* Row 3 with Backspace and Enter */}
+      {/* Row 3 with Backspace */}
       <div className="flex justify-center gap-1">
-        {/* Enter/Guess key on left */}
-        <button
-          type="button"
-          onClick={handleEnterClick}
-          disabled={disabled}
-          className={`
-            px-2 h-12
-            flex items-center justify-center
-            text-xs font-bold
-            rounded
-            transition-all
-            ${
-              disabled
-                ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 text-white active:scale-95 active:bg-blue-700 hover:bg-blue-700'
-            }
-            shadow-sm
-            min-w-[50px]
-          `}
-        >
-          GUESS
-        </button>
-
         {/* Letter keys */}
         {ROW3.map((letter) => (
           <button
@@ -153,7 +123,7 @@ export default function GameKeyboard({
           onClick={handleBackspaceClick}
           disabled={disabled}
           className={`
-            px-2 h-12
+            px-3 h-12
             flex items-center justify-center
             text-lg font-bold
             rounded
@@ -164,7 +134,7 @@ export default function GameKeyboard({
                 : 'bg-gray-700 text-white active:scale-95 active:bg-gray-800 hover:bg-gray-800'
             }
             shadow-sm
-            min-w-[50px]
+            min-w-[60px]
           `}
         >
           ⌫
