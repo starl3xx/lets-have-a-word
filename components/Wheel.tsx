@@ -74,17 +74,18 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
    */
   const getWordStyle = (index: number) => {
     if (centerIndex === -1) {
-      return { scale: 1.0, opacity: 0.3, fontWeight: 'normal' as const };
+      return { scale: 1.0, opacity: 0.3, fontWeight: 'normal' as const, letterSpacing: '0.05em' };
     }
 
     const distance = Math.abs(index - centerIndex);
     const isExactMatch = words[index] === currentGuess;
 
-    // Distance-based scale and opacity
+    // Distance-based scale, opacity, and letter spacing for 3D effect
     let scale = 1.0;
     let opacity = 0.25;
     let fontWeight: 'bold' | 'normal' | '300' = 'normal';
     let color = '#bbb';
+    let letterSpacing = '0.05em';
 
     switch (distance) {
       case 0:
@@ -92,33 +93,38 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         opacity = 1.0;
         fontWeight = 'bold';
         color = isExactMatch ? '#dc2626' : '#000'; // Red if exact match
+        letterSpacing = '0.2em'; // Widest spacing at center
         break;
       case 1:
         scale = 1.2;
         opacity = 0.7;
         fontWeight = 'normal';
         color = '#666';
+        letterSpacing = '0.15em';
         break;
       case 2:
         scale = 1.1;
         opacity = 0.5;
         fontWeight = 'normal';
         color = '#999';
+        letterSpacing = '0.1em';
         break;
       case 3:
         scale = 1.05;
         opacity = 0.35;
         fontWeight = '300';
         color = '#aaa';
+        letterSpacing = '0.07em';
         break;
       default:
         scale = 1.0;
         opacity = 0.25;
         fontWeight = '300';
         color = '#bbb';
+        letterSpacing = '0.05em'; // Tightest spacing at edges
     }
 
-    return { scale, opacity, fontWeight, color };
+    return { scale, opacity, fontWeight, color, letterSpacing };
   };
 
   /**
@@ -184,7 +190,7 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                     fontSize: '1.3rem',
                     lineHeight: '1.6',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
+                    letterSpacing: style.letterSpacing,
                   }}
                 >
                   {word}
