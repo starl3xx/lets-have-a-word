@@ -4,7 +4,6 @@ dist/
 .env.local
 *.log
 .DS_Store
-drizzle/
 
 # Next.js
 .next/
