@@ -11,11 +11,112 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.1 Complete
+## 🎯 Current Status: Milestone 4.3 Complete
 
-All core game mechanics and onchain integration are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.1 - CLANKTON Integration (Latest)
+### ✅ Milestone 4.3 - Core UX Polish (Latest)
+
+Comprehensive user experience improvements:
+
+- **5-Letter Box Input**
+  - Visual letter boxes replacing single input field
+  - Individual boxes for each letter with green borders when filled
+  - Mobile keyboard auto-focus with iOS Safari compatibility
+  - Backspace handling (right-to-left deletion)
+  - Character counter beneath boxes
+  - Smooth typing experience with visual feedback
+
+- **Haptic Feedback**
+  - Integrated with Farcaster SDK haptic API
+  - Light haptic on button taps and navigation
+  - Medium haptic on guess submission
+  - Error haptic on invalid guesses
+  - Success haptic on jackpot wins
+  - Graceful fallback on unsupported devices
+
+- **Shake Animation**
+  - Visual shake effect on invalid inputs
+  - Triggered for validation errors and invalid words
+  - 400ms duration with left-right oscillation
+  - CSS keyframe-based animation
+
+- **First-Time User Overlay**
+  - Tutorial overlay for new players
+  - Explains game mechanics, bonuses, and fairness
+  - Four sections: How It Works, Your Guesses, The Jackpot, Provably Fair
+  - Tracked via `hasSeenIntro` in user schema
+  - Shows once per user, dismissed permanently
+
+- **Stats Sheet**
+  - Bottom sheet modal displaying gameplay statistics
+  - This Round: total guesses, paid guesses
+  - All Time: total guesses, paid guesses
+  - Jackpots: wins and total ETH earned
+  - Color-coded sections (blue, purple, green)
+  - API endpoint: `/api/user/stats`
+
+- **Referral Sheet**
+  - Display referral link with copy button
+  - Referral stats: count and ETH earned
+  - One-tap copy with haptic feedback
+  - "How it Works" explanation
+  - API endpoint: `/api/user/referrals`
+
+- **FAQ Sheet**
+  - Accordion-style comprehensive FAQ
+  - 12 questions covering all game mechanics
+  - Topics: free guesses, paid guesses, CLANKTON, sharing, jackpot, fairness, referrals, XP
+  - Collapsible answers for easy scanning
+
+- **XP Sheet Placeholder**
+  - Shows current XP balance
+  - "Coming Soon" messaging
+  - Lists future XP features: progression, leaderboards, rewards, achievements
+  - How to earn XP explanation
+
+- **Navigation Buttons**
+  - Four buttons below GUESS button: Stats, Refer, FAQ, XP
+  - Grid layout with icons
+  - Haptic feedback on tap
+  - Clean white design with borders
+
+- **Database Updates**
+  - Added `hasSeenIntro` to users table
+  - Added `username` and `custodyAddress` fields
+  - Migration: `0004_white_millenium_guard.sql`
+
+### ✅ Milestone 4.2 - Share-for-Bonus System
+
+Social engagement rewards:
+
+- **Share Prompt Modal**
+  - Appears after each guess (correct or incorrect)
+  - Invites users to share to Farcaster for +1 free guess
+  - Clean, user-friendly modal UI with "Share" and "Not now" options
+
+- **Farcaster Composer Integration**
+  - Opens Farcaster's native composer with prefilled text
+  - Includes guess word, round number, and game link
+  - Seamless integration with Farcaster SDK
+
+- **Share Verification**
+  - `/api/share-callback` endpoint verifies share completion
+  - Awards +1 free guess instantly
+  - One share bonus per day maximum
+  - Updates user state in real-time
+
+- **User State Display**
+  - Share bonus shown in guess allocation breakdown
+  - Visual indicator for share bonus (+1)
+  - Clear messaging about daily limit
+
+- **Database Tracking**
+  - `hasSharedToday` flag prevents duplicate claims
+  - `freeAllocatedShareBonus` tracks bonus allocation
+  - Resets daily at UTC midnight
+
+### ✅ Milestone 4.1 - CLANKTON Integration
 
 Onchain token bonus system:
 
@@ -273,6 +374,19 @@ npm test
   - Requires: `devFid` or `frameMessage` param
   - Returns: `{ fid, freeGuessesRemaining, paidGuessesRemaining, totalGuessesRemaining, clanktonBonusActive, freeAllocations, paidPacksPurchased, maxPaidPacksPerDay, canBuyMorePacks }`
 
+- `POST /api/share-callback` - Award share bonus (Milestone 4.2)
+  - Requires: `{ fid, castHash }`
+  - Returns: `{ ok, newFreeGuessesRemaining?, message? }`
+  - Awards +1 free guess if share bonus not claimed today
+
+- `GET /api/user/stats` - Get user gameplay statistics (Milestone 4.3)
+  - Requires: `devFid` or `fid` param
+  - Returns: `{ guessesThisRound, guessesAllTime, paidGuessesThisRound, paidGuessesAllTime, jackpotsWon, totalEthWon }`
+
+- `GET /api/user/referrals` - Get user referral data (Milestone 4.3)
+  - Requires: `devFid` or `fid` param
+  - Returns: `{ referralLink, referralsCount, referralEthEarned }`
+
 ## Database Schema
 
 ### Core Tables
@@ -332,6 +446,20 @@ npm test
 - Buy packs of 3 guesses for 0.0003 ETH each
 - Up to 3 packs per day (9 paid guesses max)
 
+### Share Bonus
+
+Users can earn **1 extra free guess per day** by sharing their previous guess to Farcaster.
+
+- After each guess, a modal invites the user to share.
+- Sharing opens a prefilled Farcaster composer.
+- When the cast is successfully published, the app verifies via `/api/share-callback`.
+- Bonus is added instantly: +1 free guess for the current day.
+- Share bonus can only be earned once per day.
+- Maximum free guesses per day:
+  - 1 (base)
+  - +3 if holding ≥100M CLANKTON
+  - +1 share bonus
+
 ### Economics (Milestone 3.1)
 
 **Per Paid Guess (80/20 Split)**
@@ -382,6 +510,154 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 - Set `BASE_RPC_URL` in `.env` for custom RPC endpoint
 - Defaults to `https://mainnet.base.org`
 
+## User Experience (Milestone 4.3)
+
+### Input System
+
+**5-Letter Box UI**
+- Visual representation of each letter position
+- Individual boxes with green borders when filled
+- Mobile-first design with auto-focus
+- Character counter showing progress (0/5 to 5/5)
+- Backspace deletes from right to left
+- Only letters A-Z accepted
+- Uppercase conversion automatic
+
+**Mobile Keyboard Handling**
+- Auto-focus on iOS Safari with delay
+- Hidden input field for keyboard management
+- Click anywhere on boxes to focus
+- Enter key disabled (forces GUESS button tap)
+
+### Haptic Feedback
+
+**Feedback Types**
+- `light` - Button taps, navigation (soft tap)
+- `medium` - Guess submission (standard feedback)
+- `heavy` - Important actions (strong feedback)
+- `error` - Invalid input, validation errors
+- `success` - Jackpot wins
+
+**Integration Points**
+- Navigation button taps → light
+- GUESS button submission → medium
+- Invalid word/format → error + shake
+- Correct guess → success
+- Incorrect guess → light
+
+**Implementation**
+- Uses Farcaster SDK `haptic` API
+- Graceful fallback on unsupported devices
+- Silent failure with console logging
+
+### Visual Feedback
+
+**Shake Animation**
+- Triggered on validation errors
+- 400ms duration
+- Left-right oscillation (-8px to +8px)
+- Applied to letter boxes
+- CSS keyframe-based for smooth performance
+
+**Trigger Conditions**
+- Word length ≠ 5 letters
+- Invalid word (not in dictionary)
+- Already guessed word
+- API errors
+
+### First-Time User Experience
+
+**Tutorial Overlay**
+- Shows once per user on first visit
+- Tracked via `hasSeenIntro` database field
+- Full-screen modal with scroll support
+
+**Content Sections**
+1. **How It Works** - Global word, wheel, jackpot
+2. **Your Guesses** - Free, CLANKTON, share, paid
+3. **The Jackpot** - 80/10/10 split explanation
+4. **Provably Fair** - Commit-reveal explanation
+
+**Dismissal**
+- "Got it!" button
+- Updates `hasSeenIntro` to true
+- Never shows again for that user
+
+### Information Sheets
+
+**Stats Sheet (📊)**
+- Accessible via navigation button
+- Bottom sheet modal pattern
+- Click outside to close
+
+Stats displayed:
+- **This Round**: Total guesses, paid guesses
+- **All Time**: Total guesses, paid guesses
+- **Jackpots**: Wins count, total ETH won
+
+**Referral Sheet (🔗)**
+- Accessible via navigation button
+- Shows personalized referral link
+- Copy button with haptic feedback
+- Visual confirmation on copy
+
+Referral data:
+- Unique referral link with FID
+- Total referrals count
+- ETH earned from referrals
+- "How it Works" explanation
+
+**FAQ Sheet (❓)**
+- Accessible via navigation button
+- Accordion-style collapsible answers
+- 12 comprehensive questions
+
+Topics covered:
+- How the game works
+- Free vs paid guesses
+- CLANKTON bonus
+- Share bonus
+- Jackpot mechanics
+- Provably fair system
+- Referral system
+- XP tracking
+
+**XP Sheet (⭐)**
+- Accessible via navigation button
+- Shows current XP balance
+- "Coming Soon" messaging
+
+Future features listed:
+- XP-based progression
+- Leaderboards and rankings
+- Unlockable rewards
+- Achievement badges
+- Special perks
+
+### Navigation
+
+**Bottom Navigation Grid**
+- 4-button layout below GUESS button
+- Icons + labels for clarity
+- White background with borders
+- Haptic feedback on tap
+- Responsive grid layout
+
+Buttons:
+1. 📊 Stats - Personal statistics
+2. 🔗 Refer - Referral program
+3. ❓ FAQ - Help and info
+4. ⭐ XP - Progression (placeholder)
+
+### Accessibility
+
+- Large tap targets (minimum 44x44px)
+- Clear visual feedback on all interactions
+- Haptic feedback for tactile confirmation
+- High contrast text and borders
+- Mobile-optimized layouts
+- Keyboard support for desktop
+
 ## Project Structure
 
 ```
@@ -399,7 +675,8 @@ src/
 │   ├── daily-limits.ts    # Daily guess limits
 │   ├── wheel.ts           # Wheel + ticker data
 │   ├── economics.ts       # Jackpot + payouts
-│   └── clankton.ts        # CLANKTON bonus checking
+│   ├── clankton.ts        # CLANKTON bonus checking
+│   └── haptics.ts         # Haptic feedback (Milestone 4.3)
 ├── db/                # Database
 │   ├── schema.ts          # Drizzle schema
 │   ├── index.ts           # DB connection
@@ -419,14 +696,25 @@ pages/
 │   ├── guess.ts           # Guess submission
 │   ├── round-state.ts     # Round status
 │   ├── user-state.ts      # User daily allocations
-│   └── wheel.ts           # Wheel data
+│   ├── share-callback.ts  # Share bonus verification
+│   ├── wheel.ts           # Wheel data
+│   └── user/              # User endpoints (Milestone 4.3)
+│       ├── stats.ts       # User statistics
+│       └── referrals.ts   # Referral data
 ├── _app.tsx           # App wrapper (Wagmi + Farcaster SDK)
 └── index.tsx          # Main game UI
 
 components/
-├── Wheel.tsx          # Spinning word wheel
-├── TopTicker.tsx      # Live status ticker
-└── UserState.tsx      # User guess allocations & CLANKTON bonus
+├── Wheel.tsx              # Spinning word wheel
+├── TopTicker.tsx          # Live status ticker
+├── UserState.tsx          # User guess allocations & CLANKTON bonus
+├── SharePromptModal.tsx   # Share-to-earn modal (Milestone 4.2)
+├── LetterBoxes.tsx        # 5-letter input boxes (Milestone 4.3)
+├── FirstTimeOverlay.tsx   # Tutorial for new users (Milestone 4.3)
+├── StatsSheet.tsx         # User statistics sheet (Milestone 4.3)
+├── ReferralSheet.tsx      # Referral link & stats (Milestone 4.3)
+├── FAQSheet.tsx           # FAQ accordion (Milestone 4.3)
+└── XPSheet.tsx            # XP placeholder (Milestone 4.3)
 
 drizzle/               # Database migrations
 ```
@@ -494,7 +782,6 @@ await resolveRound(roundId, winnerFid, referrerFid);
 ## What's Next?
 
 Planned future milestones:
-- **Milestone 4.2**: Share-to-earn callbacks (Farcaster webhook)
 - **Milestone 5.1**: Announcer bot (automated round announcements)
 - **Milestone 5.2**: ETH payment processing (actual payments)
 - **Milestone 5.3**: Performance optimizations (caching, indexes)
@@ -535,4 +822,4 @@ Contributions welcome! Please:
 
 ---
 
-**Built with ❤️ by starl3xx**
+**Built with 🌠 by starl3xx**
