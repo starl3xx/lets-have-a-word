@@ -34,25 +34,32 @@ export default function LetterBoxes({
   const [isFocused, setIsFocused] = useState(false);
 
   /**
-   * Auto-focus input on mount (all devices)
+   * Auto-focus input on mount and when boxes are cleared (all devices)
+   * Trigger focus when all letters are empty (fresh start or after submit)
    */
   useEffect(() => {
     if (!inputRef.current || disabled) return;
+
+    // Check if all letters are empty (fresh start)
+    const allEmpty = letters.every(l => l === '');
+    if (!allEmpty) return;
 
     const isMobile =
       typeof navigator !== 'undefined' &&
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     if (isMobile) {
-      // Small delay helps iOS Safari actually show the keyboard
+      // Longer delay for Farcaster mobile to ensure keyboard shows
       setTimeout(() => {
         inputRef.current?.focus();
-      }, 200);
+        // Try clicking to trigger keyboard on iOS
+        inputRef.current?.click();
+      }, 300);
     } else {
       // Desktop: focus immediately
       inputRef.current.focus();
     }
-  }, [disabled]);
+  }, [disabled, letters]);
 
   /**
    * Handle keyboard input
