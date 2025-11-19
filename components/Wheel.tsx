@@ -119,6 +119,10 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        // Mask to create cutout in the middle for input boxes
+        // Top 30% visible, middle 40% hidden, bottom 30% visible
+        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 30%, transparent 35%, transparent 65%, black 70%, black 100%)',
+        maskImage: 'linear-gradient(to bottom, black 0%, black 30%, transparent 35%, transparent 65%, black 70%, black 100%)',
       }}
     >
       {/* Hide scrollbar */}
@@ -135,98 +139,33 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
           </p>
         </div>
       ) : (
-        <div className="py-8 flex flex-col" style={{ minHeight: '100%' }}>
-          {/* Top section - words before center */}
-          <div className="flex-1">
-            {words.slice(0, Math.max(0, centerIndex - 2)).map((word, index) => {
-              const style = getWordStyle(index);
+        <div className="py-8">
+          {words.map((word, index) => {
+            const style = getWordStyle(index);
 
-              return (
-                <div
-                  key={`${word}-${index}`}
-                  ref={(el) => {
-                    wordRefs.current[index] = el;
-                  }}
-                  className="text-center transition-all duration-300 ease-out"
-                  style={{
-                    transform: `scale(${style.scale})`,
-                    opacity: style.opacity,
-                    fontWeight: style.fontWeight,
-                    color: style.color,
-                    fontSize: '2rem',
-                    lineHeight: '1.8',
-                    textTransform: 'uppercase',
-                    fontFamily: 'monospace',
-                    letterSpacing: '0.1em',
-                  }}
-                >
-                  {word}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Center section - visible words around the match */}
-          <div className="flex flex-col items-center justify-center" style={{ padding: '4rem 0' }}>
-            {words.slice(Math.max(0, centerIndex - 2), Math.min(words.length, centerIndex + 3)).map((word, idx) => {
-              const index = Math.max(0, centerIndex - 2) + idx;
-              const style = getWordStyle(index);
-
-              return (
-                <div
-                  key={`${word}-${index}`}
-                  ref={(el) => {
-                    wordRefs.current[index] = el;
-                  }}
-                  className="text-center transition-all duration-300 ease-out"
-                  style={{
-                    transform: `scale(${style.scale})`,
-                    opacity: style.opacity,
-                    fontWeight: style.fontWeight,
-                    color: style.color,
-                    fontSize: '2rem',
-                    lineHeight: '1.8',
-                    textTransform: 'uppercase',
-                    fontFamily: 'monospace',
-                    letterSpacing: '0.1em',
-                  }}
-                >
-                  {word}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Bottom section - words after center */}
-          <div className="flex-1">
-            {words.slice(Math.min(words.length, centerIndex + 3)).map((word, idx) => {
-              const index = Math.min(words.length, centerIndex + 3) + idx;
-              const style = getWordStyle(index);
-
-              return (
-                <div
-                  key={`${word}-${index}`}
-                  ref={(el) => {
-                    wordRefs.current[index] = el;
-                  }}
-                  className="text-center transition-all duration-300 ease-out"
-                  style={{
-                    transform: `scale(${style.scale})`,
-                    opacity: style.opacity,
-                    fontWeight: style.fontWeight,
-                    color: style.color,
-                    fontSize: '2rem',
-                    lineHeight: '1.8',
-                    textTransform: 'uppercase',
-                    fontFamily: 'monospace',
-                    letterSpacing: '0.1em',
-                  }}
-                >
-                  {word}
-                </div>
-              );
-            })}
-          </div>
+            return (
+              <div
+                key={`${word}-${index}`}
+                ref={(el) => {
+                  wordRefs.current[index] = el;
+                }}
+                className="text-center transition-all duration-300 ease-out"
+                style={{
+                  transform: `scale(${style.scale})`,
+                  opacity: style.opacity,
+                  fontWeight: style.fontWeight,
+                  color: style.color,
+                  fontSize: '2rem',
+                  lineHeight: '1.8',
+                  textTransform: 'uppercase',
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.1em',
+                }}
+              >
+                {word}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
