@@ -97,7 +97,7 @@ export default function TopTicker() {
    */
   if (isLoading) {
     return (
-      <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#A4A4F4' }}>
+      <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#2D68C7' }}>
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-sm animate-pulse">Loading round status...</p>
         </div>
@@ -135,7 +135,7 @@ export default function TopTicker() {
    * Display round status
    */
   return (
-    <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#A4A4F4' }}>
+    <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#2D68C7' }}>
       <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-4">
         {/* Prize Pool */}
         <div>
