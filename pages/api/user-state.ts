@@ -38,6 +38,11 @@ export default async function handler(
   }
 
   console.log('[user-state] API called with query params:', req.query);
+  console.log('[user-state] Environment check:', {
+    hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
 
   try {
     // Get FID from query params or frame message
@@ -203,9 +208,13 @@ export default async function handler(
     console.error('[user-state] Error message:', errorMessage);
     console.error('[user-state] Error stack:', errorStack);
 
+    // Return detailed error information for debugging
     return res.status(500).json({
       error: 'Failed to fetch user state',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      // Always include details to help diagnose production issues
+      details: errorMessage,
+      hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
       stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
     });
   }
