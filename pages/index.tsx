@@ -531,7 +531,7 @@ export default function Home() {
               </button>
 
               {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 mb-6 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
