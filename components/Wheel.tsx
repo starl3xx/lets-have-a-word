@@ -166,7 +166,7 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                   <div
                     ref={gapRef}
                     style={{
-                      height: '14vh', // Gap for input boxes + padding
+                      height: '12vh', // Gap for input boxes + padding
                       pointerEvents: 'none',
                     }}
                   />
