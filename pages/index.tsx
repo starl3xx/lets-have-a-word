@@ -22,6 +22,7 @@ export default function Home() {
 
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
+  const [isInMiniApp, setIsInMiniApp] = useState(false);
 
   // Wheel state (Milestone 2.3)
   const [wheelWords, setWheelWords] = useState<string[]>([]);
@@ -51,15 +52,18 @@ export default function Home() {
         const context = await sdk.context;
         if (context?.user?.fid) {
           setFid(context.user.fid);
+          setIsInMiniApp(true);
           console.log('Farcaster FID:', context.user.fid);
         } else {
           // No FID in context, use dev mode fallback
           console.log('No FID in context, using dev mode');
           setFid(12345); // Dev fallback
+          setIsInMiniApp(false);
         }
       } catch (error) {
         console.log('Not in Farcaster context, using dev mode');
         setFid(12345); // Dev fallback
+        setIsInMiniApp(false);
       }
     };
 
@@ -569,7 +573,9 @@ export default function Home() {
         className="fixed bottom-0 left-0 right-0 bg-gray-100"
         style={{
           zIndex: 50,
-          paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+          paddingBottom: isInMiniApp
+            ? 'max(2.5rem, env(safe-area-inset-bottom))'
+            : 'max(1.5rem, env(safe-area-inset-bottom))',
         }}
       >
         <GameKeyboard
