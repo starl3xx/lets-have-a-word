@@ -119,10 +119,10 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
-        // Mask to create tight cutout around input boxes
-        // Boxes are at 50% with small fade area
-        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 43%, transparent 47%, transparent 53%, black 57%, black 100%)',
-        maskImage: 'linear-gradient(to bottom, black 0%, black 43%, transparent 47%, transparent 53%, black 57%, black 100%)',
+        // Mask to create cutout around input boxes (10% of viewport)
+        // Centered at 50% with fade transitions
+        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 42%, transparent 45%, transparent 55%, black 58%, black 100%)',
+        maskImage: 'linear-gradient(to bottom, black 0%, black 42%, transparent 45%, transparent 55%, black 58%, black 100%)',
       }}
     >
       {/* Hide scrollbar */}
@@ -158,7 +158,6 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                   fontSize: '2rem',
                   lineHeight: '1.8',
                   textTransform: 'uppercase',
-                  fontFamily: 'monospace',
                   letterSpacing: '0.1em',
                 }}
               >
