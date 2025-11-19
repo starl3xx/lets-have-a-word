@@ -531,7 +531,7 @@ export default function Home() {
               </button>
 
               {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 mb-6 grid grid-cols-3 gap-2">
+              <div className="mt-4 mb-2 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -569,7 +569,7 @@ export default function Home() {
         className="fixed bottom-0 left-0 right-0 bg-gray-100"
         style={{
           zIndex: 50,
-          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
+          paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
         }}
       >
         <GameKeyboard
