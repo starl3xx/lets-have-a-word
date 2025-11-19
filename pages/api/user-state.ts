@@ -90,30 +90,35 @@ export default async function handler(
 
       // Fetch user data from Neynar
       let farcasterUser;
-      try {
-        farcasterUser = await getUserByFid(fid);
-        console.log(`[user-state] Neynar API returned user:`, farcasterUser?.username || 'null');
-      } catch (neynarError) {
-        console.error('[user-state] Neynar API failed:', neynarError);
-        throw new Error(`Neynar API error: ${neynarError instanceof Error ? neynarError.message : 'Unknown'}`);
-      }
+      const hasNeynarKey = !!process.env.NEYNAR_API_KEY;
 
-      if (!farcasterUser) {
-        console.error(`[user-state] Could not fetch user ${fid} from Neynar`);
-        return res.status(404).json({ error: 'User not found' });
+      if (hasNeynarKey) {
+        try {
+          farcasterUser = await getUserByFid(fid);
+          console.log(`[user-state] Neynar API returned user:`, farcasterUser?.username || 'null');
+        } catch (neynarError) {
+          console.error('[user-state] Neynar API failed:', neynarError);
+          console.log('[user-state] Falling back to minimal user creation');
+          farcasterUser = null;
+        }
+      } else {
+        console.log('[user-state] NEYNAR_API_KEY not set, creating minimal user record');
+        farcasterUser = null;
       }
 
       // Create user record
-      // If connected wallet provided, use it; otherwise use Farcaster verified address
-      const userWallet = walletAddress || farcasterUser.signerWallet;
+      // If Neynar data available, use it; otherwise create minimal record
+      const userWallet = walletAddress || farcasterUser?.signerWallet || null;
+      const username = farcasterUser?.username || `user-${fid}`;
+
       console.log(`[user-state] Creating user ${fid} with wallet ${userWallet || 'null'}`);
       try {
         await db.insert(users).values({
           fid,
-          username: farcasterUser.username,
+          username,
           signerWalletAddress: userWallet,
-          custodyAddress: farcasterUser.custodyAddress,
-          spamScore: farcasterUser.spamScore,
+          custodyAddress: farcasterUser?.custodyAddress || null,
+          spamScore: farcasterUser?.spamScore || 0,
         });
         console.log(`[user-state] User ${fid} created successfully`);
       } catch (insertError) {
