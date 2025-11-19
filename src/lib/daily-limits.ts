@@ -33,9 +33,22 @@ export const DAILY_LIMITS_RULES = {
 
 /**
  * Get today's date in UTC as YYYY-MM-DD string
+ * Daily reset happens at 11:00 UTC
+ * - If current time is before 11:00 UTC, returns yesterday's date
+ * - If current time is 11:00 UTC or later, returns today's date
  */
 export function getTodayUTC(): string {
   const now = new Date();
+  const utcHour = now.getUTCHours();
+
+  // If before 11:00 UTC, use yesterday's date
+  if (utcHour < 11) {
+    const yesterday = new Date(now);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    return yesterday.toISOString().split('T')[0];
+  }
+
+  // 11:00 UTC or later, use today's date
   return now.toISOString().split('T')[0];
 }
 
