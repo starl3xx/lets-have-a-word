@@ -362,26 +362,33 @@ export default function Home() {
                   isShaking={isShaking}
                   resultState={boxResultState}
                 />
-
-                {/* Feedback area below input */}
-                {(errorMessage || feedback) && (
-                  <div className="mt-4">
-                    {errorMessage && (
-                      <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                        <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
-                      </div>
-                    )}
-
-                    {feedback && !errorMessage && (
-                      <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
-                        <p className={`${feedback.color} text-center text-sm font-medium`}>
-                          {feedback.text}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
+
+              {/* Feedback area - positioned absolutely below boxes so it doesn't shift them */}
+              {(errorMessage || feedback) && (
+                <div
+                  className="absolute left-0 right-0 px-8"
+                  style={{
+                    top: '100%',
+                    marginTop: '1rem',
+                    pointerEvents: 'auto'
+                  }}
+                >
+                  {errorMessage && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                      <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
+                    </div>
+                  )}
+
+                  {feedback && !errorMessage && (
+                    <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                      <p className={`${feedback.color} text-center text-sm font-medium`}>
+                        {feedback.text}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
