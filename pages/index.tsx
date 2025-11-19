@@ -53,9 +53,14 @@ export default function Home() {
         if (context?.user?.fid) {
           setFid(context.user.fid);
           console.log('Farcaster FID:', context.user.fid);
+        } else {
+          // No FID in context, use dev mode fallback
+          console.log('No FID in context, using dev mode');
+          setFid(12345); // Dev fallback
         }
       } catch (error) {
         console.log('Not in Farcaster context, using dev mode');
+        setFid(12345); // Dev fallback
       }
     };
 

@@ -125,14 +125,18 @@ export default function UserState({ fid }: UserStateProps) {
   /**
    * Not authenticated - minimal
    */
-  if (!fid || !userState) {
+  if (!fid) {
     return (
       <div className="text-center py-1">
-        <p className="text-xs text-gray-600">
-          {!fid && 'Please connect your Farcaster account'}
-          {fid && !isConnected && 'Connecting...'}
-          {fid && isConnected && !userState && 'Loading...'}
-        </p>
+        <p className="text-xs text-gray-500">Connecting...</p>
+      </div>
+    );
+  }
+
+  if (!userState) {
+    return (
+      <div className="text-center py-1">
+        <p className="text-xs text-gray-500">Loading...</p>
       </div>
     );
   }
