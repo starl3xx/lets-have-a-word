@@ -36,6 +36,11 @@ export interface FarcasterContext {
  * @throws Error if verification fails or message is invalid
  */
 export async function verifyFrameMessage(messageBytes: string): Promise<FarcasterContext> {
+  // Check if API key is configured
+  if (!NEYNAR_API_KEY) {
+    throw new Error('NEYNAR_API_KEY not configured - cannot verify frame messages');
+  }
+
   try {
     // Validate and verify the frame message using Neynar
     const { message, isValid } = await neynarClient.validateFrameAction(messageBytes);
@@ -114,6 +119,11 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
  * @throws Error if verification fails
  */
 export async function verifySigner(signerUuid: string): Promise<FarcasterContext> {
+  // Check if API key is configured
+  if (!NEYNAR_API_KEY) {
+    throw new Error('NEYNAR_API_KEY not configured - cannot verify signers');
+  }
+
   try {
     // Look up signer details
     const signer = await neynarClient.lookupSigner(signerUuid);
@@ -176,6 +186,12 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
  * Useful for lookups without verification
  */
 export async function getUserByFid(fid: number): Promise<FarcasterContext | null> {
+  // Check if API key is configured
+  if (!NEYNAR_API_KEY) {
+    console.warn(`getUserByFid: NEYNAR_API_KEY not set, cannot fetch user ${fid}`);
+    return null;
+  }
+
   try {
     // SDK v2 requires object with fids property
     const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
