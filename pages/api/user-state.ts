@@ -38,6 +38,11 @@ export default async function handler(
   }
 
   console.log('[user-state] API called with query params:', req.query);
+  console.log('[user-state] Environment check:', {
+    hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
 
   try {
     // Get FID from query params or frame message
@@ -90,30 +95,35 @@ export default async function handler(
 
       // Fetch user data from Neynar
       let farcasterUser;
-      try {
-        farcasterUser = await getUserByFid(fid);
-        console.log(`[user-state] Neynar API returned user:`, farcasterUser?.username || 'null');
-      } catch (neynarError) {
-        console.error('[user-state] Neynar API failed:', neynarError);
-        throw new Error(`Neynar API error: ${neynarError instanceof Error ? neynarError.message : 'Unknown'}`);
-      }
+      const hasNeynarKey = !!process.env.NEYNAR_API_KEY;
 
-      if (!farcasterUser) {
-        console.error(`[user-state] Could not fetch user ${fid} from Neynar`);
-        return res.status(404).json({ error: 'User not found' });
+      if (hasNeynarKey) {
+        try {
+          farcasterUser = await getUserByFid(fid);
+          console.log(`[user-state] Neynar API returned user:`, farcasterUser?.username || 'null');
+        } catch (neynarError) {
+          console.error('[user-state] Neynar API failed:', neynarError);
+          console.log('[user-state] Falling back to minimal user creation');
+          farcasterUser = null;
+        }
+      } else {
+        console.log('[user-state] NEYNAR_API_KEY not set, creating minimal user record');
+        farcasterUser = null;
       }
 
       // Create user record
-      // If connected wallet provided, use it; otherwise use Farcaster verified address
-      const userWallet = walletAddress || farcasterUser.signerWallet;
+      // If Neynar data available, use it; otherwise create minimal record
+      const userWallet = walletAddress || farcasterUser?.signerWallet || null;
+      const username = farcasterUser?.username || `user-${fid}`;
+
       console.log(`[user-state] Creating user ${fid} with wallet ${userWallet || 'null'}`);
       try {
         await db.insert(users).values({
           fid,
-          username: farcasterUser.username,
+          username,
           signerWalletAddress: userWallet,
-          custodyAddress: farcasterUser.custodyAddress,
-          spamScore: farcasterUser.spamScore,
+          custodyAddress: farcasterUser?.custodyAddress || null,
+          spamScore: farcasterUser?.spamScore || 0,
         });
         console.log(`[user-state] User ${fid} created successfully`);
       } catch (insertError) {
@@ -198,9 +208,13 @@ export default async function handler(
     console.error('[user-state] Error message:', errorMessage);
     console.error('[user-state] Error stack:', errorStack);
 
+    // Return detailed error information for debugging
     return res.status(500).json({
       error: 'Failed to fetch user state',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      // Always include details to help diagnose production issues
+      details: errorMessage,
+      hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
       stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
     });
   }
