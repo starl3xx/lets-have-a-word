@@ -12,7 +12,7 @@
 import { db } from '../db';
 import { roundSeedWords, guesses, rounds } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
-import { SEED_WORDS } from '../data/seed-words';
+import { SEED_WORDS } from '../data/test-word-lists';
 import { getActiveRound, ensureActiveRound } from './rounds';
 import type { RoundSeedWordInsert } from '../db/schema';
 

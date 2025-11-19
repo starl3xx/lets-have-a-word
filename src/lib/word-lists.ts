@@ -1,6 +1,4 @@
-import { ANSWER_WORDS } from '../data/answer-words';
-import { GUESS_WORDS } from '../data/guess-words';
-import { SEED_WORDS } from '../data/seed-words';
+import { ANSWER_WORDS, GUESS_WORDS, SEED_WORDS } from '../data/test-word-lists';
 import type { WordLists } from '../types';
 
 /**
