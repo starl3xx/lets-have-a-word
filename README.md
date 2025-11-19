@@ -11,11 +11,50 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.3 Complete
+## 🎯 Current Status: Milestone 4.4 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.3 - Core UX Polish (Latest)
+### ✅ Milestone 4.4 - Custom In-App Keyboard (Latest)
+
+Replaced native mobile keyboard with a custom in-app keyboard for consistent cross-device input:
+
+- **Custom Keyboard Component**
+  - QWERTY layout optimized for 5-letter A-Z input
+  - Always visible at bottom of screen on mobile
+  - Backspace and GUESS keys integrated
+  - Touch-optimized button sizes
+  - Haptic feedback on key presses
+  - Disabled state during guess submission
+
+- **Hardware Keyboard Support**
+  - Desktop users can still use physical keyboards
+  - A-Z letters, Backspace, and Enter keys supported
+  - Seamless fallback for non-touch devices
+
+- **Mobile Optimization**
+  - Native keyboard no longer appears on mobile
+  - Consistent behavior across all browsers and devices
+  - No layout shifts from keyboard appearing/disappearing
+  - Hidden input with `inputMode="none"` for accessibility
+
+- **Integration**
+  - Wired into existing letter state and guess flow
+  - Same validation and submission logic
+  - Works with wheel UI and visual feedback system
+  - Disabled when modals/sheets are open
+
+### Custom In-App Keyboard
+
+Let's Have A Word uses a custom in-app keyboard for entering guesses, instead of relying on the native mobile keyboard.
+
+- The keyboard is optimized for 5-letter A–Z input.
+- It provides consistent behavior across browsers and devices.
+- On desktop, hardware keyboards are still supported:
+  - Type letters, Backspace to delete, and Enter to submit a guess.
+- On mobile, the in-app keyboard ensures the input experience is always available and stable, without depending on the OS to automatically show the native keyboard.
+
+### ✅ Milestone 4.3 - Core UX Polish
 
 Comprehensive user experience improvements:
 

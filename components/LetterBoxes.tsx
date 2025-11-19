@@ -34,80 +34,22 @@ export default function LetterBoxes({
   const [isFocused, setIsFocused] = useState(false);
 
   /**
-   * Auto-focus input on mount and when boxes are cleared (all devices)
-   * Trigger focus when all letters are empty (fresh start or after submit)
+   * Focus input for hardware keyboard support on desktop (Milestone 4.4)
+   * Mobile users will use the custom GameKeyboard component
    */
   useEffect(() => {
     if (!inputRef.current || disabled) return;
 
-    // Check if all letters are empty (fresh start)
-    const allEmpty = letters.every(l => l === '');
-    if (!allEmpty) return;
-
+    // Only auto-focus on desktop (for hardware keyboard support)
     const isMobile =
       typeof navigator !== 'undefined' &&
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    if (isMobile) {
-      // Multiple attempts to ensure keyboard shows on mobile
-      const focusInput = () => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.click();
-          // Also try setting selection
-          inputRef.current.setSelectionRange(0, 0);
-        }
-      };
-
-      // Try immediately
-      focusInput();
-
-      // Try again after short delay
-      setTimeout(focusInput, 100);
-
-      // Try after animation/render delays
-      setTimeout(focusInput, 300);
-
-      // Final attempt after longer delay for Farcaster mobile
-      setTimeout(focusInput, 500);
-    } else {
-      // Desktop: focus immediately
+    if (!isMobile) {
+      // Desktop: focus for hardware keyboard input
       inputRef.current.focus();
     }
-  }, [disabled, letters]);
-
-  /**
-   * Additional focus trigger on component mount (initial page load)
-   * This ensures keyboard activates on first render
-   */
-  useEffect(() => {
-    if (!inputRef.current || disabled) return;
-
-    const isMobile =
-      typeof navigator !== 'undefined' &&
-      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // Aggressive focus attempts for initial mount
-      const focusInput = () => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.click();
-          inputRef.current.setSelectionRange(0, 0);
-        }
-      };
-
-      // Multiple attempts with increasing delays
-      setTimeout(focusInput, 0);
-      setTimeout(focusInput, 50);
-      setTimeout(focusInput, 150);
-      setTimeout(focusInput, 300);
-      setTimeout(focusInput, 600);
-    } else {
-      // Desktop: single focus on mount
-      inputRef.current.focus();
-    }
-  }, []); // Empty dependency - runs only on mount
+  }, [disabled]);
 
   /**
    * Handle keyboard input
@@ -214,11 +156,11 @@ export default function LetterBoxes({
 
   return (
     <div className="relative">
-      {/* Hidden input for keyboard handling */}
+      {/* Hidden input for hardware keyboard support only (Milestone 4.4) */}
       <input
         ref={inputRef}
         type="text"
-        inputMode="text"
+        inputMode="none"
         value={letters.join('')}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -232,6 +174,7 @@ export default function LetterBoxes({
         autoCapitalize="characters"
         autoCorrect="off"
         spellCheck={false}
+        readOnly
       />
 
       {/* Visual letter boxes */}

@@ -9,6 +9,7 @@ import FirstTimeOverlay from '../components/FirstTimeOverlay';
 import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
+import GameKeyboard from '../components/GameKeyboard';
 import { triggerHaptic } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 
@@ -111,6 +112,42 @@ export default function Home() {
   }, []);
 
   /**
+   * Hardware keyboard support for desktop (Milestone 4.4)
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Don't process if loading or if any modal/sheet is open
+      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showShareModal || showFirstTimeOverlay) {
+        return;
+      }
+
+      // Handle A-Z letters
+      if (/^[a-zA-Z]$/.test(e.key)) {
+        e.preventDefault();
+        handleLetter(e.key);
+        return;
+      }
+
+      // Handle backspace
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+        return;
+      }
+
+      // Handle enter
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleEnter();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [letters, isLoading, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+
+  /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
    */
   const handleLettersChange = (newLetters: string[]) => {
@@ -132,6 +169,62 @@ export default function Home() {
   const triggerShake = () => {
     setIsShaking(true);
     setTimeout(() => setIsShaking(false), 400); // Match animation duration
+  };
+
+  /**
+   * Handle letter input from GameKeyboard (Milestone 4.4)
+   */
+  const handleLetter = (letter: string) => {
+    // Find first empty slot
+    const idx = letters.findIndex((ch) => ch === '');
+    if (idx === -1) return; // Already full
+
+    const next = [...letters];
+    next[idx] = letter.toUpperCase();
+    setLetters(next);
+
+    // Reset to typing state when user starts typing
+    setBoxResultState('typing');
+
+    // Clear previous result and errors when user starts typing
+    if (result || errorMessage) {
+      setResult(null);
+      setErrorMessage(null);
+    }
+
+    triggerHaptic('light');
+  };
+
+  /**
+   * Handle backspace from GameKeyboard (Milestone 4.4)
+   */
+  const handleBackspace = () => {
+    // Find last non-empty slot
+    let idx = letters.length - 1;
+    while (idx >= 0 && letters[idx] === '') idx--;
+    if (idx < 0) return; // All empty
+
+    const next = [...letters];
+    next[idx] = '';
+    setLetters(next);
+
+    // Reset to typing state
+    setBoxResultState('typing');
+
+    // Clear previous result and errors
+    if (result || errorMessage) {
+      setResult(null);
+      setErrorMessage(null);
+    }
+
+    triggerHaptic('light');
+  };
+
+  /**
+   * Handle enter/guess from GameKeyboard (Milestone 4.4)
+   */
+  const handleEnter = () => {
+    handleSubmit();
   };
 
   /**
@@ -458,6 +551,16 @@ export default function Home() {
               </div>
           </div>
         </div>
+      </div>
+
+      {/* Custom Keyboard (Milestone 4.4) */}
+      <div className="sticky bottom-0 left-0 right-0 bg-gray-100">
+        <GameKeyboard
+          onLetter={handleLetter}
+          onBackspace={handleBackspace}
+          onEnter={handleEnter}
+          disabled={isLoading}
+        />
       </div>
 
       {/* Share Prompt Modal (Milestone 4.2) */}
