@@ -53,9 +53,14 @@ export default function Home() {
         if (context?.user?.fid) {
           setFid(context.user.fid);
           console.log('Farcaster FID:', context.user.fid);
+        } else {
+          // No FID in context, use dev mode fallback
+          console.log('No FID in context, using dev mode');
+          setFid(12345); // Dev fallback
         }
       } catch (error) {
         console.log('Not in Farcaster context, using dev mode');
+        setFid(12345); // Dev fallback
       }
     };
 
@@ -320,50 +325,60 @@ export default function Home() {
       {/* Top Ticker (Milestone 2.3) */}
       <TopTicker />
 
-      {/* User State (Milestone 4.1) */}
-      <div className="px-4 pt-4">
+      {/* User State (Milestone 4.1) - Minimal */}
+      <div className="px-4 pt-2">
         <div className="max-w-md mx-auto">
           <UserState key={userStateKey} fid={fid} />
         </div>
       </div>
 
       {/* Main Game Container with Layered Wheel */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full relative" style={{ height: '600px' }}>
+      <div className="flex-1 flex flex-col p-4 overflow-hidden">
+        <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
-          {/* Background Layer: Wheel */}
-          <div className="absolute inset-0" style={{ zIndex: 1 }}>
-            {isLoadingWheel ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400 animate-pulse">Loading...</p>
+          {/* Wheel + Input Container - fills remaining space */}
+          <div className="flex-1 relative">
+            {/* Background Layer: Wheel with clipping for input boxes and button */}
+            <div className="absolute inset-0" style={{ zIndex: 1 }}>
+              {isLoadingWheel ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-gray-400 animate-pulse">Loading...</p>
+                </div>
+              ) : (
+                <Wheel words={wheelWords} currentGuess={word} />
+              )}
+            </div>
+
+            {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
+            <div
+              className="absolute left-0 right-0 px-8"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 10,
+                pointerEvents: 'none' // Allow clicks through to wheel
+              }}
+            >
+              <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
+                <LetterBoxes
+                  letters={letters}
+                  onChange={handleLettersChange}
+                  disabled={isLoading}
+                  isShaking={isShaking}
+                  resultState={boxResultState}
+                />
               </div>
-            ) : (
-              <Wheel words={wheelWords} currentGuess={word} />
-            )}
-          </div>
 
-          {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
-          <div
-            className="absolute left-0 right-0 px-8"
-            style={{
-              top: '50%',
-              transform: 'translateY(-50%)',
-              zIndex: 10,
-              pointerEvents: 'none' // Allow clicks through to wheel
-            }}
-          >
-            <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
-              <LetterBoxes
-                letters={letters}
-                onChange={handleLettersChange}
-                disabled={isLoading}
-                isShaking={isShaking}
-                resultState={boxResultState}
-              />
-
-              {/* Feedback area below input */}
+              {/* Feedback area - positioned absolutely below boxes so it doesn't shift them */}
               {(errorMessage || feedback) && (
-                <div className="mt-4">
+                <div
+                  className="absolute left-0 right-0 px-8"
+                  style={{
+                    top: '100%',
+                    marginTop: '1rem',
+                    pointerEvents: 'auto'
+                  }}
+                >
                   {errorMessage && (
                     <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
                       <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
@@ -382,17 +397,33 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Fixed Layer: Buttons - always at bottom */}
-          <div className="absolute bottom-8 left-0 right-0 px-8" style={{ zIndex: 10 }}>
+          {/* Fixed Layer: Buttons - at bottom */}
+          <div className="mt-4 px-8" style={{ zIndex: 10 }}>
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={isButtonDisabled}
+                onMouseDown={(e) => {
+                  if (!isButtonDisabled) {
+                    e.currentTarget.style.backgroundColor = '#1e4a8f'; // Darker on press
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (!isButtonDisabled) {
+                    e.currentTarget.style.backgroundColor = '#2D68C7'; // Back to normal
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isButtonDisabled) {
+                    e.currentTarget.style.backgroundColor = '#2D68C7'; // Reset if mouse leaves while pressed
+                  }
+                }}
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg ${
                   isButtonDisabled
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:scale-95'
+                    : 'active:scale-95'
                 }`}
+                style={!isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}}
               >
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>

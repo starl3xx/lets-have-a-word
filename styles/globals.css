@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default font family - Rubik from Google Fonts */
+body {
+  font-family: 'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 /* Shake animation for invalid guess feedback (Milestone 4.3) */
 @keyframes shake {
   0%, 100% {
