@@ -433,28 +433,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Subtle blur fade at top and bottom edges of wheel */}
-            <div
-              className="absolute top-0 left-0 right-0 pointer-events-none"
-              style={{
-                zIndex: 2,
-                height: '8vh', // Short fade band
-                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 0.7) 0%, rgba(249, 250, 251, 0.3) 40%, rgba(249, 250, 251, 0) 100%)',
-                backdropFilter: 'blur(1px)', // Subtle blur
-                WebkitBackdropFilter: 'blur(1px)',
-              }}
-            />
-            <div
-              className="absolute bottom-0 left-0 right-0 pointer-events-none"
-              style={{
-                zIndex: 2,
-                height: '8vh', // Short fade band
-                background: 'linear-gradient(to top, rgba(249, 250, 251, 0.7) 0%, rgba(249, 250, 251, 0.3) 40%, rgba(249, 250, 251, 0) 100%)',
-                backdropFilter: 'blur(1px)', // Subtle blur
-                WebkitBackdropFilter: 'blur(1px)',
-              }}
-            />
-
             {/* Background blocker - prevents words from appearing behind input boxes during animation */}
             <div
               className="absolute left-0 right-0"
