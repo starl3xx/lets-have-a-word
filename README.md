@@ -153,7 +153,7 @@ Social engagement rewards:
 - **Database Tracking**
   - `hasSharedToday` flag prevents duplicate claims
   - `freeAllocatedShareBonus` tracks bonus allocation
-  - Resets daily at UTC midnight
+  - Resets daily at 11:00 UTC
 
 ### ✅ Milestone 4.1 - CLANKTON Integration
 
@@ -272,7 +272,7 @@ Complete daily guess allocation system:
 
 - **State Management**
   - Per-user, per-day tracking
-  - UTC-based daily reset
+  - Daily reset at 11:00 UTC
   - `daily_guess_state` table
 
 ### ✅ Milestone 2.1 - Farcaster Authentication
@@ -537,7 +537,7 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 2. Frontend gets wallet address using Wagmi
 3. Backend queries CLANKTON balance onchain (live check)
 4. If balance ≥ 100M tokens → +3 free guesses per day
-5. Bonus recalculated at daily UTC reset
+5. Bonus recalculated at daily reset (11:00 UTC)
 
 **Wallet Connection:**
 - Uses Wagmi with Farcaster miniapp connector

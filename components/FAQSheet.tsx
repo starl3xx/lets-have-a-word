@@ -48,7 +48,7 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     question: "What happens to my unused guesses?",
-    answer: "Free guess allocations reset daily at UTC midnight. Paid guess credits carry over between rounds but expire at the end of each day. Use them or lose them!",
+    answer: "Free guess allocations reset daily at 11:00 UTC. Paid guess credits carry over between rounds but expire at the end of each day. Use them or lose them!",
   },
   {
     question: "Can I see the word after someone wins?",

@@ -38,7 +38,7 @@ Share your referral link with friends. When someone you referred wins a jackpot,
 
 ## What happens to my unused guesses?
 
-Free guess allocations reset daily at UTC midnight. Paid guess credits carry over between rounds but expire at the end of each day. Use them or lose them!
+Free guess allocations reset daily at 11:00 UTC. Paid guess credits carry over between rounds but expire at the end of each day. Use them or lose them!
 
 ## Can I see the word after someone wins?
 
