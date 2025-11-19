@@ -435,19 +435,19 @@ export default function Home() {
 
             {/* Blur overlays at top and bottom of wheel */}
             <div
-              className="absolute top-0 left-0 right-0 h-16 pointer-events-none"
+              className="absolute top-0 left-0 right-0 h-24 pointer-events-none"
               style={{
                 zIndex: 2,
-                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.8) 40%, rgba(249, 250, 251, 0) 100%)',
+                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.95) 20%, rgba(249, 250, 251, 0.7) 50%, rgba(249, 250, 251, 0.3) 75%, rgba(249, 250, 251, 0) 100%)',
                 backdropFilter: 'blur(2px)',
                 WebkitBackdropFilter: 'blur(2px)',
               }}
             />
             <div
-              className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+              className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
               style={{
                 zIndex: 2,
-                background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.8) 40%, rgba(249, 250, 251, 0) 100%)',
+                background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.95) 20%, rgba(249, 250, 251, 0.7) 50%, rgba(249, 250, 251, 0.3) 75%, rgba(249, 250, 251, 0) 100%)',
                 backdropFilter: 'blur(2px)',
                 WebkitBackdropFilter: 'blur(2px)',
               }}
