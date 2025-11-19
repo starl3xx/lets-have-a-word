@@ -119,10 +119,6 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
-        // Mask to create cutout around input boxes (~15% of viewport)
-        // Centered at 50% with fade transitions
-        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 40%, transparent 43%, transparent 57%, black 60%, black 100%)',
-        maskImage: 'linear-gradient(to bottom, black 0%, black 40%, transparent 43%, transparent 57%, black 60%, black 100%)',
       }}
     >
       {/* Hide scrollbar */}
@@ -139,29 +135,41 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
           </p>
         </div>
       ) : (
-        <div className="py-8">
+        <div className="py-8 flex flex-col">
           {words.map((word, index) => {
             const style = getWordStyle(index);
 
+            // Insert spacer before the center word to create physical gap for input boxes
+            const shouldInsertSpacer = centerIndex !== -1 && index === centerIndex;
+
             return (
-              <div
-                key={`${word}-${index}`}
-                ref={(el) => {
-                  wordRefs.current[index] = el;
-                }}
-                className="text-center transition-all duration-300 ease-out"
-                style={{
-                  transform: `scale(${style.scale})`,
-                  opacity: style.opacity,
-                  fontWeight: style.fontWeight,
-                  color: style.color,
-                  fontSize: '2rem',
-                  lineHeight: '1.8',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                }}
-              >
-                {word}
+              <div key={`${word}-${index}`}>
+                {shouldInsertSpacer && (
+                  <div
+                    style={{
+                      height: '20vh', // Gap for input boxes area
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                <div
+                  ref={(el) => {
+                    wordRefs.current[index] = el;
+                  }}
+                  className="text-center transition-all duration-300 ease-out"
+                  style={{
+                    transform: `scale(${style.scale})`,
+                    opacity: style.opacity,
+                    fontWeight: style.fontWeight,
+                    color: style.color,
+                    fontSize: '2rem',
+                    lineHeight: '1.8',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                  }}
+                >
+                  {word}
+                </div>
               </div>
             );
           })}
