@@ -16,6 +16,7 @@ interface WheelProps {
 export default function Wheel({ words, currentGuess }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const gapRef = useRef<HTMLDivElement>(null);
 
   /**
    * Find the alphabetical index where currentGuess should appear
@@ -41,11 +42,12 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
   const centerIndex = getCenterIndex();
 
   /**
-   * Auto-scroll to center the highlighted word
+   * Auto-scroll to center the gap (where input boxes are)
+   * This makes words skip over the input box area
    */
   useEffect(() => {
-    if (centerIndex !== -1 && wordRefs.current[centerIndex]) {
-      wordRefs.current[centerIndex]?.scrollIntoView({
+    if (centerIndex !== -1 && gapRef.current) {
+      gapRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       });
@@ -146,8 +148,9 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
               <div key={`${word}-${index}`}>
                 {shouldInsertSpacer && (
                   <div
+                    ref={gapRef}
                     style={{
-                      height: '20vh', // Gap for input boxes area
+                      height: '30vh', // Gap for input boxes area (larger to ensure skip-over effect)
                       pointerEvents: 'none',
                     }}
                   />
