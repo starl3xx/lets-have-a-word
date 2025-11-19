@@ -16,7 +16,7 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     question: 'What are free guesses?',
-    answer: 'Every player gets 1 free guess per day. Free guesses don\'t cost anything but still give you a chance to win the jackpot. Additional free guesses can be earned through bonuses.',
+    answer: 'Every player gets 1 free guess per day. Free guesses don't cost anything but still give you a chance to win the jackpot. Additional free guesses can be earned through bonuses.',
   },
   {
     question: 'How do I get more guesses?',
@@ -40,7 +40,7 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     question: 'What does "Provably Fair" mean?',
-    answer: 'Each round\'s answer is committed onchain before any guesses are made using a cryptographic hash. This means the answer cannot be changed after guesses start - it\'s mathematically provable that the game is fair.',
+    answer: 'Each round's answer is committed onchain before any guesses are made using a cryptographic hash. This means the answer cannot be changed after guesses start - it's mathematically provable that the game is fair.',
   },
   {
     question: 'How do referrals work?',
