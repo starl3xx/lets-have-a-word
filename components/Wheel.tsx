@@ -82,9 +82,9 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
 
     // Distance-based scale and opacity
     let scale = 1.0;
-    let opacity = 0.05;
+    let opacity = 0.25;
     let fontWeight: 'bold' | 'normal' | '300' = 'normal';
-    let color = '#ccc';
+    let color = '#bbb';
 
     switch (distance) {
       case 0:
@@ -101,21 +101,21 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         break;
       case 2:
         scale = 1.1;
-        opacity = 0.4;
+        opacity = 0.5;
         fontWeight = 'normal';
         color = '#999';
         break;
       case 3:
         scale = 1.05;
-        opacity = 0.15;
+        opacity = 0.35;
         fontWeight = '300';
-        color = '#ccc';
+        color = '#aaa';
         break;
       default:
         scale = 1.0;
-        opacity = 0.05;
+        opacity = 0.25;
         fontWeight = '300';
-        color = '#ddd';
+        color = '#bbb';
     }
 
     return { scale, opacity, fontWeight, color };
