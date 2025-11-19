@@ -42,13 +42,28 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
   const centerIndex = getCenterIndex();
 
   /**
+   * Determine where to insert the gap
+   * - If typing: insert at centerIndex (alphabetical position)
+   * - If not typing: insert at middle of list (so words split above/below on load)
+   */
+  const getGapIndex = (): number => {
+    if (centerIndex !== -1) {
+      return centerIndex;
+    }
+    // Default to middle of word list when not typing
+    return Math.floor(words.length / 2);
+  };
+
+  const gapIndex = getGapIndex();
+
+  /**
    * Auto-scroll to center the gap (where input boxes are)
    * This makes words skip over the input box area
    */
   useEffect(() => {
-    if (centerIndex !== -1 && gapRef.current) {
+    if (gapRef.current) {
       gapRef.current.scrollIntoView({
-        behavior: 'smooth',
+        behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
         block: 'center',
       });
     }
@@ -141,8 +156,9 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
           {words.map((word, index) => {
             const style = getWordStyle(index);
 
-            // Insert spacer before the center word to create physical gap for input boxes
-            const shouldInsertSpacer = centerIndex !== -1 && index === centerIndex;
+            // Insert spacer at gap index to create physical gap for input boxes
+            // Always insert (even when not typing) to prevent words appearing behind boxes
+            const shouldInsertSpacer = index === gapIndex;
 
             return (
               <div key={`${word}-${index}`}>
@@ -150,7 +166,7 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                   <div
                     ref={gapRef}
                     style={{
-                      height: '30vh', // Gap for input boxes area (larger to ensure skip-over effect)
+                      height: '16vh', // Gap for input boxes + padding (reduced from 30vh)
                       pointerEvents: 'none',
                     }}
                   />
