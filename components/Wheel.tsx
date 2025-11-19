@@ -119,6 +119,9 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        // Mask creates actual gap for input boxes (center ~40-60%) and hides bottom for button
+        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 38%, transparent 38%, transparent 62%, black 62%, black 77%, transparent 77%)',
+        maskImage: 'linear-gradient(to bottom, black 0%, black 38%, transparent 38%, transparent 62%, black 62%, black 77%, transparent 77%)',
       }}
     >
       {/* Hide scrollbar */}
@@ -135,7 +138,7 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
           </p>
         </div>
       ) : (
-        <div className="py-8">
+        <div>
           {words.map((word, index) => {
             const style = getWordStyle(index);
 

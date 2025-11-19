@@ -268,15 +268,15 @@ export default function Home() {
       <TopTicker />
 
       {/* User State (Milestone 4.1) */}
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-2 pb-0">
         <div className="max-w-md mx-auto">
           <UserState key={userStateKey} fid={fid} />
         </div>
       </div>
 
       {/* Main Game Container with Layered Wheel */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full relative" style={{ height: '600px' }}>
+      <div className="flex-1 flex items-stretch p-0">
+        <div className="max-w-md w-full relative mx-auto" style={{ minHeight: '600px' }}>
 
           {/* Background Layer: Wheel */}
           <div className="absolute inset-0" style={{ zIndex: 1 }}>
@@ -304,7 +304,7 @@ export default function Home() {
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     placeholder="     "
-                    className="w-full px-4 py-4 text-4xl font-mono text-center uppercase border-4 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 tracking-[0.5em] bg-white shadow-lg"
+                    className="w-full px-4 py-4 text-4xl font-mono text-center uppercase border-4 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 tracking-[0.5em] bg-gray-50 shadow-lg"
                     maxLength={5}
                     disabled={isLoading}
                     style={{
@@ -313,14 +313,8 @@ export default function Home() {
                     }}
                   />
                   <div className="text-center mt-2">
-                    <p className="text-xs text-gray-500 font-semibold inline-block relative">
-                      <span className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded px-2 py-1" style={{
-                        left: '-8px',
-                        right: '-8px',
-                        top: '-4px',
-                        bottom: '-4px',
-                      }}></span>
-                      <span className="relative z-10">{word.length}/5 letters</span>
+                    <p className="text-xs text-gray-500 font-semibold">
+                      {word.length}/5 letters
                     </p>
                   </div>
                 </div>
