@@ -455,6 +455,19 @@ export default function Home() {
               }}
             />
 
+            {/* Background blocker - prevents words from appearing behind input boxes during animation */}
+            <div
+              className="absolute left-0 right-0"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                height: '14vh',
+                zIndex: 5,
+                backgroundColor: 'rgb(249, 250, 251)', // Match page background
+                pointerEvents: 'none'
+              }}
+            />
+
             {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
             <div
               className="absolute left-0 right-0 px-8"
