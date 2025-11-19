@@ -3,16 +3,22 @@ import type { SubmitGuessResult } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
+import SharePromptModal from '../components/SharePromptModal';
+import LetterBoxes from '../components/LetterBoxes';
+import FirstTimeOverlay from '../components/FirstTimeOverlay';
+import StatsSheet from '../components/StatsSheet';
+import ReferralSheet from '../components/ReferralSheet';
+import FAQSheet from '../components/FAQSheet';
+import XPSheet from '../components/XPSheet';
+import { triggerHaptic } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
-  const [word, setWord] = useState('');
+  // Word input state - now managed as array of 5 letters (Milestone 4.3)
+  const [letters, setLetters] = useState<string[]>(['', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Input ref for auto-focus on mobile
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
@@ -23,6 +29,19 @@ export default function Home() {
 
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
+
+  // Share modal state (Milestone 4.2)
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
+
+  // UX state (Milestone 4.3)
+  const [isShaking, setIsShaking] = useState(false);
+  const [showFirstTimeOverlay, setShowFirstTimeOverlay] = useState(false);
+  const [showStatsSheet, setShowStatsSheet] = useState(false);
+  const [showReferralSheet, setShowReferralSheet] = useState(false);
+  const [showFAQSheet, setShowFAQSheet] = useState(false);
+  const [showXPSheet, setShowXPSheet] = useState(false);
+  const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
 
   /**
    * Get Farcaster context on mount
@@ -42,6 +61,29 @@ export default function Home() {
 
     getFarcasterContext();
   }, []);
+
+  /**
+   * Check if user has seen intro overlay (Milestone 4.3)
+   */
+  useEffect(() => {
+    const checkFirstTimeUser = async () => {
+      if (!fid) return;
+
+      try {
+        const response = await fetch(`/api/user/state?devFid=${fid}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (!data.hasSeenIntro) {
+            setShowFirstTimeOverlay(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking first-time user status:', error);
+      }
+    };
+
+    checkFirstTimeUser();
+  }, [fid]);
 
   /**
    * Fetch wheel words on mount (Milestone 2.3)
@@ -66,39 +108,13 @@ export default function Home() {
   }, []);
 
   /**
-   * Auto-focus input on mobile
+   * Handle letter changes from LetterBoxes component (Milestone 4.3)
    */
-  useEffect(() => {
-    if (!inputRef.current) return;
+  const handleLettersChange = (newLetters: string[]) => {
+    setLetters(newLetters);
 
-    const isMobile =
-      typeof navigator !== 'undefined' &&
-      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // Small delay helps iOS Safari actually show the keyboard
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 200);
-    }
-  }, []);
-
-  /**
-   * Handle input change
-   * - Strip non-alphabetic characters
-   * - Convert to uppercase
-   * - Limit to 5 characters
-   */
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    // Only allow A-Z letters
-    const filtered = value.replace(/[^A-Za-z]/g, '');
-
-    // Convert to uppercase and limit to 5 characters
-    const normalized = filtered.toUpperCase().slice(0, 5);
-
-    setWord(normalized);
+    // Reset to typing state when user starts typing
+    setBoxResultState('typing');
 
     // Clear previous result and errors when user starts typing
     if (result || errorMessage) {
@@ -108,14 +124,11 @@ export default function Home() {
   };
 
   /**
-   * Handle Enter key press - PREVENT submission, user must tap GUESS button
+   * Trigger shake animation (Milestone 4.3)
    */
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      // Do NOT submit - user must tap the GUESS button
-      return;
-    }
+  const triggerShake = () => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 400); // Match animation duration
   };
 
   /**
@@ -123,9 +136,14 @@ export default function Home() {
    * Only called when GUESS button is tapped
    */
   const handleSubmit = async () => {
+    // Get word from letters array
+    const word = letters.join('');
+
     // Validate word length
     if (word.length !== 5) {
       setErrorMessage('Word must be exactly 5 letters.');
+      triggerShake(); // Shake animation (Milestone 4.3)
+      triggerHaptic('error'); // Haptic feedback (Milestone 4.3)
       return;
     }
 
@@ -133,6 +151,9 @@ export default function Home() {
     setIsLoading(true);
     setResult(null);
     setErrorMessage(null);
+
+    // Haptic feedback on submission (Milestone 4.3)
+    triggerHaptic('medium');
 
     try {
       // Use Farcaster FID if available, otherwise use dev FID
@@ -162,6 +183,22 @@ export default function Home() {
       const data: SubmitGuessResult = await response.json();
       setResult(data);
 
+      // Set box result state based on guess outcome (Milestone 4.3)
+      if (data.status === 'correct') {
+        setBoxResultState('correct');
+        triggerHaptic('success');
+      } else if (data.status === 'incorrect' || data.status === 'already_guessed_word') {
+        setBoxResultState('wrong');
+        triggerHaptic(data.status === 'incorrect' ? 'light' : 'error');
+        if (data.status === 'already_guessed_word') {
+          triggerShake();
+        }
+      } else if (data.status === 'invalid_word') {
+        setBoxResultState('wrong');
+        triggerHaptic('error');
+        triggerShake();
+      }
+
       // Refetch wheel data after guess (Milestone 2.3)
       // Wrong guesses will now appear in the wheel
       if (data.status === 'incorrect') {
@@ -180,12 +217,23 @@ export default function Home() {
       // This updates the guess counts in real-time
       setUserStateKey(prev => prev + 1);
 
-      // Clear input on success (optional)
-      // setWord('');
+      // Show share modal for correct/incorrect guesses (Milestone 4.2)
+      // Only show if the guess was actually submitted (not an error)
+      if (data.status === 'correct' || data.status === 'incorrect') {
+        setPendingShareResult(data);
+        setShowShareModal(true);
+      }
+
+      // Clear input after successful submission (Milestone 4.3)
+      if (data.status === 'correct' || data.status === 'incorrect') {
+        setLetters(['', '', '', '', '']);
+      }
 
     } catch (error) {
       console.error('Error submitting guess:', error);
       setErrorMessage('Something went wrong. Please try again.');
+      triggerHaptic('error');
+      triggerShake();
     } finally {
       setIsLoading(false);
     }
@@ -246,7 +294,26 @@ export default function Home() {
   };
 
   const feedback = getFeedbackMessage();
+
+  // Check if all 5 letters are filled (Milestone 4.3)
+  const word = letters.join('');
   const isButtonDisabled = word.length !== 5 || isLoading;
+
+  /**
+   * Handle share modal close
+   */
+  const handleShareModalClose = () => {
+    setShowShareModal(false);
+    setPendingShareResult(null);
+  };
+
+  /**
+   * Handle successful share
+   * Refetch user state to show updated share bonus
+   */
+  const handleShareSuccess = () => {
+    setUserStateKey(prev => prev + 1);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -275,42 +342,24 @@ export default function Home() {
             )}
           </div>
 
-          {/* Foreground Layer: Input & Controls */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
-
-            {/* Input Area */}
-            <div className="relative z-10 w-full px-8">
-              <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-                {/* 5-Letter Input Boxes */}
-                <div>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={word}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder="     "
-                    className="w-full px-4 py-4 text-4xl font-mono text-center uppercase border-4 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 tracking-[0.5em] bg-white shadow-lg"
-                    maxLength={5}
-                    disabled={isLoading}
-                    style={{
-                      fontWeight: 'bold',
-                      letterSpacing: '0.5em',
-                    }}
-                  />
-                  <div className="text-center mt-2">
-                    <p className="text-xs text-gray-500 font-semibold inline-block relative">
-                      <span className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded px-2 py-1" style={{
-                        left: '-8px',
-                        right: '-8px',
-                        top: '-4px',
-                        bottom: '-4px',
-                      }}></span>
-                      <span className="relative z-10">{word.length}/5 letters</span>
-                    </p>
-                  </div>
-                </div>
-              </form>
+          {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
+          <div
+            className="absolute left-0 right-0 px-8"
+            style={{
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10,
+              pointerEvents: 'none' // Allow clicks through to wheel
+            }}
+          >
+            <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
+              <LetterBoxes
+                letters={letters}
+                onChange={handleLettersChange}
+                disabled={isLoading}
+                isShaking={isShaking}
+                resultState={boxResultState}
+              />
 
               {/* Feedback area below input */}
               {(errorMessage || feedback) && (
@@ -331,9 +380,10 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Guess Button - positioned below the input area */}
-            <div className="absolute bottom-8 left-0 right-0 px-8 z-10">
+          {/* Fixed Layer: Buttons - always at bottom */}
+          <div className="absolute bottom-8 left-0 right-0 px-8" style={{ zIndex: 10 }}>
               <button
                 type="button"
                 onClick={handleSubmit}
@@ -347,17 +397,97 @@ export default function Home() {
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
 
-              {/* Info footer */}
-              <div className="mt-4">
-                <p className="text-xs text-gray-400 text-center">
-                  Milestone 2.3 - Faux-3D Wheel
-                </p>
+              {/* Navigation Buttons (Milestone 4.3) */}
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                <button
+                  onClick={() => {
+                    setShowStatsSheet(true);
+                    triggerHaptic('light');
+                  }}
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                >
+                  📊 Stats
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReferralSheet(true);
+                    triggerHaptic('light');
+                  }}
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                >
+                  🤝 Refer
+                </button>
+                <button
+                  onClick={() => {
+                    setShowFAQSheet(true);
+                    triggerHaptic('light');
+                  }}
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                >
+                  🤔 FAQ
+                </button>
+                <button
+                  onClick={() => {
+                    setShowXPSheet(true);
+                    triggerHaptic('light');
+                  }}
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                >
+                  ✨ XP
+                </button>
               </div>
-            </div>
-
           </div>
         </div>
       </div>
+
+      {/* Share Prompt Modal (Milestone 4.2) */}
+      {showShareModal && pendingShareResult && (
+        <SharePromptModal
+          fid={fid}
+          guessResult={pendingShareResult}
+          onClose={handleShareModalClose}
+          onShareSuccess={handleShareSuccess}
+        />
+      )}
+
+      {/* First Time Overlay (Milestone 4.3) */}
+      {showFirstTimeOverlay && (
+        <FirstTimeOverlay
+          fid={fid}
+          onClose={() => setShowFirstTimeOverlay(false)}
+        />
+      )}
+
+      {/* Stats Sheet (Milestone 4.3) */}
+      {showStatsSheet && (
+        <StatsSheet
+          fid={fid}
+          onClose={() => setShowStatsSheet(false)}
+        />
+      )}
+
+      {/* Referral Sheet (Milestone 4.3) */}
+      {showReferralSheet && (
+        <ReferralSheet
+          fid={fid}
+          onClose={() => setShowReferralSheet(false)}
+        />
+      )}
+
+      {/* FAQ Sheet (Milestone 4.3) */}
+      {showFAQSheet && (
+        <FAQSheet
+          onClose={() => setShowFAQSheet(false)}
+        />
+      )}
+
+      {/* XP Sheet (Milestone 4.3) */}
+      {showXPSheet && (
+        <XPSheet
+          fid={fid}
+          onClose={() => setShowXPSheet(false)}
+        />
+      )}
     </div>
   );
 }
