@@ -569,7 +569,7 @@ export default function Home() {
         className="fixed bottom-0 left-0 right-0 bg-gray-100"
         style={{
           zIndex: 50,
-          paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
         }}
       >
         <GameKeyboard
