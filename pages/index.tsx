@@ -135,10 +135,10 @@ export default function Home() {
         return;
       }
 
-      // Handle enter
+      // Handle enter - submit guess
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleEnter();
+        handleSubmit();
         return;
       }
     };
@@ -221,15 +221,8 @@ export default function Home() {
   };
 
   /**
-   * Handle enter/guess from GameKeyboard (Milestone 4.4)
-   */
-  const handleEnter = () => {
-    handleSubmit();
-  };
-
-  /**
    * Submit guess to backend
-   * Only called when GUESS button is tapped
+   * Called when GUESS button is tapped or Enter is pressed
    */
   const handleSubmit = async () => {
     // Get word from letters array
@@ -440,6 +433,26 @@ export default function Home() {
               )}
             </div>
 
+            {/* Blur overlays at top and bottom of wheel */}
+            <div
+              className="absolute top-0 left-0 right-0 h-16 pointer-events-none"
+              style={{
+                zIndex: 2,
+                background: 'linear-gradient(to bottom, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.8) 40%, rgba(249, 250, 251, 0) 100%)',
+                backdropFilter: 'blur(2px)',
+                WebkitBackdropFilter: 'blur(2px)',
+              }}
+            />
+            <div
+              className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+              style={{
+                zIndex: 2,
+                background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 0%, rgba(249, 250, 251, 0.8) 40%, rgba(249, 250, 251, 0) 100%)',
+                backdropFilter: 'blur(2px)',
+                WebkitBackdropFilter: 'blur(2px)',
+              }}
+            />
+
             {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
             <div
               className="absolute left-0 right-0 px-8"
@@ -554,11 +567,10 @@ export default function Home() {
       </div>
 
       {/* Custom Keyboard (Milestone 4.4) */}
-      <div className="sticky bottom-0 left-0 right-0 bg-gray-100">
+      <div className="sticky bottom-0 left-0 right-0 bg-gray-100 pb-6">
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
-          onEnter={handleEnter}
           disabled={isLoading}
         />
       </div>
