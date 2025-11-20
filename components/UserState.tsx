@@ -152,9 +152,10 @@ export default function UserState({ fid }: UserStateProps) {
           <span className="text-gray-600"> ({userState.freeAllocations.base} free</span>
         )}
         {userState.freeAllocations.clankton > 0 && (
-          <span className="text-gray-600">
-            <span className="font-semibold"> +{userState.freeAllocations.clankton}</span> CLANKTON
-          </span>
+          <>
+            <span className="font-semibold text-purple-700"> +{userState.freeAllocations.clankton}</span>
+            <span className="text-gray-600"> CLANKTON</span>
+          </>
         )}
         {userState.freeAllocations.shareBonus > 0 && (
           <span className="text-blue-600"> +{userState.freeAllocations.shareBonus} share</span>
