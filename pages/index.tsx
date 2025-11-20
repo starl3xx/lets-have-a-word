@@ -318,7 +318,7 @@ export default function Home() {
 
     // Validate word length
     if (word.length !== 5) {
-      setErrorMessage('Word must be exactly 5 letters.');
+      setErrorMessage('Word must be exactly 5 letters');
       triggerShake(); // Shake animation (Milestone 4.3)
       triggerHaptic('error'); // Haptic feedback (Milestone 4.3)
       return;
@@ -444,17 +444,17 @@ export default function Home() {
       case 'invalid_word':
         if (result.reason === 'not_5_letters') {
           return {
-            text: 'Word must be exactly 5 letters.',
+            text: 'Word must be exactly 5 letters',
             color: 'text-red-600',
           };
         } else if (result.reason === 'non_alpha') {
           return {
-            text: 'Word can only contain letters A–Z.',
+            text: 'Word can only contain letters A–Z',
             color: 'text-red-600',
           };
         } else if (result.reason === 'not_in_dictionary') {
           return {
-            text: "That's not a valid word.",
+            text: 'Not a valid word',
             color: 'text-red-600',
           };
         }
