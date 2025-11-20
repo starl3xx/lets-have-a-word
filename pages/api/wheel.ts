@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveWheelData } from '../../src/lib/wheel';
+import { ensureDevMidRound } from '../../src/lib/devMidRound';
 
 /**
  * GET /api/wheel
@@ -18,6 +19,7 @@ import { getActiveWheelData } from '../../src/lib/wheel';
  * - Wrong guesses from real players
  *
  * Automatically creates a round if none exists.
+ * In dev mode with NEXT_PUBLIC_TEST_MID_ROUND=true, populates with test data.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -29,6 +31,9 @@ export default async function handler(
   }
 
   try {
+    // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
+    await ensureDevMidRound();
+
     const wheelData = await getActiveWheelData();
     return res.status(200).json(wheelData);
   } catch (error: any) {

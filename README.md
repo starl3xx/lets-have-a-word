@@ -11,11 +11,47 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.4 Complete
+## 🎯 Current Status: Milestone 4.5 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.4 - Custom In-App Keyboard (Latest)
+### ✅ Milestone 4.5 - Mid-Round Test Mode (Latest)
+
+Development-only test mode that simulates an active round in progress for easier local testing:
+
+- **Dev-Only Test Mode**
+  - Fully gated behind `NEXT_PUBLIC_TEST_MID_ROUND=true` environment flag
+  - Automatically creates a test round with realistic mid-round state
+  - Never runs in production (safety checks at multiple levels)
+
+- **Realistic Test Data**
+  - Pre-populated with 50-100 wrong guesses from fake users
+  - Non-zero jackpot (0.42 ETH for testing)
+  - Mix of paid and free guesses
+  - Seed words and wheel fully populated
+
+- **Separate Test Word Lists**
+  - Dedicated `src/lib/testWords.ts` with dev-only word lists
+  - No overlap with production word lists
+  - Large pools for varied testing scenarios
+
+- **Database Support**
+  - New `is_dev_test_round` column on `rounds` table
+  - Allows filtering test rounds from analytics
+  - Clean separation from production data
+
+- **Easy Enable/Disable**
+  - Set `NEXT_PUBLIC_TEST_MID_ROUND=true` in `.env.local`
+  - Restart dev server to activate
+  - All normal UX elements work as if in real mid-round
+
+**Perfect for:**
+- Testing wheel UI with many guesses
+- Developing jackpot and payout features
+- Demonstrating the app in a "busy" state
+- Avoiding empty round during local development
+
+### ✅ Milestone 4.4 - Custom In-App Keyboard
 
 Replaced native mobile keyboard with a custom in-app keyboard for consistent cross-device input:
 
@@ -395,6 +431,40 @@ npm run db:studio
 npm test
 ```
 
+### Mid-Round Test Mode (Development Only)
+
+To test the app in a realistic "mid-round" state with existing guesses and a jackpot:
+
+1. **Enable test mode** in your `.env.local` file:
+   ```bash
+   NEXT_PUBLIC_TEST_MID_ROUND=true
+   ```
+
+2. **Restart your dev server** for the env variable to take effect:
+   ```bash
+   npm run dev
+   ```
+
+3. **Access the app** - The first time you load `/api/round-state`, `/api/guess`, or `/api/wheel`, the system will automatically create a dev test round with:
+   - 50-100 pre-populated wrong guesses
+   - Non-zero jackpot (0.42 ETH)
+   - Fully populated wheel
+   - Mix of paid/free guesses
+
+4. **Test normally** - All game mechanics work as if this were a real active round. You can submit guesses, see the wheel, check the jackpot, etc.
+
+5. **Disable test mode** when done:
+   ```bash
+   NEXT_PUBLIC_TEST_MID_ROUND=false
+   ```
+   Or simply remove the line from `.env.local`.
+
+**Important Notes:**
+- This mode **NEVER runs in production** - it has multiple safety checks
+- Test rounds are marked with `is_dev_test_round = true` in the database
+- Test word lists are separate from production word lists
+- Perfect for UI development, screenshots, and demos
+
 ## API Endpoints
 
 ### Game API
@@ -715,7 +785,9 @@ src/
 │   ├── wheel.ts           # Wheel + ticker data
 │   ├── economics.ts       # Jackpot + payouts
 │   ├── clankton.ts        # CLANKTON bonus checking
-│   └── haptics.ts         # Haptic feedback (Milestone 4.3)
+│   ├── haptics.ts         # Haptic feedback (Milestone 4.3)
+│   ├── testWords.ts       # Dev-only test word lists (Milestone 4.5)
+│   └── devMidRound.ts     # Mid-round test mode (Milestone 4.5)
 ├── db/                # Database
 │   ├── schema.ts          # Drizzle schema
 │   ├── index.ts           # DB connection
