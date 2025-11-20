@@ -11,11 +11,51 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.6 Complete
+## 🎯 Current Status: Milestone 4.7 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.6 - Input States & Visual Behavior (Latest)
+### ✅ Milestone 4.7 - Haptics Integration (Latest)
+
+Fully integrated haptics across the game using the Farcaster mini-app SDK for tactile feedback:
+
+- **Haptics Utility Module**
+  - Centralized `lib/haptics.ts` wrapping Farcaster SDK haptics API
+  - Capability detection via `sdk.getCapabilities()`
+  - Graceful fallback on unsupported devices
+  - Error swallowing to prevent app breakage
+  - Semantic helper functions for common interactions
+
+- **Keyboard Haptics**
+  - Light impact on letter key presses (`keyTap`)
+  - Soft impact on backspace (`keyBackspace`)
+  - Medium impact on Enter/Guess when valid (`keyEnterValid`)
+
+- **Input State Haptics**
+  - Selection feedback when word becomes valid (`inputBecameValid`)
+  - Error notification for invalid/duplicate words (`inputBecameInvalid`)
+  - Automatic state transition detection via `useInputStateHaptics` hook
+  - No redundant haptics on re-renders
+
+- **Guess Lifecycle Haptics**
+  - Medium impact on guess submission (`guessSubmitting`)
+  - Success notification on correct guess (`guessSuccess`)
+  - Rigid impact on wrong but valid guess (`guessWrong`)
+  - Warning notification when out of guesses (`outOfGuesses`)
+
+- **UI Element Haptics**
+  - Light impact on Stats/Refer/FAQ button taps (`buttonTapMinor`)
+  - Success notification when share bonus unlocked (`shareBonusUnlocked`)
+  - Share button tap feedback
+
+- **Best Practices Applied**
+  - Used sparingly (only meaningful interactions)
+  - Intensity matched to action importance
+  - Always paired with visual feedback
+  - Capability checking before use
+  - Silent failure in unsupported environments
+
+### ✅ Milestone 4.6 - Input States & Visual Behavior
 
 Comprehensive input state machine for consistent visual feedback and error handling:
 
@@ -683,26 +723,40 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 - Click anywhere on boxes to focus
 - Enter key disabled (forces GUESS button tap)
 
-### Haptic Feedback
+### Haptics Integration
 
-**Feedback Types**
-- `light` - Button taps, navigation (soft tap)
-- `medium` - Guess submission (standard feedback)
-- `heavy` - Important actions (strong feedback)
-- `error` - Invalid input, validation errors
-- `success` - Jackpot wins
+Let's Have A Word uses Farcaster mini-app haptics to make the game feel more tactile on supported devices:
 
-**Integration Points**
-- Navigation button taps → light
-- GUESS button submission → medium
-- Invalid word/format → error + shake
-- Correct guess → success
-- Incorrect guess → light
+- **Keyboard taps** use light impact feedback.
+- The input boxes use haptics when a word becomes valid or invalid.
+- Guess submissions, correct guesses, wrong guesses, and out-of-guesses all trigger distinct feedback patterns.
+- Share bonuses and certain UI actions (e.g. Stats / Refer / FAQ) also provide subtle feedback.
 
-**Implementation**
-- Uses Farcaster SDK `haptic` API
-- Graceful fallback on unsupported devices
-- Silent failure with console logging
+**Implementation details:**
+
+- Haptics are implemented via `@farcaster/miniapp-sdk` (`sdk.haptics.*`).
+- A central helper module (`lib/haptics.ts`) wraps the SDK:
+  - Checks `sdk.getCapabilities()` once at startup.
+  - No-ops gracefully when haptics are unavailable.
+  - Exposes semantic methods like `keyTap`, `guessSuccess`, `guessWrong`, etc.
+- Haptics are **optional** and never affect game logic. They provide feedback only and are safe to ignore on unsupported devices.
+
+**Haptic Types Used:**
+- **Impact**: `light`, `soft`, `medium`, `rigid` - Physical feedback for actions
+- **Notification**: `success`, `warning`, `error` - Semantic feedback for events
+- **Selection**: Selection changed feedback for state transitions
+
+**Integration Points:**
+- Letter key taps → light impact
+- Backspace → soft impact
+- Valid word completion → selection changed
+- Invalid word → error notification
+- Guess submission → medium impact
+- Correct guess → success notification
+- Wrong guess → rigid impact
+- Out of guesses → warning notification
+- Share bonus unlocked → success notification
+- UI button taps (Stats/Refer/FAQ) → light impact
 
 ### Visual Feedback
 
@@ -830,7 +884,8 @@ src/
 │   ├── wheel.ts           # Wheel + ticker data
 │   ├── economics.ts       # Jackpot + payouts
 │   ├── clankton.ts        # CLANKTON bonus checking
-│   ├── haptics.ts         # Haptic feedback (Milestone 4.3)
+│   ├── haptics.ts         # Haptic feedback SDK wrapper (Milestone 4.7)
+│   ├── input-state-haptics.ts  # Haptic feedback hook (Milestone 4.7)
 │   ├── input-state.ts     # Input state machine (Milestone 4.6)
 │   ├── testWords.ts       # Dev-only test word lists (Milestone 4.5)
 │   └── devMidRound.ts     # Mid-round test mode (Milestone 4.5)

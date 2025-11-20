@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
+import { haptics } from '../src/lib/haptics';
 
 interface SharePromptModalProps {
   fid: number | null;
@@ -76,6 +77,7 @@ export default function SharePromptModal({
       return;
     }
 
+    void haptics.buttonTapMinor();
     setIsSharing(true);
     setError(null);
 
@@ -122,6 +124,7 @@ export default function SharePromptModal({
 
           if (data.ok) {
             console.log('[SharePromptModal] Share bonus awarded!', data);
+            void haptics.shareBonusUnlocked();
             onShareSuccess();
             onClose();
           } else {

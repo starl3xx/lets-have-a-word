@@ -10,9 +10,10 @@ import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
 import GameKeyboard from '../components/GameKeyboard';
-import { triggerHaptic } from '../src/lib/haptics';
+import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
+import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
@@ -147,6 +148,7 @@ export default function Home() {
   /**
    * Trigger shake when typing invalid words (Milestone 4.6)
    * Provides immediate visual feedback for invalid state
+   * Note: Haptics for invalid states are now handled by useInputStateHaptics hook (Milestone 4.7)
    */
   useEffect(() => {
     const currentWord = letters.join('');
@@ -165,7 +167,6 @@ export default function Home() {
       if (state === 'TYPING_FULL_INVALID_NONSENSE' ||
           state === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
         triggerShake();
-        triggerHaptic('error');
       }
     }
   }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
@@ -280,7 +281,7 @@ export default function Home() {
       setErrorMessage(null);
     }
 
-    triggerHaptic('light');
+    void haptics.keyTap();
   };
 
   /**
@@ -305,7 +306,7 @@ export default function Home() {
       setErrorMessage(null);
     }
 
-    triggerHaptic('light');
+    void haptics.keyBackspace();
   };
 
   /**
@@ -329,8 +330,8 @@ export default function Home() {
     setResult(null);
     setErrorMessage(null);
 
-    // Haptic feedback on submission (Milestone 4.3)
-    triggerHaptic('medium');
+    // Haptic feedback on submission (Milestone 4.7)
+    void haptics.guessSubmitting();
 
     try {
       // Use Farcaster FID if available, otherwise use dev FID
@@ -361,12 +362,11 @@ export default function Home() {
       setResult(data);
 
       // Set box result state based on guess outcome (Milestone 4.3)
+      // Note: Haptics are now handled by useInputStateHaptics hook via state transitions
       if (data.status === 'correct') {
         setBoxResultState('correct');
-        triggerHaptic('success');
       } else if (data.status === 'incorrect' || data.status === 'already_guessed_word') {
         setBoxResultState('wrong');
-        triggerHaptic(data.status === 'incorrect' ? 'light' : 'error');
         if (data.status === 'already_guessed_word') {
           triggerShake();
         }
@@ -482,6 +482,9 @@ export default function Home() {
     hasGuessesLeft,
     resultState: boxResultState,
   });
+
+  // Trigger haptics on input state transitions (Milestone 4.7)
+  useInputStateHaptics(currentInputState);
 
   // Get state-based error message (Milestone 4.6)
   const stateErrorMessage = getErrorMessage(currentInputState);
@@ -662,7 +665,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
-                    triggerHaptic('light');
+                    void haptics.buttonTapMinor();
                   }}
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
@@ -671,7 +674,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowReferralSheet(true);
-                    triggerHaptic('light');
+                    void haptics.buttonTapMinor();
                   }}
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
@@ -680,7 +683,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowFAQSheet(true);
-                    triggerHaptic('light');
+                    void haptics.buttonTapMinor();
                   }}
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
                 >
