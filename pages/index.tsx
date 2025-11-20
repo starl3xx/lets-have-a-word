@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
-import type { SubmitGuessResult } from '../src/types';
+import type { SubmitGuessResult, UserStateResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
@@ -11,6 +11,8 @@ import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
 import GameKeyboard from '../components/GameKeyboard';
 import { triggerHaptic } from '../src/lib/haptics';
+import { isValidGuess } from '../src/lib/word-lists';
+import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
 import sdk from '@farcaster/miniapp-sdk';
 
 export default function Home() {
@@ -31,6 +33,9 @@ export default function Home() {
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
 
+  // User guess count state (Milestone 4.6)
+  const [hasGuessesLeft, setHasGuessesLeft] = useState(true);
+
   // Share modal state (Milestone 4.2)
   const [showShareModal, setShowShareModal] = useState(false);
   const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
@@ -42,6 +47,7 @@ export default function Home() {
   const [showReferralSheet, setShowReferralSheet] = useState(false);
   const [showFAQSheet, setShowFAQSheet] = useState(false);
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
+  const [hideStateError, setHideStateError] = useState(false);
 
   /**
    * Get Farcaster context on mount
@@ -116,6 +122,55 @@ export default function Home() {
   }, []);
 
   /**
+   * Fetch user state to check if user has guesses left (Milestone 4.6)
+   */
+  useEffect(() => {
+    const fetchUserGuessCount = async () => {
+      if (!fid) return;
+
+      try {
+        const response = await fetch(`/api/user-state?devFid=${fid}`);
+        if (response.ok) {
+          const data: UserStateResponse = await response.json();
+          setHasGuessesLeft(data.totalGuessesRemaining > 0);
+        }
+      } catch (error) {
+        console.error('Error fetching user guess count:', error);
+        // Default to true to avoid blocking the user
+        setHasGuessesLeft(true);
+      }
+    };
+
+    fetchUserGuessCount();
+  }, [fid, userStateKey]); // Re-fetch when userStateKey changes
+
+  /**
+   * Trigger shake when typing invalid words (Milestone 4.6)
+   * Provides immediate visual feedback for invalid state
+   */
+  useEffect(() => {
+    const currentWord = letters.join('');
+    // Only trigger shake when user has typed 5 letters and it's invalid
+    if (currentWord.length === 5) {
+      // Get current state
+      const state = getInputState({
+        letters,
+        isInGuessList: isValidGuess(currentWord),
+        isAlreadyGuessed: wheelWords.includes(currentWord.toLowerCase()),
+        isSubmitting: isLoading,
+        hasGuessesLeft,
+        resultState: boxResultState,
+      });
+
+      if (state === 'TYPING_FULL_INVALID_NONSENSE' ||
+          state === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
+        triggerShake();
+        triggerHaptic('error');
+      }
+    }
+  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
+
+  /**
    * Hardware keyboard support for desktop (Milestone 4.4)
    */
   useEffect(() => {
@@ -150,6 +205,35 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [letters, isLoading, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+
+  /**
+   * Auto-dismiss state error messages after 2 seconds
+   */
+  useEffect(() => {
+    // Reset hide flag when letters change (show error again for new invalid input)
+    setHideStateError(false);
+
+    // Get current state to check if there's an error
+    const word = letters.join('');
+    const currentState = getInputState({
+      letters,
+      isInGuessList: word.length === 5 ? isValidGuess(word) : true,
+      isAlreadyGuessed: word.length === 5 ? wheelWords.includes(word.toLowerCase()) : false,
+      isSubmitting: isLoading,
+      hasGuessesLeft,
+      resultState: boxResultState,
+    });
+
+    const errorMsg = getErrorMessage(currentState);
+    if (errorMsg) {
+      // Show error for 2 seconds then hide it
+      const timer = setTimeout(() => {
+        setHideStateError(true);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]);
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
@@ -388,9 +472,22 @@ export default function Home() {
 
   const feedback = getFeedbackMessage();
 
-  // Check if all 5 letters are filled (Milestone 4.3)
+  // Compute current input state using state machine (Milestone 4.6)
   const word = letters.join('');
-  const isButtonDisabled = word.length !== 5 || isLoading;
+  const currentInputState: InputState = getInputState({
+    letters,
+    isInGuessList: word.length === 5 ? isValidGuess(word) : true, // Only check if 5 letters
+    isAlreadyGuessed: word.length === 5 ? wheelWords.includes(word.toLowerCase()) : false,
+    isSubmitting: isLoading,
+    hasGuessesLeft,
+    resultState: boxResultState,
+  });
+
+  // Get state-based error message (Milestone 4.6)
+  const stateErrorMessage = getErrorMessage(currentInputState);
+
+  // Check if GUESS button should be enabled (Milestone 4.6)
+  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading;
 
   /**
    * Handle share modal close
@@ -431,31 +528,44 @@ export default function Home() {
 
           {/* Wheel + Input Container - fills remaining space */}
           <div className="flex-1 relative">
-            {/* Background Layer: Wheel with clipping for input boxes and button */}
+            {/* Background Layer: Wheel with real gap (no words can occupy this vertical space) */}
             <div className="absolute inset-0" style={{ zIndex: 1 }}>
               {isLoadingWheel ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-gray-400 animate-pulse">Loading...</p>
                 </div>
               ) : (
-                <Wheel words={wheelWords} currentGuess={word} />
+                <Wheel
+                  words={wheelWords}
+                  currentGuess={word}
+                  inputState={currentInputState}
+                />
               )}
             </div>
 
-            {/* Background blocker - prevents words from appearing behind input boxes during animation */}
+            {/* Background blocker - prevents words from flashing behind input boxes */}
             <div
               className="absolute left-0 right-0"
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',
-                height: '12vh',
+                height: '4rem', // Same height as input boxes (64px)
                 zIndex: 5,
-                backgroundColor: 'rgb(249, 250, 251)', // Match page background
                 pointerEvents: 'none'
               }}
-            />
+            >
+              <div
+                className="mx-auto"
+                style={{
+                  maxWidth: '21rem', // Slightly wider than 5 boxes + gaps (5*4rem + 4*0.5rem = 22rem)
+                  height: '100%',
+                  backgroundColor: 'rgb(249, 250, 251)', // Match page background (bg-gray-50)
+                  borderRadius: '1rem',
+                }}
+              />
+            </div>
 
-            {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
+            {/* Fixed Layer: Input Boxes - always visible, always centered */}
             <div
               className="absolute left-0 right-0 px-8"
               style={{
@@ -472,11 +582,12 @@ export default function Home() {
                   disabled={isLoading}
                   isShaking={isShaking}
                   resultState={boxResultState}
+                  inputState={currentInputState}
                 />
               </div>
 
-              {/* Feedback area - positioned absolutely below boxes so it doesn't shift them */}
-              {(errorMessage || feedback) && (
+              {/* Error/feedback area - positioned absolutely below boxes */}
+              {(errorMessage || feedback || stateErrorMessage) && (
                 <div
                   className="absolute left-0 right-0 px-8"
                   style={{
@@ -485,13 +596,25 @@ export default function Home() {
                     pointerEvents: 'auto'
                   }}
                 >
+                  {/* Show explicit error messages first */}
                   {errorMessage && (
                     <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
                       <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
                     </div>
                   )}
 
-                  {feedback && !errorMessage && (
+                  {/* Show state-based error messages (Milestone 4.6) */}
+                  {!errorMessage && stateErrorMessage && (
+                    <div
+                      className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-500"
+                      style={{ opacity: hideStateError ? 0 : 1 }}
+                    >
+                      <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
+                    </div>
+                  )}
+
+                  {/* Show feedback from last submission */}
+                  {feedback && !errorMessage && !stateErrorMessage && (
                     <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
                       <p className={`${feedback.color} text-center text-sm font-medium`}>
                         {feedback.text}

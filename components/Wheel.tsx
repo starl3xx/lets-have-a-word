@@ -1,19 +1,30 @@
 import { useEffect, useRef } from 'react';
+import type { InputState } from '../src/lib/input-state';
 
 /**
  * Wheel Component with Faux-3D Effect
- * Milestone 2.3: Displays wrong words in a carousel-style wheel behind the input boxes
+ * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel with a real gap
  *
  * Props:
  * - words: Alphabetically sorted array of wrong words (seed words + real wrong guesses)
  * - currentGuess: The word currently being typed by the user (0-5 letters)
+ * - inputState: Current input state (Milestone 4.6)
+ *
+ * Milestone 4.6: Enhanced with state-based behavior
+ * - Real layout gap that words cannot occupy (scrolls to center)
+ * - Ghost rows for valid unguessed words in the gap
+ * - Red highlighting for already-guessed words
+ *
+ * Note: Input boxes are rendered separately as fixed overlay, but the gap
+ * ensures words structurally cannot appear in that vertical space
  */
 interface WheelProps {
   words: string[];
   currentGuess: string;
+  inputState?: InputState;
 }
 
-export default function Wheel({ words, currentGuess }: WheelProps) {
+export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLDivElement | null)[]>([]);
   const gapRef = useRef<HTMLDivElement>(null);
@@ -43,12 +54,17 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
 
   /**
    * Determine where to insert the gap
-   * - If typing: insert at centerIndex (alphabetical position)
+   * - If typing: insert AFTER centerIndex (so centered word appears above gap)
+   * - Special case: if last word, insert BEFORE it (so it appears below gap)
    * - If not typing: insert at middle of list (so words split above/below on load)
    */
   const getGapIndex = (): number => {
     if (centerIndex !== -1) {
-      return centerIndex;
+      // Special case: if centering the last word, put gap before it (so word appears below)
+      if (centerIndex === words.length - 1) {
+        return centerIndex; // Insert BEFORE the last word
+      }
+      return centerIndex + 1; // Insert AFTER the centered word (normal case)
     }
     // Default to middle of word list when not typing
     return Math.floor(words.length / 2);
@@ -74,7 +90,7 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
    */
   const getWordStyle = (index: number) => {
     if (centerIndex === -1) {
-      return { scale: 1.0, opacity: 0.3, fontWeight: 'normal' as const, letterSpacing: '0.05em' };
+      return { scale: 1.0, opacity: 0.25, fontWeight: '300' as const, letterSpacing: '0.05em' };
     }
 
     const distance = Math.abs(index - centerIndex);
@@ -134,6 +150,26 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
     return currentGuess && word === currentGuess;
   };
 
+  /**
+   * Check if we should show a ghost row for the current guess (Milestone 4.6)
+   * Only show if:
+   * - State is TYPING_FULL_VALID (valid word not yet guessed)
+   * - Word would appear at this index alphabetically
+   */
+  const shouldShowGhostRow = (index: number): boolean => {
+    if (!inputState || !currentGuess || currentGuess.length !== 5) {
+      return false;
+    }
+
+    // Only show ghost for valid unguessed words
+    if (inputState !== 'TYPING_FULL_VALID') {
+      return false;
+    }
+
+    // Show ghost at the position where the word would be inserted
+    return index === gapIndex;
+  };
+
   return (
     <div
       ref={containerRef}
@@ -158,7 +194,10 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
           </p>
         </div>
       ) : (
-        <div className="py-8 flex flex-col">
+        <div className="flex flex-col">
+          {/* Top padding spacer - ensures gap can center even at list start */}
+          <div style={{ minHeight: '40vh' }} />
+
           {words.map((word, index) => {
             const style = getWordStyle(index);
 
@@ -172,10 +211,37 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                   <div
                     ref={gapRef}
                     style={{
-                      height: '12vh', // Gap for input boxes + padding
-                      pointerEvents: 'none',
+                      minHeight: '12vh', // Fixed gap height for input boxes
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingTop: '0.8rem',
+                      paddingBottom: '0.8rem',
+                      marginTop: '-0.4rem',
+                      pointerEvents: 'none', // Transparent to clicks - input boxes handle interaction
                     }}
-                  />
+                  >
+                    {/* Ghost row for valid unguessed words */}
+                    {shouldShowGhostRow(index) && (
+                      <div
+                        className="text-center transition-all duration-300 ease-out"
+                        style={{
+                          transform: 'scale(1.0)',
+                          opacity: 0.3,
+                          fontWeight: '300',
+                          color: '#2563eb', // Blue for valid word
+                          fontSize: '1.3rem',
+                          lineHeight: '1.0',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.15em',
+                          textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',
+                        }}
+                      >
+                        {currentGuess.toLowerCase()}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <div
                   ref={(el) => {
@@ -198,6 +264,47 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
               </div>
             );
           })}
+
+          {/* Gap after last word (when gapIndex >= words.length) */}
+          {gapIndex >= words.length && (
+            <div
+              ref={gapRef}
+              style={{
+                minHeight: '12vh',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingTop: '0.8rem',
+                paddingBottom: '0.8rem',
+                marginTop: '-0.4rem',
+                pointerEvents: 'none',
+              }}
+            >
+              {/* Ghost row for valid unguessed words */}
+              {shouldShowGhostRow(words.length) && (
+                <div
+                  className="text-center transition-all duration-300 ease-out"
+                  style={{
+                    transform: 'scale(1.0)',
+                    opacity: 0.3,
+                    fontWeight: '300',
+                    color: '#2563eb',
+                    fontSize: '1.3rem',
+                    lineHeight: '1.0',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.15em',
+                    textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',
+                  }}
+                >
+                  {currentGuess.toLowerCase()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bottom padding spacer - ensures gap can center even at list end */}
+          <div style={{ minHeight: '40vh' }} />
         </div>
       )}
     </div>
