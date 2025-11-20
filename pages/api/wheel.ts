@@ -44,10 +44,11 @@ export default async function handler(
       const solution = getDevFixedSolution().toLowerCase();
 
       // Base seed words for the wheel (excluding the solution)
+      // These are cosmetic "wrong guesses" to populate the wheel
+      // Avoid common test words like BRAIN, TRAIN, DRAIN, etc.
       let wheelWords = [
         'words',
         'games',
-        'brain',
         'think',
         'smart',
         'plays',
@@ -63,6 +64,9 @@ export default async function handler(
         'puzzle',
         'riddle',
         'quest',
+        'forth',
+        'quick',
+        'jumps',
       ].filter(word => word !== solution);
 
       // Add wrong guesses from query param (for dev mode testing)
