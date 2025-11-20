@@ -195,7 +195,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
             >
               <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
-              🎉 SHARE MY STATS
+              SHARE MY STATS
             </button>
 
             {/* XP Section */}
@@ -207,14 +207,14 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             {/* Coming Soon Message */}
             <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 space-y-3">
               <h3 className="text-lg font-bold text-blue-900 text-center">
-                🚧 Coming Soon
+                🚧 Coming soon
               </h3>
               <div className="text-sm text-blue-700 space-y-2">
                 <p>
                   XP is currently being tracked but doesn't unlock any features yet.
                 </p>
                 <p className="font-semibold">
-                  Future updates will include:
+                  Future updates may include:
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-xs">
                   <li>XP-based progression system</li>
@@ -229,13 +229,13 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             {/* How XP is Earned */}
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <h3 className="text-sm font-bold text-gray-900">How to earn XP</h3>
-              <ul className="text-xs text-gray-700 space-y-1">
+              <ul className="text-sm text-gray-700 space-y-1">
                 <li>• Making guesses (free or paid)</li>
                 <li>• Winning jackpots</li>
                 <li>• Referring new players</li>
                 <li>• Daily participation</li>
               </ul>
-              <p className="text-xs text-gray-500 italic pt-2">
+              <p className="text-sm text-gray-500 italic pt-2">
                 Keep playing to build up your XP before the progression system launches!
               </p>
             </div>
