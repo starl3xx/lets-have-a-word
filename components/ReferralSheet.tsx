@@ -68,6 +68,23 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
     }
   };
 
+  /**
+   * Share referral link via Farcaster
+   */
+  const handleShare = () => {
+    if (!referralData?.referralLink) return;
+
+    const castText = `🕵️‍♂️ Trying to crack the secret word on @letshaveaword.
+Every wrong guess helps everyone. One correct guess wins the ETH jackpot.
+Play with my link 👉 ${referralData.referralLink}`;
+
+    const encodedText = encodeURIComponent(castText);
+    const farcasterUrl = `https://warpcast.com/~/compose?text=${encodedText}`;
+
+    triggerHaptic('light');
+    window.open(farcasterUrl, '_blank');
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
       <div
@@ -110,16 +127,31 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
                   {referralData.referralLink}
                 </p>
               </div>
-              <button
-                onClick={handleCopyLink}
-                className={`w-full py-3 px-4 font-semibold rounded-lg transition-all ${
-                  copySuccess
-                    ? 'bg-green-500 text-white'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
-              >
-                {copySuccess ? '✓ Copied!' : '📋 Copy Link'}
-              </button>
+              <div className="flex gap-3">
+                {/* Share Button */}
+                <button
+                  onClick={handleShare}
+                  className="flex-1 py-3 px-4 font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#6A3CFF', color: 'white' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5A2CEF'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
+                >
+                  <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />
+                  Share
+                </button>
+
+                {/* Copy Button */}
+                <button
+                  onClick={handleCopyLink}
+                  className={`flex-1 py-3 px-4 font-semibold rounded-lg transition-all ${
+                    copySuccess
+                      ? 'bg-green-500 text-white'
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {copySuccess ? '✓ Copied!' : '📋 Copy'}
+                </button>
+              </div>
             </div>
 
             {/* Referral Stats Section */}
