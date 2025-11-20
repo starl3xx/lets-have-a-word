@@ -152,7 +152,7 @@ export default function UserState({ fid }: UserStateProps) {
           <span className="text-gray-600"> ({userState.freeAllocations.base} free</span>
         )}
         {userState.freeAllocations.clankton > 0 && (
-          <span className="text-purple-600">
+          <span className="text-gray-600">
             <span className="font-semibold"> +{userState.freeAllocations.clankton}</span> CLANKTON
           </span>
         )}
