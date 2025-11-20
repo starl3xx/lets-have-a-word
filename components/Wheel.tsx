@@ -54,12 +54,12 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Determine where to insert the gap
-   * - If typing: insert at centerIndex (alphabetical position)
+   * - If typing: insert AFTER centerIndex (so centered word appears above gap)
    * - If not typing: insert at middle of list (so words split above/below on load)
    */
   const getGapIndex = (): number => {
     if (centerIndex !== -1) {
-      return centerIndex;
+      return centerIndex + 1; // Insert AFTER the centered word
     }
     // Default to middle of word list when not typing
     return Math.floor(words.length / 2);
@@ -189,7 +189,10 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           </p>
         </div>
       ) : (
-        <div className="py-8 flex flex-col">
+        <div className="flex flex-col">
+          {/* Top padding spacer - ensures gap can center even at list start */}
+          <div style={{ minHeight: '40vh' }} />
+
           {words.map((word, index) => {
             const style = getWordStyle(index);
 
@@ -256,6 +259,47 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
               </div>
             );
           })}
+
+          {/* Gap after last word (when gapIndex >= words.length) */}
+          {gapIndex >= words.length && (
+            <div
+              ref={gapRef}
+              style={{
+                minHeight: '12vh',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingTop: '0.8rem',
+                paddingBottom: '0.8rem',
+                marginTop: '-0.4rem',
+                pointerEvents: 'none',
+              }}
+            >
+              {/* Ghost row for valid unguessed words */}
+              {shouldShowGhostRow(words.length) && (
+                <div
+                  className="text-center transition-all duration-300 ease-out"
+                  style={{
+                    transform: 'scale(1.0)',
+                    opacity: 0.3,
+                    fontWeight: '300',
+                    color: '#2563eb',
+                    fontSize: '1.3rem',
+                    lineHeight: '1.0',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.15em',
+                    textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',
+                  }}
+                >
+                  {currentGuess.toLowerCase()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bottom padding spacer - ensures gap can center even at list end */}
+          <div style={{ minHeight: '40vh' }} />
         </div>
       )}
     </div>
