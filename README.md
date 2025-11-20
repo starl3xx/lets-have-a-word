@@ -229,14 +229,15 @@ Comprehensive user experience improvements:
   - Topics: free guesses, paid guesses, CLANKTON, sharing, jackpot, fairness, referrals, XP
   - Collapsible answers for easy scanning
 
-- **XP Sheet Placeholder**
-  - Shows current XP balance
-  - "Coming Soon" messaging
-  - Lists future XP features: progression, leaderboards, rewards, achievements
+- **XP Display**
+  - Integrated into Stats sheet
+  - Shows current XP balance with large prominent display
+  - "Coming Soon" messaging for future XP features
+  - Lists planned features: progression, leaderboards, rewards, achievements
   - How to earn XP explanation
 
 - **Navigation Buttons**
-  - Four buttons below GUESS button: Stats, Refer, FAQ, XP
+  - Three buttons below GUESS button: Stats, Refer, FAQ
   - Grid layout with icons
   - Haptic feedback on tap
   - Clean white design with borders
@@ -797,15 +798,19 @@ Let's Have A Word uses Farcaster mini-app haptics to make the game feel more tac
 - Accessible via navigation button
 - Bottom sheet modal pattern
 - Click outside to close
+- Share stats button opens native Farcaster composer
 
 Stats displayed:
 - **This Round**: Total guesses, paid guesses
 - **All Time**: Total guesses, paid guesses
-- **Jackpots**: Wins count, total ETH won
+- **Jackpots**: Wins count, top 10 placements, referral wins, ETH earned breakdown
+- **XP Display**: Current XP with large prominent styling
+- **Coming Soon Section**: Future XP features and how XP is earned
 
-**Referral Sheet (🔗)**
+**Referral Sheet (🤝)**
 - Accessible via navigation button
 - Shows personalized referral link
+- Share button opens native Farcaster composer
 - Copy button with haptic feedback
 - Visual confirmation on copy
 
@@ -815,7 +820,7 @@ Referral data:
 - ETH earned from referrals
 - "How it Works" explanation
 
-**FAQ Sheet (❓)**
+**FAQ Sheet (🤔)**
 - Accessible via navigation button
 - Accordion-style collapsible answers
 - 12 comprehensive questions
@@ -830,32 +835,19 @@ Topics covered:
 - Referral system
 - XP tracking
 
-**XP Sheet (⭐)**
-- Accessible via navigation button
-- Shows current XP balance
-- "Coming Soon" messaging
-
-Future features listed:
-- XP-based progression
-- Leaderboards and rankings
-- Unlockable rewards
-- Achievement badges
-- Special perks
-
 ### Navigation
 
 **Bottom Navigation Grid**
-- 4-button layout below GUESS button
+- 3-button layout below GUESS button
 - Icons + labels for clarity
 - White background with borders
 - Haptic feedback on tap
 - Responsive grid layout
 
 Buttons:
-1. 📊 Stats - Personal statistics
-2. 🔗 Refer - Referral program
-3. ❓ FAQ - Help and info
-4. ⭐ XP - Progression (placeholder)
+1. 📊 Stats - Personal statistics and XP display
+2. 🤝 Refer - Referral program with share and copy
+3. 🤔 FAQ - Help and comprehensive game info
 
 ### Accessibility
 
@@ -923,10 +915,10 @@ components/
 ├── SharePromptModal.tsx   # Share-to-earn modal (Milestone 4.2)
 ├── LetterBoxes.tsx        # 5-letter input boxes (Milestone 4.3)
 ├── FirstTimeOverlay.tsx   # Tutorial for new users (Milestone 4.3)
-├── StatsSheet.tsx         # User statistics sheet (Milestone 4.3)
+├── GameKeyboard.tsx       # Custom on-screen keyboard (Milestone 4.4)
+├── StatsSheet.tsx         # User statistics and XP sheet (Milestone 4.3)
 ├── ReferralSheet.tsx      # Referral link & stats (Milestone 4.3)
-├── FAQSheet.tsx           # FAQ accordion (Milestone 4.3)
-└── XPSheet.tsx            # XP placeholder (Milestone 4.3)
+└── FAQSheet.tsx           # FAQ accordion (Milestone 4.3)
 
 drizzle/               # Database migrations
 ```
@@ -994,7 +986,6 @@ await resolveRound(roundId, winnerFid, referrerFid);
 ## What's Next?
 
 Planned future milestones:
-- **Milestone 4.7**: Additional UI/UX improvements and polish
 - **Milestone 5.1**: Announcer bot (automated round announcements)
 - **Milestone 5.2**: ETH payment processing (actual payments)
 - **Milestone 5.3**: Performance optimizations (caching, indexes)
