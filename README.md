@@ -11,11 +11,56 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.5 Complete
+## 🎯 Current Status: Milestone 4.6 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.5 - Mid-Round Test Mode (Latest)
+### ✅ Milestone 4.6 - Input States & Visual Behavior (Latest)
+
+Comprehensive input state machine for consistent visual feedback and error handling:
+
+- **State Machine Architecture**
+  - 10 distinct input states: IDLE_EMPTY, TYPING_PARTIAL, TYPING_FULL_VALID, TYPING_FULL_INVALID_NONSENSE, TYPING_FULL_INVALID_ALREADY_GUESSED, SUBMITTING, RESULT_CORRECT, RESULT_WRONG_VALID, OUT_OF_GUESSES
+  - Single source of truth for all input state logic
+  - Deterministic state transitions based on user input
+  - Centralized in `src/lib/input-state.ts`
+
+- **Visual Feedback System**
+  - State-based border colors (gray, blue, red, green)
+  - Dynamic box styling based on current state
+  - "Ready to guess" glow effect for valid 5-letter words
+  - Disabled state when out of guesses
+  - Result states for correct/incorrect feedback
+
+- **Error Message System**
+  - State-driven error messages appear below input
+  - "Not a valid word" for nonsense words
+  - "Already guessed this round" for duplicate guesses
+  - "No guesses left today" when out of guesses
+  - Auto-dismiss after 2 seconds with smooth fade-out
+  - Manual dismissal available
+
+- **GUESS Button Logic**
+  - Only enabled when state is TYPING_FULL_VALID
+  - Automatically disabled for invalid words
+  - Prevents submission of duplicate or nonsense guesses
+  - Visual feedback synchronized with input state
+
+- **UI Polish**
+  - Error messages position below input boxes with smooth transitions
+  - Consistent spacing and padding throughout interface
+  - Rounded background blocker behind input boxes
+  - Sentence case headers in Stats and Referral sheets
+  - Purple color for CLANKTON and ETH earned (brand consistency)
+  - Improved keyboard interaction and backspace behavior
+
+- **Integration**
+  - Wheel now receives inputState for synchronized behavior
+  - LetterBoxes component uses state machine for styling
+  - GameKeyboard disables during invalid states
+  - All UI components respond to state changes
+
+### ✅ Milestone 4.5 - Mid-Round Test Mode
 
 Development-only test mode that simulates an active round in progress for easier local testing:
 
@@ -786,6 +831,7 @@ src/
 │   ├── economics.ts       # Jackpot + payouts
 │   ├── clankton.ts        # CLANKTON bonus checking
 │   ├── haptics.ts         # Haptic feedback (Milestone 4.3)
+│   ├── input-state.ts     # Input state machine (Milestone 4.6)
 │   ├── testWords.ts       # Dev-only test word lists (Milestone 4.5)
 │   └── devMidRound.ts     # Mid-round test mode (Milestone 4.5)
 ├── db/                # Database
@@ -893,10 +939,13 @@ await resolveRound(roundId, winnerFid, referrerFid);
 ## What's Next?
 
 Planned future milestones:
+- **Milestone 4.7**: Additional UI/UX improvements and polish
 - **Milestone 5.1**: Announcer bot (automated round announcements)
 - **Milestone 5.2**: ETH payment processing (actual payments)
 - **Milestone 5.3**: Performance optimizations (caching, indexes)
 - **Milestone 5.4**: Round archive (historical data browsing)
+- **Milestone 5.5**: XP system and leaderboards
+- **Milestone 5.6**: Achievement badges and unlockables
 
 ## Testing
 
@@ -920,16 +969,17 @@ Current test coverage:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file
+**Proprietary — All Rights Reserved**
+
+Copyright © 2025 Jake Bouma (aka "starl3xx"). All rights reserved.
+
+This software and all related materials are proprietary and confidential. No part of this software may be copied, modified, distributed, or used without explicit written permission from the copyright holder. See [LICENSE](LICENSE) file for full details.
+
+For licensing inquiries, contact: starl3xx.mail@gmail.com or https://x.com/starl3xx
 
 ## Contributing
 
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+This is a proprietary project and contributions are not accepted at this time. The codebase is publicly visible for transparency and educational purposes only.
 
 ---
 
