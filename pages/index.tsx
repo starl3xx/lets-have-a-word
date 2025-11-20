@@ -31,6 +31,9 @@ export default function Home() {
   const [wheelWords, setWheelWords] = useState<string[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
 
+  // Dev mode wrong guesses tracking (Milestone 4.8)
+  const [devWrongGuesses, setDevWrongGuesses] = useState<Set<string>>(new Set());
+
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
 
@@ -102,6 +105,7 @@ export default function Home() {
 
   /**
    * Fetch wheel words on mount (Milestone 2.3)
+   * Milestone 4.8: Dev mode support with alphabetical sorting
    */
   useEffect(() => {
     const fetchWheelWords = async () => {
@@ -109,7 +113,14 @@ export default function Home() {
         const response = await fetch('/api/wheel');
         if (response.ok) {
           const data = await response.json();
-          setWheelWords(data.words || []);
+          const baseWords = data.words || [];
+
+          // In dev mode, merge with tracked wrong guesses and sort
+          const allWords = [...baseWords, ...Array.from(devWrongGuesses)];
+          const uniqueWords = Array.from(new Set(allWords));
+          const sortedWords = uniqueWords.sort();
+
+          setWheelWords(sortedWords);
         }
       } catch (error) {
         console.error('Error fetching wheel words:', error);
@@ -120,7 +131,7 @@ export default function Home() {
     };
 
     fetchWheelWords();
-  }, []);
+  }, [devWrongGuesses]); // Re-fetch when wrong guesses change
 
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
@@ -378,12 +389,25 @@ export default function Home() {
 
       // Refetch wheel data after guess (Milestone 2.3)
       // Wrong guesses will now appear in the wheel
+      // Milestone 4.8: In dev mode, track wrong guesses for alphabetical sorting
       if (data.status === 'incorrect') {
+        // Add wrong guess to dev mode tracking
+        const wrongWord = word.toLowerCase();
+        setDevWrongGuesses(prev => new Set([...prev, wrongWord]));
+
+        // Still refetch for production mode
         try {
           const wheelResponse = await fetch('/api/wheel');
           if (wheelResponse.ok) {
             const wheelData = await wheelResponse.json();
-            setWheelWords(wheelData.words || []);
+            const baseWords = wheelData.words || [];
+
+            // Merge with dev wrong guesses and sort
+            const allWords = [...baseWords, wrongWord];
+            const uniqueWords = Array.from(new Set(allWords));
+            const sortedWords = uniqueWords.sort();
+
+            setWheelWords(sortedWords);
           }
         } catch (err) {
           console.error('Error refetching wheel:', err);
