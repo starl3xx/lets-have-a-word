@@ -131,7 +131,7 @@ export default function GameKeyboard({
             ${
               disabled
                 ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                : 'bg-gray-700 text-white active:scale-95 active:bg-gray-800 hover:bg-gray-800'
+                : 'bg-gray-500 text-white active:scale-95 active:bg-gray-600 hover:bg-gray-600'
             }
             shadow-sm
             min-w-[60px]
