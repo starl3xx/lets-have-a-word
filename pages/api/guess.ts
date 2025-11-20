@@ -4,6 +4,7 @@ import { verifyFrameMessage, verifySigner } from '../../src/lib/farcaster';
 import { upsertUserFromFarcaster } from '../../src/lib/users';
 import { submitGuessWithDailyLimits } from '../../src/lib/daily-limits';
 import type { SubmitGuessResult } from '../../src/types';
+import { ensureDevMidRound } from '../../src/lib/devMidRound';
 
 /**
  * POST /api/guess
@@ -46,6 +47,9 @@ export default async function handler(
     if (typeof word !== 'string' || !word) {
       return res.status(400).json({ error: 'Invalid request: word is required' });
     }
+
+    // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
+    await ensureDevMidRound();
 
     // Ensure there's an active round (create one if needed)
     await ensureActiveRound();
