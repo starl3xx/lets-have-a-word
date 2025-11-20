@@ -454,7 +454,7 @@ export default function Home() {
           };
         } else if (result.reason === 'not_in_dictionary') {
           return {
-            text: "That's not a valid word",
+            text: 'Not a valid word',
             color: 'text-red-600',
           };
         }
