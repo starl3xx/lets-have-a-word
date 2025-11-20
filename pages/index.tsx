@@ -498,8 +498,8 @@ export default function Home() {
 
           {/* Wheel + Input Container - fills remaining space */}
           <div className="flex-1 relative">
-            {/* Wheel with input boxes embedded in the true layout gap */}
-            <div className="absolute inset-0">
+            {/* Background Layer: Wheel with real gap (no words can occupy this vertical space) */}
+            <div className="absolute inset-0" style={{ zIndex: 1 }}>
               {isLoadingWheel ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-gray-400 animate-pulse">Loading...</p>
@@ -509,45 +509,64 @@ export default function Home() {
                   words={wheelWords}
                   currentGuess={word}
                   inputState={currentInputState}
-                  inputBoxes={
-                    <LetterBoxes
-                      letters={letters}
-                      onChange={handleLettersChange}
-                      disabled={isLoading}
-                      isShaking={isShaking}
-                      resultState={boxResultState}
-                      inputState={currentInputState}
-                    />
-                  }
-                  errorFeedback={
-                    (errorMessage || feedback || stateErrorMessage) ? (
-                      <>
-                        {/* Show explicit error messages first */}
-                        {errorMessage && (
-                          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                            <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
-                          </div>
-                        )}
-
-                        {/* Show state-based error messages (Milestone 4.6) */}
-                        {!errorMessage && stateErrorMessage && (
-                          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                            <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
-                          </div>
-                        )}
-
-                        {/* Show feedback from last submission */}
-                        {feedback && !errorMessage && !stateErrorMessage && (
-                          <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
-                            <p className={`${feedback.color} text-center text-sm font-medium`}>
-                              {feedback.text}
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    ) : undefined
-                  }
                 />
+              )}
+            </div>
+
+            {/* Fixed Layer: Input Boxes - always visible, always centered */}
+            <div
+              className="absolute left-0 right-0 px-8"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 10,
+                pointerEvents: 'none' // Allow clicks through to wheel
+              }}
+            >
+              <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
+                <LetterBoxes
+                  letters={letters}
+                  onChange={handleLettersChange}
+                  disabled={isLoading}
+                  isShaking={isShaking}
+                  resultState={boxResultState}
+                  inputState={currentInputState}
+                />
+              </div>
+
+              {/* Error/feedback area - positioned absolutely below boxes */}
+              {(errorMessage || feedback || stateErrorMessage) && (
+                <div
+                  className="absolute left-0 right-0 px-8"
+                  style={{
+                    top: '100%',
+                    marginTop: '1rem',
+                    pointerEvents: 'auto'
+                  }}
+                >
+                  {/* Show explicit error messages first */}
+                  {errorMessage && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                      <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
+                    </div>
+                  )}
+
+                  {/* Show state-based error messages (Milestone 4.6) */}
+                  {!errorMessage && stateErrorMessage && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                      <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
+                    </div>
+                  )}
+
+                  {/* Show feedback from last submission */}
+                  {feedback && !errorMessage && !stateErrorMessage && (
+                    <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                      <p className={`${feedback.color} text-center text-sm font-medium`}>
+                        {feedback.text}
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

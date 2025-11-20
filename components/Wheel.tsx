@@ -1,31 +1,30 @@
-import { useEffect, useRef, ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import type { InputState } from '../src/lib/input-state';
 
 /**
  * Wheel Component with Faux-3D Effect
- * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel with input boxes in a real gap
+ * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel with a real gap
  *
  * Props:
  * - words: Alphabetically sorted array of wrong words (seed words + real wrong guesses)
  * - currentGuess: The word currently being typed by the user (0-5 letters)
  * - inputState: Current input state (Milestone 4.6)
- * - inputBoxes: The input boxes component to render in the true gap
- * - errorFeedback: Error/feedback component to render below input boxes
  *
  * Milestone 4.6: Enhanced with state-based behavior
- * - Real layout gap (not overlay) where input boxes sit
- * - Ghost rows for valid unguessed words
+ * - Real layout gap that words cannot occupy (scrolls to center)
+ * - Ghost rows for valid unguessed words in the gap
  * - Red highlighting for already-guessed words
+ *
+ * Note: Input boxes are rendered separately as fixed overlay, but the gap
+ * ensures words structurally cannot appear in that vertical space
  */
 interface WheelProps {
   words: string[];
   currentGuess: string;
   inputState?: InputState;
-  inputBoxes?: ReactNode;
-  errorFeedback?: ReactNode;
 }
 
-export default function Wheel({ words, currentGuess, inputState, inputBoxes, errorFeedback }: WheelProps) {
+export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLDivElement | null)[]>([]);
   const gapRef = useRef<HTMLDivElement>(null);
@@ -204,7 +203,7 @@ export default function Wheel({ words, currentGuess, inputState, inputBoxes, err
                   <div
                     ref={gapRef}
                     style={{
-                      minHeight: inputBoxes ? 'auto' : '12vh', // Auto height when input boxes provided
+                      minHeight: '12vh', // Fixed gap height for input boxes
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'center',
@@ -212,25 +211,11 @@ export default function Wheel({ words, currentGuess, inputState, inputBoxes, err
                       paddingTop: '0.8rem',
                       paddingBottom: '0.8rem',
                       marginTop: '-0.4rem',
-                      pointerEvents: 'auto', // Enable pointer events for input in gap
+                      pointerEvents: 'none', // Transparent to clicks - input boxes handle interaction
                     }}
                   >
-                    {/* Render actual input boxes in the gap (true layout approach) */}
-                    {inputBoxes && (
-                      <div className="w-full px-8">
-                        {inputBoxes}
-
-                        {/* Error/feedback messages below input boxes */}
-                        {errorFeedback && (
-                          <div className="mt-4">
-                            {errorFeedback}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Ghost row for valid unguessed words (only when no input boxes) */}
-                    {!inputBoxes && shouldShowGhostRow(index) && (
+                    {/* Ghost row for valid unguessed words */}
+                    {shouldShowGhostRow(index) && (
                       <div
                         className="text-center transition-all duration-300 ease-out"
                         style={{
