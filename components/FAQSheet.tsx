@@ -38,7 +38,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           console.error('[FAQ] Error opening token view:', error);
         }
       }}
-      className="text-blue-600 hover:text-blue-800 underline font-semibold"
+      className="text-purple-700 hover:text-purple-900 font-semibold"
     >
       {children}
     </button>
@@ -55,7 +55,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           console.error('Error opening profile:', error);
         }
       }}
-      className="text-blue-600 hover:text-blue-800 underline font-semibold"
+      className="text-purple-700 hover:text-purple-900 font-semibold"
     >
       {children}
     </button>
@@ -64,7 +64,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
   const FAQ_DATA: FAQItem[] = [
     {
       question: "How does the game work?",
-      answer: "Every Let's Have A Word player worldwide is hunting for the same 5-letter word. When someone guesses correctly, they win the accumulated ETH jackpot and a new round starts with a new word. The jackpot grows with every paid guess.",
+      answer: "Every Let's Have A Word! player worldwide is hunting for the same 5-letter word. When someone guesses correctly, they win the accumulated ETH jackpot and a new round starts with a new word. The jackpot grows with every paid guess.",
     },
     {
       question: "What are free guesses?",
@@ -132,7 +132,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Can I play outside of Farcaster?",
       answer: (
         <>
-          Not yet. Let's Have A Word is Farcaster-only for now. The game uses your Farcaster identity, signer wallet, spam score, and referral graph to keep the game fair and to prevent bot abuse. Therefore, the game only works when launched inside a Farcaster client.
+          Not yet. Let's Have A Word! is Farcaster-only for now. The game uses your Farcaster identity, signer wallet, spam score, and referral graph to keep the game fair and to prevent bot abuse. Therefore, the game only works when launched inside a Farcaster client.
           <br /><br />
           I (<ProfileLink fid={6500}>@starl3xx</ProfileLink>) may explore a standalone web version later, but the current experience and security model are built specifically for Farcaster's ecosystem.
         </>

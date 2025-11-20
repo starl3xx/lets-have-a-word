@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { UserStatsResponse } from '../pages/api/user/stats';
+import { triggerHaptic } from '../src/lib/haptics';
+import sdk from '@farcaster/miniapp-sdk';
 
 interface StatsSheetProps {
   fid: number | null;
@@ -55,6 +57,33 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
     fetchStats();
   }, [fid]);
+
+  /**
+   * Share stats on Farcaster
+   */
+  const handleShareStats = async () => {
+    if (!stats) return;
+
+    try {
+      const castText = `My Let's Have A Word! stats:\n\n` +
+        `🎯 ${stats.guessesAllTime} total guesses (${stats.paidGuessesAllTime} paid)\n` +
+        `🏆 ${stats.jackpotsWon} jackpots won\n` +
+        `🔝 ${stats.topGuesserPlacements} top 10 placements\n` +
+        `🤝 ${stats.referralWins} referral wins\n` +
+        `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH all-time\n` +
+        `⚡ ${xp.toLocaleString()} XP\n\n` +
+        `@letshaveaword`;
+
+      await sdk.actions.composeCast({
+        text: castText,
+      });
+
+      triggerHaptic('success');
+    } catch (error) {
+      console.error('[StatsSheet] Error sharing stats:', error);
+      triggerHaptic('error');
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
@@ -129,13 +158,41 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-2xl font-bold text-green-900">{stats.jackpotsWon}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-green-700">Total ETH won</p>
+                  <p className="text-sm text-green-700">Top 10 placements</p>
+                  <p className="text-2xl font-bold text-green-900">{stats.topGuesserPlacements}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-green-700">ETH from top 10</p>
+                  <p className="text-2xl font-bold text-green-900">
+                    {parseFloat(stats.topGuesserEthWon).toFixed(4)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-green-700">Referral wins</p>
+                  <p className="text-2xl font-bold text-green-900">{stats.referralWins}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-green-700">ETH from referrals</p>
+                  <p className="text-2xl font-bold text-green-900">
+                    {parseFloat(stats.referralEthWon).toFixed(4)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-green-700">All-time ETH won</p>
                   <p className="text-2xl font-bold text-green-900">
                     {parseFloat(stats.totalEthWon).toFixed(4)}
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* Share Stats Button */}
+            <button
+              onClick={handleShareStats}
+              className="w-full py-3 px-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:scale-95 transition-all shadow-lg"
+            >
+              🎉 SHARE MY STATS
+            </button>
 
             {/* XP Section */}
             <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-6 text-center space-y-2">
