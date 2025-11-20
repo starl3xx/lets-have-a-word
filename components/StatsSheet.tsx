@@ -189,8 +189,12 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             {/* Share Stats Button */}
             <button
               onClick={handleShareStats}
-              className="w-full py-3 px-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:scale-95 transition-all shadow-lg"
+              className="w-full py-3 px-4 text-white font-bold rounded-lg active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#6A3CFF' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5A2CEF'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
             >
+              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />
               🎉 SHARE MY STATS
             </button>
 
