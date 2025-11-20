@@ -136,7 +136,7 @@ Play with my link 👉 ${referralData.referralLink}`;
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5A2CEF'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
                 >
-                  <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />
+                  <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
                   Share
                 </button>
 
@@ -174,7 +174,7 @@ Play with my link 👉 ${referralData.referralLink}`;
             {/* How it Works */}
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <h3 className="text-sm font-bold text-gray-900">How referrals work</h3>
-              <ul className="text-xs text-gray-700 space-y-1">
+              <ul className="text-sm text-gray-700 space-y-1">
                 <li>• Share your link with friends</li>
                 <li>• When they sign up and win a jackpot, you earn 10% of their winnings</li>
                 <li>• You can track your referrals and earnings here</li>
