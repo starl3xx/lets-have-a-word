@@ -191,7 +191,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               onClick={handleShareStats}
               className="w-full py-3 px-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 active:scale-95 transition-all shadow-lg"
             >
-              🎉 SHARE MY STATS
+              SHARE MY STATS
             </button>
 
             {/* XP Section */}
