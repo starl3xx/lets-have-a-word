@@ -1,19 +1,27 @@
 import { useEffect, useRef } from 'react';
+import type { InputState } from '../src/lib/input-state';
 
 /**
  * Wheel Component with Faux-3D Effect
- * Milestone 2.3: Displays wrong words in a carousel-style wheel behind the input boxes
+ * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel behind the input boxes
  *
  * Props:
  * - words: Alphabetically sorted array of wrong words (seed words + real wrong guesses)
  * - currentGuess: The word currently being typed by the user (0-5 letters)
+ * - inputState: Current input state (Milestone 4.6)
+ *
+ * Milestone 4.6: Enhanced with state-based behavior
+ * - Ghost rows for valid unguessed words
+ * - Red highlighting for already-guessed words
+ * - Dimmed appearance for invalid words
  */
 interface WheelProps {
   words: string[];
   currentGuess: string;
+  inputState?: InputState;
 }
 
-export default function Wheel({ words, currentGuess }: WheelProps) {
+export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLDivElement | null)[]>([]);
   const gapRef = useRef<HTMLDivElement>(null);
@@ -134,6 +142,26 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
     return currentGuess && word === currentGuess;
   };
 
+  /**
+   * Check if we should show a ghost row for the current guess (Milestone 4.6)
+   * Only show if:
+   * - State is TYPING_FULL_VALID (valid word not yet guessed)
+   * - Word would appear at this index alphabetically
+   */
+  const shouldShowGhostRow = (index: number): boolean => {
+    if (!inputState || !currentGuess || currentGuess.length !== 5) {
+      return false;
+    }
+
+    // Only show ghost for valid unguessed words
+    if (inputState !== 'TYPING_FULL_VALID') {
+      return false;
+    }
+
+    // Show ghost at the position where the word would be inserted
+    return index === gapIndex;
+  };
+
   return (
     <div
       ref={containerRef}
@@ -175,7 +203,27 @@ export default function Wheel({ words, currentGuess }: WheelProps) {
                       height: '12vh', // Gap for input boxes + padding
                       pointerEvents: 'none',
                     }}
-                  />
+                  >
+                    {/* Ghost row for valid unguessed words (Milestone 4.6) */}
+                    {shouldShowGhostRow(index) && (
+                      <div
+                        className="text-center transition-all duration-300 ease-out"
+                        style={{
+                          transform: 'scale(1.0)',
+                          opacity: 0.3,
+                          fontWeight: '300',
+                          color: '#2563eb', // Blue for valid word
+                          fontSize: '1.3rem',
+                          lineHeight: '1.6',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.15em',
+                          textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',
+                        }}
+                      >
+                        {currentGuess.toLowerCase()}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <div
                   ref={(el) => {

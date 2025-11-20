@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, KeyboardEvent, ChangeEvent } from 'react';
+import { getBoxBorderColor, getBoxBackgroundColor, getBoxTextColor, shouldShowReadyGlow, type InputState } from '../src/lib/input-state';
 
 interface LetterBoxesProps {
   letters: string[];
@@ -7,20 +8,20 @@ interface LetterBoxesProps {
   disabled?: boolean;
   isShaking?: boolean;
   resultState?: 'typing' | 'wrong' | 'correct'; // Three-state system
+  inputState?: InputState; // Milestone 4.6: Current input state
 }
 
 /**
  * LetterBoxes Component
- * Milestone 4.3
+ * Milestone 4.3 + 4.6
  *
  * Displays 5 letter boxes for word input with smooth typing behavior
  * Supports mobile keyboard, backspace, and visual feedback
  *
- * Color states:
- * - Empty: Gray border, white background
- * - Filled (typing): Blue background, white text
- * - Wrong result: Red background (after GUESS)
- * - Correct result: Green background (after GUESS)
+ * Milestone 4.6: Now uses state machine for consistent visual behavior
+ * - State-based border colors (gray, blue, red, green)
+ * - State-based error feedback
+ * - "Ready to guess" glow for valid words
  */
 export default function LetterBoxes({
   letters,
@@ -29,6 +30,7 @@ export default function LetterBoxes({
   disabled = false,
   isShaking = false,
   resultState = 'typing',
+  inputState,
 }: LetterBoxesProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -90,15 +92,19 @@ export default function LetterBoxes({
   };
 
   /**
-   * Get box styling based on state
-   * Three-state system (border colors only):
-   * - Empty: gray border, white bg
-   * - Filled (typing): blue border, white bg
-   * - Wrong result: red border, white bg
-   * - Correct result: green border, white bg (only on correct secret word)
+   * Get box styling based on state (Milestone 4.6)
+   * Uses state machine for consistent visual behavior
    */
-  const getBoxStyle = (letter: string) => {
-    // Result states (after GUESS pressed)
+  const getBoxStyle = (letter: string, index: number) => {
+    // Use state machine if available (Milestone 4.6)
+    if (inputState) {
+      const borderColor = getBoxBorderColor(inputState, !!letter);
+      const bgColor = getBoxBackgroundColor(inputState);
+      const textColor = getBoxTextColor(inputState, !!letter);
+      return `${bgColor} ${borderColor} ${textColor}`;
+    }
+
+    // Fallback to old three-state system if inputState not provided
     if (resultState === 'wrong') {
       return 'bg-white border-red-500 text-gray-900';
     }
@@ -106,19 +112,19 @@ export default function LetterBoxes({
       return 'bg-white border-green-500 text-gray-900';
     }
 
-    // Typing states (before GUESS)
     if (disabled) {
       return 'bg-gray-100 border-gray-300 text-gray-400';
     }
 
     if (letter) {
-      // Filled while typing: blue border
       return 'bg-white border-blue-500 text-gray-900';
     }
 
-    // Empty: gray border
     return 'bg-white border-gray-300 text-gray-300';
   };
+
+  // Check if we should show the "ready to guess" glow (Milestone 4.6)
+  const showReadyGlow = inputState ? shouldShowReadyGlow(inputState) : false;
 
   return (
     <div className="relative">
@@ -157,8 +163,9 @@ export default function LetterBoxes({
               text-3xl font-bold uppercase
               border-4 rounded-lg
               transition-all duration-150
-              ${getBoxStyle(letter)}
+              ${getBoxStyle(letter, index)}
               ${!disabled && resultState === 'typing' && 'cursor-text hover:border-blue-400'}
+              ${showReadyGlow ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}
               shadow-md
             `}
           >
