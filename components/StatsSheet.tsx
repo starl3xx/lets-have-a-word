@@ -64,7 +64,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b pb-3">
-          <h2 className="text-2xl font-bold text-gray-900">📊 Your Stats</h2>
+          <h2 className="text-2xl font-bold text-gray-900">📊 Your stats</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
@@ -92,14 +92,14 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
           <div className="space-y-4">
             {/* This Round */}
             <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-              <h3 className="text-lg font-bold text-blue-900">This Round</h3>
+              <h3 className="text-lg font-bold text-blue-900">This round</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm text-blue-700">Total Guesses</p>
+                  <p className="text-sm text-blue-700">Total guesses</p>
                   <p className="text-2xl font-bold text-blue-900">{stats.guessesThisRound}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-blue-700">Paid Guesses</p>
+                  <p className="text-sm text-blue-700">Paid guesses</p>
                   <p className="text-2xl font-bold text-blue-900">{stats.paidGuessesThisRound}</p>
                 </div>
               </div>
@@ -107,14 +107,14 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
             {/* All Time */}
             <div className="bg-purple-50 rounded-lg p-4 space-y-3">
-              <h3 className="text-lg font-bold text-purple-900">All Time</h3>
+              <h3 className="text-lg font-bold text-purple-900">All time</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm text-purple-700">Total Guesses</p>
+                  <p className="text-sm text-purple-700">Total guesses</p>
                   <p className="text-2xl font-bold text-purple-900">{stats.guessesAllTime}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-purple-700">Paid Guesses</p>
+                  <p className="text-sm text-purple-700">Paid guesses</p>
                   <p className="text-2xl font-bold text-purple-900">{stats.paidGuessesAllTime}</p>
                 </div>
               </div>
@@ -125,11 +125,11 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               <h3 className="text-lg font-bold text-green-900">Jackpots</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm text-green-700">Jackpots Won</p>
+                  <p className="text-sm text-green-700">Jackpots won</p>
                   <p className="text-2xl font-bold text-green-900">{stats.jackpotsWon}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-green-700">Total ETH Won</p>
+                  <p className="text-sm text-green-700">Total ETH won</p>
                   <p className="text-2xl font-bold text-green-900">
                     {parseFloat(stats.totalEthWon).toFixed(4)}
                   </p>
@@ -167,7 +167,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
             {/* How XP is Earned */}
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-              <h3 className="text-sm font-bold text-gray-900">How to Earn XP</h3>
+              <h3 className="text-sm font-bold text-gray-900">How to earn XP</h3>
               <ul className="text-xs text-gray-700 space-y-1">
                 <li>• Making guesses (free or paid)</li>
                 <li>• Winning jackpots</li>

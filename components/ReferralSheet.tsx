@@ -104,7 +104,7 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
           <div className="space-y-4">
             {/* Referral Link Section */}
             <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-              <h3 className="text-lg font-bold text-blue-900">Your Referral Link</h3>
+              <h3 className="text-lg font-bold text-blue-900">Your referral link</h3>
               <div className="bg-white border-2 border-blue-200 rounded p-3">
                 <p className="text-sm text-blue-700 break-all font-mono">
                   {referralData.referralLink}
@@ -124,14 +124,14 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
 
             {/* Referral Stats Section */}
             <div className="bg-purple-50 rounded-lg p-4 space-y-3">
-              <h3 className="text-lg font-bold text-purple-900">Your Referral Stats</h3>
+              <h3 className="text-lg font-bold text-purple-900">Your referral stats</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-sm text-purple-700">Referrals</p>
                   <p className="text-2xl font-bold text-purple-900">{referralData.referralsCount}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-purple-700">ETH Earned</p>
+                  <p className="text-sm text-purple-700">ETH earned</p>
                   <p className="text-2xl font-bold text-purple-900">
                     {parseFloat(referralData.referralEthEarned).toFixed(4)}
                   </p>
@@ -141,7 +141,7 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
 
             {/* How it Works */}
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-              <h3 className="text-sm font-bold text-gray-900">How Referrals Work</h3>
+              <h3 className="text-sm font-bold text-gray-900">How referrals work</h3>
               <ul className="text-xs text-gray-700 space-y-1">
                 <li>• Share your link with friends</li>
                 <li>• When they sign up and win a jackpot, you earn 10% of their winnings</li>
