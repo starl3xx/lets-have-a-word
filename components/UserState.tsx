@@ -145,8 +145,8 @@ export default function UserState({ fid }: UserStateProps) {
    * Display user state - minimal plain text
    */
   return (
-    <div className="text-center py-0.5">
-      <p className="text-xs text-gray-700">
+    <div className="text-center py-2">
+      <p className="text-sm text-gray-700">
         <span className="font-semibold text-gray-900">{userState.totalGuessesRemaining}</span> {userState.totalGuessesRemaining === 1 ? 'guess' : 'guesses'} left today
         {userState.freeAllocations.base > 0 && (
           <span className="text-gray-600"> ({userState.freeAllocations.base} free</span>

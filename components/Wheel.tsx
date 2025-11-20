@@ -85,7 +85,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    */
   const getWordStyle = (index: number) => {
     if (centerIndex === -1) {
-      return { scale: 1.0, opacity: 0.3, fontWeight: 'normal' as const, letterSpacing: '0.05em' };
+      return { scale: 1.0, opacity: 0.25, fontWeight: '300' as const, letterSpacing: '0.05em' };
     }
 
     const distance = Math.abs(index - centerIndex);
