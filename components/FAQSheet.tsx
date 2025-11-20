@@ -38,7 +38,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           console.error('[FAQ] Error opening token view:', error);
         }
       }}
-      className="text-blue-600 hover:text-blue-800 underline font-semibold"
+      className="text-purple-700 hover:text-purple-900 font-semibold"
     >
       {children}
     </button>
@@ -55,7 +55,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           console.error('Error opening profile:', error);
         }
       }}
-      className="text-blue-600 hover:text-blue-800 underline font-semibold"
+      className="text-purple-700 hover:text-purple-900 font-semibold"
     >
       {children}
     </button>
