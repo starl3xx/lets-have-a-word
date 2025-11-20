@@ -55,11 +55,16 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Determine where to insert the gap
    * - If typing: insert AFTER centerIndex (so centered word appears above gap)
+   * - Special case: if last word, insert BEFORE it (so it appears below gap)
    * - If not typing: insert at middle of list (so words split above/below on load)
    */
   const getGapIndex = (): number => {
     if (centerIndex !== -1) {
-      return centerIndex + 1; // Insert AFTER the centered word
+      // Special case: if centering the last word, put gap before it (so word appears below)
+      if (centerIndex === words.length - 1) {
+        return centerIndex; // Insert BEFORE the last word
+      }
+      return centerIndex + 1; // Insert AFTER the centered word (normal case)
     }
     // Default to middle of word list when not typing
     return Math.floor(words.length / 2);
