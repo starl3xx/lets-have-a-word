@@ -47,6 +47,7 @@ export default function Home() {
   const [showReferralSheet, setShowReferralSheet] = useState(false);
   const [showFAQSheet, setShowFAQSheet] = useState(false);
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
+  const [hideStateError, setHideStateError] = useState(false);
 
   /**
    * Get Farcaster context on mount
@@ -204,6 +205,35 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [letters, isLoading, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+
+  /**
+   * Auto-dismiss state error messages after 2 seconds
+   */
+  useEffect(() => {
+    // Reset hide flag when letters change (show error again for new invalid input)
+    setHideStateError(false);
+
+    // Get current state to check if there's an error
+    const word = letters.join('');
+    const currentState = getInputState({
+      letters,
+      isInGuessList: word.length === 5 ? isValidGuess(word) : true,
+      isAlreadyGuessed: word.length === 5 ? wheelWords.includes(word.toLowerCase()) : false,
+      isSubmitting: isLoading,
+      hasGuessesLeft,
+      resultState: boxResultState,
+    });
+
+    const errorMsg = getErrorMessage(currentState);
+    if (errorMsg) {
+      // Show error for 2 seconds then hide it
+      const timer = setTimeout(() => {
+        setHideStateError(true);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]);
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
@@ -557,7 +587,7 @@ export default function Home() {
               </div>
 
               {/* Error/feedback area - positioned absolutely below boxes */}
-              {(errorMessage || feedback || stateErrorMessage) && (
+              {(errorMessage || feedback || (stateErrorMessage && !hideStateError)) && (
                 <div
                   className="absolute left-0 right-0 px-8"
                   style={{
@@ -574,14 +604,14 @@ export default function Home() {
                   )}
 
                   {/* Show state-based error messages (Milestone 4.6) */}
-                  {!errorMessage && stateErrorMessage && (
-                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                  {!errorMessage && stateErrorMessage && !hideStateError && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-300">
                       <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
                     </div>
                   )}
 
                   {/* Show feedback from last submission */}
-                  {feedback && !errorMessage && !stateErrorMessage && (
+                  {feedback && !errorMessage && !(stateErrorMessage && !hideStateError) && (
                     <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
                       <p className={`${feedback.color} text-center text-sm font-medium`}>
                         {feedback.text}
