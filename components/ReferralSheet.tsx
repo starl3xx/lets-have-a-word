@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { triggerHaptic } from '../src/lib/haptics';
+import { triggerHaptic, haptics } from '../src/lib/haptics';
+import sdk from '@farcaster/miniapp-sdk';
 import type { UserReferralsResponse } from '../pages/api/user/referrals';
 
 interface ReferralSheetProps {
@@ -55,7 +56,7 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
 
     try {
       await navigator.clipboard.writeText(referralData.referralLink);
-      triggerHaptic('success');
+      void haptics.buttonTapMinor();
       setCopySuccess(true);
 
       // Reset copy success message after 2 seconds
@@ -71,18 +72,23 @@ export default function ReferralSheet({ fid, onClose }: ReferralSheetProps) {
   /**
    * Share referral link via Farcaster
    */
-  const handleShare = () => {
+  const handleShare = async () => {
     if (!referralData?.referralLink) return;
 
-    const castText = `🕵️‍♂️ Trying to crack the secret word on @letshaveaword.
-Every wrong guess helps everyone. One correct guess wins the ETH jackpot.
-Play with my link 👉 ${referralData.referralLink}`;
+    try {
+      const castText = `🕵️‍♂️ Trying to crack the secret word on @letshaveaword.\n\n` +
+        `Every wrong guess helps everyone. One correct guess wins the ETH jackpot.\n\n` +
+        `Play with my link 👉 ${referralData.referralLink}`;
 
-    const encodedText = encodeURIComponent(castText);
-    const farcasterUrl = `https://warpcast.com/~/compose?text=${encodedText}`;
+      await sdk.actions.composeCast({
+        text: castText,
+      });
 
-    triggerHaptic('light');
-    window.open(farcasterUrl, '_blank');
+      void haptics.buttonTapMinor();
+    } catch (error) {
+      console.error('[ReferralSheet] Error sharing referral link:', error);
+      triggerHaptic('error');
+    }
   };
 
   return (
