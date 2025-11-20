@@ -5,6 +5,13 @@ import { upsertUserFromFarcaster } from '../../src/lib/users';
 import { submitGuessWithDailyLimits } from '../../src/lib/daily-limits';
 import type { SubmitGuessResult } from '../../src/types';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
+import {
+  isDevModeEnabled,
+  getDevFixedSolution,
+  isForceStateEnabled,
+  isValidDevBackendState,
+} from '../../src/lib/devGameState';
+import { isValidGuess } from '../../src/lib/word-lists';
 
 /**
  * POST /api/guess
@@ -13,6 +20,7 @@ import { ensureDevMidRound } from '../../src/lib/devMidRound';
  *
  * Milestone 2.1: Now uses Farcaster authentication
  * Milestone 2.2: Now enforces daily limits (free + paid guesses)
+ * Milestone 4.8: Now supports dev mode with fixed solution and preview states
  *
  * Request body:
  * {
@@ -28,6 +36,13 @@ import { ensureDevMidRound } from '../../src/lib/devMidRound';
  *   "devFid": 12345 (bypasses Farcaster auth)
  * }
  *
+ * For dev mode preview (Milestone 4.8):
+ * {
+ *   "word": "CRANE",
+ *   "devState": "RESULT_CORRECT" | "RESULT_WRONG_VALID" | "OUT_OF_GUESSES",
+ *   "devFid": 12345
+ * }
+ *
  * Response: SubmitGuessResult
  *   May return { status: 'no_guesses_left_today' } if user has no guesses remaining
  */
@@ -41,12 +56,15 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
 
     // Validate request
     if (typeof word !== 'string' || !word) {
       return res.status(400).json({ error: 'Invalid request: word is required' });
     }
+
+    // Normalize word to uppercase
+    const normalizedWord = word.toUpperCase();
 
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
@@ -108,6 +126,96 @@ export default async function handler(
         referrerFid,
       });
     }
+
+    // ========================================
+    // Milestone 4.8: Dev Mode Handling
+    // ========================================
+
+    // Check for forced-state preview mode (devState in request)
+    if (devState) {
+      if (!isForceStateEnabled()) {
+        return res.status(403).json({ error: 'Forced-state preview is disabled' });
+      }
+
+      if (!isValidDevBackendState(devState)) {
+        return res.status(400).json({ error: 'Invalid devState value' });
+      }
+
+      // Return snapshot based on devState
+      // Map devState to SubmitGuessResult
+      if (devState === 'RESULT_CORRECT') {
+        return res.status(200).json({
+          status: 'correct',
+          word: normalizedWord,
+          roundId: 999999,
+          winnerFid: fid,
+        });
+      } else if (devState === 'RESULT_WRONG_VALID') {
+        return res.status(200).json({
+          status: 'incorrect',
+          word: normalizedWord,
+          totalGuessesForUserThisRound: 1,
+        });
+      } else if (devState === 'OUT_OF_GUESSES') {
+        return res.status(200).json({
+          status: 'no_guesses_left_today',
+        });
+      }
+    }
+
+    // Check for interactive dev mode (no onchain, fixed solution)
+    if (isDevModeEnabled()) {
+      console.log('🎮 Dev mode: Processing guess interactively');
+
+      // Validate word format
+      if (normalizedWord.length !== 5) {
+        return res.status(200).json({
+          status: 'invalid_word',
+          reason: 'not_5_letters',
+        });
+      }
+
+      if (!/^[A-Z]+$/.test(normalizedWord)) {
+        return res.status(200).json({
+          status: 'invalid_word',
+          reason: 'non_alpha',
+        });
+      }
+
+      // Check if word is in valid guess list
+      if (!isValidGuess(normalizedWord)) {
+        return res.status(200).json({
+          status: 'invalid_word',
+          reason: 'not_in_dictionary',
+        });
+      }
+
+      // Compare against fixed solution
+      const solution = getDevFixedSolution();
+
+      if (normalizedWord === solution) {
+        // Correct guess!
+        console.log(`✅ Dev mode: Correct guess! ${normalizedWord} === ${solution}`);
+        return res.status(200).json({
+          status: 'correct',
+          word: normalizedWord,
+          roundId: 999999,
+          winnerFid: fid,
+        });
+      } else {
+        // Incorrect guess
+        console.log(`❌ Dev mode: Incorrect guess. ${normalizedWord} !== ${solution}`);
+        return res.status(200).json({
+          status: 'incorrect',
+          word: normalizedWord,
+          totalGuessesForUserThisRound: 1, // In dev mode, we don't track actual count
+        });
+      }
+    }
+
+    // ========================================
+    // Production Mode: Database & Onchain
+    // ========================================
 
     // Submit the guess with daily limits enforcement (Milestone 2.2)
     const result = await submitGuessWithDailyLimits({
