@@ -587,7 +587,7 @@ export default function Home() {
               </div>
 
               {/* Error/feedback area - positioned absolutely below boxes */}
-              {(errorMessage || feedback || (stateErrorMessage && !hideStateError)) && (
+              {(errorMessage || feedback || stateErrorMessage) && (
                 <div
                   className="absolute left-0 right-0 px-8"
                   style={{
@@ -604,14 +604,17 @@ export default function Home() {
                   )}
 
                   {/* Show state-based error messages (Milestone 4.6) */}
-                  {!errorMessage && stateErrorMessage && !hideStateError && (
-                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-300">
+                  {!errorMessage && stateErrorMessage && (
+                    <div
+                      className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-500"
+                      style={{ opacity: hideStateError ? 0 : 1 }}
+                    >
                       <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
                     </div>
                   )}
 
                   {/* Show feedback from last submission */}
-                  {feedback && !errorMessage && !(stateErrorMessage && !hideStateError) && (
+                  {feedback && !errorMessage && !stateErrorMessage && (
                     <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
                       <p className={`${feedback.color} text-center text-sm font-medium`}>
                         {feedback.text}
