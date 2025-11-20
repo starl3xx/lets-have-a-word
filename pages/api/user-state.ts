@@ -12,6 +12,7 @@ import { hasClanktonBonus } from '../../src/lib/clankton';
 import { db } from '../../src/db';
 import { users } from '../../src/db/schema';
 import { eq } from 'drizzle-orm';
+import { isDevModeEnabled, getDevUserId } from '../../src/lib/devGameState';
 
 export interface UserStateResponse {
   fid: number;
@@ -74,7 +75,29 @@ export default async function handler(
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Ensure user exists in database
+    // Milestone 4.8: Check for dev mode first
+    if (isDevModeEnabled()) {
+      console.log('🎮 Dev mode: Returning synthetic user state');
+
+      // Return synthetic user state for dev mode
+      return res.status(200).json({
+        fid,
+        freeGuessesRemaining: 3,
+        paidGuessesRemaining: 0,
+        totalGuessesRemaining: 3,
+        clanktonBonusActive: false,
+        freeAllocations: {
+          base: 3,
+          clankton: 0,
+          shareBonus: 0,
+        },
+        paidPacksPurchased: 0,
+        maxPaidPacksPerDay: 3,
+        canBuyMorePacks: true,
+      });
+    }
+
+    // Production mode: Ensure user exists in database
     // If not, fetch from Neynar and create record
     console.log(`[user-state] Checking if user ${fid} exists...`);
     let existingUser;
