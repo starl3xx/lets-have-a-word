@@ -1,27 +1,31 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, ReactNode } from 'react';
 import type { InputState } from '../src/lib/input-state';
 
 /**
  * Wheel Component with Faux-3D Effect
- * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel behind the input boxes
+ * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel with input boxes in a real gap
  *
  * Props:
  * - words: Alphabetically sorted array of wrong words (seed words + real wrong guesses)
  * - currentGuess: The word currently being typed by the user (0-5 letters)
  * - inputState: Current input state (Milestone 4.6)
+ * - inputBoxes: The input boxes component to render in the true gap
+ * - errorFeedback: Error/feedback component to render below input boxes
  *
  * Milestone 4.6: Enhanced with state-based behavior
+ * - Real layout gap (not overlay) where input boxes sit
  * - Ghost rows for valid unguessed words
  * - Red highlighting for already-guessed words
- * - Dimmed appearance for invalid words
  */
 interface WheelProps {
   words: string[];
   currentGuess: string;
   inputState?: InputState;
+  inputBoxes?: ReactNode;
+  errorFeedback?: ReactNode;
 }
 
-export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
+export default function Wheel({ words, currentGuess, inputState, inputBoxes, errorFeedback }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLDivElement | null)[]>([]);
   const gapRef = useRef<HTMLDivElement>(null);
@@ -200,18 +204,33 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
                   <div
                     ref={gapRef}
                     style={{
-                      minHeight: '12vh', // Gap for input boxes + padding
-                      pointerEvents: 'none',
+                      minHeight: inputBoxes ? 'auto' : '12vh', // Auto height when input boxes provided
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'center',
-                      paddingTop: '0.8rem', // Add slight top padding to balance word spacing
-                      paddingBottom: '0.8rem', // Add slight bottom padding to balance word spacing
-                      marginTop: '-0.4rem', // Pull gap up to reduce space above boxes
+                      alignItems: 'center',
+                      paddingTop: '0.8rem',
+                      paddingBottom: '0.8rem',
+                      marginTop: '-0.4rem',
+                      pointerEvents: 'auto', // Enable pointer events for input in gap
                     }}
                   >
-                    {/* Ghost row for valid unguessed words (Milestone 4.6) */}
-                    {shouldShowGhostRow(index) && (
+                    {/* Render actual input boxes in the gap (true layout approach) */}
+                    {inputBoxes && (
+                      <div className="w-full px-8">
+                        {inputBoxes}
+
+                        {/* Error/feedback messages below input boxes */}
+                        {errorFeedback && (
+                          <div className="mt-4">
+                            {errorFeedback}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Ghost row for valid unguessed words (only when no input boxes) */}
+                    {!inputBoxes && shouldShowGhostRow(index) && (
                       <div
                         className="text-center transition-all duration-300 ease-out"
                         style={{
@@ -220,7 +239,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
                           fontWeight: '300',
                           color: '#2563eb', // Blue for valid word
                           fontSize: '1.3rem',
-                          lineHeight: '1.0', // Reduce line height for ghost to not add extra space
+                          lineHeight: '1.0',
                           textTransform: 'uppercase',
                           letterSpacing: '0.15em',
                           textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',

@@ -498,84 +498,56 @@ export default function Home() {
 
           {/* Wheel + Input Container - fills remaining space */}
           <div className="flex-1 relative">
-            {/* Background Layer: Wheel with clipping for input boxes and button */}
-            <div className="absolute inset-0" style={{ zIndex: 1 }}>
+            {/* Wheel with input boxes embedded in the true layout gap */}
+            <div className="absolute inset-0">
               {isLoadingWheel ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-gray-400 animate-pulse">Loading...</p>
                 </div>
               ) : (
-                <Wheel words={wheelWords} currentGuess={word} inputState={currentInputState} />
-              )}
-            </div>
-
-            {/* Background blocker - prevents words from appearing behind input boxes during animation */}
-            <div
-              className="absolute left-0 right-0"
-              style={{
-                top: '50%',
-                transform: 'translateY(-50%)',
-                height: '12vh',
-                zIndex: 5,
-                backgroundColor: 'rgb(249, 250, 251)', // Match page background
-                pointerEvents: 'none'
-              }}
-            />
-
-            {/* Fixed Layer: Input Boxes - stays centered, never moves with wheel */}
-            <div
-              className="absolute left-0 right-0 px-8"
-              style={{
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 10,
-                pointerEvents: 'none' // Allow clicks through to wheel
-              }}
-            >
-              <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
-                <LetterBoxes
-                  letters={letters}
-                  onChange={handleLettersChange}
-                  disabled={isLoading}
-                  isShaking={isShaking}
-                  resultState={boxResultState}
+                <Wheel
+                  words={wheelWords}
+                  currentGuess={word}
                   inputState={currentInputState}
+                  inputBoxes={
+                    <LetterBoxes
+                      letters={letters}
+                      onChange={handleLettersChange}
+                      disabled={isLoading}
+                      isShaking={isShaking}
+                      resultState={boxResultState}
+                      inputState={currentInputState}
+                    />
+                  }
+                  errorFeedback={
+                    (errorMessage || feedback || stateErrorMessage) ? (
+                      <>
+                        {/* Show explicit error messages first */}
+                        {errorMessage && (
+                          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                            <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
+                          </div>
+                        )}
+
+                        {/* Show state-based error messages (Milestone 4.6) */}
+                        {!errorMessage && stateErrorMessage && (
+                          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                            <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
+                          </div>
+                        )}
+
+                        {/* Show feedback from last submission */}
+                        {feedback && !errorMessage && !stateErrorMessage && (
+                          <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                            <p className={`${feedback.color} text-center text-sm font-medium`}>
+                              {feedback.text}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : undefined
+                  }
                 />
-              </div>
-
-              {/* Feedback area - positioned absolutely below boxes so it doesn't shift them */}
-              {(errorMessage || feedback || stateErrorMessage) && (
-                <div
-                  className="absolute left-0 right-0 px-8"
-                  style={{
-                    top: '100%',
-                    marginTop: '1rem',
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  {/* Show explicit error messages first */}
-                  {errorMessage && (
-                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                      <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
-                    </div>
-                  )}
-
-                  {/* Show state-based error messages (Milestone 4.6) */}
-                  {!errorMessage && stateErrorMessage && (
-                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                      <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
-                    </div>
-                  )}
-
-                  {/* Show feedback from last submission */}
-                  {feedback && !errorMessage && !stateErrorMessage && (
-                    <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
-                      <p className={`${feedback.color} text-center text-sm font-medium`}>
-                        {feedback.text}
-                      </p>
-                    </div>
-                  )}
-                </div>
               )}
             </div>
           </div>
