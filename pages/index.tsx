@@ -389,29 +389,12 @@ export default function Home() {
 
       // Refetch wheel data after guess (Milestone 2.3)
       // Wrong guesses will now appear in the wheel
-      // Milestone 4.8: In dev mode, track wrong guesses for alphabetical sorting
+      // Milestone 4.8: In dev mode, track wrong guesses (useEffect handles wheel update)
       if (data.status === 'incorrect') {
         // Add wrong guess to dev mode tracking
+        // The useEffect on line 110 will automatically handle fetching, merging, and sorting
         const wrongWord = word.toLowerCase();
         setDevWrongGuesses(prev => new Set([...prev, wrongWord]));
-
-        // Still refetch for production mode
-        try {
-          const wheelResponse = await fetch('/api/wheel');
-          if (wheelResponse.ok) {
-            const wheelData = await wheelResponse.json();
-            const baseWords = wheelData.words || [];
-
-            // Merge with dev wrong guesses and sort
-            const allWords = [...baseWords, wrongWord];
-            const uniqueWords = Array.from(new Set(allWords));
-            const sortedWords = uniqueWords.sort();
-
-            setWheelWords(sortedWords);
-          }
-        } catch (err) {
-          console.error('Error refetching wheel:', err);
-        }
       }
 
       // Refetch user state after any guess (Milestone 4.1)
