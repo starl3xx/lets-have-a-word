@@ -17,6 +17,10 @@ export interface UserStatsResponse {
   paidGuessesAllTime: number;
   jackpotsWon: number;
   totalEthWon: string;
+  topGuesserPlacements: number;
+  topGuesserEthWon: string;
+  referralWins: number;
+  referralEthWon: string;
 }
 
 export default async function handler(
@@ -99,6 +103,30 @@ export default async function handler(
 
     const totalEthWon = payouts[0]?.total || '0';
 
+    // Get top guesser placements (count and ETH)
+    const topGuesserStats = await db
+      .select({
+        count: count(),
+        total: sql<string>`coalesce(sum(${roundPayouts.amountEth}), '0')`,
+      })
+      .from(roundPayouts)
+      .where(and(eq(roundPayouts.fid, fid), eq(roundPayouts.role, 'top_guesser')));
+
+    const topGuesserPlacements = Number(topGuesserStats[0]?.count || 0);
+    const topGuesserEthWon = topGuesserStats[0]?.total || '0';
+
+    // Get referral wins (count and ETH)
+    const referralStats = await db
+      .select({
+        count: count(),
+        total: sql<string>`coalesce(sum(${roundPayouts.amountEth}), '0')`,
+      })
+      .from(roundPayouts)
+      .where(and(eq(roundPayouts.fid, fid), eq(roundPayouts.role, 'referrer')));
+
+    const referralWins = Number(referralStats[0]?.count || 0);
+    const referralEthWon = referralStats[0]?.total || '0';
+
     const response: UserStatsResponse = {
       guessesThisRound,
       guessesAllTime,
@@ -106,6 +134,10 @@ export default async function handler(
       paidGuessesAllTime,
       jackpotsWon,
       totalEthWon,
+      topGuesserPlacements,
+      topGuesserEthWon,
+      referralWins,
+      referralEthWon,
     };
 
     console.log(`[user/stats] Stats for FID ${fid}:`, response);
