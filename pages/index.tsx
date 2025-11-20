@@ -519,7 +519,7 @@ export default function Home() {
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',
-                height: '5rem', // Slightly taller than input boxes (4rem = 64px)
+                height: '4rem', // Same height as input boxes (64px)
                 zIndex: 5,
                 pointerEvents: 'none'
               }}
