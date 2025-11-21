@@ -15,14 +15,14 @@ import type { WheelWord, WheelWordStatus } from '../src/types';
  * - Virtual scrolling: Only renders ~60-100 visible words (not all 10,516)
  * - Binary search for O(log n) center index lookup
  * - Memoized calculations prevent unnecessary re-renders
- * - Direct scroll manipulation for instant, smooth jumping
+ * - Gap-centered scrolling for proper word positioning
  * - Smart windowing with gap-aware calculations
  *
  * Original features preserved:
  * - Status-based rendering: unguessed (gray), wrong (red), winner (gold)
  * - 3D effect with distance-based scaling and opacity
- * - Real layout gap that words cannot occupy
- * - Auto-scrolling to center user input alphabetically
+ * - Real layout gap that words cannot occupy (hard gap)
+ * - Auto-scrolling to center gap (words appear above it)
  * - Exact spacing matching original lineHeight: 1.6
  */
 interface WheelProps {
@@ -32,8 +32,8 @@ interface WheelProps {
 }
 
 // Configuration constants - precisely matched to original
-const ITEM_HEIGHT = 33; // pixels per word (matches original lineHeight: 1.6 * fontSize: 1.3rem = 2.08rem ≈ 33px)
-const GAP_HEIGHT = 120; // pixels for input box gap (12vh ≈ 120px)
+const ITEM_HEIGHT = 33; // pixels per word (lineHeight: 1.6 * fontSize: 1.3rem ≈ 33px)
+const GAP_HEIGHT = 146; // pixels for input box gap (12vh + padding: 120 + 12.8 + 12.8 ≈ 146px)
 const OVERSCAN_COUNT = 30; // Number of items to render above/below viewport
 const VIEWPORT_PADDING = 400; // Top/bottom padding in pixels
 
@@ -115,7 +115,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Calculate which items are currently visible
-   * IMPORTANT: Accounts for gap offset in calculations
+   * IMPORTANT: Accounts for gap offset and ensures NO words in gap area
    */
   const visibleRange = useMemo(() => {
     if (containerHeight === 0 || words.length === 0) {
@@ -131,6 +131,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     if (scrollStart < gapTopOffset) {
       // Before gap: normal calculation
       startIndex = Math.floor((scrollStart - VIEWPORT_PADDING) / ITEM_HEIGHT);
+    } else if (scrollStart < gapBottomOffset) {
+      // IN gap area: start from first word after gap
+      startIndex = gapIndex;
     } else {
       // After gap: subtract gap height
       startIndex = Math.floor((scrollStart - VIEWPORT_PADDING - GAP_HEIGHT) / ITEM_HEIGHT);
@@ -141,6 +144,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     if (scrollEnd < gapTopOffset) {
       // Before gap: normal calculation
       endIndex = Math.ceil((scrollEnd - VIEWPORT_PADDING) / ITEM_HEIGHT);
+    } else if (scrollEnd < gapBottomOffset) {
+      // IN gap area: end at gap index (words before gap)
+      endIndex = gapIndex;
     } else {
       // After gap: subtract gap height
       endIndex = Math.ceil((scrollEnd - VIEWPORT_PADDING - GAP_HEIGHT) / ITEM_HEIGHT);
@@ -151,26 +157,26 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     endIndex = Math.min(words.length, endIndex + OVERSCAN_COUNT);
 
     return { startIndex, endIndex };
-  }, [scrollTop, containerHeight, words.length, gapTopOffset]);
+  }, [scrollTop, containerHeight, words.length, gapTopOffset, gapBottomOffset, gapIndex]);
 
   /**
-   * Calculate scroll position to center a specific word index
+   * Calculate scroll position to center the GAP (not the word!)
+   * This makes the word appear ABOVE the gap, just like the original
    */
-  const getScrollTopForIndex = useCallback(
-    (index: number): number => {
+  const getScrollTopForGap = useCallback(
+    (targetGapIndex: number): number => {
       if (!containerRef.current) return 0;
 
-      const itemOffset = VIEWPORT_PADDING + index * ITEM_HEIGHT;
+      // Calculate gap position
+      const gapTop = VIEWPORT_PADDING + targetGapIndex * ITEM_HEIGHT;
 
-      // If gap is before this index, add gap height
-      const gapOffset = index >= gapIndex ? GAP_HEIGHT : 0;
-
+      // Center the gap in the viewport
       const containerHeight = containerRef.current.clientHeight;
-      const targetScrollTop = itemOffset + gapOffset - containerHeight / 2;
+      const targetScrollTop = gapTop + GAP_HEIGHT / 2 - containerHeight / 2;
 
       return Math.max(0, targetScrollTop);
     },
-    [gapIndex]
+    []
   );
 
   /**
@@ -203,16 +209,17 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   useEffect(() => {
     if (!containerRef.current || words.length === 0 || isInitialized) return;
 
-    // Center the gap on initial load
-    const targetScroll = getScrollTopForIndex(gapIndex);
+    // Center the gap on initial load (instant, no animation)
+    const targetScroll = getScrollTopForGap(gapIndex);
     containerRef.current.scrollTop = targetScroll;
     setScrollTop(targetScroll);
     setIsInitialized(true);
-  }, [words.length, gapIndex, isInitialized, getScrollTopForIndex]);
+  }, [words.length, gapIndex, isInitialized, getScrollTopForGap]);
 
   /**
-   * Auto-scroll to center when user types
-   * Uses direct scroll manipulation for instant, smooth jumping
+   * Auto-scroll to center GAP when user types
+   * KEY FIX: We scroll to center the GAP (not the word)
+   * This makes the word appear ABOVE the gap, matching the original behavior
    */
   useEffect(() => {
     if (!containerRef.current || words.length === 0 || !isInitialized) return;
@@ -222,14 +229,15 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       return;
     }
 
-    // When typing, smoothly scroll to center the input position
-    const targetScroll = getScrollTopForIndex(centerIndex);
+    // When typing, smoothly scroll to center the GAP (which is after the centered word)
+    // This makes the centered word appear ABOVE the gap
+    const targetScroll = getScrollTopForGap(gapIndex);
 
     containerRef.current.scrollTo({
       top: targetScroll,
       behavior: 'smooth',
     });
-  }, [centerIndex, words.length, isInitialized, getScrollTopForIndex]);
+  }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap]);
 
   /**
    * Get status-based styling for a word
@@ -360,6 +368,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Render only visible words (virtualization)
+   * CRITICAL: Skips any words that would appear in the gap area
    */
   const visibleWords = useMemo(() => {
     const items: JSX.Element[] = [];
@@ -374,13 +383,19 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       // Calculate absolute position for this item
       const topOffset = VIEWPORT_PADDING + i * ITEM_HEIGHT;
       const gapOffset = i >= gapIndex ? GAP_HEIGHT : 0;
+      const finalTop = topOffset + gapOffset;
+
+      // CRITICAL: Skip words that would render in the gap area
+      if (finalTop >= gapTopOffset && finalTop < gapBottomOffset) {
+        continue; // Skip this word - it's in the gap!
+      }
 
       items.push(
         <div
           key={`${wheelWord.word}-${i}`}
           className="absolute w-full text-center transition-all duration-300 ease-out"
           style={{
-            top: `${topOffset + gapOffset}px`,
+            top: `${finalTop}px`,
             transform: `scale(${style.scale})`,
             opacity: style.opacity,
             fontWeight: style.fontWeight,
@@ -399,11 +414,11 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     }
 
     return items;
-  }, [visibleRange, words, gapIndex, getWordStyle]);
+  }, [visibleRange, words, gapIndex, getWordStyle, gapTopOffset, gapBottomOffset]);
 
   /**
    * Render the gap (input box area)
-   * This creates a physical space where words cannot appear
+   * This creates a HARD gap where NO words can appear
    */
   const gapElement = useMemo(() => {
     return (
@@ -414,8 +429,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           top: `${gapTopOffset}px`,
           height: `${GAP_HEIGHT}px`,
           pointerEvents: 'none',
-          // Create a visual barrier with a subtle background for debugging
-          // backgroundColor: 'rgba(255, 0, 0, 0.05)', // Uncomment to see gap
+          // Hard barrier - no content allowed
+          backgroundColor: 'transparent',
+          zIndex: 10, // Above words to block them visually
         }}
       />
     );
@@ -454,10 +470,10 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
             width: '100%',
           }}
         >
-          {/* Gap for input boxes */}
+          {/* Gap for input boxes - HARD gap that blocks all words */}
           {gapElement}
 
-          {/* Virtualized visible words */}
+          {/* Virtualized visible words (skips gap area) */}
           {visibleWords}
         </div>
       )}
