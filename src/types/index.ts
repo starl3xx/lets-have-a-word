@@ -112,3 +112,37 @@ export interface WordLists {
   guessWords: WordList;
   seedWords: WordList;
 }
+
+/**
+ * Dev Mode Types (Milestone 4.8)
+ */
+
+// Backend-owned states for dev mode preview
+export type DevBackendState =
+  | 'SUBMITTING'
+  | 'RESULT_CORRECT'
+  | 'RESULT_WRONG_VALID'
+  | 'OUT_OF_GUESSES';
+
+/**
+ * Game State Response (unified state from /api/game)
+ * Milestone 4.8: New endpoint for dev mode preview
+ */
+export interface GameStateResponse {
+  roundId: number;
+  prizePoolEth: string;
+  prizePoolUsd?: string;
+  globalGuessCount: number;
+  userState: {
+    fid: number;
+    freeGuessesRemaining: number;
+    paidGuessesRemaining: number;
+    totalGuessesRemaining: number;
+    clanktonBonusActive: boolean;
+  };
+  wheelWords: string[];
+  devMode?: boolean;
+  devSolution?: string; // Only present in dev mode for testing
+  devState?: DevBackendState; // Only present in forced preview mode
+  devInput?: string; // Only present in forced preview mode
+}

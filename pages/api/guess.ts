@@ -5,6 +5,13 @@ import { upsertUserFromFarcaster } from '../../src/lib/users';
 import { submitGuessWithDailyLimits } from '../../src/lib/daily-limits';
 import type { SubmitGuessResult } from '../../src/types';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
+import {
+  isDevModeEnabled,
+  getDevFixedSolution,
+  isForceStateEnabled,
+  isValidDevBackendState,
+} from '../../src/lib/devGameState';
+import { isValidGuess } from '../../src/lib/word-lists';
 
 /**
  * POST /api/guess
@@ -13,6 +20,7 @@ import { ensureDevMidRound } from '../../src/lib/devMidRound';
  *
  * Milestone 2.1: Now uses Farcaster authentication
  * Milestone 2.2: Now enforces daily limits (free + paid guesses)
+ * Milestone 4.8: Now supports dev mode with fixed solution and preview states
  *
  * Request body:
  * {
@@ -28,6 +36,13 @@ import { ensureDevMidRound } from '../../src/lib/devMidRound';
  *   "devFid": 12345 (bypasses Farcaster auth)
  * }
  *
+ * For dev mode preview (Milestone 4.8):
+ * {
+ *   "word": "CRANE",
+ *   "devState": "RESULT_CORRECT" | "RESULT_WRONG_VALID" | "OUT_OF_GUESSES",
+ *   "devFid": 12345
+ * }
+ *
  * Response: SubmitGuessResult
  *   May return { status: 'no_guesses_left_today' } if user has no guesses remaining
  */
@@ -41,12 +56,124 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
+
+    // Debug: Log environment variables (Milestone 4.8)
+    console.log('🔍 Environment check:', {
+      LHAW_DEV_MODE: process.env.LHAW_DEV_MODE,
+      LHAW_DEV_FIXED_SOLUTION: process.env.LHAW_DEV_FIXED_SOLUTION,
+      LHAW_DEV_FORCE_STATE_ENABLED: process.env.LHAW_DEV_FORCE_STATE_ENABLED,
+      isDevModeEnabled: isDevModeEnabled(),
+      isForceStateEnabled: isForceStateEnabled(),
+    });
 
     // Validate request
     if (typeof word !== 'string' || !word) {
       return res.status(400).json({ error: 'Invalid request: word is required' });
     }
+
+    // Normalize word to uppercase
+    const normalizedWord = word.toUpperCase();
+
+    // ========================================
+    // Milestone 4.8: Dev Mode Early Check
+    // ========================================
+    // Check dev mode BEFORE any database operations
+
+    // Determine FID early for dev mode
+    let fid: number;
+    const isDevelopment = !process.env.NEYNAR_API_KEY;
+
+    // For forced-state preview mode, handle immediately
+    if (devState) {
+      if (!isForceStateEnabled()) {
+        return res.status(403).json({ error: 'Forced-state preview is disabled' });
+      }
+
+      if (!isValidDevBackendState(devState)) {
+        return res.status(400).json({ error: 'Invalid devState value' });
+      }
+
+      // Get FID for response
+      fid = isDevelopment && devFid ? (typeof devFid === 'number' ? devFid : parseInt(devFid, 10)) : 12345;
+
+      // Return snapshot based on devState
+      if (devState === 'RESULT_CORRECT') {
+        return res.status(200).json({
+          status: 'correct',
+          word: normalizedWord,
+          roundId: 999999,
+          winnerFid: fid,
+        });
+      } else if (devState === 'RESULT_WRONG_VALID') {
+        return res.status(200).json({
+          status: 'incorrect',
+          word: normalizedWord,
+          totalGuessesForUserThisRound: 1,
+        });
+      } else if (devState === 'OUT_OF_GUESSES') {
+        return res.status(200).json({
+          status: 'no_guesses_left_today',
+        });
+      }
+    }
+
+    // For interactive dev mode, handle immediately (no database ops)
+    if (isDevModeEnabled()) {
+      console.log('🎮 Dev mode: Processing guess interactively');
+
+      // Get FID
+      fid = isDevelopment && devFid ? (typeof devFid === 'number' ? devFid : parseInt(devFid, 10)) : 12345;
+
+      // Validate word format
+      if (normalizedWord.length !== 5) {
+        return res.status(200).json({
+          status: 'invalid_word',
+          reason: 'not_5_letters',
+        });
+      }
+
+      if (!/^[A-Z]+$/.test(normalizedWord)) {
+        return res.status(200).json({
+          status: 'invalid_word',
+          reason: 'non_alpha',
+        });
+      }
+
+      // Check if word is in valid guess list
+      if (!isValidGuess(normalizedWord)) {
+        return res.status(200).json({
+          status: 'invalid_word',
+          reason: 'not_in_dictionary',
+        });
+      }
+
+      // Compare against fixed solution
+      const solution = getDevFixedSolution();
+
+      if (normalizedWord === solution) {
+        // Correct guess!
+        console.log(`✅ Dev mode: Correct guess! ${normalizedWord} === ${solution}`);
+        return res.status(200).json({
+          status: 'correct',
+          word: normalizedWord,
+          roundId: 999999,
+          winnerFid: fid,
+        });
+      } else {
+        // Incorrect guess
+        console.log(`❌ Dev mode: Incorrect guess. ${normalizedWord} !== ${solution}`);
+        return res.status(200).json({
+          status: 'incorrect',
+          word: normalizedWord,
+          totalGuessesForUserThisRound: 1,
+        });
+      }
+    }
+
+    // ========================================
+    // Production Mode: Continue with normal flow
+    // ========================================
 
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
@@ -54,12 +181,8 @@ export default async function handler(
     // Ensure there's an active round (create one if needed)
     await ensureActiveRound();
 
-    let fid: number;
     let signerWallet: string | null = null;
     let spamScore: number | null = null;
-
-    // Check if we're in development mode (no Neynar API key)
-    const isDevelopment = !process.env.NEYNAR_API_KEY;
 
     if (isDevelopment && devFid) {
       // Development mode: allow explicit FID for testing
