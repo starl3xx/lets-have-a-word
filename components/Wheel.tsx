@@ -118,6 +118,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Calculate distance-based styling for faux-3D effect
+   * Milestone 4.10: Combines distance-based depth with status-based colors
    */
   const getWordStyle = (index: number, status: WheelWordStatus) => {
     const statusStyle = getStatusStyle(status);
@@ -136,9 +137,10 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     const distance = Math.abs(index - centerIndex);
     const isExactMatch = words[index].word.toLowerCase() === currentGuess.toLowerCase();
 
-    // Distance-based scale, opacity, and letter spacing for 3D effect
+    // Distance-based scale, opacity, letter spacing, and font weight for 3D effect
     let scale = 1.0;
     let opacity = 0.25;
+    let fontWeight: 'bold' | 'normal' | '300' = 'normal';
     let letterSpacing = '0.05em';
 
     // Apply distance-based scaling
@@ -146,26 +148,31 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       case 0:
         scale = 1.4;
         opacity = 1.0;
+        fontWeight = 'bold';
         letterSpacing = '0.2em'; // Widest spacing at center
         break;
       case 1:
         scale = 1.2;
         opacity = 0.7;
+        fontWeight = 'normal';
         letterSpacing = '0.15em';
         break;
       case 2:
         scale = 1.1;
         opacity = 0.5;
+        fontWeight = 'normal';
         letterSpacing = '0.1em';
         break;
       case 3:
         scale = 1.05;
         opacity = 0.35;
+        fontWeight = '300';
         letterSpacing = '0.07em';
         break;
       default:
         scale = 1.0;
         opacity = 0.25;
+        fontWeight = '300';
         letterSpacing = '0.05em'; // Tightest spacing at edges
     }
 
@@ -174,11 +181,35 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       opacity = Math.max(opacity, 0.5);
     }
 
+    // Get base status color, then adjust based on distance for depth effect
+    let color = statusStyle.color;
+
+    // For unguessed words, use distance-based color gradation (darker at center, lighter at edges)
+    if (status === 'unguessed') {
+      switch (distance) {
+        case 0:
+          color = isExactMatch ? '#dc2626' : '#000'; // Red if exact match, black otherwise
+          break;
+        case 1:
+          color = '#666';
+          break;
+        case 2:
+          color = '#999';
+          break;
+        case 3:
+          color = '#aaa';
+          break;
+        default:
+          color = '#bbb';
+      }
+    }
+    // For wrong/winner words, keep status color but vary opacity for depth
+
     return {
       scale,
       opacity,
-      fontWeight: statusStyle.fontWeight,
-      color: statusStyle.color,
+      fontWeight,
+      color,
       letterSpacing,
       textShadow: statusStyle.textShadow,
     };
