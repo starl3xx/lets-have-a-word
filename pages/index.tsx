@@ -403,9 +403,14 @@ export default function Home() {
 
       // Show share modal for correct/incorrect guesses (Milestone 4.2)
       // Only show if the guess was actually submitted (not an error)
+      // Milestone 4.8: Add 2-second delay to allow user to see feedback message
       if (data.status === 'correct' || data.status === 'incorrect') {
         setPendingShareResult(data);
-        setShowShareModal(true);
+
+        // Delay showing the modal so user can see the guess result message
+        setTimeout(() => {
+          setShowShareModal(true);
+        }, 2000); // 2 second delay
       }
 
       // Clear input after successful submission (Milestone 4.3)
