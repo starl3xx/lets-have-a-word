@@ -306,12 +306,20 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap, animateScrollTo]);
 
   /**
-   * Calculate which word is visually at the center based on current scroll position
-   * This updates in real-time during scrolling for smooth 3D effect transitions
+   * Calculate which word should be highlighted based on current state
+   * CRITICAL: When typing (centerIndex !== -1), use centerIndex directly
+   * This ensures the highlighted word matches the word being typed (shown above gap)
    */
   const visualCenterIndex = useMemo(() => {
+    // When typing, always highlight the target word (centerIndex)
+    // This word appears just above the centered gap
+    if (centerIndex !== -1) {
+      return centerIndex;
+    }
+
+    // When not typing (scrolling manually or idle), calculate from scroll position
     if (!containerRef.current || containerHeight === 0 || words.length === 0) {
-      return centerIndex; // Fallback to target center
+      return -1;
     }
 
     // Calculate the vertical center of the viewport
@@ -329,7 +337,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     const index = Math.floor(adjustedPosition / ITEM_HEIGHT);
 
     return Math.max(0, Math.min(words.length - 1, index));
-  }, [scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT, centerIndex]);
+  }, [centerIndex, scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT]);
 
   /**
    * Get status-based styling (unchanged from original)
