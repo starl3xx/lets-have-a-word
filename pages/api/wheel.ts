@@ -46,6 +46,7 @@ export default async function handler(
       // Base seed words for the wheel (excluding the solution)
       // These are cosmetic "wrong guesses" to populate the wheel
       // Avoid common test words like BRAIN, TRAIN, DRAIN, etc.
+      // All words must be exactly 5 letters
       let wheelWords = [
         'words',
         'games',
@@ -60,9 +61,9 @@ export default async function handler(
         'write',
         'speak',
         'guess',
-        'answer',
-        'puzzle',
-        'riddle',
+        'reply',  // 5 letters (was 'answer' - 6 letters)
+        'clues',  // 5 letters (was 'puzzle' - 6 letters)
+        'hints',  // 5 letters (was 'riddle' - 6 letters)
         'quest',
         'forth',
         'quick',
