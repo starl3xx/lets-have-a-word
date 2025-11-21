@@ -161,13 +161,14 @@ export type SystemStateInsert = typeof systemState.$inferInsert;
  * Round Payouts Table
  * Stores payouts for each round (winner, referrer, top 10 guessers)
  * Milestone 3.1: Jackpot + split logic
+ * Milestone 4.9: fid is now nullable for seed and creator payouts
  */
 export const roundPayouts = pgTable('round_payouts', {
   id: serial('id').primaryKey(),
   roundId: integer('round_id').notNull().references(() => rounds.id),
-  fid: integer('fid').notNull(), // FK to users.fid - recipient of payout
+  fid: integer('fid'), // FK to users.fid - recipient of payout (null for seed/creator)
   amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
-  role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser'
+  role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser', 'seed', 'creator'
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundIdx: index('round_payouts_round_idx').on(table.roundId),

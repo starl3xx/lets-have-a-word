@@ -11,11 +11,55 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.7 Complete
+## 🎯 Current Status: Milestone 4.9 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.7 - Haptics Integration (Latest)
+### ✅ Milestone 4.9 - Non-Referral Prize Flow (Latest)
+
+Updated jackpot settlement to prevent players from gaming the referral system:
+
+- **Non-Referral Prize Logic**
+  - When a winner has no referrer, the 10% referrer share is NOT given to the winner
+  - Instead, it flows through the seed + creator pipeline:
+    1. First fills next-round seed (up to 0.1 ETH cap)
+    2. Any overflow goes to creator wallet
+  - Prevents incentive to avoid using referral links
+  - Keeps the growth loop healthy
+
+- **Schema Updates**
+  - `roundPayouts.fid` is now nullable for system payouts
+  - New payout roles: 'seed' and 'creator' (in addition to 'winner', 'referrer', 'top_guesser')
+  - Analytics-ready payout tracking
+
+- **Settlement Logic**
+  - New `allocateToSeedAndCreator()` helper function
+  - Automatic seed accumulation when referrer is missing
+  - Creator balance overflow handling
+  - Full payout records for transparency
+
+### ✅ Milestone 4.8 - Dev Mode Game Preview
+
+Enhanced development workflow with realistic mid-round testing and game state preview:
+
+- **Dev Mode Preview Endpoint**
+  - New `/api/game` unified state endpoint
+  - Returns complete game state in one request
+  - Supports forced preview states for UI testing
+  - Query params: `?devState=RESULT_CORRECT&devInput=CRANE`
+
+- **Backend State Management**
+  - Backend-controlled preview states: `SUBMITTING`, `RESULT_CORRECT`, `RESULT_WRONG_VALID`, `OUT_OF_GUESSES`
+  - Solution word revealed in dev mode for testing (`devSolution`)
+  - Realistic state simulation without affecting database
+
+- **Improved Testing Workflow**
+  - Test success/failure states without actual submissions
+  - Preview out-of-guesses state
+  - Verify UI behavior for all game states
+  - Complements existing mid-round test mode (Milestone 4.5)
+
+### ✅ Milestone 4.7 - Haptics Integration
 
 Fully integrated haptics across the game using the Farcaster mini-app SDK for tactile feedback:
 
@@ -622,10 +666,12 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 **`system_state`** - System-wide state (Milestone 3.1)
 - Creator balance (accumulated from 20% fee overflow)
 
-**`round_payouts`** - Payout records (Milestone 3.1)
+**`round_payouts`** - Payout records (Milestone 3.1, updated 4.9)
 - Winner, referrer, and top guesser payouts
+- Seed and creator payouts (Milestone 4.9)
 - Amount in ETH
-- Role tracking
+- Role tracking ('winner', 'referrer', 'top_guesser', 'seed', 'creator')
+- FID is nullable for system payouts (seed/creator)
 
 ## Game Mechanics
 
@@ -654,7 +700,7 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
   - +3 if holding ≥100M CLANKTON
   - +1 share bonus
 
-### Economics (Milestone 3.1)
+### Economics (Milestone 3.1, Updated in 4.9)
 
 **Per Paid Guess (80/20 Split)**
 - 80% → Prize pool
@@ -663,8 +709,24 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
 
 **Jackpot Resolution (80/10/10 Split)**
 - 80% → Winner
-- 10% → Referrer (or winner if no referrer)
+- 10% → Referrer (or seed + creator if no referrer - see below)
 - 10% → Top 10 guessers (split equally)
+
+**Non-Referral Prize Flow (Milestone 4.9)**
+
+When a winner **has a referrer**:
+- Winner gets 80%
+- Referrer gets 10%
+- Top 10 get 10%
+
+When a winner **does NOT have a referrer**:
+- Winner gets 80%
+- Top 10 get 10%
+- The unused 10% referrer share goes to:
+  1. Next-round seed (up to 0.1 ETH cap)
+  2. Creator wallet (any remaining overflow)
+
+This prevents players from avoiding referral links to maximize their payout and keeps the growth loop healthy.
 
 **Top 10 Ranking**
 - Ranked by total paid guess volume
