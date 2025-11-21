@@ -41,6 +41,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const [containerHeight, setContainerHeight] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const scrollAnimationRef = useRef<number | null>(null);
+  const animationTargetRef = useRef<number | null>(null); // Track animation target for seamless rendering
 
   // Calculate GAP_HEIGHT as 10vh dynamically
   const GAP_HEIGHT = useMemo(() => {
@@ -94,6 +95,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       cancelAnimationFrame(scrollAnimationRef.current);
     }
 
+    // Track animation target for seamless rendering during scroll
+    animationTargetRef.current = targetScrollTop;
+
     const startScrollTop = containerRef.current.scrollTop;
     const distance = targetScrollTop - startScrollTop;
     const duration = 150; // 150ms - fast but visible
@@ -107,13 +111,17 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       const easeOutCubic = 1 - Math.pow(1 - progress, 3);
 
       if (containerRef.current) {
-        containerRef.current.scrollTop = startScrollTop + distance * easeOutCubic;
+        const newScrollTop = startScrollTop + distance * easeOutCubic;
+        containerRef.current.scrollTop = newScrollTop;
+        // Update state immediately for real-time visual updates
+        setScrollTop(newScrollTop);
       }
 
       if (progress < 1) {
         scrollAnimationRef.current = requestAnimationFrame(animateScroll);
       } else {
         scrollAnimationRef.current = null;
+        animationTargetRef.current = null;
       }
     };
 
@@ -161,14 +169,23 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Calculate visible range for virtualization
    * Accounts for gap offset when calculating which words to render
+   * CRITICAL: Expands range during animation to prevent disappearing words
    */
   const visibleRange = useMemo(() => {
     if (containerHeight === 0 || words.length === 0) {
       return { startIndex: 0, endIndex: Math.min(100, words.length) };
     }
 
-    const scrollStart = Math.max(0, scrollTop - VIEWPORT_PADDING);
-    const scrollEnd = scrollTop + containerHeight + VIEWPORT_PADDING;
+    // Use both current scroll and animation target to ensure seamless rendering
+    const currentScroll = scrollTop;
+    const targetScroll = animationTargetRef.current ?? scrollTop;
+
+    // Calculate range that covers both current and target positions
+    const minScroll = Math.min(currentScroll, targetScroll);
+    const maxScroll = Math.max(currentScroll, targetScroll);
+
+    const scrollStart = Math.max(0, minScroll - VIEWPORT_PADDING);
+    const scrollEnd = maxScroll + containerHeight + VIEWPORT_PADDING;
 
     // Calculate indices accounting for gap
     let startIndex: number;
@@ -190,7 +207,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     endIndex = Math.min(words.length, endIndex + OVERSCAN_COUNT);
 
     return { startIndex, endIndex };
-  }, [scrollTop, containerHeight, words.length, gapTopOffset]);
+  }, [scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT]);
 
   /**
    * Track scroll position for virtualization
@@ -289,6 +306,32 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap, animateScrollTo]);
 
   /**
+   * Calculate which word is visually at the center based on current scroll position
+   * This updates in real-time during scrolling for smooth 3D effect transitions
+   */
+  const visualCenterIndex = useMemo(() => {
+    if (!containerRef.current || containerHeight === 0 || words.length === 0) {
+      return centerIndex; // Fallback to target center
+    }
+
+    // Calculate the vertical center of the viewport
+    const viewportCenter = scrollTop + containerHeight / 2;
+
+    // Account for top padding and gap
+    let adjustedPosition = viewportCenter - VIEWPORT_PADDING;
+
+    // If we're past the gap, subtract gap height
+    if (viewportCenter > gapTopOffset + GAP_HEIGHT) {
+      adjustedPosition -= GAP_HEIGHT;
+    }
+
+    // Calculate which word index is at this position
+    const index = Math.floor(adjustedPosition / ITEM_HEIGHT);
+
+    return Math.max(0, Math.min(words.length - 1, index));
+  }, [scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT, centerIndex]);
+
+  /**
    * Get status-based styling (unchanged from original)
    */
   const getStatusStyle = useCallback((status: WheelWordStatus) => {
@@ -314,7 +357,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, []);
 
   /**
-   * Calculate distance-based styling for 3D effect (unchanged from original)
+   * Calculate distance-based styling for 3D effect
+   * CRITICAL: Uses visualCenterIndex (actual scroll position) not centerIndex (target)
+   * This ensures font weight and styling update in real-time during scrolling
    */
   const getWordStyle = useCallback(
     (index: number, status: WheelWordStatus) => {
@@ -331,7 +376,8 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
         };
       }
 
-      const distance = Math.abs(index - centerIndex);
+      // Use visualCenterIndex for real-time 3D effect during scrolling
+      const distance = Math.abs(index - visualCenterIndex);
       const isExactMatch = words[index].word.toLowerCase() === currentGuess.toLowerCase();
 
       let scale = 1.0;
@@ -404,7 +450,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
         textShadow: statusStyle.textShadow,
       };
     },
-    [centerIndex, currentGuess, words, getStatusStyle]
+    [centerIndex, visualCenterIndex, currentGuess, words, getStatusStyle]
   );
 
   /**
