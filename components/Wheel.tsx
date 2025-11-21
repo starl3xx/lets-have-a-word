@@ -33,7 +33,7 @@ interface WheelProps {
 
 // Configuration constants - precisely matched to original
 const ITEM_HEIGHT = 33; // pixels per word (lineHeight: 1.6 * fontSize: 1.3rem ≈ 33px)
-const GAP_HEIGHT = 146; // pixels for input box gap (12vh + padding: 120 + 12.8 + 12.8 ≈ 146px)
+const GAP_HEIGHT = 120; // pixels for input box gap (12vh ≈ 120px, padding is internal)
 const OVERSCAN_COUNT = 30; // Number of items to render above/below viewport
 const VIEWPORT_PADDING = 400; // Top/bottom padding in pixels
 
@@ -220,22 +220,20 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    * Auto-scroll to center GAP when user types
    * KEY FIX: We scroll to center the GAP (not the word)
    * This makes the word appear ABOVE the gap, matching the original behavior
+   *
+   * Original behavior: Always scrolls to gap, instant when no input, smooth when typing
    */
   useEffect(() => {
     if (!containerRef.current || words.length === 0 || !isInitialized) return;
 
-    // When user clears input (centerIndex = -1), keep current position
-    if (centerIndex === -1) {
-      return;
-    }
-
-    // When typing, smoothly scroll to center the GAP (which is after the centered word)
-    // This makes the centered word appear ABOVE the gap
+    // Calculate target scroll position
     const targetScroll = getScrollTopForGap(gapIndex);
 
+    // Scroll to gap position
+    // Instant when no input (centerIndex = -1), smooth when typing
     containerRef.current.scrollTo({
       top: targetScroll,
-      behavior: 'smooth',
+      behavior: centerIndex === -1 ? 'auto' : 'smooth',
     });
   }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap]);
 
@@ -419,6 +417,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Render the gap (input box area)
    * This creates a HARD gap where NO words can appear
+   * Height is exactly 12vh (≈120px) like the original
    */
   const gapElement = useMemo(() => {
     return (
@@ -429,7 +428,6 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           top: `${gapTopOffset}px`,
           height: `${GAP_HEIGHT}px`,
           pointerEvents: 'none',
-          // Hard barrier - no content allowed
           backgroundColor: 'transparent',
           zIndex: 10, // Above words to block them visually
         }}
