@@ -314,7 +314,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Calculate which word should be highlighted based on current state
-   * CRITICAL: During animation, use scroll position for smooth font-weight transitions
+   * CRITICAL: During animation, find the word just above the gap (which is centered)
    * When settled and typing, use centerIndex to match the word above gap
    */
   const visualCenterIndex = useMemo(() => {
@@ -326,20 +326,23 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     }
 
     // During animation OR when not typing: calculate from scroll position
-    // This ensures smooth font-weight transitions as the wheel rotates
+    // The gap is centered in viewport, so we want the word just above the gap
     if (isAnimating || centerIndex === -1) {
-      // Calculate the vertical center of the viewport
+      // Find the top of the gap in scroll coordinates
+      // Gap is centered in viewport, so its top is at: viewport center - gap height / 2
       const viewportCenter = scrollTop + containerHeight / 2;
+      const gapTopInScroll = viewportCenter - GAP_HEIGHT / 2;
 
-      // Account for top padding and gap
-      let adjustedPosition = viewportCenter - VIEWPORT_PADDING;
+      // Find which word is just before the gap top
+      let adjustedPosition = gapTopInScroll - VIEWPORT_PADDING;
 
-      // If we're past the gap, subtract gap height
-      if (viewportCenter > gapTopOffset + GAP_HEIGHT) {
+      // Account for gap offset in word positions
+      // If the gap top is below gapTopOffset, words are offset by GAP_HEIGHT
+      if (gapTopInScroll >= gapTopOffset) {
         adjustedPosition -= GAP_HEIGHT;
       }
 
-      // Calculate which word index is at this position
+      // Calculate which word index is at this position (just above gap)
       const index = Math.floor(adjustedPosition / ITEM_HEIGHT);
 
       return Math.max(0, Math.min(words.length - 1, index));
