@@ -80,15 +80,25 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Auto-scroll to center the gap (where input boxes are)
    * This makes words skip over the input box area
+   *
+   * Bug fix: Only scroll when we have words and a valid gap ref
    */
   useEffect(() => {
-    if (gapRef.current) {
-      gapRef.current.scrollIntoView({
-        behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
-        block: 'center',
-      });
-    }
-  }, [centerIndex, words]);
+    if (words.length === 0) return; // Don't scroll if no words
+    if (!gapRef.current) return; // Don't scroll if gap ref not ready
+
+    // Small delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      if (gapRef.current) {
+        gapRef.current.scrollIntoView({
+          behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
+          block: 'center',
+        });
+      }
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [centerIndex, words.length]); // Use words.length instead of words to avoid unnecessary re-renders
 
   /**
    * Get status-based styling for a word
@@ -223,6 +233,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        minHeight: '100%', // Ensure container never collapses
       }}
     >
       {/* Hide scrollbar */}
