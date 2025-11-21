@@ -761,6 +761,37 @@ await sdk.actions.openUrl({
 
 ## Key Features by Milestone
 
+### Completed Milestones (1.1 - 4.11)
+
+### Milestone 1.1: Data Model + Rules
+- Database schema design (game_rules, users, rounds, guesses)
+- JSON ruleset configuration system
+- Word list imports (ANSWER_WORDS, GUESS_WORDS, SEED_WORDS)
+- Ruleset management (getRulesForRound)
+- Foreign key relationships
+
+### Milestone 1.2: Round Lifecycle
+- Round creation with commit-reveal
+- Salt generation and SHA-256 hashing
+- Random answer selection from ANSWER_WORDS
+- Prize pool initialization
+- Round resolution logic
+- Winner and referrer settlement
+
+### Milestone 1.3: Guess Logic Basic
+- Per-FID guess counters
+- Global wrong word deduplication
+- Top 10 guesser ranking logic
+- Max paid guesses per day (10)
+- Guess validation and submission
+
+### Milestone 1.4: Minimal Frontend
+- Basic 5-letter input UI
+- Simple guess submission flow
+- POST /guess endpoint integration
+- Correct/wrong feedback display
+- No wheel, no Farcaster yet (barebones test UI)
+
 ### Milestone 2.1: Farcaster Authentication
 - Integrated Farcaster MiniApp SDK
 - User context extraction (FID)
@@ -776,6 +807,21 @@ await sdk.actions.openUrl({
 - Alphabetical sorting
 - Prize pool display
 - Auto-scrolling to typed word position
+
+### Milestone 3.1: Jackpot + Split Logic
+- 80/20 split on paid guesses (prize pool / seed)
+- 80/10/10 jackpot distribution (winner / referrer / top 10)
+- Top 10 payout distribution logic
+- Creator balance tracking
+- round_payouts table for payout records
+- 0.1 ETH seed cap logic
+- Comprehensive economic functions
+
+### Milestone 3.2: Top Ticker Polish
+- Real prize pool from database
+- USD conversion with placeholder/config rate
+- Proper number formatting
+- Live updates every 15 seconds
 
 ### Milestone 4.1: User State Display
 - Guess counts (free/paid/total)
@@ -848,6 +894,73 @@ await sdk.actions.openUrl({
 - **Fast Rotation**: 150ms animated scroll with visible wheel rotation
 - **Dynamic Gap**: 10vh responsive gap height
 - **Invariant Verification**: ANSWER_WORDS ⊆ GUESS_WORDS maintained
+
+### Planned Milestones (5.1 - 6.2)
+
+### Milestone 5.1: Farcaster Announcer Bot
+- **Status**: Partially started (@letshaveaword account created)
+- Create and connect announcer bot signer
+- Automated announcements:
+  - postRoundStarted() - New round notifications
+  - postRoundResolved() - Winner announcements
+  - postMilestoneJackpot() - Prize pool milestones
+  - postMilestoneGuesses() - Guess count milestones
+  - postReferralWin() - Referral bonus highlights
+
+### Milestone 5.2: Analytics & Tracking
+- **Status**: Not started
+- Analytics infrastructure:
+  - Analytics table creation
+  - Event logging system (daily_open, free_guess, paid_guess, etc.)
+  - Log round lifecycle events (round_started, round_resolved)
+  - Log social events (share_bonus_unlocked, referral_join, referral_win)
+- Analytics views and dashboards:
+  - DAU/WAU calculation views
+  - Jackpot growth tracking
+  - Free/paid guess ratio analysis
+  - Admin analytics page
+
+### Milestone 5.3: Anti-Abuse + Infrastructure
+- **Status**: Not started
+- **Anti-Abuse Measures**:
+  - Enforce Neynar spam score thresholds
+  - Abuse detection and user flagging
+  - Rate limiting for /guess endpoint
+- **Infrastructure Improvements**:
+  - Caching layers (jackpot, wheel words, global guesses)
+  - Cron job: daily reset automation
+  - Cron job: jackpot monitoring and alerts
+  - Logging and error monitoring system
+
+### Milestone 5.4: Round Archive
+- **Status**: Not started
+- Round summary fields on rounds table
+- Historical round data API
+- Archive browsing UI
+- Past winners showcase
+- Search and filter functionality
+
+### Milestone 6.1: Smart Contract Integration
+- **Status**: Not started
+- **Smart Contract Development**:
+  - Paid guess escrow contract
+  - Automated payout function
+  - Purchase event handling
+  - Creator withdrawal mechanism
+- Contract testing and auditing
+- Testnet deployment and validation
+- Mainnet deployment
+
+### Milestone 6.2: Optional / Future Enhancements
+- **Status**: Wishlist
+- Domain acquisition (http://letshaveaword.fun)
+- Multi-wallet CLANKTON support (check all verified addresses)
+- XP system v2 with progression paths
+- Global leaderboards and rankings
+- Localization support (i18n)
+- Custom animations and transitions
+- Achievement badge system
+- Unlockable rewards and perks
 
 ---
 
