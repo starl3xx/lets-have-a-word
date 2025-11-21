@@ -191,30 +191,46 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Initialize scroll on first load
    * Instant scroll to center gap (like original)
+   * CRITICAL: Uses setTimeout to ensure DOM is ready
    */
   useEffect(() => {
     if (!containerRef.current || words.length === 0 || isInitialized) return;
 
-    const targetScroll = getScrollTopForGap();
-    containerRef.current.scrollTop = targetScroll;
-    setScrollTop(targetScroll);
-    setIsInitialized(true);
+    // Defer to next tick to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      if (!containerRef.current) return;
+
+      const targetScroll = getScrollTopForGap();
+      containerRef.current.scrollTop = targetScroll;
+      setScrollTop(targetScroll);
+      setIsInitialized(true);
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [words.length, isInitialized, getScrollTopForGap]);
 
   /**
    * Auto-scroll to center gap when user types
    * Replicates original: instant when centerIndex = -1, smooth when typing
+   * CRITICAL: Uses setTimeout to ensure DOM is ready before scrolling
    */
   useEffect(() => {
     if (!containerRef.current || words.length === 0 || !isInitialized) return;
 
-    const targetScroll = getScrollTopForGap();
+    // Defer scroll to next tick to ensure DOM is ready (like original)
+    const timeoutId = setTimeout(() => {
+      if (!containerRef.current) return;
 
-    containerRef.current.scrollTo({
-      top: targetScroll,
-      behavior: centerIndex === -1 ? 'auto' : 'smooth',
-    });
-  }, [centerIndex, words.length, isInitialized, getScrollTopForGap]);
+      const targetScroll = getScrollTopForGap();
+
+      containerRef.current.scrollTo({
+        top: targetScroll,
+        behavior: centerIndex === -1 ? 'auto' : 'smooth',
+      });
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap]);
 
   /**
    * Get status-based styling (unchanged from original)
