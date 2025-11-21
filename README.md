@@ -11,11 +11,34 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.10 Complete
+## 🎯 Current Status: Milestone 4.11 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.10 - Global Wheel Over All Guessable Words (Latest)
+### ✅ Milestone 4.11 - Final Word List Integration (Latest)
+
+Finalized integration of canonical word lists from the official Wordle word sets:
+
+- **Canonical Word Lists**
+  - **ANSWER_WORDS**: 2,279 curated words (valid answers only)
+  - **GUESS_WORDS**: 10,516 words (all valid guesses, includes all ANSWER_WORDS)
+  - Located in `src/data/answer_words.ts` and `src/data/guess_words.ts`
+  - All words in UPPERCASE for consistency
+  - Invariant maintained: ANSWER_WORDS ⊆ GUESS_WORDS
+
+- **Integration**
+  - Answer selection uses ANSWER_WORDS exclusively
+  - Guess validation uses GUESS_WORDS
+  - Wheel rendering displays all GUESS_WORDS with status
+  - SEED_WORDS deprecated and removed from game logic
+
+- **Word List Processing**
+  - Filtered from official Wordle lists
+  - Simple plurals removed (no words ending in 'S')
+  - Deduplicated and alphabetized
+  - Exactly 5 letters, A-Z only
+
+### ✅ Milestone 4.10 - Global Wheel Over All Guessable Words
 
 Redesigned the word wheel to show the complete universe of guessable words from the start:
 
@@ -31,9 +54,9 @@ Redesigned the word wheel to show the complete universe of guessable words from 
   - `winner` - Gold with glow, the correct answer (only shown after win)
   - Backend derives status per word based on round state
 
-- **Word List Model**
-  - **ANSWER_WORDS** (~2,500 words) - Curated words that can be correct answers
-  - **GUESS_WORDS** (~10,000 words) - All valid guessable words (includes all ANSWER_WORDS)
+- **Word List Model** (See Milestone 4.11 for latest)
+  - Wheel displays all GUESS_WORDS from the start
+  - Status-based rendering (unguessed/wrong/winner)
   - SEED_WORDS removed - no longer needed
 
 - **Updated API Contract**
