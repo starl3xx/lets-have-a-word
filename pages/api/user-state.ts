@@ -82,12 +82,12 @@ export default async function handler(
       // Return synthetic user state for dev mode
       return res.status(200).json({
         fid,
-        freeGuessesRemaining: 3,
+        freeGuessesRemaining: 1,
         paidGuessesRemaining: 0,
-        totalGuessesRemaining: 3,
+        totalGuessesRemaining: 1,
         clanktonBonusActive: false,
         freeAllocations: {
-          base: 3,
+          base: 1,
           clankton: 0,
           shareBonus: 0,
         },
