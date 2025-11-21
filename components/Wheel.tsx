@@ -505,8 +505,8 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
             letterSpacing: style.letterSpacing,
             textShadow: style.textShadow,
             pointerEvents: 'none',
-            // Only animate specific properties, NOT letter-spacing or font-weight
-            transition: 'transform 0.3s ease-out, opacity 0.3s ease-out, color 0.3s ease-out',
+            // Only animate opacity and color, NOT transform (scale), letter-spacing, or font-weight
+            transition: 'opacity 0.3s ease-out, color 0.3s ease-out',
           }}
         >
           {wheelWord.word}
