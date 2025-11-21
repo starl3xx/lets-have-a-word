@@ -32,7 +32,7 @@ interface WheelProps {
 
 // Constants - matched to original
 const ITEM_HEIGHT = 33; // pixels (lineHeight 1.6 * fontSize 1.3rem ≈ 33px)
-const GAP_HEIGHT = 146; // pixels (12vh ≈ 120px + padding 13px top + 13px bottom)
+const GAP_HEIGHT = 100; // pixels (tighter gap for input boxes, reduced from 12vh)
 const VIEWPORT_PADDING = 400; // Top/bottom padding (≈ 40vh at 1000px height)
 const OVERSCAN_COUNT = 30; // Extra items to render above/below viewport
 
