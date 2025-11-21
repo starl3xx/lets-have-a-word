@@ -110,11 +110,17 @@ export default function Home() {
         const response = await fetch('/api/wheel');
         if (response.ok) {
           const data: WheelResponse = await response.json();
-          setWheelWords(data.words || []);
+          if (data.words && data.words.length > 0) {
+            setWheelWords(data.words);
+          } else {
+            console.warn('Wheel API returned empty words array');
+          }
+        } else {
+          console.error('Wheel API returned non-OK status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching wheel words:', error);
-        setWheelWords([]);
+        // Don't clear wheelWords on error - keep existing words if any
       } finally {
         setIsLoadingWheel(false);
       }
@@ -394,10 +400,15 @@ export default function Home() {
           const wheelResponse = await fetch('/api/wheel');
           if (wheelResponse.ok) {
             const wheelData: WheelResponse = await wheelResponse.json();
-            setWheelWords(wheelData.words || []);
+            if (wheelData.words && wheelData.words.length > 0) {
+              setWheelWords(wheelData.words);
+            } else {
+              console.warn('Wheel refetch returned empty words array');
+            }
           }
         } catch (error) {
           console.error('Error refetching wheel:', error);
+          // Don't clear wheelWords on error - keep existing state
         }
       }
 
