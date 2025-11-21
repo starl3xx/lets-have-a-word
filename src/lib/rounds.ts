@@ -3,7 +3,6 @@ import { eq, isNull } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
-import { populateRoundSeedWords } from './wheel';
 import { resolveRoundAndCreatePayouts } from './economics';
 
 /**
@@ -65,8 +64,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);
 
-  // Populate seed words for the wheel (Milestone 2.3)
-  await populateRoundSeedWords(round.id);
+  // Milestone 4.10: Seed words removed - wheel shows all GUESS_WORDS from start
 
   return {
     id: round.id,
