@@ -12,7 +12,7 @@ import type { WheelWord, WheelWordStatus } from '../src/types';
  * - inputState: Current input state (Milestone 4.6)
  *
  * Milestone 4.11 Performance Optimizations:
- * - Virtual scrolling: Only renders ~50 visible words (not all 10,516)
+ * - Virtual scrolling: Only renders ~50-80 visible words (not all 10,516)
  * - Binary search for O(log n) center index lookup
  * - Memoized calculations prevent unnecessary re-renders
  * - Direct scroll manipulation for instant, smooth jumping
@@ -30,10 +30,10 @@ interface WheelProps {
   inputState?: InputState;
 }
 
-// Configuration constants
-const ITEM_HEIGHT = 50; // pixels per word (approximate)
+// Configuration constants - tuned to match original visual spacing
+const ITEM_HEIGHT = 42; // pixels per word (matches original lineHeight: 1.6 * 1.3rem + padding)
 const GAP_HEIGHT = 120; // pixels for input box gap (12vh ≈ 120px)
-const OVERSCAN_COUNT = 25; // Number of items to render above/below viewport
+const OVERSCAN_COUNT = 30; // Number of items to render above/below viewport
 const VIEWPORT_PADDING = 400; // Top/bottom padding in pixels
 
 export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
@@ -41,6 +41,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const gapRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   /**
    * Binary search to find alphabetical center index
@@ -105,8 +106,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    * Returns { startIndex, endIndex } of visible range
    */
   const visibleRange = useMemo(() => {
-    if (containerHeight === 0) {
-      return { startIndex: 0, endIndex: Math.min(50, words.length) };
+    if (containerHeight === 0 || words.length === 0) {
+      // Show more items initially to ensure content is visible
+      return { startIndex: 0, endIndex: Math.min(80, words.length) };
     }
 
     const scrollStart = Math.max(0, scrollTop - VIEWPORT_PADDING);
@@ -169,16 +171,27 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, []);
 
   /**
+   * Initialize scroll position on first load
+   */
+  useEffect(() => {
+    if (!containerRef.current || words.length === 0 || isInitialized) return;
+
+    // Center the gap on initial load
+    const targetScroll = getScrollTopForIndex(gapIndex);
+    containerRef.current.scrollTop = targetScroll;
+    setScrollTop(targetScroll);
+    setIsInitialized(true);
+  }, [words.length, gapIndex, isInitialized, getScrollTopForIndex]);
+
+  /**
    * Auto-scroll to center when user types
    * Uses direct scroll manipulation for instant, smooth jumping
    */
   useEffect(() => {
-    if (!containerRef.current || words.length === 0) return;
+    if (!containerRef.current || words.length === 0 || !isInitialized) return;
+
+    // When user clears input (centerIndex = -1), keep current position
     if (centerIndex === -1) {
-      // On initial load, center the gap
-      const targetScroll = getScrollTopForIndex(gapIndex);
-      containerRef.current.scrollTop = targetScroll;
-      setScrollTop(targetScroll);
       return;
     }
 
@@ -189,7 +202,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       top: targetScroll,
       behavior: 'smooth',
     });
-  }, [centerIndex, gapIndex, words.length, getScrollTopForIndex]);
+  }, [centerIndex, words.length, isInitialized, getScrollTopForIndex]);
 
   /**
    * Get status-based styling for a word
@@ -341,12 +354,15 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           className="absolute w-full text-center transition-all duration-300 ease-out"
           style={{
             top: `${topOffset + gapOffset}px`,
+            height: `${ITEM_HEIGHT}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             transform: `scale(${style.scale})`,
             opacity: style.opacity,
             fontWeight: style.fontWeight,
             color: style.color,
             fontSize: '1.3rem',
-            lineHeight: `${ITEM_HEIGHT}px`,
             textTransform: 'uppercase',
             letterSpacing: style.letterSpacing,
             textShadow: style.textShadow,
@@ -363,6 +379,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Render the gap (input box area)
+   * This creates a physical space where words cannot appear
    */
   const gapElement = useMemo(() => {
     const gapTopOffset = VIEWPORT_PADDING + gapIndex * ITEM_HEIGHT;
@@ -375,6 +392,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           top: `${gapTopOffset}px`,
           height: `${GAP_HEIGHT}px`,
           pointerEvents: 'none',
+          zIndex: 1, // Ensure gap is above words
         }}
       />
     );
@@ -413,11 +431,11 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
             width: '100%',
           }}
         >
+          {/* Gap for input boxes - renders first so words appear above/below it */}
+          {gapElement}
+
           {/* Virtualized visible words */}
           {visibleWords}
-
-          {/* Gap for input boxes */}
-          {gapElement}
         </div>
       )}
     </div>
