@@ -11,11 +11,42 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.9 Complete
+## 🎯 Current Status: Milestone 4.10 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.9 - Non-Referral Prize Flow (Latest)
+### ✅ Milestone 4.10 - Global Wheel Over All Guessable Words (Latest)
+
+Redesigned the word wheel to show the complete universe of guessable words from the start:
+
+- **Global Word Wheel**
+  - Displays ALL ~10,000 GUESS_WORDS from round start
+  - Each word has a status: `unguessed`, `wrong`, or `winner`
+  - Creates a global, real-time elimination board shared by all players
+  - No more seed words - wheel reflects actual game state
+
+- **Status-Based Rendering**
+  - `unguessed` - Gray, default state for all words at round start
+  - `wrong` - Red, word was guessed incorrectly by someone
+  - `winner` - Gold with glow, the correct answer (only shown after win)
+  - Backend derives status per word based on round state
+
+- **Word List Model**
+  - **ANSWER_WORDS** (~2,500 words) - Curated words that can be correct answers
+  - **GUESS_WORDS** (~10,000 words) - All valid guessable words (includes all ANSWER_WORDS)
+  - SEED_WORDS removed - no longer needed
+
+- **Updated API Contract**
+  - `/api/wheel` returns `WheelResponse` with per-word status
+  - Response includes `totalWords`, `roundId`, and array of `{word, status}` objects
+  - Frontend uses status for styling instead of client-side derivation
+
+- **Performance**
+  - Virtualized scrolling handles 10k+ words efficiently
+  - Alphabetical sorting maintained
+  - Auto-scroll to user input position
+
+### ✅ Milestone 4.9 - Non-Referral Prize Flow
 
 Updated jackpot settlement to prevent players from gaming the referral system:
 
@@ -659,9 +690,9 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 - Paid pack purchases
 - Share bonus tracking
 
-**`round_seed_words`** - Wheel seed words (Milestone 2.3)
-- Cosmetic pre-population
-- 30 random words per round
+**`round_seed_words`** - ~~Wheel seed words~~ (Deprecated in Milestone 4.10)
+- No longer used - wheel now shows all GUESS_WORDS with derived status
+- Table retained for historical data only
 
 **`system_state`** - System-wide state (Milestone 3.1)
 - Creator balance (accumulated from 20% fee overflow)
@@ -674,6 +705,23 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 - FID is nullable for system payouts (seed/creator)
 
 ## Game Mechanics
+
+### Wheel Behavior
+
+The wheel shows **all possible guessable words** (GUESS_WORDS) from the start of each round.
+
+Every word begins in the `unguessed` state. As guesses come in:
+
+- Valid wrong guesses → word becomes `wrong` (red)
+- The winning guess → word becomes `winner` (gold with glow)
+
+This creates a global, real-time elimination board shared by every player. As more guesses are made, the wheel fills with red words, narrowing down the possibilities for everyone.
+
+**Scroll Behavior**
+- As you type, the wheel auto-scrolls to show words matching your input alphabetically
+- Typing partial words (1-4 letters) scrolls to that prefix range
+- Typing a complete 5-letter word centers on that exact word
+- Words are styled with a faux-3D effect based on distance from center
 
 ### Guessing System
 
