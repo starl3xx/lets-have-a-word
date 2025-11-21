@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveWheelData } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevFixedSolution } from '../../src/lib/devGameState';
+import { getGuessWords } from '../../src/lib/word-lists';
+import type { WheelResponse, WheelWord, WheelWordStatus } from '../../src/types';
 
 /**
  * GET /api/wheel
@@ -9,17 +11,24 @@ import { isDevModeEnabled, getDevFixedSolution } from '../../src/lib/devGameStat
  * Returns the wheel words for the current active round
  * Milestone 2.3: Wheel + Visual State + Top Ticker
  * Milestone 4.8: Now supports dev mode with synthetic wheel data
+ * Milestone 4.10: Returns all GUESS_WORDS with per-word status
  *
  * Response:
  * {
  *   "roundId": 1,
- *   "words": ["ABORT", "ABOUT", "ACTOR", ...]
+ *   "totalWords": 9000,
+ *   "words": [
+ *     { "word": "ABORT", "status": "wrong" },
+ *     { "word": "ABOUT", "status": "unguessed" },
+ *     { "word": "ACTOR", "status": "winner" },
+ *     ...
+ *   ]
  * }
  *
- * Words are sorted alphabetically and include:
- * - Seed words (cosmetic pre-population)
- * - Wrong guesses from real players (production)
- * - Synthetic seed words (dev mode)
+ * Status values:
+ * - "unguessed": Word has not been guessed yet
+ * - "wrong": Word was guessed incorrectly
+ * - "winner": Word is the correct answer
  *
  * Dev mode query params:
  * - wrongGuesses: Comma-separated list of wrong guesses to include (e.g., "BRAIN,TRAIN")
@@ -29,7 +38,7 @@ import { isDevModeEnabled, getDevFixedSolution } from '../../src/lib/devGameStat
  */
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<{ roundId: number; words: string[] } | { error: string }>
+  res: NextApiResponse<WheelResponse | { error: string }>
 ) {
   // Only allow GET
   if (req.method !== 'GET') {
@@ -39,58 +48,52 @@ export default async function handler(
   try {
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning synthetic wheel words');
+      console.log('🎮 Dev mode: Returning synthetic wheel words with statuses');
 
-      const solution = getDevFixedSolution().toLowerCase();
+      const solution = getDevFixedSolution().toUpperCase();
+      console.log(`🎮 Dev mode solution: ${solution}`);
 
-      // Base seed words for the wheel (excluding the solution)
-      // These are cosmetic "wrong guesses" to populate the wheel
-      // Avoid common test words like BRAIN, TRAIN, DRAIN, etc.
-      // All words must be exactly 5 letters
-      let wheelWords = [
-        'words',
-        'games',
-        'think',
-        'smart',
-        'plays',
-        'solve',
-        'logic',
-        'build',
-        'learn',
-        'teach',
-        'write',
-        'speak',
-        'guess',
-        'reply',  // 5 letters (was 'answer' - 6 letters)
-        'clues',  // 5 letters (was 'puzzle' - 6 letters)
-        'hints',  // 5 letters (was 'riddle' - 6 letters)
-        'quest',
-        'forth',
-        'quick',
-        'jumps',
-      ].filter(word => word !== solution);
+      // Get all guess words to build the full wheel
+      const allGuessWords = getGuessWords();
 
-      // Add wrong guesses from query param (for dev mode testing)
+      // Parse wrong guesses from query param
       const wrongGuessesParam = req.query.wrongGuesses as string | undefined;
+      const wrongGuessSet = new Set<string>();
+
       if (wrongGuessesParam) {
         const wrongGuesses = wrongGuessesParam
           .split(',')
-          .map(w => w.trim().toLowerCase())
+          .map(w => w.trim().toUpperCase())
           .filter(w => w.length === 5 && w !== solution);
 
-        // Add wrong guesses to wheel (avoid duplicates)
-        wrongGuesses.forEach(guess => {
-          if (!wheelWords.includes(guess)) {
-            wheelWords.push(guess);
-          }
-        });
-
-        console.log(`🎮 Dev mode: Added ${wrongGuesses.length} wrong guesses to wheel`);
+        wrongGuesses.forEach(guess => wrongGuessSet.add(guess));
+        console.log(`🎮 Dev mode: Added ${wrongGuessSet.size} wrong guesses`);
       }
+
+      // Build wheel words with statuses
+      const wheelWords: WheelWord[] = allGuessWords.map((word) => {
+        const upperWord = word.toUpperCase();
+        let status: WheelWordStatus = 'unguessed';
+
+        if (upperWord === solution) {
+          status = 'winner';
+        } else if (wrongGuessSet.has(upperWord)) {
+          status = 'wrong';
+        }
+
+        return {
+          word: upperWord,
+          status,
+        };
+      });
+
+      // Sort alphabetically
+      wheelWords.sort((a, b) => a.word.localeCompare(b.word));
 
       return res.status(200).json({
         roundId: 999999,
-        words: wheelWords.sort(), // Sort alphabetically
+        totalWords: wheelWords.length,
+        words: wheelWords,
       });
     }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
-import type { SubmitGuessResult, UserStateResponse } from '../src/types';
+import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
@@ -27,12 +27,9 @@ export default function Home() {
   const [fid, setFid] = useState<number | null>(null);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
 
-  // Wheel state (Milestone 2.3)
-  const [wheelWords, setWheelWords] = useState<string[]>([]);
+  // Wheel state (Milestone 2.3, updated Milestone 4.10)
+  const [wheelWords, setWheelWords] = useState<WheelWord[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
-
-  // Dev mode wrong guesses tracking (Milestone 4.8)
-  const [devWrongGuesses, setDevWrongGuesses] = useState<Set<string>>(new Set());
 
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
@@ -104,34 +101,33 @@ export default function Home() {
   }, [fid]);
 
   /**
-   * Fetch wheel words on mount (Milestone 2.3)
-   * Milestone 4.8: Dev mode support with alphabetical sorting
+   * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
+   * Wheel now returns all GUESS_WORDS with per-word status
    */
   useEffect(() => {
     const fetchWheelWords = async () => {
       try {
         const response = await fetch('/api/wheel');
         if (response.ok) {
-          const data = await response.json();
-          const baseWords = data.words || [];
-
-          // In dev mode, merge with tracked wrong guesses and sort
-          const allWords = [...baseWords, ...Array.from(devWrongGuesses)];
-          const uniqueWords = Array.from(new Set(allWords));
-          const sortedWords = uniqueWords.sort();
-
-          setWheelWords(sortedWords);
+          const data: WheelResponse = await response.json();
+          if (data.words && data.words.length > 0) {
+            setWheelWords(data.words);
+          } else {
+            console.warn('Wheel API returned empty words array');
+          }
+        } else {
+          console.error('Wheel API returned non-OK status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching wheel words:', error);
-        setWheelWords([]);
+        // Don't clear wheelWords on error - keep existing words if any
       } finally {
         setIsLoadingWheel(false);
       }
     };
 
     fetchWheelWords();
-  }, [devWrongGuesses]); // Re-fetch when wrong guesses change
+  }, []); // Fetch once on mount - API handles all state derivation
 
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
@@ -157,7 +153,7 @@ export default function Home() {
   }, [fid, userStateKey]); // Re-fetch when userStateKey changes
 
   /**
-   * Trigger shake when typing invalid words (Milestone 4.6)
+   * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
    * Provides immediate visual feedback for invalid state
    * Note: Haptics for invalid states are now handled by useInputStateHaptics hook (Milestone 4.7)
    */
@@ -165,11 +161,16 @@ export default function Home() {
     const currentWord = letters.join('');
     // Only trigger shake when user has typed 5 letters and it's invalid
     if (currentWord.length === 5) {
+      // Check if word has been guessed (wrong status)
+      const isAlreadyGuessed = wheelWords.some(
+        w => w.word.toLowerCase() === currentWord.toLowerCase() && w.status === 'wrong'
+      );
+
       // Get current state
       const state = getInputState({
         letters,
         isInGuessList: isValidGuess(currentWord),
-        isAlreadyGuessed: wheelWords.includes(currentWord.toLowerCase()),
+        isAlreadyGuessed,
         isSubmitting: isLoading,
         hasGuessesLeft,
         resultState: boxResultState,
@@ -227,10 +228,14 @@ export default function Home() {
 
     // Get current state to check if there's an error
     const word = letters.join('');
+    const isAlreadyGuessed = word.length === 5
+      ? wheelWords.some(w => w.word.toLowerCase() === word.toLowerCase() && w.status === 'wrong')
+      : false;
+
     const currentState = getInputState({
       letters,
       isInGuessList: word.length === 5 ? isValidGuess(word) : true,
-      isAlreadyGuessed: word.length === 5 ? wheelWords.includes(word.toLowerCase()) : false,
+      isAlreadyGuessed,
       isSubmitting: isLoading,
       hasGuessesLeft,
       resultState: boxResultState,
@@ -387,14 +392,24 @@ export default function Home() {
         triggerShake();
       }
 
-      // Refetch wheel data after guess (Milestone 2.3)
-      // Wrong guesses will now appear in the wheel
-      // Milestone 4.8: In dev mode, track wrong guesses (useEffect handles wheel update)
-      if (data.status === 'incorrect') {
-        // Add wrong guess to dev mode tracking
-        // The useEffect on line 110 will automatically handle fetching, merging, and sorting
-        const wrongWord = word.toLowerCase();
-        setDevWrongGuesses(prev => new Set([...prev, wrongWord]));
+      // Refetch wheel data after guess (Milestone 2.3, updated Milestone 4.10)
+      // Wheel will automatically update with new wrong guesses via backend status derivation
+      if (data.status === 'incorrect' || data.status === 'correct') {
+        // Re-fetch wheel to get updated statuses
+        try {
+          const wheelResponse = await fetch('/api/wheel');
+          if (wheelResponse.ok) {
+            const wheelData: WheelResponse = await wheelResponse.json();
+            if (wheelData.words && wheelData.words.length > 0) {
+              setWheelWords(wheelData.words);
+            } else {
+              console.warn('Wheel refetch returned empty words array');
+            }
+          }
+        } catch (error) {
+          console.error('Error refetching wheel:', error);
+          // Don't clear wheelWords on error - keep existing state
+        }
       }
 
       // Refetch user state after any guess (Milestone 4.1)
@@ -484,12 +499,16 @@ export default function Home() {
 
   const feedback = getFeedbackMessage();
 
-  // Compute current input state using state machine (Milestone 4.6)
+  // Compute current input state using state machine (Milestone 4.6, updated Milestone 4.10)
   const word = letters.join('');
+  const isAlreadyGuessed = word.length === 5
+    ? wheelWords.some(w => w.word.toLowerCase() === word.toLowerCase() && w.status === 'wrong')
+    : false;
+
   const currentInputState: InputState = getInputState({
     letters,
     isInGuessList: word.length === 5 ? isValidGuess(word) : true, // Only check if 5 letters
-    isAlreadyGuessed: word.length === 5 ? wheelWords.includes(word.toLowerCase()) : false,
+    isAlreadyGuessed,
     isSubmitting: isLoading,
     hasGuessesLeft,
     resultState: boxResultState,
