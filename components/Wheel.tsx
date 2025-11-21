@@ -12,17 +12,18 @@ import type { WheelWord, WheelWordStatus } from '../src/types';
  * - inputState: Current input state (Milestone 4.6)
  *
  * Milestone 4.11 Performance Optimizations:
- * - Virtual scrolling: Only renders ~50-80 visible words (not all 10,516)
+ * - Virtual scrolling: Only renders ~60-100 visible words (not all 10,516)
  * - Binary search for O(log n) center index lookup
  * - Memoized calculations prevent unnecessary re-renders
  * - Direct scroll manipulation for instant, smooth jumping
- * - Smart windowing with buffer zones
+ * - Smart windowing with gap-aware calculations
  *
  * Original features preserved:
  * - Status-based rendering: unguessed (gray), wrong (red), winner (gold)
  * - 3D effect with distance-based scaling and opacity
  * - Real layout gap that words cannot occupy
  * - Auto-scrolling to center user input alphabetically
+ * - Exact spacing matching original lineHeight: 1.6
  */
 interface WheelProps {
   words: WheelWord[];
@@ -30,8 +31,8 @@ interface WheelProps {
   inputState?: InputState;
 }
 
-// Configuration constants - tuned to match original visual spacing
-const ITEM_HEIGHT = 42; // pixels per word (matches original lineHeight: 1.6 * 1.3rem + padding)
+// Configuration constants - precisely matched to original
+const ITEM_HEIGHT = 33; // pixels per word (matches original lineHeight: 1.6 * fontSize: 1.3rem = 2.08rem ≈ 33px)
 const GAP_HEIGHT = 120; // pixels for input box gap (12vh ≈ 120px)
 const OVERSCAN_COUNT = 30; // Number of items to render above/below viewport
 const VIEWPORT_PADDING = 400; // Top/bottom padding in pixels
@@ -102,29 +103,55 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, [words.length]);
 
   /**
+   * Calculate gap position for visible range calculations
+   */
+  const gapTopOffset = useMemo(() => {
+    return VIEWPORT_PADDING + gapIndex * ITEM_HEIGHT;
+  }, [gapIndex]);
+
+  const gapBottomOffset = useMemo(() => {
+    return gapTopOffset + GAP_HEIGHT;
+  }, [gapTopOffset]);
+
+  /**
    * Calculate which items are currently visible
-   * Returns { startIndex, endIndex } of visible range
+   * IMPORTANT: Accounts for gap offset in calculations
    */
   const visibleRange = useMemo(() => {
     if (containerHeight === 0 || words.length === 0) {
       // Show more items initially to ensure content is visible
-      return { startIndex: 0, endIndex: Math.min(80, words.length) };
+      return { startIndex: 0, endIndex: Math.min(100, words.length) };
     }
 
     const scrollStart = Math.max(0, scrollTop - VIEWPORT_PADDING);
     const scrollEnd = scrollTop + containerHeight + VIEWPORT_PADDING;
 
-    const startIndex = Math.max(
-      0,
-      Math.floor(scrollStart / ITEM_HEIGHT) - OVERSCAN_COUNT
-    );
-    const endIndex = Math.min(
-      words.length,
-      Math.ceil(scrollEnd / ITEM_HEIGHT) + OVERSCAN_COUNT
-    );
+    // Calculate start index accounting for gap
+    let startIndex: number;
+    if (scrollStart < gapTopOffset) {
+      // Before gap: normal calculation
+      startIndex = Math.floor((scrollStart - VIEWPORT_PADDING) / ITEM_HEIGHT);
+    } else {
+      // After gap: subtract gap height
+      startIndex = Math.floor((scrollStart - VIEWPORT_PADDING - GAP_HEIGHT) / ITEM_HEIGHT);
+    }
+
+    // Calculate end index accounting for gap
+    let endIndex: number;
+    if (scrollEnd < gapTopOffset) {
+      // Before gap: normal calculation
+      endIndex = Math.ceil((scrollEnd - VIEWPORT_PADDING) / ITEM_HEIGHT);
+    } else {
+      // After gap: subtract gap height
+      endIndex = Math.ceil((scrollEnd - VIEWPORT_PADDING - GAP_HEIGHT) / ITEM_HEIGHT);
+    }
+
+    // Add overscan and clamp to valid range
+    startIndex = Math.max(0, startIndex - OVERSCAN_COUNT);
+    endIndex = Math.min(words.length, endIndex + OVERSCAN_COUNT);
 
     return { startIndex, endIndex };
-  }, [scrollTop, containerHeight, words.length]);
+  }, [scrollTop, containerHeight, words.length, gapTopOffset]);
 
   /**
    * Calculate scroll position to center a specific word index
@@ -354,15 +381,12 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           className="absolute w-full text-center transition-all duration-300 ease-out"
           style={{
             top: `${topOffset + gapOffset}px`,
-            height: `${ITEM_HEIGHT}px`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             transform: `scale(${style.scale})`,
             opacity: style.opacity,
             fontWeight: style.fontWeight,
             color: style.color,
             fontSize: '1.3rem',
+            lineHeight: '1.6',
             textTransform: 'uppercase',
             letterSpacing: style.letterSpacing,
             textShadow: style.textShadow,
@@ -382,8 +406,6 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    * This creates a physical space where words cannot appear
    */
   const gapElement = useMemo(() => {
-    const gapTopOffset = VIEWPORT_PADDING + gapIndex * ITEM_HEIGHT;
-
     return (
       <div
         ref={gapRef}
@@ -392,11 +414,12 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           top: `${gapTopOffset}px`,
           height: `${GAP_HEIGHT}px`,
           pointerEvents: 'none',
-          zIndex: 1, // Ensure gap is above words
+          // Create a visual barrier with a subtle background for debugging
+          // backgroundColor: 'rgba(255, 0, 0, 0.05)', // Uncomment to see gap
         }}
       />
     );
-  }, [gapIndex]);
+  }, [gapTopOffset]);
 
   return (
     <div
@@ -431,7 +454,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
             width: '100%',
           }}
         >
-          {/* Gap for input boxes - renders first so words appear above/below it */}
+          {/* Gap for input boxes */}
           {gapElement}
 
           {/* Virtualized visible words */}
