@@ -32,7 +32,6 @@ interface WheelProps {
 
 // Constants - matched to original
 const ITEM_HEIGHT = 33; // pixels (lineHeight 1.6 * fontSize 1.3rem ≈ 33px)
-const GAP_HEIGHT = 100; // pixels (tighter gap for input boxes, reduced from 12vh)
 const VIEWPORT_PADDING = 400; // Top/bottom padding (≈ 40vh at 1000px height)
 const OVERSCAN_COUNT = 30; // Extra items to render above/below viewport
 
@@ -41,6 +40,14 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Calculate GAP_HEIGHT as 9vh dynamically
+  const GAP_HEIGHT = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return Math.round(window.innerHeight * 0.09); // 9vh
+    }
+    return 90; // Fallback for SSR
+  }, []);
 
   /**
    * Binary search to find alphabetical center index
@@ -211,7 +218,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Auto-scroll to center gap when user types
-   * Replicates original: instant when centerIndex = -1, smooth when typing
+   * INSTANT scrolling for fast, fluid alphabet snapping
    * CRITICAL: Uses setTimeout to ensure DOM is ready before scrolling
    */
   useEffect(() => {
@@ -223,9 +230,10 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
       const targetScroll = getScrollTopForGap();
 
+      // Use 'auto' for instant, near-instantaneous snapping
       containerRef.current.scrollTo({
         top: targetScroll,
-        behavior: centerIndex === -1 ? 'auto' : 'smooth',
+        behavior: 'auto',
       });
     }, 0);
 
