@@ -37,12 +37,12 @@
 
 ### Daily Guess Allocation
 Each player gets a daily allocation of guesses:
-- **Base Free Guesses**: 3 per day
+- **Base Free Guesses**: 1 per day
 - **CLANKTON Bonus**: +3 if holding 100M+ CLANKTON tokens
 - **Share Bonus**: +1 for sharing to Farcaster (once per day)
 - **Paid Guess Packs**: Buy 3 guesses for 0.0003 ETH (max 3 packs/day)
 
-**Total Possible Daily Guesses**: 15 (3 base + 3 CLANKTON + 1 share + 9 paid)
+**Total Possible Daily Guesses**: 13 (1 base + 3 CLANKTON + 1 share + 9 paid)
 
 ### Prize Pool Economics
 - **70% to Prize Pool**: Accumulates for the winner
@@ -744,7 +744,7 @@ await sdk.actions.openUrl({
 - Dev mode fallback for testing
 
 ### Milestone 2.2: Daily Limits
-- Base 3 free guesses per day
+- Base 1 free guess per day
 - Paid guess packs (3 for 0.0003 ETH)
 - Database tracking per user per day
 
