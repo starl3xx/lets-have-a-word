@@ -7,7 +7,12 @@ import { populateRoundSeedWords } from '../../../src/lib/wheel';
 
 /**
  * Admin endpoint to refresh seed words for the active round
- * This deletes existing seed words and repopulates with new ones
+ *
+ * @deprecated Milestone 4.11: This endpoint is deprecated
+ * SEED_WORDS are no longer used. The wheel now displays all GUESS_WORDS from the start.
+ * This endpoint is kept for backwards compatibility but has no effect on the game.
+ *
+ * Previously: This deleted existing seed words and repopulated with new ones
  */
 export default async function handler(
   req: NextApiRequest,

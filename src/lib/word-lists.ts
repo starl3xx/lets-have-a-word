@@ -1,8 +1,10 @@
-import { ANSWER_WORDS, GUESS_WORDS } from '../data/test-word-lists';
+import { ANSWER_WORDS } from '../data/answer_words';
+import { GUESS_WORDS } from '../data/guess_words';
 import type { WordLists } from '../types';
 
 /**
  * Get all answer words (valid answer candidates)
+ * Returns the canonical ANSWER_WORDS list (2,279 words, UPPERCASE)
  */
 export function getAnswerWords(): string[] {
   return [...ANSWER_WORDS];
@@ -10,6 +12,7 @@ export function getAnswerWords(): string[] {
 
 /**
  * Get all guess words (valid guessable words)
+ * Returns the canonical GUESS_WORDS list (10,516 words, UPPERCASE)
  */
 export function getGuessWords(): string[] {
   return [...GUESS_WORDS];
@@ -17,7 +20,7 @@ export function getGuessWords(): string[] {
 
 /**
  * Get all word lists
- * Milestone 4.10: Removed SEED_WORDS from model
+ * Milestone 4.11: Integrated canonical word lists
  */
 export function getWordLists(): WordLists {
   return {
@@ -28,17 +31,19 @@ export function getWordLists(): WordLists {
 
 /**
  * Check if a word is a valid guess
+ * Canonical lists are UPPERCASE, so we normalize input to UPPERCASE
  */
 export function isValidGuess(word: string): boolean {
-  const normalized = word.toLowerCase().trim();
+  const normalized = word.toUpperCase().trim();
   return GUESS_WORDS.includes(normalized);
 }
 
 /**
  * Check if a word is a valid answer candidate
+ * Canonical lists are UPPERCASE, so we normalize input to UPPERCASE
  */
 export function isValidAnswer(word: string): boolean {
-  const normalized = word.toLowerCase().trim();
+  const normalized = word.toUpperCase().trim();
   return ANSWER_WORDS.includes(normalized);
 }
 
