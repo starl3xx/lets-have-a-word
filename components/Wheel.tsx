@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
 import type { InputState } from '../src/lib/input-state';
 import type { WheelWord, WheelWordStatus } from '../src/types';
 
@@ -43,6 +43,12 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const scrollAnimationRef = useRef<number | null>(null);
   const animationTargetRef = useRef<number | null>(null); // Track animation target for seamless rendering
 
+  /**
+   * Defer expensive wheel calculations to keep input responsive
+   * This allows input boxes to render immediately while wheel updates catch up
+   */
+  const deferredGuess = useDeferredValue(currentGuess);
+
   // Calculate GAP_HEIGHT as 10vh dynamically
   const GAP_HEIGHT = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -54,16 +60,17 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Binary search to find alphabetical center index
    * Original used findIndex O(n), now O(log n) for performance
+   * Uses deferredGuess to avoid blocking input rendering
    */
   const getCenterIndex = useCallback((): number => {
-    if (!currentGuess || currentGuess.length === 0 || words.length === 0) {
+    if (!deferredGuess || deferredGuess.length === 0 || words.length === 0) {
       return -1;
     }
 
     // Normalize to LOWERCASE like original (not uppercase!)
-    const normalizedGuess = currentGuess.toLowerCase();
+    const normalizedGuess = deferredGuess.toLowerCase();
 
-    // Binary search for first word >= currentGuess
+    // Binary search for first word >= deferredGuess
     let left = 0;
     let right = words.length - 1;
     let result = words.length - 1;
@@ -79,7 +86,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     }
 
     return result;
-  }, [currentGuess, words]);
+  }, [deferredGuess, words]);
 
   const centerIndex = getCenterIndex();
 
