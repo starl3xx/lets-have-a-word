@@ -307,36 +307,39 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Calculate which word should be highlighted based on current state
-   * CRITICAL: When typing (centerIndex !== -1), use centerIndex directly
-   * This ensures the highlighted word matches the word being typed (shown above gap)
+   * CRITICAL: During animation, use scroll position for smooth font-weight transitions
+   * When settled and typing, use centerIndex to match the word above gap
    */
   const visualCenterIndex = useMemo(() => {
-    // When typing, always highlight the target word (centerIndex)
-    // This word appears just above the centered gap
-    if (centerIndex !== -1) {
-      return centerIndex;
-    }
+    // Check if animation is in progress
+    const isAnimating = scrollAnimationRef.current !== null;
 
-    // When not typing (scrolling manually or idle), calculate from scroll position
     if (!containerRef.current || containerHeight === 0 || words.length === 0) {
       return -1;
     }
 
-    // Calculate the vertical center of the viewport
-    const viewportCenter = scrollTop + containerHeight / 2;
+    // During animation OR when not typing: calculate from scroll position
+    // This ensures smooth font-weight transitions as the wheel rotates
+    if (isAnimating || centerIndex === -1) {
+      // Calculate the vertical center of the viewport
+      const viewportCenter = scrollTop + containerHeight / 2;
 
-    // Account for top padding and gap
-    let adjustedPosition = viewportCenter - VIEWPORT_PADDING;
+      // Account for top padding and gap
+      let adjustedPosition = viewportCenter - VIEWPORT_PADDING;
 
-    // If we're past the gap, subtract gap height
-    if (viewportCenter > gapTopOffset + GAP_HEIGHT) {
-      adjustedPosition -= GAP_HEIGHT;
+      // If we're past the gap, subtract gap height
+      if (viewportCenter > gapTopOffset + GAP_HEIGHT) {
+        adjustedPosition -= GAP_HEIGHT;
+      }
+
+      // Calculate which word index is at this position
+      const index = Math.floor(adjustedPosition / ITEM_HEIGHT);
+
+      return Math.max(0, Math.min(words.length - 1, index));
     }
 
-    // Calculate which word index is at this position
-    const index = Math.floor(adjustedPosition / ITEM_HEIGHT);
-
-    return Math.max(0, Math.min(words.length - 1, index));
+    // When settled and typing: highlight the target word (appears just above the centered gap)
+    return centerIndex;
   }, [centerIndex, scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT]);
 
   /**
