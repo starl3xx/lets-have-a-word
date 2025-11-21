@@ -106,11 +106,100 @@ export async function applyPaidGuessEconomicEffects(
 }
 
 /**
+ * Allocate unused referrer share to seed and creator
+ * Milestone 4.9: When winner has no referrer, the 10% referrer share
+ * is allocated to next-round seed (up to cap) and creator wallet (overflow)
+ *
+ * @param roundId - The round ID
+ * @param amountEth - Amount in ETH to allocate
+ */
+async function allocateToSeedAndCreator(
+  roundId: number,
+  amountEth: number
+): Promise<void> {
+  if (amountEth <= 0) return;
+
+  // Get current round
+  const [round] = await db
+    .select()
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
+
+  if (!round) {
+    throw new Error(`Round ${roundId} not found`);
+  }
+
+  // Calculate how much can go to seed
+  const seedCap = parseFloat(SEED_CAP_ETH);
+  const currentSeed = parseFloat(round.seedNextRoundEth);
+  const missing = Math.max(0, seedCap - currentSeed);
+  const toSeed = Math.min(missing, amountEth);
+  const toCreator = amountEth - toSeed;
+
+  // Allocate to seed if there's room
+  if (toSeed > 0) {
+    const newSeed = currentSeed + toSeed;
+    await db
+      .update(rounds)
+      .set({
+        seedNextRoundEth: newSeed.toFixed(18),
+      })
+      .where(eq(rounds.id, roundId));
+
+    // Create payout record for analytics
+    await db.insert(roundPayouts).values({
+      roundId,
+      fid: null,
+      amountEth: toSeed.toFixed(18),
+      role: 'seed',
+    });
+
+    console.log(`  → Seed: ${toSeed.toFixed(18)} ETH (new total: ${newSeed.toFixed(18)} ETH)`);
+  }
+
+  // Allocate overflow to creator
+  if (toCreator > 0) {
+    // Get or create system state
+    let [state] = await db.select().from(systemState).limit(1);
+
+    if (!state) {
+      const [newState] = await db
+        .insert(systemState)
+        .values({
+          creatorBalanceEth: '0',
+        })
+        .returning();
+      state = newState;
+    }
+
+    const newCreatorBalance = parseFloat(state.creatorBalanceEth) + toCreator;
+    await db
+      .update(systemState)
+      .set({
+        creatorBalanceEth: newCreatorBalance.toFixed(18),
+        updatedAt: new Date(),
+      })
+      .where(eq(systemState.id, state.id));
+
+    // Create payout record for analytics
+    await db.insert(roundPayouts).values({
+      roundId,
+      fid: null,
+      amountEth: toCreator.toFixed(18),
+      role: 'creator',
+    });
+
+    console.log(`  → Creator: ${toCreator.toFixed(18)} ETH (new balance: ${newCreatorBalance.toFixed(18)} ETH)`);
+  }
+}
+
+/**
  * Resolve round and create payouts
  *
  * Jackpot split:
  * - 80% to winner
- * - 10% to referrer (or winner if no referrer)
+ * - 10% to referrer (or seed+creator if no referrer) - Milestone 4.9
  * - 10% to top 10 guessers (split equally among them)
  *
  * Top 10 ranking:
@@ -172,13 +261,15 @@ export async function resolveRoundAndCreatePayouts(
   });
 
   // 2. Referrer payout (10%)
-  // If no referrer, winner gets this too
-  payouts.push({
-    roundId,
-    fid: referrerFid || winnerFid,
-    amountEth: toReferrer.toFixed(18),
-    role: 'referrer',
-  });
+  // Milestone 4.9: If no referrer, allocate to seed + creator instead
+  if (referrerFid) {
+    payouts.push({
+      roundId,
+      fid: referrerFid,
+      amountEth: toReferrer.toFixed(18),
+      role: 'referrer',
+    });
+  }
 
   // 3. Top 10 guessers payout (10% split equally)
   const topGuessers = await getTop10Guessers(roundId, winnerFid);
@@ -206,6 +297,12 @@ export async function resolveRoundAndCreatePayouts(
 
   // Insert all payouts
   await db.insert(roundPayouts).values(payouts);
+
+  // Milestone 4.9: If no referrer, allocate referrer share to seed + creator
+  if (!referrerFid) {
+    console.log(`No referrer for winner - allocating ${toReferrer.toFixed(18)} ETH to seed + creator:`);
+    await allocateToSeedAndCreator(roundId, toReferrer);
+  }
 
   // Mark round as resolved
   await db
