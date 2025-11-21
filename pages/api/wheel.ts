@@ -1,12 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveWheelData } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
+import { isDevModeEnabled, getDevFixedSolution } from '../../src/lib/devGameState';
 
 /**
  * GET /api/wheel
  *
  * Returns the wheel words for the current active round
  * Milestone 2.3: Wheel + Visual State + Top Ticker
+ * Milestone 4.8: Now supports dev mode with synthetic wheel data
  *
  * Response:
  * {
@@ -16,10 +18,14 @@ import { ensureDevMidRound } from '../../src/lib/devMidRound';
  *
  * Words are sorted alphabetically and include:
  * - Seed words (cosmetic pre-population)
- * - Wrong guesses from real players
+ * - Wrong guesses from real players (production)
+ * - Synthetic seed words (dev mode)
+ *
+ * Dev mode query params:
+ * - wrongGuesses: Comma-separated list of wrong guesses to include (e.g., "BRAIN,TRAIN")
  *
  * Automatically creates a round if none exists.
- * In dev mode with NEXT_PUBLIC_TEST_MID_ROUND=true, populates with test data.
+ * In dev mode with LHAW_DEV_MODE=true, returns synthetic data without database access.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -31,6 +37,64 @@ export default async function handler(
   }
 
   try {
+    // Milestone 4.8: Check for dev mode first
+    if (isDevModeEnabled()) {
+      console.log('🎮 Dev mode: Returning synthetic wheel words');
+
+      const solution = getDevFixedSolution().toLowerCase();
+
+      // Base seed words for the wheel (excluding the solution)
+      // These are cosmetic "wrong guesses" to populate the wheel
+      // Avoid common test words like BRAIN, TRAIN, DRAIN, etc.
+      // All words must be exactly 5 letters
+      let wheelWords = [
+        'words',
+        'games',
+        'think',
+        'smart',
+        'plays',
+        'solve',
+        'logic',
+        'build',
+        'learn',
+        'teach',
+        'write',
+        'speak',
+        'guess',
+        'reply',  // 5 letters (was 'answer' - 6 letters)
+        'clues',  // 5 letters (was 'puzzle' - 6 letters)
+        'hints',  // 5 letters (was 'riddle' - 6 letters)
+        'quest',
+        'forth',
+        'quick',
+        'jumps',
+      ].filter(word => word !== solution);
+
+      // Add wrong guesses from query param (for dev mode testing)
+      const wrongGuessesParam = req.query.wrongGuesses as string | undefined;
+      if (wrongGuessesParam) {
+        const wrongGuesses = wrongGuessesParam
+          .split(',')
+          .map(w => w.trim().toLowerCase())
+          .filter(w => w.length === 5 && w !== solution);
+
+        // Add wrong guesses to wheel (avoid duplicates)
+        wrongGuesses.forEach(guess => {
+          if (!wheelWords.includes(guess)) {
+            wheelWords.push(guess);
+          }
+        });
+
+        console.log(`🎮 Dev mode: Added ${wrongGuesses.length} wrong guesses to wheel`);
+      }
+
+      return res.status(200).json({
+        roundId: 999999,
+        words: wheelWords.sort(), // Sort alphabetically
+      });
+    }
+
+    // Production mode: fetch from database
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 

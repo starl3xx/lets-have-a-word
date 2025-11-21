@@ -31,6 +31,9 @@ export default function Home() {
   const [wheelWords, setWheelWords] = useState<string[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
 
+  // Dev mode wrong guesses tracking (Milestone 4.8)
+  const [devWrongGuesses, setDevWrongGuesses] = useState<Set<string>>(new Set());
+
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
 
@@ -102,6 +105,7 @@ export default function Home() {
 
   /**
    * Fetch wheel words on mount (Milestone 2.3)
+   * Milestone 4.8: Dev mode support with alphabetical sorting
    */
   useEffect(() => {
     const fetchWheelWords = async () => {
@@ -109,7 +113,14 @@ export default function Home() {
         const response = await fetch('/api/wheel');
         if (response.ok) {
           const data = await response.json();
-          setWheelWords(data.words || []);
+          const baseWords = data.words || [];
+
+          // In dev mode, merge with tracked wrong guesses and sort
+          const allWords = [...baseWords, ...Array.from(devWrongGuesses)];
+          const uniqueWords = Array.from(new Set(allWords));
+          const sortedWords = uniqueWords.sort();
+
+          setWheelWords(sortedWords);
         }
       } catch (error) {
         console.error('Error fetching wheel words:', error);
@@ -120,7 +131,7 @@ export default function Home() {
     };
 
     fetchWheelWords();
-  }, []);
+  }, [devWrongGuesses]); // Re-fetch when wrong guesses change
 
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
@@ -378,16 +389,12 @@ export default function Home() {
 
       // Refetch wheel data after guess (Milestone 2.3)
       // Wrong guesses will now appear in the wheel
+      // Milestone 4.8: In dev mode, track wrong guesses (useEffect handles wheel update)
       if (data.status === 'incorrect') {
-        try {
-          const wheelResponse = await fetch('/api/wheel');
-          if (wheelResponse.ok) {
-            const wheelData = await wheelResponse.json();
-            setWheelWords(wheelData.words || []);
-          }
-        } catch (err) {
-          console.error('Error refetching wheel:', err);
-        }
+        // Add wrong guess to dev mode tracking
+        // The useEffect on line 110 will automatically handle fetching, merging, and sorting
+        const wrongWord = word.toLowerCase();
+        setDevWrongGuesses(prev => new Set([...prev, wrongWord]));
       }
 
       // Refetch user state after any guess (Milestone 4.1)
@@ -396,9 +403,14 @@ export default function Home() {
 
       // Show share modal for correct/incorrect guesses (Milestone 4.2)
       // Only show if the guess was actually submitted (not an error)
+      // Milestone 4.8: Add 2-second delay to allow user to see feedback message
       if (data.status === 'correct' || data.status === 'incorrect') {
         setPendingShareResult(data);
-        setShowShareModal(true);
+
+        // Delay showing the modal so user can see the guess result message
+        setTimeout(() => {
+          setShowShareModal(true);
+        }, 2000); // 2 second delay
       }
 
       // Clear input after successful submission (Milestone 4.3)
