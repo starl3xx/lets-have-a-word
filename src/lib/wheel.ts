@@ -219,3 +219,22 @@ export async function getActiveWheelData(): Promise<WheelResponse> {
     words,
   };
 }
+
+/**
+ * Populate round with seed words
+ *
+ * @deprecated Milestone 4.11: This function is deprecated and does nothing
+ * SEED_WORDS are no longer used. The wheel displays all GUESS_WORDS from the start.
+ * Kept for backwards compatibility with existing imports only.
+ *
+ * @param roundId - Round ID (ignored)
+ * @param count - Number of seed words (ignored)
+ */
+export async function populateRoundSeedWords(
+  roundId: number,
+  count: number = 30
+): Promise<void> {
+  console.log(`[populateRoundSeedWords] DEPRECATED: No-op, SEED_WORDS no longer used (Milestone 4.11)`);
+  // No-op: SEED_WORDS are deprecated
+  return;
+}
