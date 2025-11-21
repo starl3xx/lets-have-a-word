@@ -246,7 +246,7 @@ describe('Economics Module - Milestone 3.1', () => {
       await db.delete(users).where(eq(users.fid, referrer.fid));
     });
 
-    it('should give referrer share to winner when no referrer exists', async () => {
+    it('should allocate referrer share to seed + creator when no referrer exists (Milestone 4.9)', async () => {
       // Create winner without referrer (use unique FID to avoid conflicts)
       const [winner] = await db
         .insert(users)
@@ -257,7 +257,7 @@ describe('Economics Module - Milestone 3.1', () => {
         })
         .returning();
 
-      // Create test round
+      // Create test round with seed below cap
       const [round] = await db
         .insert(rounds)
         .values({
@@ -266,9 +266,19 @@ describe('Economics Module - Milestone 3.1', () => {
           salt: 'test-salt',
           commitHash: 'test-hash',
           prizePoolEth: '1.0',
-          seedNextRoundEth: '0.05',
+          seedNextRoundEth: '0.05', // Below 0.1 cap
         })
         .returning();
+
+      // Get or create system state
+      let [state] = await db.select().from(systemState).limit(1);
+      if (!state) {
+        [state] = await db
+          .insert(systemState)
+          .values({ creatorBalanceEth: '0' })
+          .returning();
+      }
+      const initialCreatorBalance = parseFloat(state.creatorBalanceEth);
 
       // Resolve round
       await resolveRoundAndCreatePayouts(round.id, winner.fid);
@@ -279,10 +289,38 @@ describe('Economics Module - Milestone 3.1', () => {
         .from(roundPayouts)
         .where(eq(roundPayouts.roundId, round.id));
 
-      // Referrer payout should go to winner
+      // Should NOT have a referrer payout to the winner
       const referrerPayout = payouts.find((p) => p.role === 'referrer');
-      expect(referrerPayout).toBeDefined();
-      expect(referrerPayout!.fid).toBe(winner.fid); // Winner gets referrer share
+      expect(referrerPayout).toBeUndefined();
+
+      // Should have seed and creator payouts instead
+      const seedPayout = payouts.find((p) => p.role === 'seed');
+      const creatorPayout = payouts.find((p) => p.role === 'creator');
+
+      // 10% = 0.1 ETH referrer share
+      // Seed can take 0.05 (to reach 0.1 cap)
+      // Creator gets remaining 0.05
+      expect(seedPayout).toBeDefined();
+      expect(seedPayout!.fid).toBeNull();
+      expect(parseFloat(seedPayout!.amountEth)).toBeCloseTo(0.05, 6);
+
+      expect(creatorPayout).toBeDefined();
+      expect(creatorPayout!.fid).toBeNull();
+      expect(parseFloat(creatorPayout!.amountEth)).toBeCloseTo(0.05, 6);
+
+      // Check round seed was updated
+      const [updatedRound] = await db
+        .select()
+        .from(rounds)
+        .where(eq(rounds.id, round.id));
+      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.1, 6); // At cap
+
+      // Check creator balance was updated
+      const [updatedState] = await db.select().from(systemState).limit(1);
+      expect(parseFloat(updatedState.creatorBalanceEth)).toBeCloseTo(
+        initialCreatorBalance + 0.05,
+        6
+      );
 
       // Clean up
       await db.delete(roundPayouts).where(eq(roundPayouts.roundId, round.id));
