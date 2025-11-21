@@ -547,6 +547,51 @@ Core game mechanics:
   - Top 10 guesser ranking
   - By volume, tiebreaker by earliest guess
 
+### ✅ Milestone 1.2 - Round Lifecycle
+
+Complete round management system:
+
+- **Round Creation**
+  - Generate random salt per round
+  - Pick random answer from ANSWER_WORDS
+  - Implement SHA-256 commit-reveal hashing
+  - Initialize jackpot from previous round seed
+  - Initialize next-round seed at zero
+  - Store ruleset_id per round
+
+- **Round Resolution**
+  - Winner and referrer settlement logic
+  - Top 10 guesser payouts
+  - Commit-reveal verification
+  - Automatic new round creation
+
+- **Provable Fairness**
+  - Commit hash published before round starts
+  - Salt and answer revealed on resolution
+  - Anyone can verify integrity
+
+### ✅ Milestone 1.1 - Data Model + Rules
+
+Foundation database schema and word lists:
+
+- **Database Tables**
+  - `game_rules` table with JSON ruleset config
+  - `users` table schema
+  - `rounds`, `guesses`, `daily_guess_state` tables
+  - Proper foreign key relationships
+
+- **Word Lists**
+  - Import ANSWER_WORDS list (~2,500 words, now 2,279 in 4.11)
+  - Import GUESS_WORDS list (~10,000 words, now 10,516 in 4.11)
+  - Import SEED_WORDS list (deprecated in Milestone 4.11)
+  - Validate no overlap between answer and seed lists
+
+- **Rules System**
+  - getRulesForRound() function
+  - Implement ruleset_id per round
+  - Store ruleset_id per round
+  - JSON-based flexible configuration
+
 ## Tech Stack
 
 - **Frontend**: Next.js 14, React, Tailwind CSS
@@ -1127,13 +1172,63 @@ await resolveRound(roundId, winnerFid, referrerFid);
 ## What's Next?
 
 Planned future milestones:
-- **Milestone 4.7**: Additional UI/UX improvements and polish
-- **Milestone 5.1**: Announcer bot (automated round announcements)
-- **Milestone 5.2**: ETH payment processing (actual payments)
-- **Milestone 5.3**: Performance optimizations (caching, indexes)
-- **Milestone 5.4**: Round archive (historical data browsing)
-- **Milestone 5.5**: XP system and leaderboards
-- **Milestone 5.6**: Achievement badges and unlockables
+
+### 🚧 Milestone 5.1 - Farcaster Announcer Bot
+- Create @letshaveaword Farcaster account (Done: https://farcaster.xyz/letshaveaword)
+- Connect announcer bot signer
+- Post round started announcements
+- Post round resolved announcements
+- Post milestone jackpot milestones
+- Post milestone guess count milestones
+- Post referral win announcements
+
+### 📊 Milestone 5.2 - Analytics & Tracking
+- Analytics table creation
+- Event logging system:
+  - `daily_open`, `free_guess`, `paid_guess`
+  - `round_started`, `round_resolved`
+  - `share_bonus_unlocked`
+  - `referral_join`, `referral_win`
+- Analytics views:
+  - DAU/WAU metrics
+  - Jackpot growth tracking
+  - Free/paid guess ratios
+- Admin analytics dashboard
+
+### 🛡️ Milestone 5.3 - Anti-Abuse + Infrastructure
+- **Anti-Abuse**
+  - Enforce Neynar spam score filtering
+  - Abuse detection and flagging system
+  - Rate limiting for /guess endpoint
+- **Infrastructure**
+  - Caching layers (jackpot, wheel words, global guesses)
+  - Daily reset cron job
+  - Jackpot monitor cron job
+  - Logging and error monitoring
+
+### 📚 Milestone 5.4 - Round Archive
+- Round summary fields on rounds table
+- Historical round browsing
+- Past winner showcase
+- Archive UI and navigation
+
+### ⛓️ Milestone 6.1 - Smart Contract Integration
+- Smart contract development:
+  - Paid guess escrow
+  - Payout function
+  - Purchase event handling
+  - Creator withdrawal mechanism
+- Contract testing and auditing
+- Mainnet deployment
+
+### 🎯 Milestone 6.2 - Optional / Future Enhancements
+- Purchase web domain (http://letshaveaword.fun)
+- Multi-wallet CLANKTON support
+- XP system v2 with progression
+- Leaderboard system
+- Localization support
+- Custom animations
+- Achievement badges and unlockables
 
 ## Testing
 
