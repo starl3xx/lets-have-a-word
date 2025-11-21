@@ -176,12 +176,18 @@ export default function SharePromptModal({
           <button
             onClick={handleShare}
             disabled={isSharing}
-            className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all ${
-              isSharing
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
-            }`}
+            className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: isSharing ? '#9ca3af' : '#6A3CFF',
+            }}
+            onMouseEnter={(e) => {
+              if (!isSharing) e.currentTarget.style.backgroundColor = '#5A2CEF';
+            }}
+            onMouseLeave={(e) => {
+              if (!isSharing) e.currentTarget.style.backgroundColor = '#6A3CFF';
+            }}
           >
+            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />}
             {isSharing ? 'Sharing...' : 'Share to Farcaster'}
           </button>
 
