@@ -40,13 +40,14 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const scrollAnimationRef = useRef<number | null>(null);
 
-  // Calculate GAP_HEIGHT as 9vh dynamically
+  // Calculate GAP_HEIGHT as 10vh dynamically
   const GAP_HEIGHT = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return Math.round(window.innerHeight * 0.09); // 9vh
+      return Math.round(window.innerHeight * 0.10); // 10vh
     }
-    return 90; // Fallback for SSR
+    return 100; // Fallback for SSR
   }, []);
 
   /**
@@ -80,6 +81,44 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, [currentGuess, words]);
 
   const centerIndex = getCenterIndex();
+
+  /**
+   * Custom fast scroll animation for visible rotation effect
+   * Animates scroll over 150ms for quick but visible wheel rotation
+   */
+  const animateScrollTo = useCallback((targetScrollTop: number) => {
+    if (!containerRef.current) return;
+
+    // Cancel any existing animation
+    if (scrollAnimationRef.current !== null) {
+      cancelAnimationFrame(scrollAnimationRef.current);
+    }
+
+    const startScrollTop = containerRef.current.scrollTop;
+    const distance = targetScrollTop - startScrollTop;
+    const duration = 150; // 150ms - fast but visible
+    const startTime = performance.now();
+
+    const animateScroll = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease-out cubic for smooth deceleration
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+
+      if (containerRef.current) {
+        containerRef.current.scrollTop = startScrollTop + distance * easeOutCubic;
+      }
+
+      if (progress < 1) {
+        scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+      } else {
+        scrollAnimationRef.current = null;
+      }
+    };
+
+    scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+  }, []);
 
   /**
    * Calculate gap index - CRITICAL: matches original logic exactly
@@ -178,6 +217,17 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, []);
 
   /**
+   * Cleanup animation on unmount
+   */
+  useEffect(() => {
+    return () => {
+      if (scrollAnimationRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationRef.current);
+      }
+    };
+  }, []);
+
+  /**
    * Calculate scroll position to center the gap (like original scrollIntoView)
    * This replicates: gapRef.current.scrollIntoView({ block: 'center' })
    */
@@ -208,6 +258,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       if (!containerRef.current) return;
 
       const targetScroll = getScrollTopForGap();
+      // Instant scroll on initial load
       containerRef.current.scrollTop = targetScroll;
       setScrollTop(targetScroll);
       setIsInitialized(true);
@@ -218,7 +269,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Auto-scroll to center gap when user types
-   * INSTANT scrolling for fast, fluid alphabet snapping
+   * FAST animated scrolling for visible rotation with quick response
    * CRITICAL: Uses setTimeout to ensure DOM is ready before scrolling
    */
   useEffect(() => {
@@ -230,15 +281,12 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
       const targetScroll = getScrollTopForGap();
 
-      // Use 'auto' for instant, near-instantaneous snapping
-      containerRef.current.scrollTo({
-        top: targetScroll,
-        behavior: 'auto',
-      });
+      // Use custom fast animation (150ms) for visible rotation effect
+      animateScrollTo(targetScroll);
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap]);
+  }, [centerIndex, gapIndex, words.length, isInitialized, getScrollTopForGap, animateScrollTo]);
 
   /**
    * Get status-based styling (unchanged from original)
