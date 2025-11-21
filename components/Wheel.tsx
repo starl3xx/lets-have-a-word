@@ -492,7 +492,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       items.push(
         <div
           key={`${wheelWord.word}-${i}`}
-          className="absolute w-full text-center transition-all duration-300 ease-out"
+          className="absolute w-full text-center"
           style={{
             top: `${topOffset + gapOffset}px`,
             transform: `scale(${style.scale})`,
@@ -505,6 +505,8 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
             letterSpacing: style.letterSpacing,
             textShadow: style.textShadow,
             pointerEvents: 'none',
+            // Only animate specific properties, NOT letter-spacing or font-weight
+            transition: 'transform 0.3s ease-out, opacity 0.3s ease-out, color 0.3s ease-out',
           }}
         >
           {wheelWord.word}
