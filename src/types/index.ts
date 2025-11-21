@@ -104,13 +104,38 @@ export interface TopGuesser {
 
 /**
  * Word List Types
+ * Milestone 4.10: Removed seedWords from model
  */
 export type WordList = string[];
 
 export interface WordLists {
   answerWords: WordList;
   guessWords: WordList;
-  seedWords: WordList;
+}
+
+/**
+ * Wheel Word Status
+ * Milestone 4.10: Per-word status for global wheel
+ */
+export type WheelWordStatus = 'unguessed' | 'wrong' | 'winner';
+
+/**
+ * Wheel Word with Status
+ * Milestone 4.10: Wheel API returns words with their status
+ */
+export interface WheelWord {
+  word: string;
+  status: WheelWordStatus;
+}
+
+/**
+ * Wheel Response
+ * Milestone 4.10: Updated API contract for global wheel
+ */
+export interface WheelResponse {
+  roundId: number;
+  totalWords: number;
+  words: WheelWord[];
 }
 
 /**

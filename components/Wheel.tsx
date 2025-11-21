@@ -1,25 +1,27 @@
 import { useEffect, useRef } from 'react';
 import type { InputState } from '../src/lib/input-state';
+import type { WheelWord, WheelWordStatus } from '../src/types';
 
 /**
- * Wheel Component with Faux-3D Effect
- * Milestone 2.3 + 4.6: Displays wrong words in a carousel-style wheel with a real gap
+ * Wheel Component with Global Word Wheel
+ * Milestone 2.3 + 4.6 + 4.10: Displays all guessable words with status-based styling
  *
  * Props:
- * - words: Alphabetically sorted array of wrong words (seed words + real wrong guesses)
+ * - words: Array of WheelWord objects with word and status
  * - currentGuess: The word currently being typed by the user (0-5 letters)
  * - inputState: Current input state (Milestone 4.6)
  *
- * Milestone 4.6: Enhanced with state-based behavior
+ * Milestone 4.10: Enhanced with status-based rendering
+ * - Shows ALL GUESS_WORDS from the start
+ * - Words styled by status: unguessed (default), wrong (red), winner (gold)
  * - Real layout gap that words cannot occupy (scrolls to center)
- * - Ghost rows for valid unguessed words in the gap
- * - Red highlighting for already-guessed words
+ * - No more ghost rows - words are always present
  *
  * Note: Input boxes are rendered separately as fixed overlay, but the gap
  * ensures words structurally cannot appear in that vertical space
  */
 interface WheelProps {
-  words: string[];
+  words: WheelWord[];
   currentGuess: string;
   inputState?: InputState;
 }
@@ -42,7 +44,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     const normalizedGuess = currentGuess.toLowerCase();
 
     // Find first word >= currentGuess (case-insensitive)
-    const targetIndex = words.findIndex((word) => word.toLowerCase() >= normalizedGuess);
+    const targetIndex = words.findIndex((w) => w.word.toLowerCase() >= normalizedGuess);
 
     // If found, use that index
     if (targetIndex !== -1) {
@@ -78,99 +80,149 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Auto-scroll to center the gap (where input boxes are)
    * This makes words skip over the input box area
+   *
+   * Bug fix: Only scroll when we have words and a valid gap ref
    */
   useEffect(() => {
-    if (gapRef.current) {
-      gapRef.current.scrollIntoView({
-        behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
-        block: 'center',
-      });
+    if (words.length === 0) return; // Don't scroll if no words
+    if (!gapRef.current) return; // Don't scroll if gap ref not ready
+
+    // Small delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      if (gapRef.current) {
+        gapRef.current.scrollIntoView({
+          behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
+          block: 'center',
+        });
+      }
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [centerIndex, words.length]); // Use words.length instead of words to avoid unnecessary re-renders
+
+  /**
+   * Get status-based styling for a word
+   * Milestone 4.10: Uses status from backend instead of client-side derivation
+   */
+  const getStatusStyle = (status: WheelWordStatus) => {
+    switch (status) {
+      case 'winner':
+        return {
+          color: '#fbbf24', // Gold
+          fontWeight: 'bold' as const,
+          textShadow: '0 0 15px rgba(251, 191, 36, 0.5)',
+        };
+      case 'wrong':
+        return {
+          color: '#dc2626', // Red
+          fontWeight: 'normal' as const,
+        };
+      case 'unguessed':
+      default:
+        return {
+          color: '#999', // Gray
+          fontWeight: '300' as const,
+        };
     }
-  }, [centerIndex, words]);
+  };
 
   /**
    * Calculate distance-based styling for faux-3D effect
+   * Milestone 4.10: Combines distance-based depth with status-based colors
    */
-  const getWordStyle = (index: number) => {
+  const getWordStyle = (index: number, status: WheelWordStatus) => {
+    const statusStyle = getStatusStyle(status);
+
     if (centerIndex === -1) {
-      return { scale: 1.0, opacity: 0.25, fontWeight: '300' as const, letterSpacing: '0.05em' };
+      return {
+        scale: 1.0,
+        opacity: status === 'unguessed' ? 0.25 : 0.4,
+        fontWeight: statusStyle.fontWeight,
+        color: statusStyle.color,
+        letterSpacing: '0.05em',
+        textShadow: statusStyle.textShadow,
+      };
     }
 
     const distance = Math.abs(index - centerIndex);
-    const isExactMatch = words[index] === currentGuess;
+    const isExactMatch = words[index].word.toLowerCase() === currentGuess.toLowerCase();
 
-    // Distance-based scale, opacity, and letter spacing for 3D effect
+    // Distance-based scale, opacity, letter spacing, and font weight for 3D effect
     let scale = 1.0;
     let opacity = 0.25;
     let fontWeight: 'bold' | 'normal' | '300' = 'normal';
-    let color = '#bbb';
     let letterSpacing = '0.05em';
 
+    // Apply distance-based scaling
     switch (distance) {
       case 0:
         scale = 1.4;
         opacity = 1.0;
         fontWeight = 'bold';
-        color = isExactMatch ? '#dc2626' : '#000'; // Red if exact match
         letterSpacing = '0.2em'; // Widest spacing at center
         break;
       case 1:
         scale = 1.2;
         opacity = 0.7;
         fontWeight = 'normal';
-        color = '#666';
         letterSpacing = '0.15em';
         break;
       case 2:
         scale = 1.1;
         opacity = 0.5;
         fontWeight = 'normal';
-        color = '#999';
         letterSpacing = '0.1em';
         break;
       case 3:
         scale = 1.05;
         opacity = 0.35;
         fontWeight = '300';
-        color = '#aaa';
         letterSpacing = '0.07em';
         break;
       default:
         scale = 1.0;
         opacity = 0.25;
         fontWeight = '300';
-        color = '#bbb';
         letterSpacing = '0.05em'; // Tightest spacing at edges
     }
 
-    return { scale, opacity, fontWeight, color, letterSpacing };
-  };
-
-  /**
-   * Check if word is an exact match (for red highlighting)
-   */
-  const isExactMatch = (word: string): boolean => {
-    return currentGuess && word.toLowerCase() === currentGuess.toLowerCase();
-  };
-
-  /**
-   * Check if we should show a ghost row for the current guess (Milestone 4.6)
-   * Only show if:
-   * - State is TYPING_FULL_VALID (valid word not yet guessed)
-   * - Word would appear at this index alphabetically
-   */
-  const shouldShowGhostRow = (index: number): boolean => {
-    if (!inputState || !currentGuess || currentGuess.length !== 5) {
-      return false;
+    // Boost opacity for wrong/winner words so they're always visible
+    if (status === 'wrong' || status === 'winner') {
+      opacity = Math.max(opacity, 0.5);
     }
 
-    // Only show ghost for valid unguessed words
-    if (inputState !== 'TYPING_FULL_VALID') {
-      return false;
-    }
+    // Get base status color, then adjust based on distance for depth effect
+    let color = statusStyle.color;
 
-    // Show ghost at the position where the word would be inserted
-    return index === gapIndex;
+    // For unguessed words, use distance-based color gradation (darker at center, lighter at edges)
+    if (status === 'unguessed') {
+      switch (distance) {
+        case 0:
+          color = isExactMatch ? '#dc2626' : '#000'; // Red if exact match, black otherwise
+          break;
+        case 1:
+          color = '#666';
+          break;
+        case 2:
+          color = '#999';
+          break;
+        case 3:
+          color = '#aaa';
+          break;
+        default:
+          color = '#bbb';
+      }
+    }
+    // For wrong/winner words, keep status color but vary opacity for depth
+
+    return {
+      scale,
+      opacity,
+      fontWeight,
+      color,
+      letterSpacing,
+      textShadow: statusStyle.textShadow,
+    };
   };
 
   return (
@@ -181,6 +233,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        minHeight: '100%', // Ensure container never collapses
       }}
     >
       {/* Hide scrollbar */}
@@ -193,7 +246,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       {words.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <p className="text-gray-300 text-sm" style={{ opacity: 0.3 }}>
-            No words yet
+            Loading words...
           </p>
         </div>
       ) : (
@@ -201,15 +254,15 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
           {/* Top padding spacer - ensures gap can center even at list start */}
           <div style={{ minHeight: '40vh' }} />
 
-          {words.map((word, index) => {
-            const style = getWordStyle(index);
+          {words.map((wheelWord, index) => {
+            const style = getWordStyle(index, wheelWord.status);
 
             // Insert spacer at gap index to create physical gap for input boxes
             // Always insert (even when not typing) to prevent words appearing behind boxes
             const shouldInsertSpacer = index === gapIndex;
 
             return (
-              <div key={`${word}-${index}`}>
+              <div key={`${wheelWord.word}-${index}`}>
                 {shouldInsertSpacer && (
                   <div
                     ref={gapRef}
@@ -224,27 +277,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
                       marginTop: '-0.4rem',
                       pointerEvents: 'none', // Transparent to clicks - input boxes handle interaction
                     }}
-                  >
-                    {/* Ghost row for valid unguessed words */}
-                    {shouldShowGhostRow(index) && (
-                      <div
-                        className="text-center transition-all duration-300 ease-out"
-                        style={{
-                          transform: 'scale(1.0)',
-                          opacity: 0.3,
-                          fontWeight: '300',
-                          color: '#2563eb', // Blue for valid word
-                          fontSize: '1.3rem',
-                          lineHeight: '1.0',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.15em',
-                          textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',
-                        }}
-                      >
-                        {currentGuess.toLowerCase()}
-                      </div>
-                    )}
-                  </div>
+                  />
                 )}
                 <div
                   ref={(el) => {
@@ -260,9 +293,10 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
                     lineHeight: '1.6',
                     textTransform: 'uppercase',
                     letterSpacing: style.letterSpacing,
+                    textShadow: style.textShadow,
                   }}
                 >
-                  {word}
+                  {wheelWord.word}
                 </div>
               </div>
             );
@@ -283,27 +317,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
                 marginTop: '-0.4rem',
                 pointerEvents: 'none',
               }}
-            >
-              {/* Ghost row for valid unguessed words */}
-              {shouldShowGhostRow(words.length) && (
-                <div
-                  className="text-center transition-all duration-300 ease-out"
-                  style={{
-                    transform: 'scale(1.0)',
-                    opacity: 0.3,
-                    fontWeight: '300',
-                    color: '#2563eb',
-                    fontSize: '1.3rem',
-                    lineHeight: '1.0',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.15em',
-                    textShadow: '0 0 10px rgba(37, 99, 235, 0.3)',
-                  }}
-                >
-                  {currentGuess.toLowerCase()}
-                </div>
-              )}
-            </div>
+            />
           )}
 
           {/* Bottom padding spacer - ensures gap can center even at list end */}

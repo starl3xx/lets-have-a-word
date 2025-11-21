@@ -1,20 +1,20 @@
 /**
  * Wheel & Visual State
- * Milestone 2.3
+ * Milestone 2.3, updated for Milestone 4.10
  *
  * Implements:
- * - Seed word initialization per round
- * - Wheel word retrieval (seeds + wrong guesses)
+ * - Global wheel with all GUESS_WORDS
+ * - Per-word status derivation (unguessed/wrong/winner)
  * - Round status (prize pool + global guess count)
  * - Top ticker data
  */
 
 import { db } from '../db';
-import { roundSeedWords, guesses, rounds } from '../db/schema';
+import { guesses, rounds } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
-import { SEED_WORDS } from '../data/test-word-lists';
+import { getGuessWords } from './word-lists';
 import { getActiveRound, ensureActiveRound } from './rounds';
-import type { RoundSeedWordInsert } from '../db/schema';
+import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
 
 /**
  * Round Status - displayed in top ticker
@@ -51,108 +51,75 @@ export function getEthUsdRate(): number {
 }
 
 /**
- * Populate seed words for a round
+ * Get wheel words with status for a round
+ * Milestone 4.10: Returns all GUESS_WORDS with derived status
  *
- * Selects a random subset of SEED_WORDS and inserts them into round_seed_words.
- * These act as cosmetic "fake guesses" to pre-populate the wheel.
- *
- * @param roundId - The round to populate
- * @param count - Number of seed words to select (default: 30)
- */
-export async function populateRoundSeedWords(
-  roundId: number,
-  count: number = 30
-): Promise<void> {
-  try {
-    console.log(`[populateRoundSeedWords] Starting for round ${roundId}, count: ${count}`);
-
-    // Check if already populated
-    const existing = await db
-      .select()
-      .from(roundSeedWords)
-      .where(eq(roundSeedWords.roundId, roundId))
-      .limit(1);
-
-    if (existing.length > 0) {
-      console.log(`⚠️  Round ${roundId} already has seed words, skipping population`);
-      return;
-    }
-
-    console.log(`[populateRoundSeedWords] No existing seed words, creating new ones...`);
-    console.log(`[populateRoundSeedWords] Available SEED_WORDS: ${SEED_WORDS.length}`);
-
-    // Select random seed words
-    // Shuffle SEED_WORDS and take first N
-    const shuffled = [...SEED_WORDS].sort(() => Math.random() - 0.5);
-    const selectedWords = shuffled.slice(0, Math.min(count, SEED_WORDS.length));
-
-    console.log(`[populateRoundSeedWords] Selected ${selectedWords.length} words`);
-    console.log(`[populateRoundSeedWords] First 5 words: ${selectedWords.slice(0, 5).join(', ')}`);
-
-    // Insert into database
-    const seedWordInserts: RoundSeedWordInsert[] = selectedWords.map((word) => ({
-      roundId,
-      word: word.toUpperCase(),
-    }));
-
-    if (seedWordInserts.length > 0) {
-      console.log(`[populateRoundSeedWords] Inserting ${seedWordInserts.length} seed words into database...`);
-      await db.insert(roundSeedWords).values(seedWordInserts);
-      console.log(`✅ Populated ${seedWordInserts.length} seed words for round ${roundId}`);
-    }
-  } catch (error) {
-    console.error(`❌ Error populating seed words for round ${roundId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Get wheel words for a round
- *
- * Returns the union of:
- * - Seed words for this round (from round_seed_words)
- * - Wrong guesses for this round (from guesses where is_correct = false)
- *
- * Result is sorted alphabetically.
+ * Status derivation:
+ * - "winner" if word matches round.answer
+ * - "wrong" if word exists in wrong guesses for this round
+ * - "unguessed" for all other words
  *
  * @param roundId - The round to get words for
- * @returns Sorted array of words to display in the wheel
+ * @returns Array of WheelWord objects with status
  */
-export async function getWheelWordsForRound(roundId: number): Promise<string[]> {
+export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[]> {
   console.log(`[getWheelWordsForRound] Fetching wheel words for round ${roundId}`);
 
-  // Get seed words
-  const seedWordsData = await db
-    .select({ word: roundSeedWords.word })
-    .from(roundSeedWords)
-    .where(eq(roundSeedWords.roundId, roundId));
+  // Get all guessable words (these form the complete wheel)
+  const allGuessWords = getGuessWords();
+  console.log(`[getWheelWordsForRound] Total GUESS_WORDS: ${allGuessWords.length}`);
 
-  console.log(`[getWheelWordsForRound] Found ${seedWordsData.length} seed words`);
+  // Get round data to determine winner
+  const [round] = await db
+    .select()
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
 
-  const seedWordSet = new Set(seedWordsData.map((row) => row.word));
+  if (!round) {
+    throw new Error(`Round ${roundId} not found`);
+  }
 
-  // Get wrong guesses (distinct)
+  const winnerWord = round.answer.toUpperCase();
+  console.log(`[getWheelWordsForRound] Round answer: ${winnerWord}`);
+
+  // Get all wrong guesses for this round
   const wrongGuessesData = await db
     .select({ word: guesses.word })
     .from(guesses)
     .where(and(eq(guesses.roundId, roundId), eq(guesses.isCorrect, false)));
 
-  console.log(`[getWheelWordsForRound] Found ${wrongGuessesData.length} wrong guesses`);
-
   const wrongGuessSet = new Set(wrongGuessesData.map((row) => row.word));
+  console.log(`[getWheelWordsForRound] Found ${wrongGuessSet.size} wrong guesses`);
 
-  // Union of both sets
-  const allWords = new Set([...seedWordSet, ...wrongGuessSet]);
+  // Derive status for each word
+  const wheelWords: WheelWord[] = allGuessWords.map((word) => {
+    const upperWord = word.toUpperCase();
+    let status: WheelWordStatus = 'unguessed';
 
-  // Convert to sorted array
-  const sortedWords = Array.from(allWords).sort();
+    if (upperWord === winnerWord) {
+      status = 'winner';
+    } else if (wrongGuessSet.has(upperWord)) {
+      status = 'wrong';
+    }
 
-  console.log(`[getWheelWordsForRound] Returning ${sortedWords.length} total words`);
-  if (sortedWords.length > 0) {
-    console.log(`[getWheelWordsForRound] First 5 words: ${sortedWords.slice(0, 5).join(', ')}`);
-  }
+    return {
+      word: upperWord,
+      status,
+    };
+  });
 
-  return sortedWords;
+  // Sort alphabetically by word
+  wheelWords.sort((a, b) => a.word.localeCompare(b.word));
+
+  console.log(`[getWheelWordsForRound] Returning ${wheelWords.length} words with statuses`);
+  const statusCounts = wheelWords.reduce((acc, w) => {
+    acc[w.status] = (acc[w.status] || 0) + 1;
+    return acc;
+  }, {} as Record<WheelWordStatus, number>);
+  console.log(`[getWheelWordsForRound] Status breakdown:`, statusCounts);
+
+  return wheelWords;
 }
 
 /**
@@ -230,16 +197,14 @@ export async function getActiveRoundStatus(): Promise<RoundStatus> {
 
 /**
  * Get wheel data for active round
+ * Milestone 4.10: Returns WheelResponse with word statuses
  *
  * Convenience function that returns wheel words for the active round.
  * Automatically creates a round if none exists.
  *
- * @returns Object with roundId and sorted wheel words
+ * @returns WheelResponse with roundId, totalWords, and words with statuses
  */
-export async function getActiveWheelData(): Promise<{
-  roundId: number;
-  words: string[];
-}> {
+export async function getActiveWheelData(): Promise<WheelResponse> {
   console.log(`[getActiveWheelData] Getting active wheel data...`);
   const activeRound = await ensureActiveRound();
   console.log(`[getActiveWheelData] Active round ID: ${activeRound.id}`);
@@ -250,6 +215,7 @@ export async function getActiveWheelData(): Promise<{
 
   return {
     roundId: activeRound.id,
+    totalWords: words.length,
     words,
   };
 }
