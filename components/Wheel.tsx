@@ -38,8 +38,11 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       return -1;
     }
 
-    // Find first word >= currentGuess
-    const targetIndex = words.findIndex((word) => word >= currentGuess);
+    // Normalize to lowercase for case-insensitive alphabetical comparison
+    const normalizedGuess = currentGuess.toLowerCase();
+
+    // Find first word >= currentGuess (case-insensitive)
+    const targetIndex = words.findIndex((word) => word.toLowerCase() >= normalizedGuess);
 
     // If found, use that index
     if (targetIndex !== -1) {
@@ -147,7 +150,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    * Check if word is an exact match (for red highlighting)
    */
   const isExactMatch = (word: string): boolean => {
-    return currentGuess && word === currentGuess;
+    return currentGuess && word.toLowerCase() === currentGuess.toLowerCase();
   };
 
   /**
