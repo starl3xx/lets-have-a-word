@@ -4,6 +4,7 @@ import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
 import { resolveRoundAndCreatePayouts } from './economics';
+import { announceRoundStarted } from './announcer';
 
 /**
  * Options for creating a new round
@@ -65,6 +66,14 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);
 
   // Milestone 4.10: Seed words removed - wheel shows all GUESS_WORDS from start
+
+  // Milestone 5.1: Announce round started (non-blocking)
+  try {
+    await announceRoundStarted(round);
+  } catch (error) {
+    console.error('[rounds] Failed to announce round started:', error);
+    // Continue - announcer failures should never break the game
+  }
 
   return {
     id: round.id,

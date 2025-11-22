@@ -11,11 +11,76 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.14 Complete
+## 🎯 Current Status: Milestone 5.1 Complete
 
-All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.14 - UI Polish + Dev Mode Enhancements (Latest)
+### ✅ Milestone 5.1 - Farcaster Announcer Bot (Latest)
+
+Automated Farcaster announcements for round updates, milestones, and jackpot notifications from @letshaveaword (FID 1477413):
+
+- **Announcer Bot**
+  - Posts from official @letshaveaword Farcaster account (FID 1477413)
+  - Uses Neynar signer infrastructure (UUID: 75a966ee-fcd5-4c04-a29f-a5d8cc646902)
+  - Completely disabled in dev mode (NODE_ENV !== 'production')
+  - Safe, idempotent, and rate-limited
+  - All announcements are de-duplicated via announcer_events table
+
+- **Announcement Types**
+  1. **Round Started** - Posted when a new round is created
+     - Displays round number and starting prize pool
+     - Invites players to join the mini app
+  2. **Round Resolved** - Posted when someone wins the jackpot
+     - Shows winning word, jackpot amount, winner's payout
+     - Displays top 10 guesser payout split
+     - Includes commit-reveal hash + salt for verification
+     - Notes referrer earnings (if applicable)
+     - Announces total guess count
+  3. **Jackpot Milestones** - Posted when prize pool crosses thresholds (0.1, 0.25, 0.5, 1.0 ETH)
+     - Real-time jackpot growth announcements
+     - Encourages participation
+  4. **Guess Milestones** - Posted when total guesses cross thresholds (100, 500, 1k, 5k, 10k)
+     - Community engagement tracking
+     - Shows game activity level
+  5. **Referral Win** - Posted when a winner had a referrer
+     - Highlights successful referral earnings (10% of jackpot)
+     - Encourages referral program participation
+     - Threaded as reply to round resolved announcement
+
+- **Database Schema**
+  - New `announcer_events` table for event tracking
+  - Fields: eventType, roundId, milestoneKey, payload, castHash, postedAt
+  - Unique constraint on (eventType, roundId, milestoneKey) for idempotency
+  - Prevents duplicate announcements
+
+- **Environment Configuration**
+  - `NEYNAR_API_KEY` - Neynar API key (required)
+  - `NEYNAR_SIGNER_UUID` - Signer UUID for announcer account (75a966ee-fcd5-4c04-a29f-a5d8cc646902)
+  - `ANNOUNCER_FID` - FID of announcer account (1477413)
+  - `ANNOUNCER_ENABLED` - Feature flag (must be 'true' in production)
+  - `ANNOUNCER_DEBUG_LOGS` - Optional verbose logging (default: false)
+  - `NODE_ENV` - Must be 'production' for announcer to post
+
+- **Dev Mode Safety**
+  - Hard-coded checks prevent ANY announcements when NODE_ENV !== 'production'
+  - Dev mode logs skipped announcements for debugging
+  - No risk of accidental dev/staging posts to production account
+
+- **Integration Points**
+  - `src/lib/rounds.ts` - Round creation announcements
+  - `src/lib/economics.ts` - Round resolution and referral announcements
+  - `src/lib/guesses.ts` - Jackpot and guess milestone announcements
+  - All announcer calls are non-blocking (wrapped in try-catch)
+  - Announcer failures never break core game functionality
+
+- **Implementation Details**
+  - Module: `src/lib/announcer.ts`
+  - Helper: `recordAndCastAnnouncerEvent()` for idempotent posting
+  - Functions: `announceRoundStarted()`, `announceRoundResolved()`, `checkAndAnnounceJackpotMilestones()`, `checkAndAnnounceGuessMilestones()`, `announceReferralWin()`
+  - Graceful error handling throughout
+  - Comprehensive logging for monitoring
+
+### ✅ Milestone 4.14 - UI Polish + Dev Mode Enhancements
 
 Comprehensive UI/UX improvements and dev mode features for better visual feedback and testing:
 
@@ -906,6 +971,13 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 - Role tracking ('winner', 'referrer', 'top_guesser', 'seed', 'creator')
 - FID is nullable for system payouts (seed/creator)
 
+**`announcer_events`** - Farcaster announcement tracking (Milestone 5.1)
+- Event type tracking (round_started, round_resolved, jackpot_milestone, etc.)
+- De-duplication via unique constraint on (eventType, roundId, milestoneKey)
+- Cast hash storage for threading and verification
+- Posted timestamp tracking
+- Prevents duplicate announcements
+
 ## Game Mechanics
 
 ### Wheel Behavior
@@ -1015,6 +1087,34 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 **Configuration:**
 - Set `BASE_RPC_URL` in `.env` for custom RPC endpoint
 - Defaults to `https://mainnet.base.org`
+
+### Farcaster Announcer Bot (Milestone 5.1)
+
+The game automatically posts announcements to Farcaster from the official **@letshaveaword** account (FID 1477413).
+
+- **What Gets Announced:**
+  - **Round Started** - When a new round begins
+  - **Round Resolved** - When someone wins, including commit-reveal data for verification
+  - **Jackpot Milestones** - When prize pool reaches 0.1, 0.25, 0.5, 1.0 ETH
+  - **Guess Milestones** - When total guesses reach 100, 500, 1k, 5k, 10k
+  - **Referral Wins** - When a winner's referrer earns 10% of the jackpot
+
+- **Dev Mode Safety:**
+  - Announcer is **completely disabled** when `NODE_ENV !== 'production'`
+  - No announcements are ever posted from dev, staging, or preview environments
+  - Debug logs available via `ANNOUNCER_DEBUG_LOGS=true`
+
+- **How It Works:**
+  - Uses Neynar's agent/signer infrastructure
+  - Signer UUID: `75a966ee-fcd5-4c04-a29f-a5d8cc646902`
+  - All announcements are idempotent (stored in `announcer_events` table)
+  - Announcer failures never break the game (non-blocking, graceful error handling)
+  - Controlled via `ANNOUNCER_ENABLED` environment flag
+
+- **Configuration:**
+  - Set required env vars: `NEYNAR_API_KEY`, `NEYNAR_SIGNER_UUID`, `ANNOUNCER_FID`
+  - Enable with `ANNOUNCER_ENABLED=true` in production only
+  - Optional verbose logging with `ANNOUNCER_DEBUG_LOGS=true`
 
 ### ETH → USD Conversion (Milestone 4.12)
 
@@ -1239,6 +1339,7 @@ src/
 │   ├── economics.ts       # Jackpot + payouts
 │   ├── clankton.ts        # CLANKTON bonus checking
 │   ├── prices.ts          # ETH/USD price fetching (Milestone 4.12)
+│   ├── announcer.ts       # Farcaster announcer bot (Milestone 5.1)
 │   ├── haptics.ts         # Haptic feedback SDK wrapper (Milestone 4.7)
 │   ├── input-state-haptics.ts  # Haptic feedback hook (Milestone 4.7)
 │   ├── input-state.ts     # Input state machine (Milestone 4.6)
@@ -1350,14 +1451,6 @@ await resolveRound(roundId, winnerFid, referrerFid);
 
 Planned future milestones:
 
-### 🚧 Milestone 5.1 - Farcaster Announcer Bot
-- Create @letshaveaword Farcaster account (Done: https://farcaster.xyz/letshaveaword)
-- Connect announcer bot signer
-- Post round started announcements
-- Post round resolved announcements
-- Post milestone jackpot milestones
-- Post milestone guess count milestones
-- Post referral win announcements
 
 ### 📊 Milestone 5.2 - Analytics & Tracking
 - Analytics table creation
