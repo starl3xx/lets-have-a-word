@@ -468,10 +468,10 @@ export default function Home() {
       // This updates the guess counts in real-time
       setUserStateKey(prev => prev + 1);
 
-      // Show share modal for correct/incorrect guesses (Milestone 4.2)
-      // Only show if the guess was actually submitted (not an error)
+      // Show share modal ONLY for incorrect guesses (Milestone 4.2, updated 4.14)
+      // Winners get the WinnerShareCard instead
       // Milestone 4.8: Add 2-second delay to allow user to see feedback message
-      if (data.status === 'correct' || data.status === 'incorrect') {
+      if (data.status === 'incorrect') {
         setPendingShareResult(data);
 
         // Delay showing the modal so user can see the guess result message
