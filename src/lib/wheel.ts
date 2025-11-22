@@ -55,9 +55,11 @@ export function getEthUsdRate(): number {
  * Milestone 4.10: Returns all GUESS_WORDS with derived status
  *
  * Status derivation:
- * - "winner" if word matches round.answer
+ * - "winner" if word was correctly guessed (exists in guesses with isCorrect = true)
  * - "wrong" if word exists in wrong guesses for this round
- * - "unguessed" for all other words
+ * - "unguessed" for all other words (INCLUDING the answer if not yet guessed!)
+ *
+ * CRITICAL: Never reveal the answer by marking it as 'winner' before it's guessed!
  *
  * @param roundId - The round to get words for
  * @returns Array of WheelWord objects with status
@@ -69,39 +71,41 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
   const allGuessWords = getGuessWords();
   console.log(`[getWheelWordsForRound] Total GUESS_WORDS: ${allGuessWords.length}`);
 
-  // Get round data to determine winner
-  const [round] = await db
-    .select()
-    .from(rounds)
-    .where(eq(rounds.id, roundId))
-    .limit(1);
+  // Get all guesses for this round (both correct and incorrect)
+  const allGuessesData = await db
+    .select({ word: guesses.word, isCorrect: guesses.isCorrect })
+    .from(guesses)
+    .where(eq(guesses.roundId, roundId));
 
-  if (!round) {
-    throw new Error(`Round ${roundId} not found`);
+  // Build sets for O(1) lookup
+  const wrongGuessSet = new Set<string>();
+  let winnerWord: string | null = null;
+
+  for (const guess of allGuessesData) {
+    if (guess.isCorrect) {
+      winnerWord = guess.word.toUpperCase();
+    } else {
+      wrongGuessSet.add(guess.word.toUpperCase());
+    }
   }
 
-  const winnerWord = round.answer.toUpperCase();
-  console.log(`[getWheelWordsForRound] Round answer: ${winnerWord}`);
-
-  // Get all wrong guesses for this round
-  const wrongGuessesData = await db
-    .select({ word: guesses.word })
-    .from(guesses)
-    .where(and(eq(guesses.roundId, roundId), eq(guesses.isCorrect, false)));
-
-  const wrongGuessSet = new Set(wrongGuessesData.map((row) => row.word));
   console.log(`[getWheelWordsForRound] Found ${wrongGuessSet.size} wrong guesses`);
+  console.log(`[getWheelWordsForRound] Winner word: ${winnerWord || 'none yet'}`);
 
   // Derive status for each word
+  // CRITICAL: Only mark as 'winner' if it was ACTUALLY GUESSED correctly
   const wheelWords: WheelWord[] = allGuessWords.map((word) => {
     const upperWord = word.toUpperCase();
     let status: WheelWordStatus = 'unguessed';
 
-    if (upperWord === winnerWord) {
+    if (winnerWord && upperWord === winnerWord) {
+      // Word was correctly guessed → show as winner
       status = 'winner';
     } else if (wrongGuessSet.has(upperWord)) {
+      // Word was guessed but wrong → show as wrong
       status = 'wrong';
     }
+    // Otherwise stays 'unguessed' (even if it's the answer!)
 
     return {
       word: upperWord,
