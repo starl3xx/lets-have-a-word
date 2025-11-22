@@ -17,39 +17,54 @@ All core game mechanics, onchain integration, social features, and UX polish are
 
 ### ✅ Milestone 4.13 - Clean English Dictionary (Latest)
 
-Replaced Wordle-derived dictionaries with clean, modern English wordlists free of Scrabble garbage:
+Replaced Wordle-derived dictionaries with clean, modern English wordlists using frequency-based filtering:
 
 - **Clean Dictionaries**
-  - **GUESS_WORDS_CLEAN**: 10,014 words (all valid guesses)
-  - **ANSWER_WORDS_EXPANDED**: 7,520 words (curated answer candidates)
+  - **GUESS_WORDS_CLEAN**: 5,884 words (all valid guesses)
+  - **ANSWER_WORDS_EXPANDED**: 3,500 words (curated answer candidates)
   - Located in `src/data/guess_words_clean.ts` and `src/data/answer_words_expanded.ts`
   - All words in UPPERCASE for consistency
   - Invariant maintained: ANSWER_WORDS_EXPANDED ⊆ GUESS_WORDS_CLEAN
+
+- **Frequency-Based Filtering**
+  - Uses wordfreq library for real-world word frequency analysis
+  - Zipf frequency thresholds: ≥2.5 for guesses, ≥3.0 for answers
+  - Generated from ~38k 5-letter words in wordfreq English corpus
+  - No arbitrary shape-based filters (consonant patterns, vowel counts, etc.)
+  - Includes common words like CRASS, excludes garbage like MENIL
 
 - **Filtering Criteria**
   - No Scrabble/crossword garbage (AALII, AARGH, XYSTI, etc.)
   - No offensive words or slurs
   - No proper nouns (names, places, brands)
-  - No archaic or extremely obscure terms
-  - Real, modern English vocabulary
+  - No protocol/organization acronyms (HTTPS, NORAD, LGBTQ)
+  - Real, modern English vocabulary only
+
+- **Crypto/Farcaster Terminology Whitelist**
+  - Includes game-relevant crypto/Farcaster terms regardless of frequency
+  - WAGMI, DEGEN, STAKE, YIELD, TOKEN, CHAIN, BLOCK, CASTS
+  - ALPHA, PONZI, SHILL, LAMBO, DEPEG, NOUNS, ZCASH
+  - NOICE, BANKR, SENPI, CLANK, DOODS, PERPS, SNIPE
+  - Ensures players can use terminology familiar to the community
 
 - **Plural Handling**
   - Heuristic-based plural detection
   - Plurals allowed in guess dictionary
-  - Most plurals excluded from answer dictionary
+  - Most plurals excluded from answer dictionary (reduces by ~1k words)
   - Common/essential plurals may be included
 
-- **Generation Scripts**
-  - `src/scripts/generate-wordnik-dictionaries.ts` - Wordnik API integration (requires API key)
-  - `src/scripts/filter-existing-dictionaries.ts` - Practical filtering script (used for current lists)
-  - Comprehensive blacklists for offensive, archaic, and proper noun words
-  - Pattern-based filtering for uncommon letter combinations
+- **Generation Script**
+  - `src/scripts/generate-frequency-dictionaries.py` - Frequency-based generator (Python)
+  - Requires: `pip install wordfreq`
+  - Comprehensive blacklists for offensive, proper nouns, and garbage words
+  - Crypto/Farcaster whitelist for community-relevant terms
+  - Run: `python3 src/scripts/generate-frequency-dictionaries.py`
 
 - **Integration**
   - Updated `src/lib/word-lists.ts` to use clean dictionaries
-  - All game logic now uses filtered word lists
+  - All game logic now uses frequency-filtered word lists
   - Backward compatible with existing game state
-  - Updated tests to verify no garbage words
+  - Validated: CRASS included, MENIL excluded
 
 ### ✅ Milestone 4.12 - ETH/USD Price Integration
 

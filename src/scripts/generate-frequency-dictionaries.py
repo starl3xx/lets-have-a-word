@@ -84,6 +84,19 @@ SCRABBLE_GARBAGE = {
     'ZONDA', 'ZOOEA', 'ZOOID', 'ZOOKS', 'ZOOMY', 'ZOONS', 'ZOOTY',
 }
 
+# Crypto/Farcaster terminology (whitelist - always include regardless of frequency)
+CRYPTO_WHITELIST = {
+    'WAGMI',  # We're All Gonna Make It
+    'DEGEN',  # Degenerate (crypto trader)
+    'DEPEG',  # Stablecoin losing peg
+    'ZCASH',  # Privacy cryptocurrency
+    'NOICE',  # Nice (slang)
+    'BANKR',  # Bankrupt/Banker slang
+    'SENPI',  # Senpai (anime/crypto culture)
+    'DOODS',  # Dudes (NFT/crypto slang)
+    'PERPS',  # Perpetual futures contracts
+}
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -135,6 +148,10 @@ def is_proper_noun(word: str) -> bool:
 def is_scrabble_garbage(word: str) -> bool:
     """Check if word is known Scrabble garbage"""
     return word in SCRABBLE_GARBAGE
+
+def is_crypto_term(word: str) -> bool:
+    """Check if word is a whitelisted crypto/Farcaster term"""
+    return word in CRYPTO_WHITELIST
 
 def get_frequency_score(word: str) -> float:
     """Get Zipf frequency score for a word"""
@@ -228,8 +245,8 @@ def generate_guess_words(source_words: Set[str]) -> List[str]:
             rejected['scrabble_garbage'] += 1
             continue
 
-        # Frequency check
-        if freq < MIN_ZIPF_GUESS:
+        # Frequency check (crypto terms bypass this check)
+        if freq < MIN_ZIPF_GUESS and not is_crypto_term(word):
             rejected['too_rare'] += 1
             continue
 
@@ -421,7 +438,11 @@ def main():
     print("\n=== LOADING SOURCE WORDS FROM WORDFREQ ===\n")
     all_source_words = load_all_five_letter_words_from_wordfreq()
 
+    # Add crypto/Farcaster whitelist words (some may not be in wordfreq)
+    all_source_words.update(CRYPTO_WHITELIST)
+
     print(f"Loaded {len(all_source_words)} five-letter words from wordfreq vocabulary")
+    print(f"Added {len(CRYPTO_WHITELIST)} crypto/Farcaster terms to whitelist")
 
     # Generate dictionaries
     guess_words = generate_guess_words(all_source_words)
