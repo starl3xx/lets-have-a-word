@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
@@ -153,6 +153,21 @@ export default function Home() {
   }, [fid, userStateKey]); // Re-fetch when userStateKey changes
 
   /**
+   * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
+   * Using wheelWords.some() would be O(n) through 10,516 words on every keystroke!
+   * This must be defined BEFORE the useEffects that use it.
+   */
+  const wrongGuessesSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const w of wheelWords) {
+      if (w.status === 'wrong') {
+        set.add(w.word.toLowerCase());
+      }
+    }
+    return set;
+  }, [wheelWords]);
+
+  /**
    * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
    * Provides immediate visual feedback for invalid state
    * Note: Haptics for invalid states are now handled by useInputStateHaptics hook (Milestone 4.7)
@@ -161,10 +176,8 @@ export default function Home() {
     const currentWord = letters.join('');
     // Only trigger shake when user has typed 5 letters and it's invalid
     if (currentWord.length === 5) {
-      // Check if word has been guessed (wrong status)
-      const isAlreadyGuessed = wheelWords.some(
-        w => w.word.toLowerCase() === currentWord.toLowerCase() && w.status === 'wrong'
-      );
+      // Check if word has been guessed (wrong status) using memoized Set
+      const isAlreadyGuessed = wrongGuessesSet.has(currentWord.toLowerCase());
 
       // Get current state
       const state = getInputState({
@@ -181,7 +194,7 @@ export default function Home() {
         triggerShake();
       }
     }
-  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
+  }, [letters, wrongGuessesSet, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
 
   /**
    * Hardware keyboard support for desktop (Milestone 4.4)
@@ -229,7 +242,7 @@ export default function Home() {
     // Get current state to check if there's an error
     const word = letters.join('');
     const isAlreadyGuessed = word.length === 5
-      ? wheelWords.some(w => w.word.toLowerCase() === word.toLowerCase() && w.status === 'wrong')
+      ? wrongGuessesSet.has(word.toLowerCase())
       : false;
 
     const currentState = getInputState({
@@ -250,7 +263,7 @@ export default function Home() {
 
       return () => clearTimeout(timer);
     }
-  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]);
+  }, [letters, wrongGuessesSet, isLoading, hasGuessesLeft, boxResultState]);
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
@@ -502,7 +515,7 @@ export default function Home() {
   // Compute current input state using state machine (Milestone 4.6, updated Milestone 4.10)
   const word = letters.join('');
   const isAlreadyGuessed = word.length === 5
-    ? wheelWords.some(w => w.word.toLowerCase() === word.toLowerCase() && w.status === 'wrong')
+    ? wrongGuessesSet.has(word.toLowerCase())
     : false;
 
   const currentInputState: InputState = getInputState({
