@@ -91,6 +91,7 @@ export type GuessInsert = typeof guesses.$inferInsert;
  * Daily Guess State Table
  * Tracks per-user, per-day guess allocations and usage
  * Milestone 2.2: Daily & bonus mechanics
+ * Milestone 4.14: Wheel start position per user per day
  */
 export const dailyGuessState = pgTable('daily_guess_state', {
   id: serial('id').primaryKey(),
@@ -109,6 +110,10 @@ export const dailyGuessState = pgTable('daily_guess_state', {
 
   // Share bonus tracking
   hasSharedToday: boolean('has_shared_today').default(false).notNull(), // Once share detected, set true
+
+  // Wheel start position (Milestone 4.14)
+  wheelStartIndex: integer('wheel_start_index'), // Random start index for wheel scroll position
+  wheelRoundId: integer('wheel_round_id'), // Round ID this wheel position was generated for (optional)
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

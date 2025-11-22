@@ -151,7 +151,7 @@ export default function LetterBoxes({
 
       {/* Visual letter boxes */}
       <div
-        className={`flex gap-2 justify-center ${isShaking ? 'animate-shake' : ''}`}
+        className={`flex gap-2 justify-center ${isShaking ? 'animate-shake' : ''} ${resultState === 'correct' ? 'animate-pulse-glow' : ''}`}
         onClick={handleBoxClick}
       >
         {letters.map((letter, index) => (
