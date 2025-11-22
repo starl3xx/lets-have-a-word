@@ -37,10 +37,10 @@ export default async function handler(
 
       // Return synthetic round status for dev mode
       const syntheticStatus: RoundStatus = {
-        roundId: 999999,
-        prizePoolEth: '0.42',
-        prizePoolUsd: '1260.00',
-        globalGuessCount: 73,
+        roundId: 5,
+        prizePoolEth: '0.36',
+        prizePoolUsd: '1080.00', // 0.36 ETH * $3000/ETH
+        globalGuessCount: 8516,
         lastUpdatedAt: new Date().toISOString(),
       };
 
