@@ -26,12 +26,16 @@ import type { WheelResponse, WheelWord, WheelWordStatus } from '../../src/types'
  * }
  *
  * Status values:
- * - "unguessed": Word has not been guessed yet
+ * - "unguessed": Word has not been guessed yet (INCLUDING the answer!)
  * - "wrong": Word was guessed incorrectly
- * - "winner": Word is the correct answer
+ * - "winner": Word was guessed correctly (ONLY after a correct guess!)
+ *
+ * CRITICAL: The answer is NEVER marked as "winner" until someone actually guesses it correctly.
+ * This prevents the wheel from revealing the answer visually.
  *
  * Dev mode query params:
  * - wrongGuesses: Comma-separated list of wrong guesses to include (e.g., "BRAIN,TRAIN")
+ * - showWinner: Set to "true" to test post-win state (marks answer as winner)
  *
  * Automatically creates a round if none exists.
  * In dev mode with LHAW_DEV_MODE=true, returns synthetic data without database access.
@@ -70,16 +74,27 @@ export default async function handler(
         console.log(`🎮 Dev mode: Added ${wrongGuessSet.size} wrong guesses`);
       }
 
+      // Check if we should show the winner (for testing post-win state)
+      // CRITICAL: By default, do NOT reveal the answer!
+      const showWinner = req.query.showWinner === 'true';
+      if (showWinner) {
+        console.log(`🎮 Dev mode: showWinner=true, will mark ${solution} as winner`);
+      }
+
       // Build wheel words with statuses
+      // CRITICAL: Only mark answer as 'winner' if showWinner=true (simulating post-win state)
+      // Otherwise, answer stays 'unguessed' to avoid revealing it!
       const wheelWords: WheelWord[] = allGuessWords.map((word) => {
         const upperWord = word.toUpperCase();
         let status: WheelWordStatus = 'unguessed';
 
-        if (upperWord === solution) {
+        if (upperWord === solution && showWinner) {
+          // Only reveal winner if explicitly testing post-win state
           status = 'winner';
         } else if (wrongGuessSet.has(upperWord)) {
           status = 'wrong';
         }
+        // Otherwise stays 'unguessed' (even if it's the answer!)
 
         return {
           word: upperWord,
