@@ -89,7 +89,7 @@ lets-have-a-word/
 │       ├── game.ts                  # Unified game state (dev mode)
 │       ├── guess.ts                 # Submit guess
 │       ├── wheel.ts                 # Get wheel words
-│       ├── round-state.ts           # Get round status
+│       ├── round-state.ts           # Get round status (with live ETH/USD)
 │       ├── user-state.ts            # Get user state
 │       └── share-callback.ts        # Handle share bonus
 ├── components/
@@ -97,7 +97,7 @@ lets-have-a-word/
 │   ├── LetterBoxes.tsx              # 5-letter input boxes
 │   ├── GameKeyboard.tsx             # Custom QWERTY keyboard
 │   ├── UserState.tsx                # Guess counts display
-│   ├── TopTicker.tsx                # Prize pool ticker
+│   ├── TopTicker.tsx                # Prize pool ticker (ETH + USD)
 │   ├── SharePromptModal.tsx         # Share bonus prompt
 │   ├── FirstTimeOverlay.tsx         # Onboarding
 │   ├── StatsSheet.tsx               # User statistics
@@ -110,6 +110,7 @@ lets-have-a-word/
 │   │   ├── daily-limits.ts          # Daily guess tracking
 │   │   ├── wheel.ts                 # Wheel data logic
 │   │   ├── word-lists.ts            # Word validation
+│   │   ├── prices.ts                # ETH/USD price fetching (CoinGecko)
 │   │   ├── input-state.ts           # Input state machine
 │   │   ├── commit-reveal.ts         # Cryptographic hashing
 │   │   ├── clankton.ts              # Token balance checking
@@ -335,14 +336,20 @@ Get user's daily guess allocations.
 ```
 
 #### `GET /api/round-state`
-Get current round status for top ticker.
+Get current round status for top ticker with live ETH/USD conversion.
+
+**Features (Milestone 4.12):**
+- Live ETH/USD price from CoinGecko API
+- 60-second caching to avoid rate limits
+- Graceful fallback if API unavailable
+- Works in dev mode and production
 
 **Response:**
 ```json
 {
   "roundId": 123,
   "prizePoolEth": "0.5",
-  "prizePoolUsd": "1500.00",
+  "prizePoolUsd": "1685.50",  // Live from CoinGecko
   "globalGuessCount": 42,
   "lastUpdatedAt": "2025-01-15T12:00:00Z"
 }
@@ -819,8 +826,8 @@ await sdk.actions.openUrl({
 
 ### Milestone 3.2: Top Ticker Polish
 - Real prize pool from database
-- USD conversion with placeholder/config rate
-- Proper number formatting
+- USD conversion with live CoinGecko API (updated in Milestone 4.12)
+- Proper number formatting (always 2 decimal places)
 - Live updates every 15 seconds
 
 ### Milestone 4.1: User State Display
@@ -894,6 +901,17 @@ await sdk.actions.openUrl({
 - **Fast Rotation**: 150ms animated scroll with visible wheel rotation
 - **Dynamic Gap**: 10vh responsive gap height
 - **Invariant Verification**: ANSWER_WORDS ⊆ GUESS_WORDS maintained
+
+### Milestone 4.12: ETH/USD Price Integration (CoinGecko)
+- **CoinGecko Integration**: Live ETH/USD price fetching via free API
+- **Price Module**: New `src/lib/prices.ts` with `getEthUsdPrice()` function
+- **60-Second Caching**: Client-side caching to avoid rate limits
+- **Graceful Fallback**: Uses last cached price on API errors
+- **No Configuration**: Zero API keys required, works out of the box
+- **Dev Mode Support**: Live prices in all dev modes (LHAW_DEV_MODE, NEXT_PUBLIC_TEST_MID_ROUND)
+- **UI Updates**: Top ticker displays "0.123 ETH ($421.50)" format
+- **Formatting**: USD always shows 2 decimal places for cents
+- **Error Handling**: Never blocks UI, shows ETH only if price unavailable
 
 ### Planned Milestones (5.1 - 6.2)
 
@@ -1178,5 +1196,5 @@ vercel inspect <deployment-url>
 ---
 
 **Last Updated**: January 2025
-**Version**: 4.11 (Milestone 4.11 - Final Word List Integration & Virtualization)
+**Version**: 4.12 (Milestone 4.12 - ETH/USD Price Integration via CoinGecko)
 **Status**: Active Development
