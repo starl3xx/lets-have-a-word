@@ -113,10 +113,18 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   /**
    * Calculate visible range for virtualization (Performance optimization)
    * Only render ~100 words instead of all 10,516
+   * CRITICAL: Always include gapIndex to ensure gap can be scrolled to
    */
   const visibleRange = useMemo(() => {
-    if (containerHeight === 0 || words.length === 0) {
-      return { startIndex: 0, endIndex: Math.min(100, words.length) };
+    if (words.length === 0) {
+      return { startIndex: 0, endIndex: 0 };
+    }
+
+    // On initial load (containerHeight = 0), render range around gap
+    if (containerHeight === 0) {
+      const start = Math.max(0, gapIndex - 50);
+      const end = Math.min(words.length, gapIndex + 50);
+      return { startIndex: start, endIndex: end };
     }
 
     const scrollStart = Math.max(0, scrollTop - VIEWPORT_PADDING);
@@ -141,8 +149,14 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     startIndex = Math.max(0, startIndex - OVERSCAN_COUNT);
     endIndex = Math.min(words.length, endIndex + OVERSCAN_COUNT);
 
+    // CRITICAL: Always include gapIndex to ensure gap can be rendered and scrolled to
+    if (gapIndex < startIndex || gapIndex > endIndex) {
+      startIndex = Math.min(startIndex, gapIndex);
+      endIndex = Math.max(endIndex, gapIndex + 1);
+    }
+
     return { startIndex, endIndex };
-  }, [scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT]);
+  }, [scrollTop, containerHeight, words.length, gapTopOffset, GAP_HEIGHT, gapIndex]);
 
   /**
    * Track scroll position for virtualization
@@ -173,7 +187,16 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    * Uses native scrollIntoView for smooth, predictable animation
    */
   useEffect(() => {
-    if (!gapRef.current || !isInitialized) return;
+    if (!gapRef.current) {
+      console.log('[Wheel] gapRef.current is null, skipping scroll');
+      return;
+    }
+    if (!isInitialized) {
+      console.log('[Wheel] Not initialized yet, skipping scroll');
+      return;
+    }
+
+    console.log('[Wheel] Scrolling to gap, centerIndex:', centerIndex, 'gapIndex:', gapIndex);
 
     // Use setTimeout to defer scroll to next tick (Milestone 4.5 pattern)
     const timeoutId = setTimeout(() => {
@@ -193,9 +216,10 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    */
   useEffect(() => {
     if (!isInitialized && words.length > 0) {
+      console.log('[Wheel] Initializing, words.length:', words.length, 'gapIndex:', gapIndex);
       setIsInitialized(true);
     }
-  }, [isInitialized, words.length]);
+  }, [isInitialized, words.length, gapIndex]);
 
   /**
    * Get status-based styling (Milestone 4.10+)
@@ -315,6 +339,8 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const visibleWords = useMemo(() => {
     const items: JSX.Element[] = [];
     const { startIndex, endIndex } = visibleRange;
+
+    console.log('[Wheel] Rendering range:', startIndex, '-', endIndex, 'gapIndex:', gapIndex, 'words.length:', words.length);
 
     for (let i = startIndex; i < endIndex; i++) {
       if (i >= words.length) break;
