@@ -575,11 +575,11 @@ export default function Home() {
 
           {/* Wheel + Input Container - fills remaining space with stable height */}
           <div
-            className="relative"
+            className="flex-1 relative"
             style={{
-              height: '100%', // Explicit height instead of flex-1 to prevent resizing
               minHeight: 0,
               overflow: 'hidden', // Ensure content doesn't affect height
+              willChange: 'auto', // Prevent paint/layout thrashing
             }}
           >
             {/* Background Layer: Wheel with real gap (no words can occupy this vertical space) */}
@@ -587,7 +587,8 @@ export default function Home() {
               className="absolute inset-0"
               style={{
                 zIndex: 1,
-                contain: 'layout style paint', // Isolate wheel from affecting surrounding layout
+                contain: 'strict', // Strict containment: layout, style, paint, and size
+                contentVisibility: 'auto', // Optimize rendering
               }}
             >
               {isLoadingWheel ? (
