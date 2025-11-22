@@ -86,11 +86,17 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
 
   /**
    * Determine where to insert the gap
-   * Milestone 4.5 logic: Gap at centerIndex (alphabetical position) or middle when not typing
+   * Gap should appear AFTER centerIndex so focused word appears ABOVE gap
+   * Special case: For last word, gap appears BEFORE it
    */
   const gapIndex = useMemo(() => {
     if (centerIndex !== -1) {
-      return centerIndex;
+      // Special case: if centering last word, put gap BEFORE it
+      if (centerIndex === words.length - 1) {
+        return centerIndex;
+      }
+      // Normal case: gap AFTER centered word (so word appears above gap)
+      return centerIndex + 1;
     }
     // Default to middle of list when not typing
     return Math.floor(words.length / 2);
