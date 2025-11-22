@@ -11,11 +11,62 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.12 Complete
+## 🎯 Current Status: Milestone 4.13 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.12 - ETH/USD Price Integration (Latest)
+### ✅ Milestone 4.13 - Clean English Dictionary (Latest)
+
+Replaced Wordle-derived dictionaries with clean, modern English wordlists using frequency-based filtering:
+
+- **Clean Dictionaries**
+  - **GUESS_WORDS_CLEAN**: 5,884 words (all valid guesses)
+  - **ANSWER_WORDS_EXPANDED**: 3,500 words (curated answer candidates)
+  - Located in `src/data/guess_words_clean.ts` and `src/data/answer_words_expanded.ts`
+  - All words in UPPERCASE for consistency
+  - Invariant maintained: ANSWER_WORDS_EXPANDED ⊆ GUESS_WORDS_CLEAN
+
+- **Frequency-Based Filtering**
+  - Uses wordfreq library for real-world word frequency analysis
+  - Zipf frequency thresholds: ≥2.5 for guesses, ≥3.0 for answers
+  - Generated from ~38k 5-letter words in wordfreq English corpus
+  - No arbitrary shape-based filters (consonant patterns, vowel counts, etc.)
+  - Includes common words like CRASS, excludes garbage like MENIL
+
+- **Filtering Criteria**
+  - No Scrabble/crossword garbage (AALII, AARGH, XYSTI, etc.)
+  - No offensive words or slurs
+  - No proper nouns (names, places, brands)
+  - No protocol/organization acronyms (HTTPS, NORAD, LGBTQ)
+  - Real, modern English vocabulary only
+
+- **Crypto/Farcaster Terminology Whitelist**
+  - Includes game-relevant crypto/Farcaster terms regardless of frequency
+  - WAGMI, DEGEN, STAKE, YIELD, TOKEN, CHAIN, BLOCK, CASTS
+  - ALPHA, PONZI, SHILL, LAMBO, DEPEG, NOUNS, ZCASH
+  - NOICE, BANKR, SENPI, CLANK, DOODS, PERPS, SNIPE
+  - Ensures players can use terminology familiar to the community
+
+- **Plural Handling**
+  - Heuristic-based plural detection
+  - Plurals allowed in guess dictionary
+  - Most plurals excluded from answer dictionary (reduces by ~1k words)
+  - Common/essential plurals may be included
+
+- **Generation Script**
+  - `src/scripts/generate-frequency-dictionaries.py` - Frequency-based generator (Python)
+  - Requires: `pip install wordfreq`
+  - Comprehensive blacklists for offensive, proper nouns, and garbage words
+  - Crypto/Farcaster whitelist for community-relevant terms
+  - Run: `python3 src/scripts/generate-frequency-dictionaries.py`
+
+- **Integration**
+  - Updated `src/lib/word-lists.ts` to use clean dictionaries
+  - All game logic now uses frequency-filtered word lists
+  - Backward compatible with existing game state
+  - Validated: CRASS included, MENIL excluded
+
+### ✅ Milestone 4.12 - ETH/USD Price Integration
 
 Real-time ETH→USD conversion for the jackpot display using CoinGecko's free API:
 
