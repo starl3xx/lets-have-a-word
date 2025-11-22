@@ -1,10 +1,14 @@
 /**
  * SEED_WORDS
  *
- * Words used to pre-populate the "wheel" at round start
- * MUST NOT overlap with ANSWER_WORDS (these can never be correct answers)
- * Should be subset of GUESS_WORDS for consistency
- * These are treated as fake "wrong guesses" to give early players context
+ * @deprecated Milestone 4.11: SEED_WORDS are no longer used
+ * The wheel now displays all GUESS_WORDS (10,516 words) from the start
+ * This file is kept for backwards compatibility with tests only
+ *
+ * Previously used to pre-populate the "wheel" at round start
+ * (before any user had guessed)
+ *
+ * These were treated as fake "wrong guesses" to give early players context
  */
 export const SEED_WORDS: string[] = [
   'aahed', 'aalii', 'aargh', 'abaca', 'abaci', 'aback', 'abaft', 'abamp', 'abase', 'abash',
