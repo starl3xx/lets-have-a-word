@@ -1,33 +1,39 @@
-import { ANSWER_WORDS } from '../data/answer_words';
-import { GUESS_WORDS } from '../data/guess_words';
+import { GUESS_WORDS_CLEAN } from '../data/guess_words_clean';
+import { ANSWER_WORDS_EXPANDED } from '../data/answer_words_expanded';
 import type { WordLists } from '../types';
 
 /**
  * Pre-compute Sets for O(1) lookup instead of O(n) includes()
- * CRITICAL: Using includes() on 10,516 words blocks input rendering!
+ * CRITICAL: Using includes() on 10,014 words blocks input rendering!
  */
-const GUESS_WORDS_SET = new Set(GUESS_WORDS);
-const ANSWER_WORDS_SET = new Set(ANSWER_WORDS);
+const GUESS_WORDS_SET = new Set(GUESS_WORDS_CLEAN);
+const ANSWER_WORDS_SET = new Set(ANSWER_WORDS_EXPANDED);
 
 /**
  * Get all answer words (valid answer candidates)
- * Returns the canonical ANSWER_WORDS list (2,279 words, UPPERCASE)
+ * Milestone 4.13: Returns clean, modern English words (7,520 words, UPPERCASE)
+ * - No Scrabble/crossword garbage
+ * - No obvious plurals
+ * - Everyday vocabulary suitable for casual players
  */
 export function getAnswerWords(): string[] {
-  return [...ANSWER_WORDS];
+  return [...ANSWER_WORDS_EXPANDED];
 }
 
 /**
  * Get all guess words (valid guessable words)
- * Returns the canonical GUESS_WORDS list (10,516 words, UPPERCASE)
+ * Milestone 4.13: Returns clean dictionary (10,014 words, UPPERCASE)
+ * - Filtered from Wordle lists with strict criteria
+ * - No offensive words, proper nouns, or archaic terms
+ * - Real, modern English vocabulary
  */
 export function getGuessWords(): string[] {
-  return [...GUESS_WORDS];
+  return [...GUESS_WORDS_CLEAN];
 }
 
 /**
  * Get all word lists
- * Milestone 4.11: Integrated canonical word lists
+ * Milestone 4.13: Clean dictionaries based on filtered word lists
  */
 export function getWordLists(): WordLists {
   return {
@@ -58,10 +64,10 @@ export function isValidAnswer(word: string): boolean {
 
 /**
  * Validate word list constraints
- * Milestone 4.10: Updated to remove SEED_WORDS validation
+ * Milestone 4.13: Updated for clean dictionaries
  *
  * Requirements:
- * 1. All ANSWER_WORDS must be in GUESS_WORDS
+ * 1. All ANSWER_WORDS_EXPANDED must be in GUESS_WORDS_CLEAN
  *
  * @throws Error if constraints are violated
  */
@@ -69,25 +75,25 @@ export function validateWordLists(): void {
   const errors: string[] = [];
 
   // Convert to sets for efficient lookup
-  const answerSet = new Set(ANSWER_WORDS);
-  const guessSet = new Set(GUESS_WORDS);
+  const answerSet = new Set(ANSWER_WORDS_EXPANDED);
+  const guessSet = new Set(GUESS_WORDS_CLEAN);
 
-  // Check constraint 1: ANSWER_WORDS ⊆ GUESS_WORDS
-  const answersNotInGuess = ANSWER_WORDS.filter(word => !guessSet.has(word));
+  // Check constraint 1: ANSWER_WORDS_EXPANDED ⊆ GUESS_WORDS_CLEAN
+  const answersNotInGuess = ANSWER_WORDS_EXPANDED.filter(word => !guessSet.has(word));
   if (answersNotInGuess.length > 0) {
     errors.push(
-      `CONSTRAINT VIOLATION: ${answersNotInGuess.length} answer words are not in GUESS_WORDS: ` +
+      `CONSTRAINT VIOLATION: ${answersNotInGuess.length} answer words are not in GUESS_WORDS_CLEAN: ` +
       answersNotInGuess.slice(0, 10).join(', ') +
       (answersNotInGuess.length > 10 ? '...' : '')
     );
   }
 
   // Check for duplicates within each list
-  if (answerSet.size !== ANSWER_WORDS.length) {
-    errors.push(`ANSWER_WORDS contains ${ANSWER_WORDS.length - answerSet.size} duplicate(s)`);
+  if (answerSet.size !== ANSWER_WORDS_EXPANDED.length) {
+    errors.push(`ANSWER_WORDS_EXPANDED contains ${ANSWER_WORDS_EXPANDED.length - answerSet.size} duplicate(s)`);
   }
-  if (guessSet.size !== GUESS_WORDS.length) {
-    errors.push(`GUESS_WORDS contains ${GUESS_WORDS.length - guessSet.size} duplicate(s)`);
+  if (guessSet.size !== GUESS_WORDS_CLEAN.length) {
+    errors.push(`GUESS_WORDS_CLEAN contains ${GUESS_WORDS_CLEAN.length - guessSet.size} duplicate(s)`);
   }
 
   // Throw if any errors found
@@ -98,16 +104,19 @@ export function validateWordLists(): void {
   }
 
   // Log success
-  console.log('✅ Word list validation passed:');
-  console.log(`   - ANSWER_WORDS: ${ANSWER_WORDS.length} words`);
-  console.log(`   - GUESS_WORDS: ${GUESS_WORDS.length} words`);
+  console.log('✅ Word list validation passed (Milestone 4.13):');
+  console.log(`   - ANSWER_WORDS_EXPANDED: ${ANSWER_WORDS_EXPANDED.length} words`);
+  console.log(`   - GUESS_WORDS_CLEAN: ${GUESS_WORDS_CLEAN.length} words`);
   console.log(`   - All constraints satisfied`);
+  console.log(`   - No garbage/Scrabble words`);
+  console.log(`   - Clean, modern English vocabulary`);
 }
 
 /**
  * Get a random answer word
+ * Milestone 4.13: Uses clean, curated answer words
  */
 export function getRandomAnswerWord(): string {
-  const index = Math.floor(Math.random() * ANSWER_WORDS.length);
-  return ANSWER_WORDS[index];
+  const index = Math.floor(Math.random() * ANSWER_WORDS_EXPANDED.length);
+  return ANSWER_WORDS_EXPANDED[index];
 }

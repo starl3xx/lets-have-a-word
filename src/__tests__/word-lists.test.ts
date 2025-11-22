@@ -2,32 +2,26 @@ import { describe, it, expect } from 'vitest';
 import {
   getAnswerWords,
   getGuessWords,
-  getSeedWords,
   isValidGuess,
   isValidAnswer,
   validateWordLists,
 } from '../lib/word-lists';
 
-describe('Word Lists', () => {
-  it('should load answer words', () => {
+describe('Word Lists - Milestone 4.13', () => {
+  it('should load answer words (clean dictionaries)', () => {
     const words = getAnswerWords();
     expect(words).toBeDefined();
     expect(words.length).toBeGreaterThan(0);
     expect(words.every(w => w.length === 5)).toBe(true);
+    expect(words.every(w => /^[A-Z]{5}$/.test(w))).toBe(true);
   });
 
-  it('should load guess words', () => {
+  it('should load guess words (clean dictionaries)', () => {
     const words = getGuessWords();
     expect(words).toBeDefined();
     expect(words.length).toBeGreaterThan(0);
     expect(words.every(w => w.length === 5)).toBe(true);
-  });
-
-  it('should load seed words', () => {
-    const words = getSeedWords();
-    expect(words).toBeDefined();
-    expect(words.length).toBeGreaterThan(0);
-    expect(words.every(w => w.length === 5)).toBe(true);
+    expect(words.every(w => /^[A-Z]{5}$/.test(w))).toBe(true);
   });
 
   it('should validate that answer words are subset of guess words', () => {
@@ -39,12 +33,16 @@ describe('Word Lists', () => {
     }
   });
 
-  it('should validate that seed words do not overlap with answer words', () => {
+  it('should not contain known garbage Scrabble words', () => {
+    const guessWords = new Set(getGuessWords());
     const answerWords = new Set(getAnswerWords());
-    const seedWords = getSeedWords();
 
-    for (const word of seedWords) {
-      expect(answerWords.has(word)).toBe(false);
+    // Verify no garbage words
+    const garbageWords = ['AALII', 'AARGH', 'XYSTI', 'YEXED', 'ABACA', 'ABAFT'];
+
+    for (const garbage of garbageWords) {
+      expect(guessWords.has(garbage)).toBe(false);
+      expect(answerWords.has(garbage)).toBe(false);
     }
   });
 
@@ -62,7 +60,8 @@ describe('Word Lists', () => {
   it('should correctly validate answers', () => {
     expect(isValidAnswer('brain')).toBe(true);
     expect(isValidAnswer('about')).toBe(true);
-    // Seed words should NOT be valid answers
-    expect(isValidAnswer('aahed')).toBe(false);
+    // Garbage words should NOT be valid answers
+    expect(isValidAnswer('aalii')).toBe(false);
+    expect(isValidAnswer('xysti')).toBe(false);
   });
 });
