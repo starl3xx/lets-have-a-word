@@ -75,26 +75,11 @@ export default async function handler(
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Milestone 4.8: Check for dev mode first
-    if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning synthetic user state');
-
-      // Return synthetic user state for dev mode
-      return res.status(200).json({
-        fid,
-        freeGuessesRemaining: 1,
-        paidGuessesRemaining: 0,
-        totalGuessesRemaining: 1,
-        clanktonBonusActive: false,
-        freeAllocations: {
-          base: 1,
-          clankton: 0,
-          shareBonus: 0,
-        },
-        paidPacksPurchased: 0,
-        maxPaidPacksPerDay: 3,
-        canBuyMorePacks: true,
-      });
+    // Milestone 4.12: Dev mode now uses real wallet data for CLANKTON bonus
+    // No longer returns synthetic data - falls through to real implementation
+    const isDevMode = isDevModeEnabled();
+    if (isDevMode) {
+      console.log('🎮 Dev mode: Using real wallet and CLANKTON balance');
     }
 
     // Production mode: Ensure user exists in database
