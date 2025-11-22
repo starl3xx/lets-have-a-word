@@ -574,7 +574,14 @@ export default function Home() {
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
           {/* Wheel + Input Container - fills remaining space with stable height */}
-          <div className="flex-1 relative" style={{ minHeight: 0 }}>
+          <div
+            className="relative"
+            style={{
+              height: '100%', // Explicit height instead of flex-1 to prevent resizing
+              minHeight: 0,
+              overflow: 'hidden', // Ensure content doesn't affect height
+            }}
+          >
             {/* Background Layer: Wheel with real gap (no words can occupy this vertical space) */}
             <div
               className="absolute inset-0"
