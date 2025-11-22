@@ -28,6 +28,7 @@ export interface UserStateResponse {
   paidPacksPurchased: number;
   maxPaidPacksPerDay: number;
   canBuyMorePacks: boolean;
+  wheelStartIndex: number | null; // Milestone 4.14: Per-user random wheel start position
 }
 
 export default async function handler(
@@ -203,6 +204,7 @@ export default async function handler(
       paidPacksPurchased: dailyState.paidPacksPurchased,
       maxPaidPacksPerDay: 3,
       canBuyMorePacks,
+      wheelStartIndex: dailyState.wheelStartIndex, // Milestone 4.14
     };
 
     return res.status(200).json(response);

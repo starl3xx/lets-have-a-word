@@ -4,6 +4,7 @@ import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
 import SharePromptModal from '../components/SharePromptModal';
+import WinnerShareCard from '../components/WinnerShareCard';
 import LetterBoxes from '../components/LetterBoxes';
 import FirstTimeOverlay from '../components/FirstTimeOverlay';
 import StatsSheet from '../components/StatsSheet';
@@ -15,6 +16,7 @@ import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import sdk from '@farcaster/miniapp-sdk';
+import confetti from 'canvas-confetti';
 
 export default function Home() {
   // Word input state - now managed as array of 5 letters (Milestone 4.3)
@@ -40,6 +42,10 @@ export default function Home() {
   // Share modal state (Milestone 4.2)
   const [showShareModal, setShowShareModal] = useState(false);
   const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
+
+  // Winner share card state (Milestone 4.14)
+  const [showWinnerShareCard, setShowWinnerShareCard] = useState(false);
+  const [winnerData, setWinnerData] = useState<{ word: string; roundId: number } | null>(null);
 
   // UX state (Milestone 4.3)
   const [isShaking, setIsShaking] = useState(false);
@@ -394,6 +400,39 @@ export default function Home() {
       // Note: Haptics are now handled by useInputStateHaptics hook via state transitions
       if (data.status === 'correct') {
         setBoxResultState('correct');
+
+        // Milestone 4.14: Trigger full-screen confetti on win
+        const duration = 3000;
+        const end = Date.now() + duration;
+
+        const colors = ['#22c55e', '#10b981', '#4ade80', '#86efac']; // Green colors
+
+        (function frame() {
+          confetti({
+            particleCount: 3,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0, y: 0.6 },
+            colors,
+          });
+          confetti({
+            particleCount: 3,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1, y: 0.6 },
+            colors,
+          });
+
+          if (Date.now() < end) {
+            requestAnimationFrame(frame);
+          }
+        }());
+
+        // Milestone 4.14: Show winner share card after short delay
+        setWinnerData({ word: data.word, roundId: data.roundId });
+        setTimeout(() => {
+          setShowWinnerShareCard(true);
+        }, 2000); // 2 second delay to let confetti play first
       } else if (data.status === 'incorrect' || data.status === 'already_guessed_word') {
         setBoxResultState('wrong');
         if (data.status === 'already_guessed_word') {
@@ -442,9 +481,11 @@ export default function Home() {
       }
 
       // Clear input after successful submission (Milestone 4.3)
-      if (data.status === 'correct' || data.status === 'incorrect') {
+      // Milestone 4.14: Keep winning word in input boxes, only clear for incorrect guesses
+      if (data.status === 'incorrect') {
         setLetters(['', '', '', '', '']);
       }
+      // For 'correct', keep the winning word in the boxes with green pulse-glow
 
     } catch (error) {
       console.error('Error submitting guess:', error);
@@ -648,19 +689,22 @@ export default function Home() {
                 />
               </div>
 
-              {/* Error/feedback area - ALWAYS rendered to prevent layout shifts */}
+              {/* Error/feedback area - FIXED HEIGHT to prevent layout shifts (Milestone 4.14) */}
               <div
                 className="absolute left-0 right-0 px-8"
                 style={{
                   top: '100%',
                   marginTop: '1rem',
                   pointerEvents: 'auto',
-                  minHeight: '3.5rem', // Reserve space even when empty to prevent shifts
+                  height: '3.5rem', // Fixed height - content toggles opacity only
                 }}
               >
                 {/* Show explicit error messages first */}
                 {errorMessage && (
-                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                  <div
+                    className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-300"
+                    style={{ opacity: 1 }}
+                  >
                     <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
                   </div>
                 )}
@@ -668,7 +712,7 @@ export default function Home() {
                 {/* Show state-based error messages (Milestone 4.6) */}
                 {!errorMessage && stateErrorMessage && (
                   <div
-                    className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-500"
+                    className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-300"
                     style={{ opacity: hideStateError ? 0 : 1 }}
                   >
                     <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
@@ -677,7 +721,10 @@ export default function Home() {
 
                 {/* Show feedback from last submission */}
                 {feedback && !errorMessage && !stateErrorMessage && (
-                  <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                  <div
+                    className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow transition-opacity duration-300"
+                    style={{ opacity: 1 }}
+                  >
                     <p className={`${feedback.color} text-center text-sm font-medium`}>
                       {feedback.text}
                     </p>
@@ -807,6 +854,15 @@ export default function Home() {
       {showFAQSheet && (
         <FAQSheet
           onClose={() => setShowFAQSheet(false)}
+        />
+      )}
+
+      {/* Winner Share Card (Milestone 4.14) */}
+      {showWinnerShareCard && winnerData && (
+        <WinnerShareCard
+          winnerWord={winnerData.word}
+          roundId={winnerData.roundId}
+          onClose={() => setShowWinnerShareCard(false)}
         />
       )}
     </div>
