@@ -4,7 +4,7 @@ import type { WordLists } from '../types';
 
 /**
  * Pre-compute Sets for O(1) lookup instead of O(n) includes()
- * CRITICAL: Using includes() on 10,014 words blocks input rendering!
+ * CRITICAL: Using includes() on 5,865 words blocks input rendering!
  */
 const GUESS_WORDS_SET = new Set(GUESS_WORDS_CLEAN);
 const ANSWER_WORDS_SET = new Set(ANSWER_WORDS_EXPANDED);
@@ -22,9 +22,9 @@ export function getAnswerWords(): string[] {
 
 /**
  * Get all guess words (valid guessable words)
- * Milestone 4.13: Returns clean dictionary (10,014 words, UPPERCASE)
+ * Milestone 4.13: Returns clean dictionary (5,865 words, UPPERCASE)
  * - Filtered from Wordle lists with strict criteria
- * - No offensive words, proper nouns, or archaic terms
+ * - No offensive words, proper nouns, archaic terms, or organizational acronyms
  * - Real, modern English vocabulary
  */
 export function getGuessWords(): string[] {
