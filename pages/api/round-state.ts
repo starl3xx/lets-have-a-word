@@ -3,23 +3,27 @@ import { getActiveRoundStatus } from '../../src/lib/wheel';
 import type { RoundStatus } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
+import { getEthUsdPrice } from '../../src/lib/prices';
 
 /**
  * GET /api/round-state
  *
  * Returns the current active round's status for the top ticker
  * Milestone 2.3: Wheel + Visual State + Top Ticker
+ * Milestone 4.12: ETH/USD conversion via CoinGecko (works in dev & prod)
  *
  * Response:
  * {
  *   "roundId": 1,
  *   "prizePoolEth": "0.5",
- *   "prizePoolUsd": "1500.00",
- *   "globalGuessCount": 42
+ *   "prizePoolUsd": "1500.00",  // Live from CoinGecko
+ *   "globalGuessCount": 42,
+ *   "lastUpdatedAt": "2025-01-15T12:00:00Z"
  * }
  *
  * Automatically creates a round if none exists.
  * In dev mode with NEXT_PUBLIC_TEST_MID_ROUND=true, creates a mid-round test scenario.
+ * In dev mode with LHAW_DEV_MODE=true, returns synthetic data with live ETH/USD price.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -33,13 +37,20 @@ export default async function handler(
   try {
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning synthetic round status');
+      console.log('🎮 Dev mode: Returning synthetic round status with live ETH/USD price');
+
+      // Fetch live ETH/USD price even in dev mode (Milestone 4.12)
+      const ethUsdRate = await getEthUsdPrice();
+      const prizePoolEthNum = 0.36;
+      const prizePoolUsd = ethUsdRate != null
+        ? (prizePoolEthNum * ethUsdRate).toFixed(2)
+        : '1080.00'; // Fallback to hardcoded value
 
       // Return synthetic round status for dev mode
       const syntheticStatus: RoundStatus = {
         roundId: 5,
         prizePoolEth: '0.36',
-        prizePoolUsd: '1080.00', // 0.36 ETH * $3000/ETH
+        prizePoolUsd,
         globalGuessCount: 8516,
         lastUpdatedAt: new Date().toISOString(),
       };

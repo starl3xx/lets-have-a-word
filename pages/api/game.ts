@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import type { GameStateResponse } from '../../src/types';
 import {
   synthesizeDevGameState,
+  synthesizeDevGameStateAsync,
   isDevModeEnabled,
   isForceStateEnabled,
   getDevFixedSolution,
@@ -16,20 +17,23 @@ import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/da
  * GET /api/game
  *
  * Milestone 4.8: Unified game state endpoint for dev mode preview and interactive play
+ * Milestone 4.12: Updated to use live ETH/USD conversion and real wallet data in dev mode
  *
  * Returns complete game state including:
  * - Round info (prize pool, guess count)
- * - User state (guesses remaining)
+ * - User state (guesses remaining) - now uses REAL data even in dev mode
  * - Wheel words
  * - Dev mode indicators
  *
  * Supports two dev modes:
  * 1. Forced-state preview: ?devState=RESULT_CORRECT&devInput=CRANE
  *    - Returns snapshot for QC/screenshots
+ *    - Uses real user state (CLANKTON balance, guess counts)
  *    - Requires LHAW_DEV_FORCE_STATE_ENABLED=true
  *
  * 2. Interactive dev mode: (no query params)
  *    - Returns fresh dev round with fixed solution
+ *    - Uses real user state (CLANKTON balance, guess counts)
  *    - Requires LHAW_DEV_MODE=true
  *
  * Query params:
@@ -76,24 +80,48 @@ export default async function handler(
         });
       }
 
-      // Generate and return snapshot
-      const snapshot = synthesizeDevGameState({
+      console.log('🎮 Forced-state preview: Using real user state with synthetic round data');
+
+      // Fetch real user state for accurate guess counts and CLANKTON bonus (Milestone 4.12)
+      const dailyState = await getOrCreateDailyState(fid);
+      const freeRemaining = getFreeGuessesRemaining(dailyState);
+
+      // Generate and return snapshot with live ETH/USD price (Milestone 4.12)
+      const snapshot = await synthesizeDevGameStateAsync({
         devState: devState as any,
         devInput: devInput as string | undefined,
         solution: getDevFixedSolution(),
         fid,
       });
 
+      // Override user state with real values
+      snapshot.userState.freeGuessesRemaining = freeRemaining;
+      snapshot.userState.paidGuessesRemaining = dailyState.paidGuessCredits;
+      snapshot.userState.totalGuessesRemaining = freeRemaining + dailyState.paidGuessCredits;
+      snapshot.userState.clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
+
       return res.status(200).json(snapshot);
     }
 
     // Check for interactive dev mode
     if (isDevModeEnabled()) {
-      // Interactive dev mode: return fresh dev round
-      const devGameState = synthesizeDevGameState({
+      console.log('🎮 Dev mode: Using real user state with synthetic round data');
+
+      // Fetch real user state for accurate guess counts and CLANKTON bonus (Milestone 4.12)
+      const dailyState = await getOrCreateDailyState(fid);
+      const freeRemaining = getFreeGuessesRemaining(dailyState);
+
+      // Interactive dev mode: return fresh dev round with live ETH/USD price and real user state
+      const devGameState = await synthesizeDevGameStateAsync({
         solution: getDevFixedSolution(),
         fid,
       });
+
+      // Override user state with real values
+      devGameState.userState.freeGuessesRemaining = freeRemaining;
+      devGameState.userState.paidGuessesRemaining = dailyState.paidGuessCredits;
+      devGameState.userState.totalGuessesRemaining = freeRemaining + dailyState.paidGuessCredits;
+      devGameState.userState.clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
 
       return res.status(200).json(devGameState);
     }

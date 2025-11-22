@@ -15,6 +15,7 @@ import { eq, and } from 'drizzle-orm';
 import { getGuessWords } from './word-lists';
 import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
+import { getEthUsdPrice } from './prices';
 
 /**
  * Round Status - displayed in top ticker
@@ -30,13 +31,12 @@ export interface RoundStatus {
 
 /**
  * Get ETH to USD conversion rate
- * Milestone 3.2: Configurable via environment variable
+ * Milestone 4.12: Uses CoinGecko API with fallback to env var
  *
- * For now uses a placeholder rate. In production, this would:
- * - Query CoinGecko or onchain oracle
- * - Cache the result for a reasonable duration
+ * @deprecated Use getEthUsdPrice() from './prices' directly for async fetching
+ * Kept for backwards compatibility only
  *
- * @returns Current ETH/USD rate
+ * @returns Current ETH/USD rate from env var (default 3000)
  */
 export function getEthUsdRate(): number {
   const envRate = process.env.ETH_USD_RATE;
@@ -146,11 +146,11 @@ export async function getGlobalGuessCount(roundId: number): Promise<number> {
 
 /**
  * Get round status (for top ticker)
- * Milestone 3.2: Returns live, correct data for the top ticker
+ * Milestone 4.12: Returns live data with CoinGecko ETH/USD conversion
  *
  * Returns:
  * - Current prize pool (in ETH)
- * - Approximate USD value (using configurable rate)
+ * - Approximate USD value (from CoinGecko API with 1-min cache)
  * - Global guess count (total guesses, not seed words)
  * - Timestamp when computed
  *
@@ -169,13 +169,17 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
     throw new Error(`Round ${roundId} not found`);
   }
 
-  // Get global guess count
-  const globalGuessCount = await getGlobalGuessCount(roundId);
+  // Get global guess count and ETH/USD price in parallel
+  const [globalGuessCount, ethUsdRate] = await Promise.all([
+    getGlobalGuessCount(roundId),
+    getEthUsdPrice(),
+  ]);
 
-  // Convert prize pool to USD using configurable rate
+  // Convert prize pool to USD if rate is available
   const prizePoolEthNum = parseFloat(round.prizePoolEth);
-  const ethUsdRate = getEthUsdRate();
-  const prizePoolUsd = (prizePoolEthNum * ethUsdRate).toFixed(2);
+  const prizePoolUsd = ethUsdRate != null
+    ? (prizePoolEthNum * ethUsdRate).toFixed(2)
+    : undefined;
 
   return {
     roundId: round.id,
