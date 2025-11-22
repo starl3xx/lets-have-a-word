@@ -11,11 +11,47 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.12 Complete
+## 🎯 Current Status: Milestone 4.13 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.12 - ETH/USD Price Integration (Latest)
+### ✅ Milestone 4.13 - Clean English Dictionary (Latest)
+
+Replaced Wordle-derived dictionaries with clean, modern English wordlists free of Scrabble garbage:
+
+- **Clean Dictionaries**
+  - **GUESS_WORDS_CLEAN**: 10,014 words (all valid guesses)
+  - **ANSWER_WORDS_EXPANDED**: 7,520 words (curated answer candidates)
+  - Located in `src/data/guess_words_clean.ts` and `src/data/answer_words_expanded.ts`
+  - All words in UPPERCASE for consistency
+  - Invariant maintained: ANSWER_WORDS_EXPANDED ⊆ GUESS_WORDS_CLEAN
+
+- **Filtering Criteria**
+  - No Scrabble/crossword garbage (AALII, AARGH, XYSTI, etc.)
+  - No offensive words or slurs
+  - No proper nouns (names, places, brands)
+  - No archaic or extremely obscure terms
+  - Real, modern English vocabulary
+
+- **Plural Handling**
+  - Heuristic-based plural detection
+  - Plurals allowed in guess dictionary
+  - Most plurals excluded from answer dictionary
+  - Common/essential plurals may be included
+
+- **Generation Scripts**
+  - `src/scripts/generate-wordnik-dictionaries.ts` - Wordnik API integration (requires API key)
+  - `src/scripts/filter-existing-dictionaries.ts` - Practical filtering script (used for current lists)
+  - Comprehensive blacklists for offensive, archaic, and proper noun words
+  - Pattern-based filtering for uncommon letter combinations
+
+- **Integration**
+  - Updated `src/lib/word-lists.ts` to use clean dictionaries
+  - All game logic now uses filtered word lists
+  - Backward compatible with existing game state
+  - Updated tests to verify no garbage words
+
+### ✅ Milestone 4.12 - ETH/USD Price Integration
 
 Real-time ETH→USD conversion for the jackpot display using CoinGecko's free API:
 

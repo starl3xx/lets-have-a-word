@@ -14,7 +14,9 @@
     "db:studio": "drizzle-kit studio",
     "seed": "tsx src/scripts/seed.ts",
     "test": "vitest",
-    "validate": "tsx src/scripts/validate-setup.ts"
+    "validate": "tsx src/scripts/validate-setup.ts",
+    "generate-dictionaries": "tsx src/scripts/filter-existing-dictionaries.ts",
+    "generate-dictionaries:wordnik": "tsx src/scripts/generate-wordnik-dictionaries.ts"
   },
   "keywords": [
     "farcaster",
