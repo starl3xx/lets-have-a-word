@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import type { GameStateResponse } from '../../src/types';
 import {
   synthesizeDevGameState,
+  synthesizeDevGameStateAsync,
   isDevModeEnabled,
   isForceStateEnabled,
   getDevFixedSolution,
@@ -16,6 +17,7 @@ import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/da
  * GET /api/game
  *
  * Milestone 4.8: Unified game state endpoint for dev mode preview and interactive play
+ * Milestone 4.12: Updated to use live ETH/USD conversion via CoinGecko
  *
  * Returns complete game state including:
  * - Round info (prize pool, guess count)
@@ -76,8 +78,8 @@ export default async function handler(
         });
       }
 
-      // Generate and return snapshot
-      const snapshot = synthesizeDevGameState({
+      // Generate and return snapshot with live ETH/USD price (Milestone 4.12)
+      const snapshot = await synthesizeDevGameStateAsync({
         devState: devState as any,
         devInput: devInput as string | undefined,
         solution: getDevFixedSolution(),
@@ -89,8 +91,8 @@ export default async function handler(
 
     // Check for interactive dev mode
     if (isDevModeEnabled()) {
-      // Interactive dev mode: return fresh dev round
-      const devGameState = synthesizeDevGameState({
+      // Interactive dev mode: return fresh dev round with live ETH/USD price (Milestone 4.12)
+      const devGameState = await synthesizeDevGameStateAsync({
         solution: getDevFixedSolution(),
         fid,
       });

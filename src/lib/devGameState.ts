@@ -1,12 +1,14 @@
 /**
  * Dev Mode Game State Synthesis
  * Milestone 4.8 — Dev mode backend for previewing and testing all input states
+ * Milestone 4.12 — Updated to use CoinGecko for ETH/USD conversion
  *
  * This module provides utilities for generating synthetic game states
  * for development, preview, and testing purposes.
  */
 
 import type { GameStateResponse, DevBackendState } from '../types';
+import { getEthUsdPrice } from './prices';
 
 /**
  * Parameters for synthesizing dev game state
@@ -26,8 +28,10 @@ export interface SynthesizeDevStateParams {
  * 1. Forced-state preview (devState provided) - returns snapshot for QC/screenshots
  * 2. Interactive dev mode (no devState) - returns fresh round for interactive play
  *
+ * NOTE: For USD conversion, use synthesizeDevGameStateAsync() instead to fetch live prices
+ *
  * @param params - State synthesis parameters
- * @returns GameStateResponse with synthetic data
+ * @returns GameStateResponse with synthetic data (hardcoded USD price)
  */
 export function synthesizeDevGameState(
   params: SynthesizeDevStateParams
@@ -38,7 +42,7 @@ export function synthesizeDevGameState(
   const baseState: GameStateResponse = {
     roundId: 999999, // Synthetic round ID
     prizePoolEth: '0.42',
-    prizePoolUsd: '1260.00',
+    prizePoolUsd: '1260.00', // Hardcoded fallback - use synthesizeDevGameStateAsync for live prices
     globalGuessCount: 73,
     userState: {
       fid,
@@ -106,6 +110,69 @@ function generateWheelWords(
   }
 
   return seedWords;
+}
+
+/**
+ * Synthesize a dev game state with live ETH/USD conversion (async)
+ * Milestone 4.12 — Uses CoinGecko for real-time price
+ *
+ * Same as synthesizeDevGameState but fetches live ETH/USD price from CoinGecko
+ *
+ * @param params - State synthesis parameters
+ * @returns GameStateResponse with synthetic data and live USD conversion
+ */
+export async function synthesizeDevGameStateAsync(
+  params: SynthesizeDevStateParams
+): Promise<GameStateResponse> {
+  const { devState, devInput, solution, fid, guessCount = 0 } = params;
+
+  // Fetch live ETH/USD price
+  const ethUsdRate = await getEthUsdPrice();
+  const prizePoolEthNum = 0.42;
+  const prizePoolUsd = ethUsdRate != null
+    ? (prizePoolEthNum * ethUsdRate).toFixed(2)
+    : '1260.00'; // Fallback to hardcoded value
+
+  // Base game state with live USD price
+  const baseState: GameStateResponse = {
+    roundId: 999999, // Synthetic round ID
+    prizePoolEth: '0.42',
+    prizePoolUsd,
+    globalGuessCount: 73,
+    userState: {
+      fid,
+      freeGuessesRemaining: 3,
+      paidGuessesRemaining: 0,
+      totalGuessesRemaining: 3,
+      clanktonBonusActive: false,
+    },
+    wheelWords: generateWheelWords(devState, devInput, solution),
+    devMode: true,
+    devSolution: solution,
+  };
+
+  // If devState is provided, add it to response (forced preview mode)
+  if (devState) {
+    baseState.devState = devState;
+    baseState.devInput = devInput;
+
+    // Adjust user state based on devState
+    if (devState === 'OUT_OF_GUESSES') {
+      baseState.userState.freeGuessesRemaining = 0;
+      baseState.userState.paidGuessesRemaining = 0;
+      baseState.userState.totalGuessesRemaining = 0;
+    }
+
+    // For RESULT states, adjust wheel words to include the guess
+    if (devState === 'RESULT_WRONG_VALID' && devInput) {
+      // Add the wrong guess to wheel words if not already there
+      if (!baseState.wheelWords.includes(devInput.toLowerCase())) {
+        baseState.wheelWords.push(devInput.toLowerCase());
+      }
+    }
+  }
+
+  return baseState;
 }
 
 /**
