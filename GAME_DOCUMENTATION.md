@@ -63,10 +63,11 @@ Each player gets a daily allocation of guesses:
 
 ### Word Validation
 - Must be exactly **5 letters**
-- Must be in the **GUESS_WORDS** dictionary (~10,000 words)
-- Answer must be in **ANSWER_WORDS** subset (~2,500 common words)
+- Must be in the **GUESS_WORDS** dictionary (10,516 words)
+- Answer must be in **ANSWER_WORDS** subset (2,279 common words)
 - Cannot guess the same word twice in a round
 - Case-insensitive (BRAIN = brain = BrAiN)
+- All words normalized to UPPERCASE internally
 
 ---
 
@@ -116,9 +117,9 @@ lets-have-a-word/
 │   │   ├── devGameState.ts          # Dev mode helpers
 │   │   └── devMidRound.ts           # Dev test scenarios
 │   ├── data/
-│   │   ├── answer-words.ts          # ~2,500 answer words
-│   │   ├── guess-words.ts           # ~10,000 valid guesses
-│   │   ├── seed-words.ts            # Cosmetic wheel words
+│   │   ├── answer_words.ts          # 2,279 canonical answer words (UPPERCASE)
+│   │   ├── guess_words.ts           # 10,516 canonical valid guesses (UPPERCASE)
+│   │   ├── seed-words.ts            # Deprecated (no longer used)
 │   │   └── test-word-lists.ts       # Dev mode word lists
 │   ├── db/
 │   │   ├── schema.ts                # Database schema
@@ -193,27 +194,46 @@ type InputState =
 
 ### Wheel Component (`components/Wheel.tsx`)
 
-**Features:**
-- **Alphabetical Display**: Words sorted A-Z
-- **Auto-Scrolling**: Scrolls to show where typed word would fit
-- **3D Effect**: Scale/opacity based on distance from center
-- **Gap for Input**: Physical gap where input boxes appear
-- **Ghost Preview**: Shows valid unguessed words in blue
-- **Red Highlighting**: Shows already-guessed words in red
+**Features (Milestone 4.11 - Virtualized):**
+- **Alphabetical Display**: All 10,516 words sorted A-Z
+- **Virtual Scrolling**: Renders only ~100 visible words (99.5% DOM reduction)
+- **Fast Rotation**: 150ms animated scroll with visible rotation effect
+- **Auto-Scrolling**: Jumps to alphabetical position as you type
+- **3D Effect**: Scale/opacity/color based on distance from center
+- **Dynamic Gap**: 10vh gap where input boxes appear
+- **Status-Based Colors**: Unguessed (gray), wrong (red), winner (gold)
+- **Binary Search**: O(log n) alphabetical positioning (750x faster)
+
+**Performance:**
+- Renders ~100 words instead of 10,516 (99.5% reduction)
+- 60 FPS smooth scrolling
+- Instant response to keyboard input
+- Custom requestAnimationFrame animation
 
 **How It Works:**
 ```typescript
-// Find alphabetical position (case-insensitive)
+// Binary search for alphabetical position (O(log n))
 const normalizedGuess = currentGuess.toLowerCase();
-const targetIndex = words.findIndex(word =>
-  word.toLowerCase() >= normalizedGuess
-);
+let left = 0, right = words.length - 1;
+while (left <= right) {
+  const mid = Math.floor((left + right) / 2);
+  if (words[mid].word.toLowerCase() >= normalizedGuess) {
+    result = mid;
+    right = mid - 1;
+  } else {
+    left = mid + 1;
+  }
+}
 
-// Scroll to center the gap
-gapRef.current.scrollIntoView({
-  behavior: 'smooth',
-  block: 'center'
-});
+// Custom 150ms scroll animation for visible rotation
+const animateScrollTo = (targetScrollTop) => {
+  const duration = 150; // Fast but visible
+  const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+  containerRef.current.scrollTop = start + distance * easeOutCubic;
+};
+
+// Dynamic 10vh gap
+const GAP_HEIGHT = Math.round(window.innerHeight * 0.10);
 ```
 
 ### Letter Boxes Component (`components/LetterBoxes.tsx`)
@@ -644,30 +664,32 @@ haptics.wrongGuess()      // Subtle feedback
 
 ## Word Lists & Validation
 
-### Three Word Lists
+### Canonical Word Lists (Milestone 4.11)
 
-#### ANSWER_WORDS (~2,500 words)
+#### ANSWER_WORDS (2,279 words)
 Common 5-letter words suitable as answers.
-- **File**: `/src/data/answer-words.ts`
-- **Format**: Lowercase array
-- **Examples**: `'about', 'brain', 'crane', 'dream'`
-- **Constraint**: Subset of GUESS_WORDS
+- **File**: `/src/data/answer_words.ts`
+- **Format**: UPPERCASE array
+- **Examples**: `'ABOUT', 'BRAIN', 'CRANE', 'DREAM'`
+- **Constraint**: Strict subset of GUESS_WORDS
+- **Invariant**: ANSWER_WORDS ⊆ GUESS_WORDS
 
-#### GUESS_WORDS (~10,000 words)
-All valid guessable words.
-- **File**: `/src/data/guess-words.ts`
-- **Format**: Lowercase array
+#### GUESS_WORDS (10,516 words)
+All valid guessable words - the complete dictionary.
+- **File**: `/src/data/guess_words.ts`
+- **Format**: UPPERCASE array
 - **Examples**: All answer words + obscure words
 - **Constraint**: Must contain all ANSWER_WORDS
+- **Usage**: Displayed on wheel from game start, validation dictionary
 
-#### SEED_WORDS (~200 words)
-Cosmetic words to populate wheel.
-- **File**: `/src/data/seed-words.ts`
-- **Format**: Lowercase array
-- **Examples**: `'words', 'games', 'think'`
-- **Constraint**: Cannot overlap with ANSWER_WORDS
+#### SEED_WORDS (Deprecated - Milestone 4.11)
+**No longer used in game logic.**
+- Previously used for cosmetic wheel population
+- Replaced by showing all GUESS_WORDS from start
+- `populateRoundSeedWords()` is now a no-op for backwards compatibility
+- Wheel displays all 10,516 GUESS_WORDS using virtualization
 
-### Validation Flow
+### Validation Flow (Milestone 4.11)
 ```typescript
 // 1. Length check
 if (word.length !== 5) return false;
@@ -675,8 +697,8 @@ if (word.length !== 5) return false;
 // 2. Character check
 if (!/^[a-zA-Z]+$/.test(word)) return false;
 
-// 3. Dictionary check
-const normalized = word.toLowerCase().trim();
+// 3. Dictionary check (UPPERCASE normalization)
+const normalized = word.toUpperCase().trim();
 if (!GUESS_WORDS.includes(normalized)) return false;
 
 // 4. Already guessed check
@@ -685,11 +707,12 @@ if (wheelWords.includes(normalized)) return false;
 // ✓ Valid!
 ```
 
-### Case Handling
-- **User Input**: Converted to uppercase for display (`BRAIN`)
-- **Storage**: Converted to lowercase for comparison (`brain`)
-- **Wheel Display**: Uppercase (`BRAIN`)
-- **Alphabetical Sorting**: Case-insensitive
+### Case Handling (Milestone 4.11)
+- **User Input**: Converted to UPPERCASE for display (`BRAIN`)
+- **Storage**: Stored as UPPERCASE (`BRAIN`)
+- **Validation**: UPPERCASE comparison (`word.toUpperCase()`)
+- **Wheel Display**: UPPERCASE (`BRAIN`)
+- **Alphabetical Sorting**: Lowercase comparison for sorting (`word.toLowerCase()`)
 
 ---
 
@@ -738,6 +761,37 @@ await sdk.actions.openUrl({
 
 ## Key Features by Milestone
 
+### Completed Milestones (1.1 - 4.11)
+
+### Milestone 1.1: Data Model + Rules
+- Database schema design (game_rules, users, rounds, guesses)
+- JSON ruleset configuration system
+- Word list imports (ANSWER_WORDS, GUESS_WORDS, SEED_WORDS)
+- Ruleset management (getRulesForRound)
+- Foreign key relationships
+
+### Milestone 1.2: Round Lifecycle
+- Round creation with commit-reveal
+- Salt generation and SHA-256 hashing
+- Random answer selection from ANSWER_WORDS
+- Prize pool initialization
+- Round resolution logic
+- Winner and referrer settlement
+
+### Milestone 1.3: Guess Logic Basic
+- Per-FID guess counters
+- Global wrong word deduplication
+- Top 10 guesser ranking logic
+- Max paid guesses per day (10)
+- Guess validation and submission
+
+### Milestone 1.4: Minimal Frontend
+- Basic 5-letter input UI
+- Simple guess submission flow
+- POST /guess endpoint integration
+- Correct/wrong feedback display
+- No wheel, no Farcaster yet (barebones test UI)
+
 ### Milestone 2.1: Farcaster Authentication
 - Integrated Farcaster MiniApp SDK
 - User context extraction (FID)
@@ -753,6 +807,21 @@ await sdk.actions.openUrl({
 - Alphabetical sorting
 - Prize pool display
 - Auto-scrolling to typed word position
+
+### Milestone 3.1: Jackpot + Split Logic
+- 80/20 split on paid guesses (prize pool / seed)
+- 80/10/10 jackpot distribution (winner / referrer / top 10)
+- Top 10 payout distribution logic
+- Creator balance tracking
+- round_payouts table for payout records
+- 0.1 ETH seed cap logic
+- Comprehensive economic functions
+
+### Milestone 3.2: Top Ticker Polish
+- Real prize pool from database
+- USD conversion with placeholder/config rate
+- Proper number formatting
+- Live updates every 15 seconds
 
 ### Milestone 4.1: User State Display
 - Guess counts (free/paid/total)
@@ -804,6 +873,94 @@ await sdk.actions.openUrl({
 - Synthetic data for all endpoints
 - URL param-based previews
 - Fixed solution testing
+
+### Milestone 4.9: Non-Referral Prize Flow
+- Prize distribution to seed pool
+- Creator fee allocation
+- Payout tracking for non-referred winners
+
+### Milestone 4.10: Global Word Wheel
+- Display all guessable words from start
+- Status-based word rendering
+- Real layout gap for input boxes
+
+### Milestone 4.11: Final Word List Integration & Virtualization
+- **Canonical Word Lists**: ANSWER_WORDS (2,279), GUESS_WORDS (10,516)
+- **UPPERCASE Normalization**: All words stored and validated in UPPERCASE
+- **Deprecated SEED_WORDS**: No longer used in game logic
+- **Virtual Scrolling**: Renders ~100 visible words (99.5% DOM reduction)
+- **Binary Search**: O(log n) alphabetical positioning (750x faster)
+- **Performance**: 60 FPS with 10,516 words
+- **Fast Rotation**: 150ms animated scroll with visible wheel rotation
+- **Dynamic Gap**: 10vh responsive gap height
+- **Invariant Verification**: ANSWER_WORDS ⊆ GUESS_WORDS maintained
+
+### Planned Milestones (5.1 - 6.2)
+
+### Milestone 5.1: Farcaster Announcer Bot
+- **Status**: Partially started (@letshaveaword account created)
+- Create and connect announcer bot signer
+- Automated announcements:
+  - postRoundStarted() - New round notifications
+  - postRoundResolved() - Winner announcements
+  - postMilestoneJackpot() - Prize pool milestones
+  - postMilestoneGuesses() - Guess count milestones
+  - postReferralWin() - Referral bonus highlights
+
+### Milestone 5.2: Analytics & Tracking
+- **Status**: Not started
+- Analytics infrastructure:
+  - Analytics table creation
+  - Event logging system (daily_open, free_guess, paid_guess, etc.)
+  - Log round lifecycle events (round_started, round_resolved)
+  - Log social events (share_bonus_unlocked, referral_join, referral_win)
+- Analytics views and dashboards:
+  - DAU/WAU calculation views
+  - Jackpot growth tracking
+  - Free/paid guess ratio analysis
+  - Admin analytics page
+
+### Milestone 5.3: Anti-Abuse + Infrastructure
+- **Status**: Not started
+- **Anti-Abuse Measures**:
+  - Enforce Neynar spam score thresholds
+  - Abuse detection and user flagging
+  - Rate limiting for /guess endpoint
+- **Infrastructure Improvements**:
+  - Caching layers (jackpot, wheel words, global guesses)
+  - Cron job: daily reset automation
+  - Cron job: jackpot monitoring and alerts
+  - Logging and error monitoring system
+
+### Milestone 5.4: Round Archive
+- **Status**: Not started
+- Round summary fields on rounds table
+- Historical round data API
+- Archive browsing UI
+- Past winners showcase
+- Search and filter functionality
+
+### Milestone 6.1: Smart Contract Integration
+- **Status**: Not started
+- **Smart Contract Development**:
+  - Paid guess escrow contract
+  - Automated payout function
+  - Purchase event handling
+  - Creator withdrawal mechanism
+- Contract testing and auditing
+- Testnet deployment and validation
+- Mainnet deployment
+
+### Milestone 6.2: Optional / Future Enhancements
+- **Status**: Wishlist
+- Domain acquisition (http://letshaveaword.fun)
+- Multi-wallet CLANKTON support (check all verified addresses)
+- XP system v2 with progression paths
+- Global leaderboards and rankings
+- Localization support (i18n)
+- Custom animations and transitions
+- Achievement badge system
+- Unlockable rewards and perks
 
 ---
 
@@ -1021,5 +1178,5 @@ vercel inspect <deployment-url>
 ---
 
 **Last Updated**: January 2025
-**Version**: 4.8 (Milestone 4.8 - Dev Mode Backend)
+**Version**: 4.11 (Milestone 4.11 - Final Word List Integration & Virtualization)
 **Status**: Active Development

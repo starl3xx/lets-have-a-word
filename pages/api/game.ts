@@ -9,9 +9,7 @@ import {
   isValidDevBackendState,
 } from '../../src/lib/devGameState';
 import { getActiveRoundStatus } from '../../src/lib/wheel';
-import { db } from '../../src/db';
-import { roundSeedWords } from '../../src/db/schema';
-import { eq } from 'drizzle-orm';
+import { getGuessWords } from '../../src/lib/word-lists';
 import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
 
 /**
@@ -115,13 +113,8 @@ export default async function handler(
     const dailyState = await getOrCreateDailyState(fid);
     const freeRemaining = getFreeGuessesRemaining(dailyState);
 
-    // Fetch wheel words
-    const wheelWordsResult = await db
-      .select({ word: roundSeedWords.word })
-      .from(roundSeedWords)
-      .where(eq(roundSeedWords.roundId, roundStatus.roundId));
-
-    const wheelWords = wheelWordsResult.map((row) => row.word);
+    // Fetch wheel words - Milestone 4.11: Use canonical GUESS_WORDS list
+    const wheelWords = getGuessWords();
 
     const gameState: GameStateResponse = {
       roundId: roundStatus.roundId,

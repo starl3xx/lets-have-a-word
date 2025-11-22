@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent } from 'react';
 import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
@@ -153,6 +153,21 @@ export default function Home() {
   }, [fid, userStateKey]); // Re-fetch when userStateKey changes
 
   /**
+   * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
+   * Using wheelWords.some() would be O(n) through 10,516 words on every keystroke!
+   * This must be defined BEFORE the useEffects that use it.
+   */
+  const wrongGuessesSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const w of wheelWords) {
+      if (w.status === 'wrong') {
+        set.add(w.word.toLowerCase());
+      }
+    }
+    return set;
+  }, [wheelWords]);
+
+  /**
    * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
    * Provides immediate visual feedback for invalid state
    * Note: Haptics for invalid states are now handled by useInputStateHaptics hook (Milestone 4.7)
@@ -161,10 +176,8 @@ export default function Home() {
     const currentWord = letters.join('');
     // Only trigger shake when user has typed 5 letters and it's invalid
     if (currentWord.length === 5) {
-      // Check if word has been guessed (wrong status)
-      const isAlreadyGuessed = wheelWords.some(
-        w => w.word.toLowerCase() === currentWord.toLowerCase() && w.status === 'wrong'
-      );
+      // Check if word has been guessed (wrong status) using memoized Set
+      const isAlreadyGuessed = wrongGuessesSet.has(currentWord.toLowerCase());
 
       // Get current state
       const state = getInputState({
@@ -181,7 +194,7 @@ export default function Home() {
         triggerShake();
       }
     }
-  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
+  }, [letters, wrongGuessesSet, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
 
   /**
    * Hardware keyboard support for desktop (Milestone 4.4)
@@ -229,7 +242,7 @@ export default function Home() {
     // Get current state to check if there's an error
     const word = letters.join('');
     const isAlreadyGuessed = word.length === 5
-      ? wheelWords.some(w => w.word.toLowerCase() === word.toLowerCase() && w.status === 'wrong')
+      ? wrongGuessesSet.has(word.toLowerCase())
       : false;
 
     const currentState = getInputState({
@@ -250,7 +263,7 @@ export default function Home() {
 
       return () => clearTimeout(timer);
     }
-  }, [letters, wheelWords, isLoading, hasGuessesLeft, boxResultState]);
+  }, [letters, wrongGuessesSet, isLoading, hasGuessesLeft, boxResultState]);
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
@@ -502,7 +515,7 @@ export default function Home() {
   // Compute current input state using state machine (Milestone 4.6, updated Milestone 4.10)
   const word = letters.join('');
   const isAlreadyGuessed = word.length === 5
-    ? wheelWords.some(w => w.word.toLowerCase() === word.toLowerCase() && w.status === 'wrong')
+    ? wrongGuessesSet.has(word.toLowerCase())
     : false;
 
   const currentInputState: InputState = getInputState({
@@ -560,10 +573,24 @@ export default function Home() {
       >
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
-          {/* Wheel + Input Container - fills remaining space */}
-          <div className="flex-1 relative">
+          {/* Wheel + Input Container - fills remaining space with stable height */}
+          <div
+            className="flex-1 relative"
+            style={{
+              minHeight: 0,
+              overflow: 'hidden', // Ensure content doesn't affect height
+              willChange: 'auto', // Prevent paint/layout thrashing
+            }}
+          >
             {/* Background Layer: Wheel with real gap (no words can occupy this vertical space) */}
-            <div className="absolute inset-0" style={{ zIndex: 1 }}>
+            <div
+              className="absolute inset-0"
+              style={{
+                zIndex: 1,
+                contain: 'strict', // Strict containment: layout, style, paint, and size
+                contentVisibility: 'auto', // Optimize rendering
+              }}
+            >
               {isLoadingWheel ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-gray-400 animate-pulse">Loading...</p>
@@ -606,7 +633,8 @@ export default function Home() {
                 top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 10,
-                pointerEvents: 'none' // Allow clicks through to wheel
+                pointerEvents: 'none', // Allow clicks through to wheel
+                willChange: 'transform', // Ensure stable positioning
               }}
             >
               <div style={{ pointerEvents: 'auto' }}> {/* Re-enable clicks on input */}
@@ -620,43 +648,42 @@ export default function Home() {
                 />
               </div>
 
-              {/* Error/feedback area - positioned absolutely below boxes */}
-              {(errorMessage || feedback || stateErrorMessage) && (
-                <div
-                  className="absolute left-0 right-0 px-8"
-                  style={{
-                    top: '100%',
-                    marginTop: '1rem',
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  {/* Show explicit error messages first */}
-                  {errorMessage && (
-                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
-                      <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
-                    </div>
-                  )}
+              {/* Error/feedback area - ALWAYS rendered to prevent layout shifts */}
+              <div
+                className="absolute left-0 right-0 px-8"
+                style={{
+                  top: '100%',
+                  marginTop: '1rem',
+                  pointerEvents: 'auto',
+                  minHeight: '3.5rem', // Reserve space even when empty to prevent shifts
+                }}
+              >
+                {/* Show explicit error messages first */}
+                {errorMessage && (
+                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                    <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
+                  </div>
+                )}
 
-                  {/* Show state-based error messages (Milestone 4.6) */}
-                  {!errorMessage && stateErrorMessage && (
-                    <div
-                      className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-500"
-                      style={{ opacity: hideStateError ? 0 : 1 }}
-                    >
-                      <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
-                    </div>
-                  )}
+                {/* Show state-based error messages (Milestone 4.6) */}
+                {!errorMessage && stateErrorMessage && (
+                  <div
+                    className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-500"
+                    style={{ opacity: hideStateError ? 0 : 1 }}
+                  >
+                    <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
+                  </div>
+                )}
 
-                  {/* Show feedback from last submission */}
-                  {feedback && !errorMessage && !stateErrorMessage && (
-                    <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
-                      <p className={`${feedback.color} text-center text-sm font-medium`}>
-                        {feedback.text}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
+                {/* Show feedback from last submission */}
+                {feedback && !errorMessage && !stateErrorMessage && (
+                  <div className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow">
+                    <p className={`${feedback.color} text-center text-sm font-medium`}>
+                      {feedback.text}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
