@@ -166,6 +166,7 @@ export default function LetterBoxes({
               ${getBoxStyle(letter, index)}
               ${!disabled && resultState === 'typing' && 'cursor-text hover:border-blue-400'}
               ${showReadyGlow ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}
+              ${resultState === 'correct' ? 'animate-pulse-glow' : ''}
               shadow-md
             `}
           >

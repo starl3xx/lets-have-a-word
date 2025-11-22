@@ -11,11 +11,57 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.13 Complete
+## 🎯 Current Status: Milestone 4.14 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.13 - Clean English Dictionary (Latest)
+### ✅ Milestone 4.14 - UI Polish + Dev Mode Enhancements (Latest)
+
+Comprehensive UI/UX improvements and dev mode features for better visual feedback and testing:
+
+- **Word Wheel Focus Color Rules**
+  - Wheel words: unguessed → black, wrong → red, winner → gold
+  - Focus word (above input): black when valid & unguessed, red when already guessed
+  - Input boxes: blue border for valid words, red border for already guessed
+  - Guess submission blocked for already-guessed words
+
+- **Fixed-Height Error Container**
+  - Error messages toggle opacity only (no layout shifts)
+  - Fixed 3.5rem height container under input boxes
+  - Smooth fade transitions (300ms)
+  - Wheel container height remains stable
+
+- **Per-User Per-Day Random Wheel Start Position**
+  - Random start index generated once per day per user (11:00 UTC reset)
+  - Stored server-side in `dailyGuessState` table
+  - Tied to FID for personalized wheel position
+  - Optional per-round reset support
+  - Not recomputed on page refresh
+
+- **Winner UX Enhancement**
+  - Full-screen confetti animation (3 seconds, green colors)
+  - Winning word remains visible in input boxes
+  - Green pulse-glow animation on input boxes
+  - Winner share card with Farcaster + X (Twitter) options
+  - Share text: "I just hit the ETH jackpot on Let's Have A Word! 🎉🟩"
+
+- **Dev Mode: 20% Pre-Populated Wrong Words**
+  - Automatically marks ~20% of wheel words as "wrong" in dev mode
+  - Excludes winning word from pre-population
+  - Deterministic seeded random selection (consistent per answer)
+  - No persistence needed - regenerated on each load
+  - Useful for visual testing and debugging
+
+- **Database Schema Updates**
+  - Added `wheelStartIndex` (INT) to `dailyGuessState` table
+  - Added `wheelRoundId` (INT) for optional per-round reset
+  - Migration generated: `drizzle/0000_bouncy_blizzard.sql`
+
+- **New Components**
+  - `WinnerShareCard.tsx` - Celebration modal with social sharing
+  - Pulse-glow CSS animation in `globals.css`
+
+### ✅ Milestone 4.13 - Clean English Dictionary
 
 Replaced Wordle-derived dictionaries with clean, modern English wordlists using frequency-based filtering:
 

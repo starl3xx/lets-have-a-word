@@ -259,73 +259,119 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const getWordStyle = useCallback((index: number, status: WheelWordStatus) => {
     const statusStyle = getStatusStyle(status);
 
-    // If word has status (wrong/winner), use status styling
-    if (status === 'wrong' || status === 'winner') {
-      return {
-        scale: 1.0,
-        opacity: status === 'winner' ? 1.0 : 0.5,
-        fontWeight: statusStyle.fontWeight,
-        color: statusStyle.color,
-        letterSpacing: '0.05em',
-        textShadow: statusStyle.textShadow,
-      };
-    }
-
-    // Otherwise use distance-based 3D effect (Milestone 4.5 logic)
+    // Default values (for no typing / far away words)
     if (centerIndex === -1) {
-      return {
-        scale: 1.0,
-        opacity: 0.3,
-        fontWeight: 'normal' as const,
-        color: '#bbb',
-        letterSpacing: '0.05em',
-      };
+      // No typing - show all words dimmed
+      if (status === 'winner') {
+        return {
+          scale: 1.0,
+          opacity: 1.0,
+          fontWeight: statusStyle.fontWeight,
+          color: statusStyle.color,
+          letterSpacing: '0.05em',
+          textShadow: statusStyle.textShadow,
+        };
+      } else if (status === 'wrong') {
+        return {
+          scale: 1.0,
+          opacity: 0.5,
+          fontWeight: 'normal' as const,
+          color: statusStyle.color,
+          letterSpacing: '0.05em',
+        };
+      } else {
+        return {
+          scale: 1.0,
+          opacity: 0.3,
+          fontWeight: 'normal' as const,
+          color: '#bbb',
+          letterSpacing: '0.05em',
+        };
+      }
     }
 
+    // Calculate distance from focused word
     const distance = Math.abs(index - centerIndex);
-    const isExactMatch = words[index].word.toLowerCase() === currentGuess.toLowerCase();
 
+    // Distance-based scale, opacity, fontWeight, letterSpacing
     let scale = 1.0;
     let opacity = 0.25;
     let fontWeight: 'bold' | 'normal' | '300' = 'normal';
     let color = '#bbb';
     let letterSpacing = '0.05em';
+    let textShadow: string | undefined = undefined;
 
     switch (distance) {
       case 0:
         scale = 1.4;
         opacity = 1.0;
         fontWeight = 'bold';
-        color = isExactMatch ? '#dc2626' : '#000';
         letterSpacing = '0.2em';
+        // Color depends on status
+        if (status === 'winner') {
+          color = '#22c55e'; // Green for winner when focused
+          textShadow = '0 0 15px rgba(34, 197, 94, 0.5)';
+        } else if (status === 'wrong') {
+          color = '#dc2626'; // Red for already guessed
+        } else {
+          color = '#000'; // Black for unguessed
+        }
         break;
       case 1:
         scale = 1.2;
-        opacity = 0.7;
+        opacity = status === 'wrong' ? 0.6 : 0.7;
         fontWeight = 'normal';
-        color = '#666';
         letterSpacing = '0.15em';
+        if (status === 'winner') {
+          color = statusStyle.color;
+          textShadow = statusStyle.textShadow;
+        } else if (status === 'wrong') {
+          color = statusStyle.color;
+        } else {
+          color = '#666';
+        }
         break;
       case 2:
         scale = 1.1;
-        opacity = 0.5;
+        opacity = status === 'wrong' ? 0.5 : 0.5;
         fontWeight = 'normal';
-        color = '#999';
         letterSpacing = '0.1em';
+        if (status === 'winner') {
+          color = statusStyle.color;
+          textShadow = statusStyle.textShadow;
+        } else if (status === 'wrong') {
+          color = statusStyle.color;
+        } else {
+          color = '#999';
+        }
         break;
       case 3:
         scale = 1.05;
-        opacity = 0.35;
+        opacity = status === 'wrong' ? 0.4 : 0.35;
         fontWeight = '300';
-        color = '#aaa';
         letterSpacing = '0.07em';
+        if (status === 'winner') {
+          color = statusStyle.color;
+          textShadow = statusStyle.textShadow;
+        } else if (status === 'wrong') {
+          color = statusStyle.color;
+        } else {
+          color = '#aaa';
+        }
         break;
       default:
         scale = 1.0;
-        opacity = 0.25;
+        opacity = status === 'wrong' ? 0.3 : 0.25;
         fontWeight = '300';
-        color = '#bbb';
         letterSpacing = '0.05em';
+        if (status === 'winner') {
+          color = statusStyle.color;
+          textShadow = statusStyle.textShadow;
+        } else if (status === 'wrong') {
+          color = statusStyle.color;
+        } else {
+          color = '#bbb';
+        }
     }
 
     return {
@@ -334,9 +380,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       fontWeight,
       color,
       letterSpacing,
-      textShadow: undefined,
+      textShadow,
     };
-  }, [centerIndex, currentGuess, words, getStatusStyle]);
+  }, [centerIndex, getStatusStyle]);
 
   /**
    * Render visible words with virtualization

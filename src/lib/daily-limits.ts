@@ -86,10 +86,12 @@ export async function hasCLANKTONBonus(fid: number): Promise<boolean> {
 /**
  * Get or create daily guess state for a user
  * If no state exists for today, creates it with appropriate allocations
+ * Milestone 4.14: Now also initializes wheelStartIndex
  */
 export async function getOrCreateDailyState(
   fid: number,
-  dateStr: string = getTodayUTC()
+  dateStr: string = getTodayUTC(),
+  roundId?: number
 ): Promise<DailyGuessStateRow> {
   // Try to find existing state for this day
   const existing = await db
@@ -105,6 +107,10 @@ export async function getOrCreateDailyState(
   // Create new state for today
   const hasClankton = await hasCLANKTONBonus(fid);
 
+  // Generate random wheel start index (Milestone 4.14)
+  // Random index between 0 and 10,013 (total GUESS_WORDS - 1)
+  const wheelStartIndex = Math.floor(Math.random() * 10014);
+
   const newState: DailyGuessStateInsert = {
     fid,
     date: dateStr,
@@ -115,15 +121,62 @@ export async function getOrCreateDailyState(
     paidGuessCredits: 0,
     paidPacksPurchased: 0,
     hasSharedToday: false,
+    wheelStartIndex, // Milestone 4.14
+    wheelRoundId: roundId || null, // Milestone 4.14
   };
 
   const [created] = await db.insert(dailyGuessState).values(newState).returning();
 
   console.log(
-    `✅ Created daily state for FID ${fid} on ${dateStr}: ${newState.freeAllocatedBase} base + ${newState.freeAllocatedClankton} CLANKTON = ${newState.freeAllocatedBase + newState.freeAllocatedClankton} free guesses`
+    `✅ Created daily state for FID ${fid} on ${dateStr}: ${newState.freeAllocatedBase} base + ${newState.freeAllocatedClankton} CLANKTON = ${newState.freeAllocatedBase + newState.freeAllocatedClankton} free guesses, wheelStartIndex: ${wheelStartIndex}`
   );
 
   return created;
+}
+
+/**
+ * Get or generate wheel start index for a user
+ * Milestone 4.14: Per-user, per-day random wheel start position
+ *
+ * Generates a random index once per day per user (resets at 11:00 UTC)
+ * Optionally resets per round if roundId changes
+ *
+ * @param fid - Farcaster ID of the user
+ * @param roundId - Optional round ID for per-round reset
+ * @returns Random start index between 0 and totalWords-1
+ */
+export async function getOrGenerateWheelStartIndex(
+  fid: number,
+  roundId?: number,
+  totalWords: number = 10014
+): Promise<number> {
+  const dateStr = getTodayUTC();
+  const state = await getOrCreateDailyState(fid, dateStr, roundId);
+
+  // Check if we need to regenerate (per-round reset enabled and round changed)
+  const needsRegeneration = roundId && state.wheelRoundId && state.wheelRoundId !== roundId;
+
+  if (state.wheelStartIndex !== null && !needsRegeneration) {
+    return state.wheelStartIndex;
+  }
+
+  // Generate new random index
+  const newIndex = Math.floor(Math.random() * totalWords);
+
+  // Update the database
+  await db
+    .update(dailyGuessState)
+    .set({
+      wheelStartIndex: newIndex,
+      wheelRoundId: roundId || state.wheelRoundId,
+    })
+    .where(and(eq(dailyGuessState.fid, fid), eq(dailyGuessState.date, dateStr)));
+
+  console.log(
+    `🎡 Generated new wheel start index for FID ${fid}: ${newIndex} (round ${roundId || 'N/A'})`
+  );
+
+  return newIndex;
 }
 
 /**

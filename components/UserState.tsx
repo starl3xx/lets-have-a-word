@@ -102,50 +102,54 @@ export default function UserState({ fid }: UserStateProps) {
 
   /**
    * Loading state - minimal
+   * IMPORTANT: Use py-2 and min-height to match actual state and prevent layout shifts (Milestone 4.14)
    */
   if (isLoading) {
     return (
-      <div className="text-center py-1">
-        <p className="text-xs text-gray-500">Loading...</p>
+      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
+        <p className="text-sm text-gray-500">Loading...</p>
       </div>
     );
   }
 
   /**
    * Error state - minimal, floating on top
+   * IMPORTANT: Use py-2 and min-height to match actual state and prevent layout shifts (Milestone 4.14)
    */
   if (error) {
     return (
-      <div className="text-center py-1">
-        <p className="text-xs text-red-600">{error}</p>
+      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
+        <p className="text-sm text-red-600">{error}</p>
       </div>
     );
   }
 
   /**
    * Not authenticated - minimal
+   * IMPORTANT: Use py-2 and min-height to match actual state and prevent layout shifts (Milestone 4.14)
    */
   if (!fid) {
     return (
-      <div className="text-center py-1">
-        <p className="text-xs text-gray-500">Connecting...</p>
+      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
+        <p className="text-sm text-gray-500">Connecting...</p>
       </div>
     );
   }
 
   if (!userState) {
     return (
-      <div className="text-center py-1">
-        <p className="text-xs text-gray-500">Loading...</p>
+      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
+        <p className="text-sm text-gray-500">Loading...</p>
       </div>
     );
   }
 
   /**
    * Display user state - minimal plain text
+   * IMPORTANT: Use py-2 and min-height to prevent layout shifts when remounting (Milestone 4.14)
    */
   return (
-    <div className="text-center py-2">
+    <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
       <p className="text-sm text-gray-700">
         <span className="font-semibold text-gray-900">{userState.totalGuessesRemaining}</span> {userState.totalGuessesRemaining === 1 ? 'guess' : 'guesses'} left today
         {userState.freeAllocations.base > 0 && (

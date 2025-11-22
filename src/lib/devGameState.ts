@@ -219,3 +219,47 @@ export function isValidDevBackendState(state: string): state is DevBackendState 
   ];
   return validStates.includes(state as DevBackendState);
 }
+
+/**
+ * Generate seeded wrong words for dev mode
+ * Milestone 4.14 — Pre-populate ~20% of wheel words as "wrong" for visual testing
+ *
+ * @param guessWords - Full list of valid guess words
+ * @param answerWord - The correct answer (excluded from wrong words)
+ * @returns Set of words to mark as "wrong"
+ */
+export function getDevModeSeededWrongWords(
+  guessWords: string[],
+  answerWord: string
+): Set<string> {
+  if (!isDevModeEnabled()) {
+    return new Set();
+  }
+
+  const total = guessWords.length;
+  const target = Math.floor(total * 0.2); // 20% of words
+  const picked = new Set<string>();
+
+  // Use a deterministic seed based on answer word for consistent results
+  // (This ensures the same answer always generates the same set of wrong words)
+  const seedValue = answerWord.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  // Simple seeded random number generator
+  let seed = seedValue;
+  const seededRandom = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+
+  // Pick random words excluding the answer
+  while (picked.size < target) {
+    const randomIndex = Math.floor(seededRandom() * total);
+    const word = guessWords[randomIndex].toUpperCase();
+    if (word !== answerWord.toUpperCase()) {
+      picked.add(word);
+    }
+  }
+
+  console.log(`🎮 Dev mode: Generated ${picked.size} seeded wrong words (20% of ${total})`);
+  return picked;
+}

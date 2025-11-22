@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveWheelData } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
-import { isDevModeEnabled, getDevFixedSolution } from '../../src/lib/devGameState';
+import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../src/lib/devGameState';
 import { getGuessWords } from '../../src/lib/word-lists';
 import type { WheelResponse, WheelWord, WheelWordStatus } from '../../src/types';
 
@@ -71,8 +71,12 @@ export default async function handler(
           .filter(w => w.length === 5 && w !== solution);
 
         wrongGuesses.forEach(guess => wrongGuessSet.add(guess));
-        console.log(`🎮 Dev mode: Added ${wrongGuessSet.size} wrong guesses`);
+        console.log(`🎮 Dev mode: Added ${wrongGuessSet.size} wrong guesses from query param`);
       }
+
+      // Milestone 4.14: Add seeded wrong words for dev mode (20% pre-population)
+      const seededWrongWords = getDevModeSeededWrongWords(allGuessWords, solution);
+      seededWrongWords.forEach(word => wrongGuessSet.add(word));
 
       // Check if we should show the winner (for testing post-win state)
       // CRITICAL: By default, do NOT reveal the answer!
