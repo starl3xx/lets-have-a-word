@@ -11,11 +11,44 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 4.11 Complete
+## 🎯 Current Status: Milestone 4.12 Complete
 
 All core game mechanics, onchain integration, social features, and UX polish are fully implemented and production-ready:
 
-### ✅ Milestone 4.11 - Final Word List Integration (Latest)
+### ✅ Milestone 4.12 - ETH/USD Price Integration (Latest)
+
+Real-time ETH→USD conversion for the jackpot display using CoinGecko's free API:
+
+- **CoinGecko Integration**
+  - Uses CoinGecko Simple Price API (no API key required)
+  - Fetches live ETH/USD price from `https://api.coingecko.com/api/v3/simple/price`
+  - 1-minute client-side caching to avoid rate limits
+  - Zero configuration required
+
+- **Price Module**
+  - New `src/lib/prices.ts` module for price fetching
+  - `getEthUsdPrice()` async function with caching
+  - Graceful error handling and fallback to last known price
+  - Never blocks or throws errors in UI
+
+- **UI Updates**
+  - Top ticker displays both ETH and USD amounts
+  - Format: "0.123 ETH ($421.50)"
+  - Shows "..." if price unavailable
+  - USD is informational only - all payouts remain 100% ETH
+
+- **Error Handling**
+  - Falls back to last cached price on API failure
+  - Shows ETH only if no cached price available
+  - No UI freezes or dependency issues
+  - Seamless integration with Farcaster miniapp
+
+- **Dev Mode Support**
+  - Works in both LHAW_DEV_MODE and NEXT_PUBLIC_TEST_MID_ROUND
+  - Live prices in dev mode match production behavior
+  - Consistent USD formatting across all environments
+
+### ✅ Milestone 4.11 - Final Word List Integration
 
 Finalized integration of canonical word lists from the official Wordle word sets:
 
@@ -417,7 +450,7 @@ Live round status display with polished formatting:
 
 - **Live Jackpot Display**
   - Shows current prize pool in ETH (from database)
-  - Approximate USD equivalent with configurable rate
+  - Live USD equivalent from CoinGecko API (Milestone 4.12)
   - Proper formatting (trims trailing zeros, commas for USD)
 
 - **Global Guess Counter**
@@ -429,8 +462,9 @@ Live round status display with polished formatting:
   - Graceful error handling and loading states
 
 - **Configuration**
-  - `ETH_USD_RATE` environment variable support
-  - Ready for oracle integration
+  - CoinGecko integration for real-time ETH/USD conversion (Milestone 4.12)
+  - No API keys required
+  - `ETH_USD_RATE` environment variable support (deprecated, fallback only for backwards compatibility)
 
 ### ✅ Milestone 3.1 - Jackpot + Split Logic
 
@@ -623,7 +657,8 @@ cp .env.example .env
 # Edit .env and configure:
 # - DATABASE_URL (PostgreSQL connection string)
 # - NEYNAR_API_KEY (optional, for Farcaster auth)
-# - ETH_USD_RATE (optional, defaults to 3000)
+# - BASE_RPC_URL (optional, for CLANKTON balance checking)
+# Note: ETH_USD_RATE env var is deprecated as of Milestone 4.12 (uses CoinGecko API)
 ```
 
 ### Database Setup
@@ -701,8 +736,10 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
   - Requires: `{ word, frameMessage?, signerUuid?, ref?, devFid? }`
   - Returns: Guess result (correct, incorrect, invalid, etc.)
 
-- `GET /api/round-state` - Get current round status
+- `GET /api/round-state` - Get current round status (Milestone 4.12: with live ETH/USD)
   - Returns: `{ roundId, prizePoolEth, prizePoolUsd, globalGuessCount, lastUpdatedAt }`
+  - `prizePoolUsd` is live from CoinGecko API (60s cache)
+  - Falls back to ETH only if price unavailable
 
 - `GET /api/wheel` - Get wheel words
   - Returns: `{ roundId, words[] }` (seed words + wrong guesses)
@@ -881,6 +918,48 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 **Configuration:**
 - Set `BASE_RPC_URL` in `.env` for custom RPC endpoint
 - Defaults to `https://mainnet.base.org`
+
+### ETH → USD Conversion (Milestone 4.12)
+
+The prize pool is displayed in both ETH and USD for user convenience using live market data.
+
+- **Price Source**: CoinGecko Simple Price API
+  - Free tier, no API key required
+  - Endpoint: `https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd`
+  - Global cryptocurrency market data provider
+
+- **Implementation Details**
+  - Module: `src/lib/prices.ts`
+  - Function: `getEthUsdPrice()` - async price fetcher
+  - Integration: Called in `getRoundStatus()` via `Promise.all()` for parallel fetching
+  - Format: Always displays 2 decimal places (e.g., "$3,421.50")
+
+- **Caching Strategy**
+  - 60-second cache per server instance (module-level variables)
+  - `cachedEthUsd` stores last successful price
+  - `cachedAt` tracks cache timestamp
+  - Reduces API calls and improves performance
+  - Falls back to last cached price on API errors
+
+- **Error Handling**
+  - If CoinGecko is unavailable, uses last known price
+  - If no cached price exists, shows ETH only (no USD)
+  - Never blocks UI rendering or throws errors
+  - Console logs errors for debugging without user impact
+
+- **Dev Mode Support**
+  - Works in `LHAW_DEV_MODE=true` (interactive dev mode)
+  - Works in `NEXT_PUBLIC_TEST_MID_ROUND=true` (mid-round test mode)
+  - Provides realistic testing with live market prices
+  - Consistent behavior across dev and production
+
+- **Important Notes**
+  - USD amount is **informational only**
+  - All rewards and payouts remain **100% ETH-based**
+  - Works seamlessly inside the Farcaster miniapp
+  - No configuration required
+  - No environment variables needed
+  - Backwards compatible (deprecated `ETH_USD_RATE` still works as fallback)
 
 ## User Experience (Milestone 4.3)
 
@@ -1062,6 +1141,7 @@ src/
 │   ├── wheel.ts           # Wheel + ticker data
 │   ├── economics.ts       # Jackpot + payouts
 │   ├── clankton.ts        # CLANKTON bonus checking
+│   ├── prices.ts          # ETH/USD price fetching (Milestone 4.12)
 │   ├── haptics.ts         # Haptic feedback SDK wrapper (Milestone 4.7)
 │   ├── input-state-haptics.ts  # Haptic feedback hook (Milestone 4.7)
 │   ├── input-state.ts     # Input state machine (Milestone 4.6)

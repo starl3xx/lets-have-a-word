@@ -23,19 +23,20 @@ function formatEth(value: string | number): string {
 /**
  * Format USD value for display
  * Milestone 3.2: Show with $ prefix and commas
+ * Milestone 4.12: Always show 2 decimal places for cents
  *
  * @param value - USD value as string or number
- * @returns Formatted USD string (e.g. "$1,260" or "$1,260.50")
+ * @returns Formatted USD string (e.g. "$1,260.00" or "$1,260.50")
  */
 function formatUsd(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
 
-  if (isNaN(num)) return '$0';
+  if (isNaN(num)) return '$0.00';
 
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(num);
 }
