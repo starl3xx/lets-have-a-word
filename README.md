@@ -43,6 +43,11 @@ Real-time ETH→USD conversion for the jackpot display using CoinGecko's free AP
   - No UI freezes or dependency issues
   - Seamless integration with Farcaster miniapp
 
+- **Dev Mode Support**
+  - Works in both LHAW_DEV_MODE and NEXT_PUBLIC_TEST_MID_ROUND
+  - Live prices in dev mode match production behavior
+  - Consistent USD formatting across all environments
+
 ### ✅ Milestone 4.11 - Final Word List Integration
 
 Finalized integration of canonical word lists from the official Wordle word sets:
@@ -458,7 +463,8 @@ Live round status display with polished formatting:
 
 - **Configuration**
   - CoinGecko integration for real-time ETH/USD conversion (Milestone 4.12)
-  - `ETH_USD_RATE` environment variable support (deprecated, fallback only)
+  - No API keys required
+  - `ETH_USD_RATE` environment variable support (deprecated, fallback only for backwards compatibility)
 
 ### ✅ Milestone 3.1 - Jackpot + Split Logic
 
@@ -730,8 +736,10 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
   - Requires: `{ word, frameMessage?, signerUuid?, ref?, devFid? }`
   - Returns: Guess result (correct, incorrect, invalid, etc.)
 
-- `GET /api/round-state` - Get current round status
+- `GET /api/round-state` - Get current round status (Milestone 4.12: with live ETH/USD)
   - Returns: `{ roundId, prizePoolEth, prizePoolUsd, globalGuessCount, lastUpdatedAt }`
+  - `prizePoolUsd` is live from CoinGecko API (60s cache)
+  - Falls back to ETH only if price unavailable
 
 - `GET /api/wheel` - Get wheel words
   - Returns: `{ roundId, words[] }` (seed words + wrong guesses)
@@ -913,14 +921,23 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 
 ### ETH → USD Conversion (Milestone 4.12)
 
-The prize pool is displayed in both ETH and USD for user convenience:
+The prize pool is displayed in both ETH and USD for user convenience using live market data.
 
 - **Price Source**: CoinGecko Simple Price API
   - Free tier, no API key required
   - Endpoint: `https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd`
+  - Global cryptocurrency market data provider
+
+- **Implementation Details**
+  - Module: `src/lib/prices.ts`
+  - Function: `getEthUsdPrice()` - async price fetcher
+  - Integration: Called in `getRoundStatus()` via `Promise.all()` for parallel fetching
+  - Format: Always displays 2 decimal places (e.g., "$3,421.50")
 
 - **Caching Strategy**
-  - 60-second cache per server instance
+  - 60-second cache per server instance (module-level variables)
+  - `cachedEthUsd` stores last successful price
+  - `cachedAt` tracks cache timestamp
   - Reduces API calls and improves performance
   - Falls back to last cached price on API errors
 
@@ -928,12 +945,21 @@ The prize pool is displayed in both ETH and USD for user convenience:
   - If CoinGecko is unavailable, uses last known price
   - If no cached price exists, shows ETH only (no USD)
   - Never blocks UI rendering or throws errors
+  - Console logs errors for debugging without user impact
+
+- **Dev Mode Support**
+  - Works in `LHAW_DEV_MODE=true` (interactive dev mode)
+  - Works in `NEXT_PUBLIC_TEST_MID_ROUND=true` (mid-round test mode)
+  - Provides realistic testing with live market prices
+  - Consistent behavior across dev and production
 
 - **Important Notes**
   - USD amount is **informational only**
   - All rewards and payouts remain **100% ETH-based**
   - Works seamlessly inside the Farcaster miniapp
   - No configuration required
+  - No environment variables needed
+  - Backwards compatible (deprecated `ETH_USD_RATE` still works as fallback)
 
 ## User Experience (Milestone 4.3)
 
