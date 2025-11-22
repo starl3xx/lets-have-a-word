@@ -58,7 +58,7 @@ OFFENSIVE_BLACKLIST = {
     'PRICK', 'PUSSY', 'TARDS', 'BITTY', 'CRAPS', 'HELLS',
 }
 
-# Proper nouns (names, places, brands, months)
+# Proper nouns (names, places, brands, months, acronyms/initialisms)
 PROPER_NOUN_BLACKLIST = {
     'JESUS', 'CHINA', 'INDIA', 'SPAIN', 'ITALY', 'PARIS', 'TOKYO',
     'JAMES', 'JONES', 'SMITH', 'BROWN', 'DAVIS', 'MARCH', 'APRIL',
@@ -66,6 +66,8 @@ PROPER_NOUN_BLACKLIST = {
     'WYATT', 'ISAAC', 'OSCAR', 'ELLIE', 'HAZEL', 'CLARA', 'ABBIE',
     'TEXAS', 'ROMAN', 'ISRAEL', 'JUDAH', 'JUDAS', 'MOSES', 'AARON',
     'PETER', 'SIMON', 'MENIL', 'BASEL', 'DAVOS', 'QATAR', 'DUBAI',
+    # Acronyms/initialisms to exclude
+    'HTTPS', 'NORAD', 'LGBTQ',
 }
 
 # Known Scrabble garbage (explicitly bad words to double-check)
