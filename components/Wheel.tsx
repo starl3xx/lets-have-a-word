@@ -283,7 +283,6 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
     }
 
     const distance = Math.abs(index - centerIndex);
-    const isExactMatch = words[index].word.toLowerCase() === currentGuess.toLowerCase();
 
     let scale = 1.0;
     let opacity = 0.25;
@@ -296,7 +295,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
         scale = 1.4;
         opacity = 1.0;
         fontWeight = 'bold';
-        color = isExactMatch ? '#dc2626' : '#000';
+        color = '#000'; // Always black for focused unguessed words
         letterSpacing = '0.2em';
         break;
       case 1:
