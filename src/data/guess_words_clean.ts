@@ -945,7 +945,6 @@ export const GUESS_WORDS_CLEAN: string[] = [
   "CISCO",
   "CITED",
   "CITES",
-  "CKING",
   "CLACK",
   "CLAIM",
   "CLAIR",
