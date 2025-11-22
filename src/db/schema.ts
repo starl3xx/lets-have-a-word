@@ -182,3 +182,33 @@ export const roundPayouts = pgTable('round_payouts', {
 
 export type RoundPayoutRow = typeof roundPayouts.$inferSelect;
 export type RoundPayoutInsert = typeof roundPayouts.$inferInsert;
+
+/**
+ * Announcer Events Table
+ * Stores Farcaster announcements to avoid duplicate posts
+ * Milestone 5.1: Farcaster announcer bot
+ */
+export const announcerEvents = pgTable('announcer_events', {
+  id: serial('id').primaryKey(),
+  eventType: varchar('event_type', { length: 50 }).notNull(), // 'round_started', 'round_resolved', 'jackpot_milestone', etc.
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  milestoneKey: varchar('milestone_key', { length: 100 }).notNull().default('default'), // 'default', 'jackpot_0.25', 'guesses_1000', etc.
+  payload: jsonb('payload').notNull(), // snapshot of values used for the cast
+  castHash: varchar('cast_hash', { length: 100 }), // Farcaster cast hash once posted
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  postedAt: timestamp('posted_at'),
+}, (table) => ({
+  // Unique constraint: one event type per round per milestone
+  eventTypeRoundMilestoneUnique: unique('announcer_events_event_type_round_milestone_unique').on(
+    table.eventType,
+    table.roundId,
+    table.milestoneKey
+  ),
+  // Index for lookups by round
+  roundIdx: index('announcer_events_round_idx').on(table.roundId),
+  // Index for pending posts (where castHash is null)
+  pendingIdx: index('announcer_events_pending_idx').on(table.castHash),
+}));
+
+export type AnnouncerEventRow = typeof announcerEvents.$inferSelect;
+export type AnnouncerEventInsert = typeof announcerEvents.$inferInsert;
