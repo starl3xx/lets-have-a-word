@@ -68,6 +68,8 @@ PROPER_NOUN_BLACKLIST = {
     'PETER', 'SIMON', 'MENIL', 'BASEL', 'DAVOS', 'QATAR', 'DUBAI',
     # Acronyms/initialisms to exclude
     'HTTPS', 'NORAD', 'LGBTQ',
+    # Names and brand names
+    'AAMIR', 'AADMI', 'XANAX',
 }
 
 # Known Scrabble garbage (explicitly bad words to double-check)
@@ -82,6 +84,10 @@ SCRABBLE_GARBAGE = {
     'QINTA', 'QIRSH', 'QOPHS', 'QORMA', 'ZAYIN', 'ZEALS', 'ZEBEC',
     'ZEBUB', 'ZIBET', 'ZIFFS', 'ZIGAN', 'ZILAS', 'ZOMBI', 'ZONAE',
     'ZONDA', 'ZOOEA', 'ZOOID', 'ZOOKS', 'ZOOMY', 'ZOONS', 'ZOOTY',
+    # Exclamations and nonsense words
+    'AAAAH', 'ABABA',
+    # Roman numerals
+    'XVIII', 'XXIII',
 }
 
 # Crypto/Farcaster terminology (whitelist - always include regardless of frequency)
@@ -152,6 +158,11 @@ def is_scrabble_garbage(word: str) -> bool:
 def is_crypto_term(word: str) -> bool:
     """Check if word is a whitelisted crypto/Farcaster term"""
     return word in CRYPTO_WHITELIST
+
+def is_roman_numeral(word: str) -> bool:
+    """Check if word is a Roman numeral (I, V, X, L, C, D, M only)"""
+    # Roman numerals use only these letters
+    return bool(re.match(r'^[IVXLCDM]+$', word))
 
 def get_frequency_score(word: str) -> float:
     """Get Zipf frequency score for a word"""
@@ -228,6 +239,7 @@ def generate_guess_words(source_words: Set[str]) -> List[str]:
         'offensive': 0,
         'proper_noun': 0,
         'scrabble_garbage': 0,
+        'roman_numeral': 0,
         'too_rare': 0,
     }
 
@@ -243,6 +255,10 @@ def generate_guess_words(source_words: Set[str]) -> List[str]:
 
         if is_scrabble_garbage(word):
             rejected['scrabble_garbage'] += 1
+            continue
+
+        if is_roman_numeral(word):
+            rejected['roman_numeral'] += 1
             continue
 
         # Frequency check (crypto terms bypass this check)
@@ -265,6 +281,7 @@ def generate_guess_words(source_words: Set[str]) -> List[str]:
     print(f"  - Offensive: {rejected['offensive']}")
     print(f"  - Proper nouns: {rejected['proper_noun']}")
     print(f"  - Scrabble garbage: {rejected['scrabble_garbage']}")
+    print(f"  - Roman numerals: {rejected['roman_numeral']}")
     print(f"  - Too rare (Zipf < {MIN_ZIPF_GUESS}): {rejected['too_rare']}")
     print(f"  - Total rejected: {sum(rejected.values())}")
     print(f"  - Valid words: {len(valid_words)}")
