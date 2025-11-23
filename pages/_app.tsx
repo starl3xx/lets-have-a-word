@@ -44,18 +44,32 @@ export default function App({ Component, pageProps }: AppProps) {
     );
   }
 
+  // Only use Neynar provider if client ID is set
+  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
+
+  if (neynarClientId) {
+    return (
+      <NeynarContextProvider
+        settings={{
+          clientId: neynarClientId,
+          defaultTheme: Theme.Light,
+        }}
+      >
+        <WagmiProvider config={config}>
+          <QueryClientProvider client={queryClient}>
+            <Component {...pageProps} />
+          </QueryClientProvider>
+        </WagmiProvider>
+      </NeynarContextProvider>
+    );
+  }
+
+  // Fallback without Neynar provider (for dev without env vars)
   return (
-    <NeynarContextProvider
-      settings={{
-        clientId: process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID || '',
-        defaultTheme: Theme.Light,
-      }}
-    >
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          <Component {...pageProps} />
-        </QueryClientProvider>
-      </WagmiProvider>
-    </NeynarContextProvider>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <Component {...pageProps} />
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

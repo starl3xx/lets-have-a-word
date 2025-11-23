@@ -14,7 +14,21 @@ import Head from 'next/head';
 type TabType = 'dau' | 'wau' | 'free-paid' | 'jackpot' | 'referral' | 'events';
 
 export default function AnalyticsDashboard() {
-  const { user, isAuthenticated } = useNeynarContext();
+  // Check if Neynar is configured
+  const neynarConfigured = !!process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
+
+  let user = null;
+  let isAuthenticated = false;
+
+  try {
+    const neynarContext = useNeynarContext();
+    user = neynarContext.user;
+    isAuthenticated = neynarContext.isAuthenticated;
+  } catch (error) {
+    // Neynar context not available (client ID not set)
+    console.warn('Neynar context not available:', error);
+  }
+
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('dau');
   const [loading, setLoading] = useState(false);
@@ -77,6 +91,26 @@ export default function AnalyticsDashboard() {
       setLoading(false);
     }
   };
+
+  // Check if Neynar is configured
+  if (!neynarConfigured) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <Head>
+          <title>Analytics - Let&apos;s Have A Word</title>
+        </Head>
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
+          <h1 className="text-2xl font-bold mb-4 text-orange-600">Configuration Required</h1>
+          <p className="mb-4 text-gray-600">
+            The analytics dashboard requires Neynar SIWN to be configured.
+          </p>
+          <p className="text-sm text-gray-500 font-mono bg-gray-50 p-2 rounded">
+            NEXT_PUBLIC_NEYNAR_CLIENT_ID is not set
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Not authenticated - show login button
   if (!isAuthenticated) {
