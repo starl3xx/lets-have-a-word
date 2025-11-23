@@ -5,6 +5,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
+import { NeynarAuthProvider } from '@neynar/react';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -29,10 +30,14 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <Component {...pageProps} />
-      </QueryClientProvider>
-    </WagmiProvider>
+    <NeynarAuthProvider
+      clientId={process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID || ''}
+    >
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <Component {...pageProps} />
+        </QueryClientProvider>
+      </WagmiProvider>
+    </NeynarAuthProvider>
   );
 }

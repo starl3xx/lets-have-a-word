@@ -6,6 +6,7 @@ import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
 import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
+import { logGuessEvent, logReferralEvent, AnalyticsEventTypes } from './analytics';
 
 /**
  * Normalize a guess word
@@ -231,6 +232,21 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
 
+      // Milestone 5.2: Log analytics event (non-blocking)
+      logGuessEvent(isPaidGuess, fid.toString(), round.id.toString(), {
+        word,
+        isCorrect: true,
+        isWinner: true,
+      });
+
+      // Log referral win if applicable
+      if (referrerFid) {
+        logReferralEvent(AnalyticsEventTypes.REFERRAL_WIN, fid.toString(), {
+          referrerFid,
+          roundId: round.id,
+        });
+      }
+
       return {
         status: 'correct',
         word,
@@ -309,6 +325,13 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     }
 
     console.log(`❌ User ${fid} guessed "${word}" incorrectly (${totalGuesses} total guesses)`);
+
+    // Milestone 5.2: Log analytics event (non-blocking)
+    logGuessEvent(isPaidGuess, fid.toString(), round.id.toString(), {
+      word,
+      isCorrect: false,
+      totalGuesses,
+    });
 
     return {
       status: 'incorrect',
