@@ -1,10 +1,11 @@
-import { db, guesses, users } from '../db';
+import { db, guesses, users, rounds } from '../db';
 import { eq, and, desc, sql, count } from 'drizzle-orm';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import { getActiveRound, resolveRound } from './rounds';
 import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
+import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
 
 /**
  * Normalize a guess word
@@ -261,10 +262,51 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // Apply economic effects for paid guesses (Milestone 3.1)
     if (isPaidGuess) {
       await applyPaidGuessEconomicEffects(round.id, DAILY_LIMITS_RULES.paidGuessPackPriceEth);
+
+      // Milestone 5.1: Check jackpot milestones after paid guess (non-blocking)
+      try {
+        // Get updated round with new prize pool
+        const updatedRoundResult = await db
+          .select()
+          .from(rounds)
+          .where(eq(rounds.id, round.id))
+          .limit(1);
+
+        if (updatedRoundResult.length > 0) {
+          await checkAndAnnounceJackpotMilestones(updatedRoundResult[0]);
+        }
+      } catch (error) {
+        console.error('[guesses] Failed to check jackpot milestones:', error);
+        // Continue - announcer failures should never break the game
+      }
     }
 
     // Get user's total guess count for this round
     const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
+
+    // Milestone 5.1: Check guess count milestones (non-blocking)
+    try {
+      // Get total guess count for the round
+      const totalRoundGuessesResult = await db
+        .select({ count: count() })
+        .from(guesses)
+        .where(eq(guesses.roundId, round.id));
+      const totalRoundGuesses = totalRoundGuessesResult[0]?.count ?? 0;
+
+      // Get round data for announcements
+      const roundData = await db
+        .select()
+        .from(rounds)
+        .where(eq(rounds.id, round.id))
+        .limit(1);
+
+      if (roundData.length > 0) {
+        await checkAndAnnounceGuessMilestones(roundData[0], totalRoundGuesses);
+      }
+    } catch (error) {
+      console.error('[guesses] Failed to check guess milestones:', error);
+      // Continue - announcer failures should never break the game
+    }
 
     console.log(`❌ User ${fid} guessed "${word}" incorrectly (${totalGuesses} total guesses)`);
 
