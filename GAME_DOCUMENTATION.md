@@ -1147,6 +1147,259 @@ vercel inspect <deployment-url>
 
 ---
 
+## Analytics (Milestone 5.2)
+
+### Overview
+
+**Let's Have A Word** includes a comprehensive analytics system for tracking user activity, game metrics, and business intelligence. The system is built with a fire-and-forget design to ensure analytics never block or interfere with core game functionality.
+
+### Analytics Events
+
+All analytics events are logged to the `analytics_events` table with the following structure:
+
+```typescript
+{
+  id: number;              // Auto-increment primary key
+  eventType: string;       // Event identifier (see types below)
+  userId: string | null;   // FID as string
+  roundId: string | null;  // Round ID as string
+  data: any;              // JSONB payload with event-specific data
+  createdAt: Date;        // Timestamp
+}
+```
+
+#### Event Types
+
+**User Activity:**
+- `daily_open` - User opens the app (first action of day)
+- `free_guess_used` - Free guess consumed
+  - Data: `{ word, isCorrect, totalGuesses }`
+- `paid_guess_used` - Paid guess consumed
+  - Data: `{ word, isCorrect, totalGuesses, ethSpent }`
+
+**Referrals:**
+- `referral_join` - New user joined via referral link
+  - Data: `{ referrerFid }`
+- `referral_win` - Referred user won the jackpot
+  - Data: `{ referrerFid, roundId }`
+- `share_bonus_unlocked` - User unlocked share bonus (+1 free guess)
+  - Data: `{ bonusGuesses }`
+
+**Rounds:**
+- `round_started` - New round created
+  - Data: `{ prizePoolEth, commitHash }`
+- `round_resolved` - Round completed with winner
+  - Data: `{ winnerFid, referrerFid, prizePoolEth, seedNextRoundEth }`
+
+### Metrics
+
+The analytics system provides the following aggregated metrics through SQL views:
+
+#### DAU (Daily Active Users)
+- **View:** `view_dau`
+- **Columns:** `day`, `active_users`
+- **Definition:** Count of distinct `user_id` with any event on each day
+- **Use Case:** Track daily engagement and growth
+
+#### WAU (Weekly Active Users)
+- **View:** `view_wau`
+- **Columns:** `week_start`, `active_users`
+- **Definition:** Count of distinct `user_id` per ISO week
+- **Use Case:** Track weekly engagement trends
+
+#### Free/Paid Ratio
+- **View:** `view_free_paid_ratio`
+- **Columns:** `day`, `free_guesses`, `paid_guesses`, `free_to_paid_ratio`
+- **Definition:** Breakdown of free vs paid guess usage per day
+- **Use Case:** Monitor monetization and conversion rates
+
+#### Jackpot Growth
+- **View:** `view_jackpot_growth`
+- **Columns:** `day`, `round_id`, `jackpot_eth`, `winner_fid`
+- **Definition:** Prize pool amounts from round resolution events
+- **Use Case:** Track jackpot evolution and winner patterns
+
+#### Referral Funnel
+- **View:** `view_referral_funnel`
+- **Columns:** `day`, `referral_shares`, `referral_joins`, `referral_wins`, `bonus_unlocked`
+- **Definition:** Referral metrics aggregated per day
+- **Use Case:** Measure referral program effectiveness
+
+### Implementation Details
+
+#### Logging Helper
+
+The `src/lib/analytics.ts` module provides the core logging functionality:
+
+```typescript
+import { logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
+
+// Log a user activity event
+await logAnalyticsEvent(AnalyticsEventTypes.FREE_GUESS_USED, {
+  userId: fid.toString(),
+  roundId: roundId.toString(),
+  data: { word: 'CRANE', isCorrect: false },
+});
+```
+
+**Helper Functions:**
+- `logAnalyticsEvent(eventType, options)` - General purpose logger
+- `logUserActivity(eventType, userId, data)` - User-specific events
+- `logRoundEvent(eventType, roundId, data)` - Round-specific events
+- `logGuessEvent(isPaid, userId, roundId, data)` - Guess-specific events
+- `logReferralEvent(eventType, userId, data)` - Referral-specific events
+
+#### Integration Points
+
+Analytics logging is integrated at the following points:
+
+1. **Rounds** (`src/lib/rounds.ts`)
+   - `createRound()` → logs `round_started`
+   - `resolveRound()` → logs `round_resolved`
+
+2. **Guesses** (`src/lib/guesses.ts`)
+   - `submitGuess()` → logs `free_guess_used` or `paid_guess_used`
+   - Correct guess with referrer → logs `referral_win`
+
+3. **Users** (`src/lib/users.ts`)
+   - `upsertUserFromFarcaster()` → logs `referral_join` (if referred)
+
+4. **Daily Limits** (`src/lib/daily-limits.ts`)
+   - `awardShareBonus()` → logs `share_bonus_unlocked`
+
+#### Fire-and-Forget Design
+
+All analytics logging follows these principles:
+
+1. **Non-blocking:** Analytics calls never `await` or block user flows
+2. **Error-tolerant:** Wrapped in try-catch, failures logged but not thrown
+3. **Feature-flagged:** Respects `ANALYTICS_ENABLED` env var
+4. **Debug-friendly:** Optional verbose logging via `ANALYTICS_DEBUG`
+
+Example:
+```typescript
+// Good: Fire-and-forget
+logAnalyticsEvent(AnalyticsEventTypes.ROUND_STARTED, { roundId });
+
+// Bad: Blocking
+await logAnalyticsEvent(AnalyticsEventTypes.ROUND_STARTED, { roundId });
+```
+
+### Admin Dashboard
+
+The analytics dashboard is accessible at `/admin/analytics` (web-only, not in mini app).
+
+#### Authentication
+
+- Uses **Neynar SIWN** (Sign In With Neynar)
+- Only FIDs in `LHAW_ADMIN_USER_IDS` can access
+- Session validated on every API call
+
+#### Dashboard Tabs
+
+1. **DAU** - Daily active users table
+2. **WAU** - Weekly active users table
+3. **Free/Paid Ratio** - Free vs paid guess breakdown
+4. **Jackpot Growth** - Prize pool evolution
+5. **Referral Funnel** - Referral metrics
+6. **Raw Events** - Paginated event log with expandable JSON
+
+#### API Endpoints
+
+- `GET /api/admin/me` - Check admin status
+- `GET /api/admin/analytics/dau` - DAU data
+- `GET /api/admin/analytics/wau` - WAU data
+- `GET /api/admin/analytics/free-paid` - Free/paid ratio
+- `GET /api/admin/analytics/jackpot` - Jackpot growth
+- `GET /api/admin/analytics/referral` - Referral funnel
+- `GET /api/admin/analytics/events` - Raw events (paginated)
+
+All endpoints:
+- Require admin FID check
+- Return empty array if `ANALYTICS_ENABLED !== 'true'`
+- Return 403 if not admin
+
+### Dev Notes
+
+#### Adding a New Analytics Event
+
+1. Add event type to `AnalyticsEventTypes` in `src/lib/analytics.ts`:
+   ```typescript
+   export const AnalyticsEventTypes = {
+     // ...existing events
+     NEW_EVENT: 'new_event',
+   } as const;
+   ```
+
+2. Call `logAnalyticsEvent()` from appropriate backend handler:
+   ```typescript
+   import { logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
+
+   // In your handler function
+   logAnalyticsEvent(AnalyticsEventTypes.NEW_EVENT, {
+     userId: fid.toString(),
+     data: { key: 'value' },
+   });
+   ```
+
+3. (Optional) Extend views/dashboard to display the new event:
+   - Add SQL to `drizzle/0001_analytics_views.sql`
+   - Create new API endpoint in `pages/api/admin/analytics/`
+   - Add new tab to `pages/admin/analytics.tsx`
+
+#### Testing Analytics in DEV MODE
+
+1. Set environment variables:
+   ```bash
+   ANALYTICS_ENABLED=true
+   ANALYTICS_DEBUG=true  # Optional: verbose logs
+   LHAW_ADMIN_USER_IDS=12345  # Your FID
+   ```
+
+2. Trigger events by using the app normally
+
+3. Check database:
+   ```sql
+   SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 10;
+   ```
+
+4. Access dashboard:
+   ```
+   http://localhost:3000/admin/analytics?devFid=12345
+   ```
+
+#### Database Maintenance
+
+**Archiving old events:**
+```sql
+-- Archive events older than 90 days
+CREATE TABLE analytics_events_archive AS
+SELECT * FROM analytics_events
+WHERE created_at < NOW() - INTERVAL '90 days';
+
+DELETE FROM analytics_events
+WHERE created_at < NOW() - INTERVAL '90 days';
+```
+
+**Refreshing views:**
+Views are non-materialized and automatically update. No refresh needed.
+
+### Configuration
+
+**Environment Variables:**
+- `ANALYTICS_ENABLED` - Master on/off switch (default: `false`)
+- `ANALYTICS_DEBUG` - Verbose logging (default: `false`)
+- `LHAW_ADMIN_USER_IDS` - Comma-separated FIDs (e.g., `6500,1477413`)
+- `NEXT_PUBLIC_NEYNAR_CLIENT_ID` - Neynar client ID (public)
+- `NEYNAR_API_KEY` - Neynar API key (server-side)
+
+**Neynar SIWN Setup:**
+- App: "Let's Have A Word!" on Neynar
+- Authorized origin: `https://lets-have-a-word.vercel.app`
+- Permissions: Read + Write (Write required for SIWN)
+
+---
+
 ## Future Considerations
 
 ### Potential Enhancements
