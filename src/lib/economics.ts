@@ -1,7 +1,8 @@
 import { db } from '../db';
 import { rounds, systemState, roundPayouts, guesses, users } from '../db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 import type { RoundPayoutInsert } from '../db/schema';
+import { announceRoundResolved, announceReferralWin } from './announcer';
 
 /**
  * Economics Module - Milestone 3.1
@@ -315,6 +316,43 @@ export async function resolveRoundAndCreatePayouts(
     .where(eq(rounds.id, roundId));
 
   console.log(`✅ Resolved round ${roundId} with ${payouts.length} payouts (jackpot: ${jackpot.toFixed(18)} ETH)`);
+
+  // Milestone 5.1: Announce round resolution (non-blocking)
+  try {
+    // Get total guess count for the round
+    const totalGuessesResult = await db
+      .select({ count: count() })
+      .from(guesses)
+      .where(eq(guesses.roundId, roundId));
+    const totalGuesses = totalGuessesResult[0]?.count ?? 0;
+
+    // Get updated round with resolved data
+    const [resolvedRound] = await db
+      .select()
+      .from(rounds)
+      .where(eq(rounds.id, roundId))
+      .limit(1);
+
+    if (resolvedRound) {
+      // Announce round resolved
+      const result = await announceRoundResolved(resolvedRound, payouts, totalGuesses);
+
+      // If there was a referrer payout, announce it as a reply
+      if (referrerFid) {
+        const referrerPayout = payouts.find(p => p.role === 'referrer');
+        if (referrerPayout) {
+          await announceReferralWin(
+            resolvedRound,
+            referrerPayout,
+            result?.cast?.hash
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[economics] Failed to announce round resolution:', error);
+    // Continue - announcer failures should never break the game
+  }
 }
 
 /**
