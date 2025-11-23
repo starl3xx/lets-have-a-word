@@ -7,14 +7,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useNeynarAuth } from '@neynar/react';
+import { useNeynarContext, NeynarAuthButton } from '@neynar/react';
 import Head from 'next/head';
 
 // Tab types
 type TabType = 'dau' | 'wau' | 'free-paid' | 'jackpot' | 'referral' | 'events';
 
 export default function AnalyticsDashboard() {
-  const { user, isAuthenticated, login } = useNeynarAuth();
+  const { user, isAuthenticated } = useNeynarContext();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('dau');
   const [loading, setLoading] = useState(false);
@@ -90,12 +90,7 @@ export default function AnalyticsDashboard() {
           <p className="mb-6 text-gray-600">
             Sign in with your Farcaster account to access the analytics dashboard.
           </p>
-          <button
-            onClick={login}
-            className="w-full bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 transition"
-          >
-            Sign in with Neynar
-          </button>
+          <NeynarAuthButton />
         </div>
       </div>
     );
@@ -149,7 +144,7 @@ export default function AnalyticsDashboard() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
               <p className="text-sm text-gray-600">
-                Signed in as @{user?.username || user?.displayName} (FID: {user?.fid})
+                Signed in as @{user?.username || user?.display_name} (FID: {user?.fid})
               </p>
             </div>
           </div>
@@ -445,4 +440,11 @@ function EventsView({ data }: { data: any }) {
       </div>
     </div>
   );
+}
+
+// Disable static generation for this page (client-side only for Neynar)
+export async function getServerSideProps() {
+  return {
+    props: {},
+  };
 }

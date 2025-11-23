@@ -1,17 +1,21 @@
 import type { AppProps } from 'next/app';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import '../styles/globals.css';
 import sdk from '@farcaster/miniapp-sdk';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
-import { NeynarAuthProvider } from '@neynar/react';
+import { NeynarContextProvider, Theme } from '@neynar/react';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
 
 export default function App({ Component, pageProps }: AppProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    setIsMounted(true);
+
     // Initialize Farcaster Miniapp SDK
     const initFarcaster = async () => {
       try {
@@ -29,15 +33,29 @@ export default function App({ Component, pageProps }: AppProps) {
     initFarcaster();
   }, []);
 
+  // Don't render Neynar provider on server
+  if (!isMounted) {
+    return (
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <Component {...pageProps} />
+        </QueryClientProvider>
+      </WagmiProvider>
+    );
+  }
+
   return (
-    <NeynarAuthProvider
-      clientId={process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID || ''}
+    <NeynarContextProvider
+      settings={{
+        clientId: process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID || '',
+        defaultTheme: Theme.Light,
+      }}
     >
       <WagmiProvider config={config}>
         <QueryClientProvider client={queryClient}>
           <Component {...pageProps} />
         </QueryClientProvider>
       </WagmiProvider>
-    </NeynarAuthProvider>
+    </NeynarContextProvider>
   );
 }
