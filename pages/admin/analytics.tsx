@@ -1,9 +1,25 @@
 // pages/admin/analytics.tsx
 import React from "react"
+import dynamic from "next/dynamic"
 import { AdminStatsCard } from "../../components/admin/AdminStatsCard"
 import { AdminSection } from "../../components/admin/AdminSection"
 
-export default function AnalyticsPage() {
+// Dynamically import the auth wrapper (client-only)
+const AdminAuthWrapper = dynamic(
+  () => import("../../components/admin/AdminAuthWrapper").then(m => m.AdminAuthWrapper),
+  { ssr: false, loading: () => <div style={{ padding: 24 }}>Loading...</div> }
+)
+
+interface DashboardContentProps {
+  user?: {
+    fid: number
+    username: string
+    display_name?: string
+    pfp_url?: string
+  }
+}
+
+function DashboardContent({ user }: DashboardContentProps) {
   return (
     <main style={{
       minHeight: "100vh",
@@ -17,21 +33,61 @@ export default function AnalyticsPage() {
         padding: "24px",
       }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-          <h1 style={{
-            margin: 0,
-            fontSize: "28px",
-            fontWeight: 700,
-            color: "#111827",
-          }}>
-            Let's Have A Word — Admin Analytics
-          </h1>
-          <p style={{
-            margin: "8px 0 0 0",
-            fontSize: "14px",
-            color: "#6b7280",
-          }}>
-            Phase 1: Static layout with placeholder data
-          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h1 style={{
+                margin: 0,
+                fontSize: "28px",
+                fontWeight: 700,
+                color: "#111827",
+              }}>
+                Let's Have A Word — Admin Analytics
+              </h1>
+              <p style={{
+                margin: "8px 0 0 0",
+                fontSize: "14px",
+                color: "#6b7280",
+              }}>
+                Phase 2: SIWN authentication added
+              </p>
+            </div>
+
+            {/* User info */}
+            {user && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}>
+                {user.pfp_url && (
+                  <img
+                    src={user.pfp_url}
+                    alt={user.username}
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                    }}
+                  />
+                )}
+                <div style={{ textAlign: "right" }}>
+                  <div style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#111827",
+                  }}>
+                    @{user.username}
+                  </div>
+                  <div style={{
+                    fontSize: "12px",
+                    color: "#6b7280",
+                  }}>
+                    FID: {user.fid}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -100,5 +156,13 @@ export default function AnalyticsPage() {
 
       </div>
     </main>
+  )
+}
+
+export default function AnalyticsPage() {
+  return (
+    <AdminAuthWrapper>
+      <DashboardContent />
+    </AdminAuthWrapper>
   )
 }
