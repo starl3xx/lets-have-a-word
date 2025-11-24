@@ -51,8 +51,13 @@ export default async function handler(
       sql`SELECT * FROM view_wau ORDER BY week_start DESC LIMIT 12`
     );
 
+    console.log('[analytics/wau] Raw result:', JSON.stringify(result).substring(0, 300));
+
+    // db.execute returns the array directly, not an object with rows property
+    const rows = Array.isArray(result) ? result : [];
+
     // Ensure proper serialization
-    const serializedData = result.rows.map(row => ({
+    const serializedData = rows.map(row => ({
       week_start: row.week_start?.toString() || '',
       active_users: Number(row.active_users) || 0
     }));

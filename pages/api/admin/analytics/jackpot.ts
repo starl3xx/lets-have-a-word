@@ -53,8 +53,13 @@ export default async function handler(
       sql`SELECT * FROM view_jackpot_growth ORDER BY day DESC LIMIT 30`
     );
 
+    console.log('[analytics/jackpot] Raw result:', JSON.stringify(result).substring(0, 300));
+
+    // db.execute returns the array directly, not an object with rows property
+    const rows = Array.isArray(result) ? result : [];
+
     // Ensure proper serialization
-    const serializedData = result.rows.map(row => ({
+    const serializedData = rows.map(row => ({
       day: row.day?.toString() || '',
       round_id: row.round_id?.toString() || '',
       jackpot_eth: row.jackpot_eth?.toString() || '0',

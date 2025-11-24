@@ -62,8 +62,13 @@ export default async function handler(
       sql`SELECT * FROM view_free_paid_ratio ORDER BY day DESC LIMIT 30`
     );
 
+    console.log('[analytics/free-paid] Raw result:', JSON.stringify(result).substring(0, 300));
+
+    // db.execute returns the array directly, not an object with rows property
+    const rows = Array.isArray(result) ? result : [];
+
     // Ensure proper serialization
-    const serializedData = result.rows.map(row => ({
+    const serializedData = rows.map(row => ({
       day: row.day?.toString() || '',
       free_guesses: Number(row.free_guesses) || 0,
       paid_guesses: Number(row.paid_guesses) || 0,
