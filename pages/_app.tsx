@@ -1,68 +1,37 @@
 /**
  * _app.tsx - Root Application Component
  *
- * BUG FIX (2025-11-24):
- * Fixed React error #31 caused by conditional returns changing component tree structure.
+ * BUG FIX #3 (2025-11-24) - FINAL FIX:
+ * Removed NeynarContextProvider entirely from _app.tsx.
  *
- * Root cause:
- * The original code had multiple conditional return statements that rendered different
- * JSX structures based on isMounted and neynarClientId. This caused hydration mismatches:
- * - SSR: Rendered without NeynarContextProvider (isMounted=false)
- * - Client initial: Rendered without NeynarContextProvider (isMounted=false)
- * - After useEffect: Rendered WITH NeynarContextProvider (isMounted=true + clientId set)
+ * Root cause discovered:
+ * NeynarContextProvider does NOT support server-side rendering. When included in _app.tsx,
+ * it causes React error #31 during SSR with the message:
+ * "Objects are not valid as a React child (found: object with keys {$$typeof, type, key, ref, props})"
  *
- * When the component structure changes between renders, React throws error #31 because
- * it receives an unexpected element type during reconciliation.
+ * Previous attempts:
+ * 1. Conditional returns based on isMounted → Changed tree structure → React #31
+ * 2. Build-time conditional → Still tried to SSR the provider → React #31
  *
- * Solution:
- * Always render a CONSISTENT component tree structure. Use a ConditionalNeynarProvider
- * wrapper that renders the provider only when safe (client-side + clientId set), but
- * always exists in the tree as a passthrough wrapper.
+ * Final solution:
+ * Do NOT include NeynarContextProvider in the root _app.tsx at all.
+ * Only use it on specific pages that need it (/admin/analytics), and handle it
+ * client-side only within those pages.
+ *
+ * This keeps the main game page (/) free from any Neynar dependencies and prevents
+ * any SSR issues with the Neynar provider.
  */
 
 import type { AppProps } from 'next/app';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import '../styles/globals.css';
 import sdk from '@farcaster/miniapp-sdk';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
-import { NeynarContextProvider, Theme } from '@neynar/react';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
-
-/**
- * Conditional Neynar Provider Wrapper
- * Always renders consistently, but only activates Neynar provider when safe
- */
-function ConditionalNeynarProvider({ children }: { children: ReactNode }) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Only use Neynar provider if client ID is set AND we're on the client
-  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
-  const shouldUseNeynar = isMounted && neynarClientId;
-
-  if (shouldUseNeynar) {
-    return (
-      <NeynarContextProvider
-        settings={{
-          clientId: neynarClientId,
-          defaultTheme: Theme.Light,
-        }}
-      >
-        {children}
-      </NeynarContextProvider>
-    );
-  }
-
-  // Passthrough - no Neynar provider, just render children
-  return <>{children}</>;
-}
 
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
@@ -83,15 +52,13 @@ export default function App({ Component, pageProps }: AppProps) {
     initFarcaster();
   }, []);
 
-  // IMPORTANT: Always return the same component structure
-  // The ConditionalNeynarProvider handles the logic internally without changing the tree
+  // Simple, clean provider tree without Neynar
+  // Neynar is only used on /admin/analytics page (handled there)
   return (
-    <ConditionalNeynarProvider>
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          <Component {...pageProps} />
-        </QueryClientProvider>
-      </WagmiProvider>
-    </ConditionalNeynarProvider>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <Component {...pageProps} />
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

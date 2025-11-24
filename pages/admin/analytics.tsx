@@ -5,60 +5,75 @@
  * Web-only admin dashboard with SIWN authentication
  * Displays DAU, WAU, free/paid ratio, jackpot growth, referral funnel, and raw events
  *
- * BUG FIX (2025-11-24):
- * Fixed React error #31 caused by calling useNeynarContext during SSR.
- * Full unminified error:
- *   "Error: useNeynarContext must be used within a NeynarContextProvider
- *    at gg (NeynarAuthButton component)
- *    at renderWithHooks (react-dom-server)"
+ * BUG FIX #3 (2025-11-24) - FINAL FIX:
+ * Fixed React error #31 by removing NeynarContextProvider from _app.tsx entirely.
  *
  * Root cause:
- * 1. useNeynarContext() was being called unconditionally at line 40, even during SSR
- * 2. NeynarAuthButton was being rendered during SSR (before client hydration)
- * 3. NeynarContextProvider is only available client-side (see _app.tsx isMounted check)
- * 4. During SSR, hooks throw errors that crash the page with React error #31
+ * NeynarContextProvider does NOT support SSR. When it was in _app.tsx, it caused
+ * React error #31 during server-side rendering for ALL pages.
  *
  * Solution:
- * 1. Only call useNeynarContext() when isMounted is true (client-side only)
- * 2. Only render NeynarAuthButton after client hydration
- * 3. Always return valid JSX from all branches, never raw objects or hook results
+ * 1. Removed NeynarContextProvider from _app.tsx
+ * 2. This page now wraps itself with NeynarContextProvider (client-side only)
+ * 3. The main game page (/) is unaffected and doesn't include any Neynar code
  */
 
-import { useEffect, useState } from 'react';
-import { useNeynarContext, NeynarAuthButton } from '@neynar/react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useNeynarContext, NeynarAuthButton, NeynarContextProvider, Theme } from '@neynar/react';
 import Head from 'next/head';
 
 // Tab types
 type TabType = 'dau' | 'wau' | 'free-paid' | 'jackpot' | 'referral' | 'events';
 
-export default function AnalyticsDashboard() {
+/**
+ * Wrapper component that provides Neynar context ONLY for this page
+ * This is client-side only - during SSR it just returns children
+ */
+function NeynarProviderWrapper({ children }: { children: ReactNode }) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
+
+  // During SSR or before hydration, just pass through children
+  if (!isMounted || !neynarClientId) {
+    return <>{children}</>;
+  }
+
+  // After hydration, wrap with Neynar provider
+  return (
+    <NeynarContextProvider
+      settings={{
+        clientId: neynarClientId,
+        defaultTheme: Theme.Light,
+      }}
+    >
+      {children}
+    </NeynarContextProvider>
+  );
+}
+
+function AnalyticsDashboardContent() {
   // Client-side only flag to prevent SSR of Neynar components
   const [isMounted, setIsMounted] = useState(false);
 
   // Check if Neynar is configured
   const neynarConfigured = !!process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
 
-  // IMPORTANT: Hooks must ALWAYS be called unconditionally (Rules of Hooks)
-  // useNeynarContext will throw when:
-  // 1. During SSR (NeynarContextProvider not mounted yet)
-  // 2. When NEXT_PUBLIC_NEYNAR_CLIENT_ID not set (provider not rendered)
-  // We handle this gracefully with try-catch and ensure all branches return valid JSX.
+  // Only call useNeynarContext when actually mounted and configured
   let user = null;
   let isAuthenticated = false;
 
-  try {
-    // MUST call hook unconditionally - moving the conditional logic AFTER the hook call
-    const neynarContext = useNeynarContext();
-    if (neynarConfigured) {
+  if (isMounted && neynarConfigured) {
+    try {
+      const neynarContext = useNeynarContext();
       user = neynarContext.user;
       isAuthenticated = neynarContext.isAuthenticated;
-    }
-  } catch (error) {
-    // Expected during SSR or when provider not available
-    // Just continue with user=null and isAuthenticated=false
-    // Only warn if we expected the provider to be available
-    if (isMounted && neynarConfigured) {
-      console.warn('Neynar context unavailable on client (expected to be available):', error);
+    } catch (error) {
+      console.warn('Neynar context unavailable:', error);
     }
   }
 
@@ -518,6 +533,15 @@ function EventsView({ data }: { data: any }) {
         </table>
       </div>
     </div>
+  );
+}
+
+// Main export - wraps the dashboard content with Neynar provider
+export default function AnalyticsDashboard() {
+  return (
+    <NeynarProviderWrapper>
+      <AnalyticsDashboardContent />
+    </NeynarProviderWrapper>
   );
 }
 
