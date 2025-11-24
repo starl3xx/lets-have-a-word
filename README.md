@@ -740,8 +740,10 @@ Onchain token bonus system:
   - Uses ethers.js and Base RPC
   - Checks user's Farcaster signer wallet
 
-- **Bonus System**
-  - Holding ≥ 100M CLANKTON → +3 free guesses per day
+- **Bonus System (Milestone 5.4c: Market Cap Tiers)**
+  - Holding ≥ 100M CLANKTON → +2-3 free guesses per day (tiered by market cap)
+    - +2 guesses/day when market cap < $250k
+    - +3 guesses/day when market cap >= $250k
   - Verified onchain at daily reset
   - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
 
@@ -839,7 +841,7 @@ Complete daily guess allocation system:
 
 - **Free Guesses**
   - 1 base free guess per day
-  - +3 for CLANKTON holders (≥100M tokens)
+  - +2-3 for CLANKTON holders (≥100M tokens, tiered by market cap)
   - +1 for sharing to Farcaster
 
 - **Paid Guesses**
@@ -1413,7 +1415,7 @@ This creates a global, real-time elimination board shared by every player. As mo
 
 **Free Guesses (per day)**
 - 1 base free guess
-- +3 for CLANKTON holders (≥100M tokens)
+- +2-3 for CLANKTON holders (≥100M tokens, tiered by market cap)
 - +1 for sharing to Farcaster
 
 **Paid Guesses (per day)**
@@ -1431,7 +1433,7 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
 - Share bonus can only be earned once per day.
 - Maximum free guesses per day:
   - 1 (base)
-  - +3 if holding ≥100M CLANKTON
+  - +2-3 if holding ≥100M CLANKTON (tiered by market cap)
   - +1 share bonus
 
 ### Economics (Milestone 3.1, Updated in 4.9)
