@@ -4,6 +4,19 @@
  *
  * Web-only admin dashboard with SIWN authentication
  * Displays DAU, WAU, free/paid ratio, jackpot growth, referral funnel, and raw events
+ *
+ * BUG FIX (2025-11-24):
+ * Fixed React error #31 caused by NeynarAuthButton being rendered during SSR.
+ * Full unminified error:
+ *   "Error: useNeynarContext must be used within a NeynarContextProvider
+ *    at gg (NeynarAuthButton component)
+ *    at renderWithHooks (react-dom-server)"
+ *
+ * Root cause: NeynarAuthButton internally uses useNeynarContext hook, but the
+ * NeynarContextProvider is only available client-side (see _app.tsx isMounted check).
+ * During SSR, the hook throws an error that crashes the page.
+ *
+ * Solution: Only render NeynarAuthButton on the client by checking isMounted state.
  */
 
 import { useEffect, useState } from 'react';
@@ -14,6 +27,9 @@ import Head from 'next/head';
 type TabType = 'dau' | 'wau' | 'free-paid' | 'jackpot' | 'referral' | 'events';
 
 export default function AnalyticsDashboard() {
+  // Client-side only flag to prevent SSR of Neynar components
+  const [isMounted, setIsMounted] = useState(false);
+
   // Check if Neynar is configured
   const neynarConfigured = !!process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
 
@@ -34,6 +50,11 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Set mounted flag on client-side only
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Check admin status when authenticated
   useEffect(() => {
@@ -112,7 +133,7 @@ export default function AnalyticsDashboard() {
     );
   }
 
-  // Not authenticated - show login button
+  // Not authenticated - show login button (client-side only to prevent SSR errors)
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -124,7 +145,14 @@ export default function AnalyticsDashboard() {
           <p className="mb-6 text-gray-600">
             Sign in with your Farcaster account to access the analytics dashboard.
           </p>
-          <NeynarAuthButton />
+          {/* Only render NeynarAuthButton on client-side to prevent SSR crash */}
+          {isMounted ? (
+            <NeynarAuthButton />
+          ) : (
+            <div className="py-2 px-4 bg-gray-100 rounded text-gray-600">
+              Loading authentication...
+            </div>
+          )}
         </div>
       </div>
     );
