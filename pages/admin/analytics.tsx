@@ -1,17 +1,11 @@
 // pages/admin/analytics.tsx
-import type { NextPage } from "next"
-import dynamic from "next/dynamic"
+import React from "react"
 
-const AnalyticsDashboardClient = dynamic(
-  () => import("../../components/AnalyticsDashboardClient"),
-  {
-    ssr: false,
-    loading: () => <div>Loading analytics…</div>,
-  }
-)
-
-const AdminAnalyticsPage: NextPage = () => {
-  return <AnalyticsDashboardClient />
+export default function AnalyticsPage() {
+  return (
+    <main style={{ padding: 24, fontFamily: "system-ui" }}>
+      <h1>Let's Have A Word – Analytics</h1>
+      <p>Baseline placeholder: no charts, no auth, no data yet.</p>
+    </main>
+  )
 }
-
-export default AdminAnalyticsPage
