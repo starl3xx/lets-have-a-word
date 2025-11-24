@@ -47,10 +47,112 @@ interface AdditionalMetrics {
   timeRange: string
 }
 
+interface GameplayInsights {
+  medianGuessesToSolve: number
+  solveRate: number
+  guessDistribution: Array<{
+    guessCount: number
+    rounds: number
+    percentage: number
+  }>
+  hardestWords: Array<{
+    word: string
+    solveRate: number
+    avgGuesses: number
+    attempts: number
+  }>
+  easiestWords: Array<{
+    word: string
+    solveRate: number
+    avgGuesses: number
+    attempts: number
+  }>
+  avgLettersCorrectPerGuess: number
+  timeRange: string
+}
+
+interface ClanktonAnalytics {
+  clanktonUserPercentage: number
+  clanktonSolveRate: number
+  regularSolveRate: number
+  avgGuessesPerRoundClankton: number
+  avgGuessesPerRoundRegular: number
+  clanktonDailyActivity: Array<{
+    day: string
+    clankton_users: number
+    regular_users: number
+  }>
+  timeRange: string
+}
+
+interface EconomyAnalytics {
+  packAttachRate: number
+  avgPackRevenuePerActiveUser: number
+  packPurchaseCount: number
+  packViewToPurchaseRate: number
+  prizePoolSustainabilityScore: number
+  avgJackpot7Day: number
+  avgPayoutPerWinner: number
+  arpdau: number
+  arppu: number
+  payingUserPercentage: number
+  jackpotTrend: Array<{
+    day: string
+    avg_jackpot: number
+    winners: number
+    total_payout: number
+  }>
+  packSalesTrend: Array<{
+    day: string
+    packs_sold: number
+    revenue_eth: number
+    buyers: number
+  }>
+  timeRange: string
+}
+
+interface ShareFunnelAnalytics {
+  sharePromptsShown: number
+  shareClicks: number
+  shareSuccesses: number
+  promptToClickRate: number
+  clickToSuccessRate: number
+  overallConversionRate: number
+  totalReferralShares: number
+  referralJoins: number
+  referralGuesses: number
+  shareToJoinRate: number
+  joinToGuessRate: number
+  avgGuessesUnlockedViaShare: number
+  shareFunnelDaily: Array<{
+    day: string
+    prompts_shown: number
+    clicks: number
+    successes: number
+    conversion_rate: number
+  }>
+  referralVelocityDaily: Array<{
+    day: string
+    shares: number
+    joins: number
+    guesses: number
+  }>
+  sharesByChannel: Array<{
+    channel: string
+    clicks: number
+    successes: number
+  }>
+  timeRange: string
+}
+
 function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
   const [additionalMetrics, setAdditionalMetrics] = useState<AdditionalMetrics | null>(null)
+  const [gameplayInsights, setGameplayInsights] = useState<GameplayInsights | null>(null)
+  const [clanktonAnalytics, setClanktonAnalytics] = useState<ClanktonAnalytics | null>(null)
+  const [economyAnalytics, setEconomyAnalytics] = useState<EconomyAnalytics | null>(null)
+  const [shareFunnelAnalytics, setShareFunnelAnalytics] = useState<ShareFunnelAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<TimeRange>("30d")
@@ -121,6 +223,59 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         setAdditionalMetrics(metrics)
       }
 
+      // Fetch Analytics v2 endpoints
+      // Gameplay insights
+      try {
+        const gameplayResponse = await fetch(`/api/admin/analytics/gameplay${devFidParam}${rangeParam}`)
+        if (gameplayResponse.ok) {
+          const gameplay = await gameplayResponse.json()
+          console.log('Gameplay insights:', gameplay)
+          setGameplayInsights(gameplay)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch gameplay insights:', err)
+        setGameplayInsights(null)
+      }
+
+      // CLANKTON analytics
+      try {
+        const clanktonResponse = await fetch(`/api/admin/analytics/clankton${devFidParam}${rangeParam}`)
+        if (clanktonResponse.ok) {
+          const clankton = await clanktonResponse.json()
+          console.log('CLANKTON analytics:', clankton)
+          setClanktonAnalytics(clankton)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch CLANKTON analytics:', err)
+        setClanktonAnalytics(null)
+      }
+
+      // Economy analytics
+      try {
+        const economyResponse = await fetch(`/api/admin/analytics/economy${devFidParam}${rangeParam}`)
+        if (economyResponse.ok) {
+          const economy = await economyResponse.json()
+          console.log('Economy analytics:', economy)
+          setEconomyAnalytics(economy)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch economy analytics:', err)
+        setEconomyAnalytics(null)
+      }
+
+      // Share funnel analytics
+      try {
+        const shareFunnelResponse = await fetch(`/api/admin/analytics/share-funnel${devFidParam}${rangeParam}`)
+        if (shareFunnelResponse.ok) {
+          const shareFunnel = await shareFunnelResponse.json()
+          console.log('Share funnel analytics:', shareFunnel)
+          setShareFunnelAnalytics(shareFunnel)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch share funnel analytics:', err)
+        setShareFunnelAnalytics(null)
+      }
+
     } catch (err) {
       console.error('Error fetching analytics:', err)
       setError(err instanceof Error ? err.message : 'Failed to load analytics')
@@ -177,6 +332,10 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       dau: dauData,
       guesses: guessData,
       metrics: additionalMetrics,
+      gameplay_insights: gameplayInsights,
+      clankton_analytics: clanktonAnalytics,
+      economy_analytics: economyAnalytics,
+      share_funnel_analytics: shareFunnelAnalytics,
       exported_at: new Date().toISOString(),
       time_range: timeRange
     }
@@ -278,7 +437,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 fontSize: "14px",
                 color: "#6b7280",
               }}>
-                Phase 4: Charts, filters, export & advanced metrics
+                Analytics v2: Gameplay insights, CLANKTON analytics, economy & share funnel
               </p>
             </div>
 
@@ -537,12 +696,13 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
           </div>
         </AdminSection>
 
-        {/* Revenue */}
-        <AdminSection title="Creator revenue">
+        {/* Economy & Revenue */}
+        <AdminSection title="Economy & revenue">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
+            marginBottom: "24px",
           }}>
             <AdminStatsCard
               title="Total Creator Revenue"
@@ -557,14 +717,201 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
               loading={loading}
             />
             <AdminStatsCard
-              title="Conversion Rate"
-              value="Coming soon"
-              subtitle="Free to paid"
+              title="ARPDAU"
+              value={loading ? "..." : economyAnalytics ? `${economyAnalytics.arpdau.toFixed(6)} ETH` : "Coming soon"}
+              subtitle="Avg revenue per daily active user"
+              loading={loading}
             />
             <AdminStatsCard
-              title="ARPU"
-              value="Coming soon"
-              subtitle="Avg revenue per user"
+              title="ARPPU"
+              value={loading ? "..." : economyAnalytics ? `${economyAnalytics.arppu.toFixed(6)} ETH` : "Coming soon"}
+              subtitle="Avg revenue per paying user"
+              loading={loading}
+            />
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+            marginBottom: "24px",
+          }}>
+            <AdminStatsCard
+              title="Pack Attach Rate"
+              value={loading ? "..." : economyAnalytics ? `${economyAnalytics.packAttachRate.toFixed(2)}%` : "Coming soon"}
+              subtitle="Users who purchase packs"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Pack Purchases"
+              value={loading ? "..." : economyAnalytics ? economyAnalytics.packPurchaseCount.toLocaleString() : "0"}
+              subtitle={`In ${timeRange}`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg 7-Day Jackpot"
+              value={loading ? "..." : economyAnalytics ? `${economyAnalytics.avgJackpot7Day.toFixed(4)} ETH` : "0 ETH"}
+              subtitle="Rolling average"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Sustainability Score"
+              value={loading ? "..." : economyAnalytics ? `${economyAnalytics.prizePoolSustainabilityScore.toFixed(1)}%` : "Coming soon"}
+              subtitle="Creator rev + seed / jackpot"
+              loading={loading}
+            />
+          </div>
+        </AdminSection>
+
+        {/* Gameplay Insights */}
+        <AdminSection title="Gameplay insights">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+            marginBottom: "24px",
+          }}>
+            <AdminStatsCard
+              title="Solve Rate"
+              value={loading ? "..." : gameplayInsights ? `${gameplayInsights.solveRate.toFixed(1)}%` : "Coming soon"}
+              subtitle="Rounds won vs started"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Median Guesses to Solve"
+              value={loading ? "..." : gameplayInsights ? gameplayInsights.medianGuessesToSolve.toFixed(1) : "Coming soon"}
+              subtitle="Median across all wins"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Letters Correct"
+              value={loading ? "..." : gameplayInsights ? gameplayInsights.avgLettersCorrectPerGuess.toFixed(2) : "Coming soon"}
+              subtitle="Per guess"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Hardest Word"
+              value={loading ? "..." : gameplayInsights && gameplayInsights.hardestWords.length > 0 ? gameplayInsights.hardestWords[0].word : "Coming soon"}
+              subtitle={gameplayInsights && gameplayInsights.hardestWords.length > 0 ? `${gameplayInsights.hardestWords[0].solveRate.toFixed(1)}% solve rate` : ""}
+              loading={loading}
+            />
+          </div>
+          {gameplayInsights && gameplayInsights.guessDistribution.length > 0 && (
+            <AnalyticsChart
+              data={gameplayInsights.guessDistribution.map(d => ({
+                guesses: `${d.guessCount} guess${d.guessCount !== 1 ? 'es' : ''}`,
+                "Rounds": d.rounds
+              }))}
+              type="bar"
+              dataKey="Rounds"
+              xAxisKey="guesses"
+              title="Guess Distribution Histogram"
+              colors={["#8b5cf6"]}
+            />
+          )}
+        </AdminSection>
+
+        {/* CLANKTON Analytics */}
+        <AdminSection title="CLANKTON analytics">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+            marginBottom: "24px",
+          }}>
+            <AdminStatsCard
+              title="CLANKTON Holders"
+              value={loading ? "..." : clanktonAnalytics ? `${clanktonAnalytics.clanktonUserPercentage.toFixed(1)}%` : "Coming soon"}
+              subtitle="Of total users"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="CLANKTON Solve Rate"
+              value={loading ? "..." : clanktonAnalytics ? `${clanktonAnalytics.clanktonSolveRate.toFixed(1)}%` : "Coming soon"}
+              subtitle="Holder solve rate"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Regular Solve Rate"
+              value={loading ? "..." : clanktonAnalytics ? `${clanktonAnalytics.regularSolveRate.toFixed(1)}%` : "Coming soon"}
+              subtitle="Non-holder solve rate"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Holder Advantage"
+              value={loading ? "..." : clanktonAnalytics ? `+${(clanktonAnalytics.clanktonSolveRate - clanktonAnalytics.regularSolveRate).toFixed(1)}%` : "Coming soon"}
+              subtitle="Solve rate difference"
+              loading={loading}
+            />
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+          }}>
+            <AdminStatsCard
+              title="Avg Guesses (Holders)"
+              value={loading ? "..." : clanktonAnalytics ? clanktonAnalytics.avgGuessesPerRoundClankton.toFixed(2) : "Coming soon"}
+              subtitle="Per round per user"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Guesses (Regular)"
+              value={loading ? "..." : clanktonAnalytics ? clanktonAnalytics.avgGuessesPerRoundRegular.toFixed(2) : "Coming soon"}
+              subtitle="Per round per user"
+              loading={loading}
+            />
+          </div>
+        </AdminSection>
+
+        {/* Share & Referral Funnel */}
+        <AdminSection title="Share & referral funnel">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+            marginBottom: "24px",
+          }}>
+            <AdminStatsCard
+              title="Share Prompts Shown"
+              value={loading ? "..." : shareFunnelAnalytics ? shareFunnelAnalytics.sharePromptsShown.toLocaleString() : "Coming soon"}
+              subtitle={`In ${timeRange}`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Share Clicks"
+              value={loading ? "..." : shareFunnelAnalytics ? shareFunnelAnalytics.shareClicks.toLocaleString() : "Coming soon"}
+              subtitle={`${shareFunnelAnalytics ? shareFunnelAnalytics.promptToClickRate.toFixed(1) : 0}% click rate`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Share Successes"
+              value={loading ? "..." : shareFunnelAnalytics ? shareFunnelAnalytics.shareSuccesses.toLocaleString() : "Coming soon"}
+              subtitle={`${shareFunnelAnalytics ? shareFunnelAnalytics.overallConversionRate.toFixed(1) : 0}% conversion`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Referral Joins"
+              value={loading ? "..." : shareFunnelAnalytics ? shareFunnelAnalytics.referralJoins.toLocaleString() : "Coming soon"}
+              subtitle={`${shareFunnelAnalytics ? shareFunnelAnalytics.shareToJoinRate.toFixed(1) : 0}% join rate`}
+              loading={loading}
+            />
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+          }}>
+            <AdminStatsCard
+              title="Referral Guesses"
+              value={loading ? "..." : shareFunnelAnalytics ? shareFunnelAnalytics.referralGuesses.toLocaleString() : "Coming soon"}
+              subtitle="From referred users"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Bonus Guesses"
+              value={loading ? "..." : shareFunnelAnalytics ? shareFunnelAnalytics.avgGuessesUnlockedViaShare.toFixed(1) : "Coming soon"}
+              subtitle="Unlocked via sharing"
+              loading={loading}
             />
           </div>
         </AdminSection>
