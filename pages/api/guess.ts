@@ -12,6 +12,12 @@ import {
   isValidDevBackendState,
 } from '../../src/lib/devGameState';
 import { isValidGuess } from '../../src/lib/word-lists';
+import {
+  checkUserQuality,
+  logBlockedAttempt,
+  INSUFFICIENT_USER_SCORE_ERROR,
+  MIN_USER_SCORE,
+} from '../../src/lib/user-quality';
 
 /**
  * POST /api/guess
@@ -230,6 +236,25 @@ export default async function handler(
         spamScore,
         referrerFid,
       });
+
+      // Milestone 5.3: Check user quality score for anti-bot protection
+      // Skip in development mode
+      if (process.env.USER_QUALITY_GATING_ENABLED === 'true') {
+        const qualityCheck = await checkUserQuality(fid);
+
+        if (!qualityCheck.eligible) {
+          // Log the blocked attempt
+          await logBlockedAttempt(fid, qualityCheck.score, 'guess');
+
+          return res.status(403).json({
+            error: qualityCheck.errorCode || INSUFFICIENT_USER_SCORE_ERROR,
+            message: qualityCheck.reason || `User quality score below minimum (${MIN_USER_SCORE})`,
+            score: qualityCheck.score,
+            minRequired: MIN_USER_SCORE,
+            helpUrl: qualityCheck.helpUrl,
+          } as any);
+        }
+      }
     }
 
     // Submit the guess with daily limits enforcement (Milestone 2.2)

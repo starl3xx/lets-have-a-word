@@ -13,6 +13,7 @@ import { db } from '../db';
 import { dailyGuessState, users } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { submitGuess } from './guesses';
+import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
 import { hasClanktonBonus } from './clankton';
@@ -347,6 +348,19 @@ export async function submitGuessWithDailyLimits(params: {
     console.log(
       `💰 FID ${fid} using paid guess (${paidRemaining - 1} credits remaining after this)`
     );
+
+    // Milestone 5.3: Log GUESS_PACK_USED event (non-blocking)
+    // Get active round for round_id
+    const activeRound = await getActiveRound();
+    logAnalyticsEvent(AnalyticsEventTypes.GUESS_PACK_USED, {
+      userId: fid.toString(),
+      roundId: activeRound?.id.toString(),
+      data: {
+        credits_remaining: paidRemaining - 1,
+        fid,
+        round_id: activeRound?.id,
+      },
+    });
   } else {
     // No guesses left today
     console.log(`❌ FID ${fid} has no guesses left today`);
