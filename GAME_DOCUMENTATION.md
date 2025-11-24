@@ -29,7 +29,7 @@
 - **Social Deduction**: Wrong guesses benefit everyone
 - **Real ETH Stakes**: Prize pool grows with paid guesses
 - **Referral System**: Earn 10% of your referrals' winnings
-- **CLANKTON Bonus**: Token holders get +3 daily guesses
+- **CLANKTON Bonus**: Token holders get +2-3 daily guesses (scales with market cap)
 
 ---
 
@@ -38,11 +38,13 @@
 ### Daily Guess Allocation
 Each player gets a daily allocation of guesses:
 - **Base Free Guesses**: 1 per day
-- **CLANKTON Bonus**: +3 if holding 100M+ CLANKTON tokens
+- **CLANKTON Bonus**: +2-3 if holding 100M+ CLANKTON tokens (tiered by market cap)
+  - +2 guesses/day when market cap < $250k
+  - +3 guesses/day when market cap >= $250k
 - **Share Bonus**: +1 for sharing to Farcaster (once per day)
 - **Paid Guess Packs**: Buy 3 guesses for 0.0003 ETH (max 3 packs/day)
 
-**Total Possible Daily Guesses**: 13 (1 base + 3 CLANKTON + 1 share + 9 paid)
+**Total Possible Daily Guesses**: 12-13 (1 base + 2-3 CLANKTON + 1 share + 9 paid)
 
 ### Prize Pool Economics
 - **70% to Prize Pool**: Accumulates for the winner
