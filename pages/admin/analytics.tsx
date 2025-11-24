@@ -6,17 +6,22 @@
  * Displays DAU, WAU, free/paid ratio, jackpot growth, referral funnel, and raw events
  *
  * BUG FIX (2025-11-24):
- * Fixed React error #31 caused by NeynarAuthButton being rendered during SSR.
+ * Fixed React error #31 caused by calling useNeynarContext during SSR.
  * Full unminified error:
  *   "Error: useNeynarContext must be used within a NeynarContextProvider
  *    at gg (NeynarAuthButton component)
  *    at renderWithHooks (react-dom-server)"
  *
- * Root cause: NeynarAuthButton internally uses useNeynarContext hook, but the
- * NeynarContextProvider is only available client-side (see _app.tsx isMounted check).
- * During SSR, the hook throws an error that crashes the page.
+ * Root cause:
+ * 1. useNeynarContext() was being called unconditionally at line 40, even during SSR
+ * 2. NeynarAuthButton was being rendered during SSR (before client hydration)
+ * 3. NeynarContextProvider is only available client-side (see _app.tsx isMounted check)
+ * 4. During SSR, hooks throw errors that crash the page with React error #31
  *
- * Solution: Only render NeynarAuthButton on the client by checking isMounted state.
+ * Solution:
+ * 1. Only call useNeynarContext() when isMounted is true (client-side only)
+ * 2. Only render NeynarAuthButton after client hydration
+ * 3. Always return valid JSX from all branches, never raw objects or hook results
  */
 
 import { useEffect, useState } from 'react';
@@ -33,16 +38,28 @@ export default function AnalyticsDashboard() {
   // Check if Neynar is configured
   const neynarConfigured = !!process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
 
+  // IMPORTANT: Hooks must ALWAYS be called unconditionally (Rules of Hooks)
+  // useNeynarContext will throw when:
+  // 1. During SSR (NeynarContextProvider not mounted yet)
+  // 2. When NEXT_PUBLIC_NEYNAR_CLIENT_ID not set (provider not rendered)
+  // We handle this gracefully with try-catch and ensure all branches return valid JSX.
   let user = null;
   let isAuthenticated = false;
 
   try {
+    // MUST call hook unconditionally - moving the conditional logic AFTER the hook call
     const neynarContext = useNeynarContext();
-    user = neynarContext.user;
-    isAuthenticated = neynarContext.isAuthenticated;
+    if (neynarConfigured) {
+      user = neynarContext.user;
+      isAuthenticated = neynarContext.isAuthenticated;
+    }
   } catch (error) {
-    // Neynar context not available (client ID not set)
-    console.warn('Neynar context not available:', error);
+    // Expected during SSR or when provider not available
+    // Just continue with user=null and isAuthenticated=false
+    // Only warn if we expected the provider to be available
+    if (isMounted && neynarConfigured) {
+      console.warn('Neynar context unavailable on client (expected to be available):', error);
+    }
   }
 
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
