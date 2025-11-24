@@ -58,16 +58,16 @@ interface GameplayInsights {
   hardestWords: Array<{
     word: string
     solveRate: number
-    avgGuesses: number
-    attempts: number
+    avgGuesses?: number
+    attempts?: number
   }>
   easiestWords: Array<{
     word: string
     solveRate: number
-    avgGuesses: number
-    attempts: number
+    avgGuesses?: number
+    attempts?: number
   }>
-  avgLettersCorrectPerGuess: number
+  avgLettersCorrectPerGuess?: number
   timeRange: string
 }
 
@@ -784,7 +784,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             />
             <AdminStatsCard
               title="Avg Letters Correct"
-              value={loading ? "..." : gameplayInsights ? gameplayInsights.avgLettersCorrectPerGuess.toFixed(2) : "Coming soon"}
+              value={loading ? "..." : gameplayInsights?.avgLettersCorrectPerGuess ? gameplayInsights.avgLettersCorrectPerGuess.toFixed(2) : "Coming soon"}
               subtitle="Per guess"
               loading={loading}
             />
