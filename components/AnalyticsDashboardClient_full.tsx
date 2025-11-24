@@ -8,9 +8,43 @@
 
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import React, { useEffect, useState, type ReactNode } from 'react';
 import { useNeynarContext, NeynarAuthButton, NeynarContextProvider, Theme } from '@neynar/react';
 import Head from 'next/head';
+
+// Error boundary for catching render errors
+class AnalyticsErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Analytics error boundary caught:", error);
+    console.error("Component stack:", info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl">
+            <h2 className="text-xl font-bold text-red-800 mb-2">Analytics Render Error</h2>
+            <p className="text-red-700 mb-4">Check console for detailed component stack trace.</p>
+            <pre className="text-xs bg-white p-4 rounded overflow-auto">
+              {this.state.error?.toString()}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Tab types
 type TabType = 'dau' | 'wau' | 'free-paid' | 'jackpot' | 'referral' | 'events';
@@ -448,8 +482,8 @@ function EventsView({ data }: { data: any }) {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {data.events.map((event: any) => (
-              <>
-                <tr key={event.id} className={expandedId === event.id ? 'bg-gray-50' : ''}>
+              <React.Fragment key={event.id}>
+                <tr className={expandedId === event.id ? 'bg-gray-50' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {new Date(event.created_at).toLocaleString()}
                   </td>
@@ -472,7 +506,7 @@ function EventsView({ data }: { data: any }) {
                     </td>
                   </tr>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>
@@ -508,7 +542,9 @@ export default function AnalyticsDashboardClient() {
         defaultTheme: Theme.Light,
       }}
     >
-      <AnalyticsDashboardContent />
+      <AnalyticsErrorBoundary>
+        <AnalyticsDashboardContent />
+      </AnalyticsErrorBoundary>
     </NeynarContextProvider>
   );
 }
