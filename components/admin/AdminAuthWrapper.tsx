@@ -11,8 +11,25 @@ const ADMIN_FIDS = [
 ]
 
 function AdminAuthContent({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated } = useNeynarContext()
+  const neynarContext = useNeynarContext()
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+
+  // Handle case where context isn't ready yet
+  if (!neynarContext) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f3f4f6",
+      }}>
+        <div style={{ color: "#6b7280" }}>Loading...</div>
+      </div>
+    )
+  }
+
+  const { user, isAuthenticated } = neynarContext
 
   useEffect(() => {
     if (isAuthenticated && user) {
