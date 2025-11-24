@@ -573,6 +573,20 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 alignItems: "center",
                 gap: "12px",
               }}>
+                <a
+                  href="/admin/archive"
+                  style={{
+                    padding: "8px 16px",
+                    background: "#8b5cf6",
+                    color: "white",
+                    borderRadius: "6px",
+                    textDecoration: "none",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                  }}
+                >
+                  Round Archive
+                </a>
                 {user.pfp_url && (
                   <img
                     src={user.pfp_url}
