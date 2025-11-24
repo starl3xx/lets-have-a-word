@@ -56,21 +56,45 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
       // Fetch DAU data
       const dauResponse = await fetch(`/api/admin/analytics/dau${devFidParam}`)
+      console.log('DAU Response status:', dauResponse.status)
+
       if (!dauResponse.ok) {
-        const errorData = await dauResponse.json()
-        throw new Error(errorData.error || 'Failed to fetch DAU data')
+        const responseText = await dauResponse.text()
+        console.error('DAU Error response:', responseText)
+        try {
+          const errorData = JSON.parse(responseText)
+          throw new Error(errorData.error || 'Failed to fetch DAU data')
+        } catch {
+          throw new Error(`Server error: ${dauResponse.status}`)
+        }
       }
-      const dau = await dauResponse.json()
-      setDauData(dau)
+
+      const dauText = await dauResponse.text()
+      console.log('DAU Response text:', dauText.substring(0, 200))
+      const dau = JSON.parse(dauText)
+      console.log('DAU parsed data:', dau)
+      setDauData(Array.isArray(dau) ? dau : [])
 
       // Fetch Free/Paid data
       const guessResponse = await fetch(`/api/admin/analytics/free-paid${devFidParam}`)
+      console.log('Free/Paid Response status:', guessResponse.status)
+
       if (!guessResponse.ok) {
-        const errorData = await guessResponse.json()
-        throw new Error(errorData.error || 'Failed to fetch guess data')
+        const responseText = await guessResponse.text()
+        console.error('Free/Paid Error response:', responseText)
+        try {
+          const errorData = JSON.parse(responseText)
+          throw new Error(errorData.error || 'Failed to fetch guess data')
+        } catch {
+          throw new Error(`Server error: ${guessResponse.status}`)
+        }
       }
-      const guesses = await guessResponse.json()
-      setGuessData(guesses)
+
+      const guessText = await guessResponse.text()
+      console.log('Free/Paid Response text:', guessText.substring(0, 200))
+      const guesses = JSON.parse(guessText)
+      console.log('Free/Paid parsed data:', guesses)
+      setGuessData(Array.isArray(guesses) ? guesses : [])
 
     } catch (err) {
       console.error('Error fetching analytics:', err)
