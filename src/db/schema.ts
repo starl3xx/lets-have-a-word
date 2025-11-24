@@ -212,3 +212,25 @@ export const announcerEvents = pgTable('announcer_events', {
 
 export type AnnouncerEventRow = typeof announcerEvents.$inferSelect;
 export type AnnouncerEventInsert = typeof announcerEvents.$inferInsert;
+
+/**
+ * Analytics Events Table
+ * Tracks all logged events in a single fact table
+ * Milestone 5.2: Analytics system
+ */
+export const analyticsEvents = pgTable('analytics_events', {
+  id: serial('id').primaryKey(),
+  eventType: varchar('event_type', { length: 100 }).notNull(),
+  userId: varchar('user_id', { length: 100 }), // FID as string for flexibility
+  roundId: varchar('round_id', { length: 100 }),
+  data: jsonb('data'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  eventTypeIdx: index('analytics_event_type_idx').on(table.eventType),
+  userIdIdx: index('analytics_user_id_idx').on(table.userId),
+  roundIdIdx: index('analytics_round_id_idx').on(table.roundId),
+  createdAtIdx: index('analytics_created_at_idx').on(table.createdAt),
+}));
+
+export type AnalyticsEventRow = typeof analyticsEvents.$inferSelect;
+export type AnalyticsEventInsert = typeof analyticsEvents.$inferInsert;

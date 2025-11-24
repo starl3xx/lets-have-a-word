@@ -16,6 +16,7 @@ import { submitGuess } from './guesses';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
 import { hasClanktonBonus } from './clankton';
+import { logGuessEvent, logReferralEvent, AnalyticsEventTypes } from './analytics';
 
 /**
  * Game rules for daily limits
@@ -269,6 +270,11 @@ export async function awardShareBonus(
     .returning();
 
   console.log(`🎁 Awarded share bonus to FID ${fid}: +${DAILY_LIMITS_RULES.shareBonusGuesses} free guess`);
+
+  // Milestone 5.2: Log analytics event (non-blocking)
+  logReferralEvent(AnalyticsEventTypes.SHARE_BONUS_UNLOCKED, fid.toString(), {
+    bonusGuesses: DAILY_LIMITS_RULES.shareBonusGuesses,
+  });
 
   return updated;
 }

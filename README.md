@@ -11,11 +11,63 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 5.1 Complete
+## 🎯 Current Status: Milestone 5.2 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, and UX polish are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, and admin dashboard are fully implemented and production-ready:
 
-### ✅ Milestone 5.1 - Farcaster Announcer Bot (Latest)
+### ✅ Milestone 5.2 - Analytics System + SIWN Web Admin Login (Latest)
+
+Comprehensive analytics tracking and web-based admin dashboard with Neynar SIWN authentication:
+
+- **Analytics Event Logging**
+  - Fire-and-forget design (never blocks user flows)
+  - Feature-flagged via `ANALYTICS_ENABLED` env var
+  - Tracks user activity, referrals, and round events
+  - Event types: `daily_open`, `free_guess_used`, `paid_guess_used`, `referral_join`, `referral_win`, `share_bonus_unlocked`, `round_started`, `round_resolved`
+  - Stored in `analytics_events` table with JSONB data payloads
+  - Optional debug logging via `ANALYTICS_DEBUG`
+
+- **Analytics Views & Metrics**
+  - `view_dau` - Daily Active Users
+  - `view_wau` - Weekly Active Users (ISO week)
+  - `view_free_paid_ratio` - Free vs paid guess breakdown
+  - `view_jackpot_growth` - Prize pool evolution
+  - `view_referral_funnel` - Referral shares → joins → wins → bonuses
+
+- **Web Admin Dashboard**
+  - URL: `/admin/analytics` (web-only, not in mini app)
+  - Neynar SIWN authentication
+  - Access restricted to FIDs in `LHAW_ADMIN_USER_IDS`
+  - Tabs: DAU, WAU, Free/Paid Ratio, Jackpot Growth, Referral Funnel, Raw Events
+  - Simple table displays with expandable JSON for raw events
+  - Pagination support for event log
+
+- **API Endpoints**
+  - `GET /api/admin/me` - Check admin status
+  - `GET /api/admin/analytics/dau` - DAU data
+  - `GET /api/admin/analytics/wau` - WAU data
+  - `GET /api/admin/analytics/free-paid` - Free/paid ratio
+  - `GET /api/admin/analytics/jackpot` - Jackpot growth
+  - `GET /api/admin/analytics/referral` - Referral funnel
+  - `GET /api/admin/analytics/events` - Raw events (paginated)
+  - All endpoints enforce admin FID check
+
+- **Integration Points**
+  - `src/lib/rounds.ts` - Round started/resolved events
+  - `src/lib/guesses.ts` - Guess events (free/paid, correct/incorrect)
+  - `src/lib/users.ts` - Referral join events
+  - `src/lib/daily-limits.ts` - Share bonus unlocked events
+
+- **Configuration**
+  - `ANALYTICS_ENABLED=true` - Master on/off switch
+  - `ANALYTICS_DEBUG=true` - Verbose logging (optional)
+  - `LHAW_ADMIN_USER_IDS=6500,1477413` - Comma-separated admin FIDs
+  - `NEXT_PUBLIC_NEYNAR_CLIENT_ID` - Neynar client ID (public)
+  - `NEYNAR_API_KEY` - Neynar API key (server-side)
+  - Neynar app: Authorized origin `https://lets-have-a-word.vercel.app`
+  - Permissions: Read + Write (Write required for SIWN)
+
+### ✅ Milestone 5.1 - Farcaster Announcer Bot
 
 Automated Farcaster announcements for round updates, milestones, and jackpot notifications from @letshaveaword (FID 1477413):
 
@@ -889,6 +941,219 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 - Test rounds are marked with `is_dev_test_round = true` in the database
 - Test word lists are separate from production word lists
 - Perfect for UI development, screenshots, and demos
+
+## Analytics (Milestone 5.2)
+
+**Let's Have A Word** includes a comprehensive analytics system for tracking user activity, game metrics, and business intelligence. The system is feature-flagged and includes a web-based admin dashboard with Neynar SIWN authentication.
+
+### Overview
+
+The analytics system tracks key metrics including:
+- **DAU/WAU** - Daily and weekly active users
+- **Free/Paid Ratio** - Free vs paid guess usage
+- **Jackpot Growth** - Prize pool evolution over time
+- **Referral Funnel** - Referral sharing, joins, wins, and bonus unlocks
+- **Raw Events** - Complete event log with pagination
+
+### Database Setup
+
+Analytics data is stored in Neon PostgreSQL:
+
+1. **Analytics Events Table** - Single fact table for all events
+   ```sql
+   CREATE TABLE analytics_events (
+     id SERIAL PRIMARY KEY,
+     event_type VARCHAR(100) NOT NULL,
+     user_id VARCHAR(100),
+     round_id VARCHAR(100),
+     data JSONB,
+     created_at TIMESTAMP DEFAULT NOW() NOT NULL
+   );
+   ```
+
+2. **Materialized Views** - Pre-aggregated metrics
+   - `view_dau` - Daily active users
+   - `view_wau` - Weekly active users (ISO week)
+   - `view_free_paid_ratio` - Free vs paid guess breakdown
+   - `view_jackpot_growth` - Jackpot ETH by day
+   - `view_referral_funnel` - Referral metrics
+
+3. **Running Migrations**
+   ```bash
+   # Generate migration (already done)
+   npm run db:generate
+
+   # Apply migrations
+   npm run db:migrate
+
+   # Apply analytics views manually
+   psql $DATABASE_URL < drizzle/0001_analytics_views.sql
+   ```
+
+### Environment Variables
+
+Configure analytics with the following environment variables:
+
+```bash
+# Analytics Feature Flags
+ANALYTICS_ENABLED=true        # Master on/off switch for logging + dashboard
+ANALYTICS_DEBUG=false         # Extra server logs for analytics (optional)
+
+# Admin Access Control
+LHAW_ADMIN_USER_IDS=6500,1477413  # Comma-separated FIDs allowed to see dashboard
+
+# Neynar SIWN
+NEXT_PUBLIC_NEYNAR_CLIENT_ID=<your-neynar-client-id>  # Public client ID
+NEYNAR_API_KEY=<your-neynar-api-key>                  # Server-side API key
+```
+
+**Important:**
+- `NEXT_PUBLIC_NEYNAR_CLIENT_ID` must be public (used client-side by @neynar/react)
+- `NEYNAR_API_KEY` stays server-side only
+- `LHAW_ADMIN_USER_IDS` gates all analytics UI and APIs
+- Confirm on the Neynar app SIWN tab that `https://lets-have-a-word.vercel.app` is an authorized origin
+- Permissions: **Read + Write** are enabled (Write is required for SIWN)
+
+**Code Architecture Notes:**
+
+**CRITICAL: Provider Scoping (BUG FIX #5 - 2025-11-24)**
+
+To prevent server-side bundling issues with `@farcaster/miniapp-sdk`, providers are scoped to specific pages:
+
+- **`pages/_app.tsx`**: Minimal, NO providers
+  - Only imports global styles
+  - Does NOT wrap pages with any providers
+
+- **`pages/index.tsx`** (Game page):
+  - Wraps with `WagmiProvider` + `QueryClientProvider`
+  - Imports `@farcaster/miniapp-sdk` for game functionality
+  - Uses `@farcaster/miniapp-wagmi-connector` for wallet connection
+
+- **`pages/admin/analytics.tsx`** (Admin page):
+  - Wraps with `NeynarContextProvider` for SIWN authentication
+  - ZERO dependency on Farcaster miniapp ecosystem
+  - Uses standard React Query for API calls
+
+**SDK Import Restrictions:**
+
+- `@farcaster/miniapp-sdk` should **ONLY** be imported in:
+  - `pages/index.tsx` (main game page)
+  - Game-specific components (SharePromptModal, WinnerShareCard, StatsSheet, etc.)
+  - `src/lib/haptics.ts` (used only by game components)
+
+- `@farcaster/miniapp-sdk` must **NEVER** be imported in:
+  - `pages/_app.tsx` (would affect ALL pages)
+  - `pages/admin/*` (admin pages use SIWN, not miniapp context)
+  - Any server-side code or API routes
+  - Shared utilities used by both game and admin pages
+
+**Why This Matters:**
+
+- The miniapp SDK is **client-side only** and NOT compatible with Node.js server environment
+- `@farcaster/miniapp-wagmi-connector` has miniapp SDK as a peer dependency
+- If wagmi is in `_app.tsx`, it bundles the SDK for ALL pages including admin
+- This causes "Cannot use import statement outside a module" errors in Vercel SSR
+
+### Analytics Events
+
+The system logs the following event types:
+
+**User Activity:**
+- `daily_open` - User opens the app (first action of day)
+- `free_guess_used` - Free guess consumed
+- `paid_guess_used` - Paid guess consumed (includes ETH spent in data)
+
+**Referrals:**
+- `referral_join` - New user joined via referral link
+- `referral_win` - Referred user won the jackpot
+- `share_bonus_unlocked` - User unlocked share bonus (+1 free guess)
+
+**Rounds:**
+- `round_started` - New round created
+- `round_resolved` - Round completed with winner (includes payout breakdown)
+
+All events include:
+- `event_type` - Event identifier
+- `user_id` - FID (optional)
+- `round_id` - Round ID (optional)
+- `data` - JSONB payload with event-specific data
+- `created_at` - Timestamp
+
+### Admin Dashboard
+
+Access the analytics dashboard at **`/admin/analytics`**
+
+#### Login Flow
+
+1. Navigate to `/admin/analytics`
+2. Click "Sign in with Neynar" button
+3. Complete Neynar SIWN authentication
+4. System checks if your FID is in `LHAW_ADMIN_USER_IDS`
+5. If authorized, dashboard loads with tabs for each metric
+
+#### Dashboard Features
+
+- **DAU Tab** - Daily active user counts
+- **WAU Tab** - Weekly active user counts
+- **Free/Paid Ratio Tab** - Free vs paid guess breakdown with ratio
+- **Jackpot Growth Tab** - Prize pool evolution by day
+- **Referral Funnel Tab** - Shares → Joins → Wins → Bonuses
+- **Raw Events Tab** - Paginated event log with expandable JSON data
+
+#### Access Control
+
+- Only FIDs listed in `LHAW_ADMIN_USER_IDS` can access the dashboard
+- Non-admin users see "Access Denied" message
+- All analytics API endpoints (`/api/admin/analytics/*`) enforce admin check
+- SIWN session is validated on every request
+
+### Development & Testing
+
+**Testing with Dev FID:**
+```bash
+# Set yourself as admin in .env.local
+LHAW_ADMIN_USER_IDS=12345  # Replace with your FID
+ANALYTICS_ENABLED=true
+
+# Enable analytics debugging
+ANALYTICS_DEBUG=true  # Optional: verbose logs
+
+# Access dashboard
+# Navigate to http://localhost:3000/admin/analytics
+# Use devFid parameter for testing without SIWN
+```
+
+**Adding New Analytics Events:**
+
+1. Add event type to `AnalyticsEventTypes` in `src/lib/analytics.ts`
+2. Call `logAnalyticsEvent()` from appropriate backend handler
+3. Optionally extend views/dashboard to display the new event
+
+Example:
+```typescript
+import { logAnalyticsEvent, AnalyticsEventTypes } from '../lib/analytics';
+
+// Log an event
+await logAnalyticsEvent(AnalyticsEventTypes.DAILY_OPEN, {
+  userId: fid.toString(),
+  data: { source: 'miniapp' },
+});
+```
+
+### Fire-and-Forget Design
+
+All analytics logging is:
+- **Non-blocking** - Never delays user-facing operations
+- **Error-tolerant** - Failures don't affect game functionality
+- **Feature-flagged** - Can be disabled via `ANALYTICS_ENABLED=false`
+- **Debug-friendly** - Optional verbose logging via `ANALYTICS_DEBUG=true`
+
+### Notes
+
+- Analytics is **web-only** (not available inside the mini app frame)
+- Views are read-only SQL views (not materialized - real-time data)
+- Raw events table can grow large - consider archiving old events
+- Dashboard uses simple table displays (no charting library dependencies)
 
 ## API Endpoints
 

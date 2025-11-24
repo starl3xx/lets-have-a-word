@@ -5,6 +5,7 @@ import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
 import { resolveRoundAndCreatePayouts } from './economics';
 import { announceRoundStarted } from './announcer';
+import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 
 /**
  * Options for creating a new round
@@ -74,6 +75,12 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     console.error('[rounds] Failed to announce round started:', error);
     // Continue - announcer failures should never break the game
   }
+
+  // Milestone 5.2: Log analytics event (non-blocking)
+  logRoundEvent(AnalyticsEventTypes.ROUND_STARTED, round.id, {
+    prizePoolEth: round.prizePoolEth,
+    commitHash: round.commitHash,
+  });
 
   return {
     id: round.id,
@@ -213,6 +220,14 @@ export async function resolveRound(
   }
 
   console.log(`✅ Resolved round ${roundId} with winner FID: ${winnerFid}`);
+
+  // Milestone 5.2: Log analytics event (non-blocking)
+  logRoundEvent(AnalyticsEventTypes.ROUND_RESOLVED, roundId, {
+    winnerFid,
+    referrerFid: updatedRound.referrerFid,
+    prizePoolEth: updatedRound.prizePoolEth,
+    seedNextRoundEth: updatedRound.seedNextRoundEth,
+  });
 
   return updatedRound;
 }
