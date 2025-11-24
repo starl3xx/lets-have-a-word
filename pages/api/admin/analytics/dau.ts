@@ -30,7 +30,8 @@ export default async function handler(
 
   // Check if analytics is enabled
   if (process.env.ANALYTICS_ENABLED !== 'true') {
-    return res.status(200).json([]);
+    console.log('[analytics/dau] Analytics disabled: ANALYTICS_ENABLED not set to "true"');
+    return res.status(503).json({ error: 'Analytics not enabled. Set ANALYTICS_ENABLED=true in environment variables.' });
   }
 
   try {
@@ -38,12 +39,20 @@ export default async function handler(
     let fid: number | null = null;
     if (req.query.devFid) {
       fid = parseInt(req.query.devFid as string, 10);
+      console.log('[analytics/dau] Using devFid:', fid);
     } else if (req.cookies.siwn_fid) {
       fid = parseInt(req.cookies.siwn_fid, 10);
+      console.log('[analytics/dau] Using cookie FID:', fid);
     }
 
-    if (!fid || !isAdminFid(fid)) {
-      return res.status(403).json({ error: 'Forbidden: Admin access required' });
+    if (!fid) {
+      console.log('[analytics/dau] No FID provided');
+      return res.status(401).json({ error: 'Authentication required: No FID provided' });
+    }
+
+    if (!isAdminFid(fid)) {
+      console.log('[analytics/dau] FID is not admin:', fid);
+      return res.status(403).json({ error: `Forbidden: FID ${fid} is not an admin. Set LHAW_ADMIN_USER_IDS environment variable.` });
     }
 
     // Query DAU view
