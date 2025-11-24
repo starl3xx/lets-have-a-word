@@ -13,7 +13,7 @@ export interface EconomyAnalytics {
   packAttachRate: number;
   avgPackRevenuePerActiveUser: number;
   packPurchaseCount: number;
-  packViewToPackchaseRate: number;
+  packViewToPurchaseRate: number;
 
   // Jackpot health
   prizePoolSustainabilityScore: number;
