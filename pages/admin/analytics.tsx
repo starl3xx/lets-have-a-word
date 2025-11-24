@@ -40,6 +40,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
   useEffect(() => {
     if (user) {
+      console.log('Dashboard user data:', user)
       fetchAnalytics()
     }
   }, [user])
@@ -134,22 +135,33 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 {user.pfp_url && (
                   <img
                     src={user.pfp_url}
-                    alt={user.username}
+                    alt={user.username || `FID ${user.fid}`}
                     style={{
                       width: "40px",
                       height: "40px",
                       borderRadius: "50%",
+                      objectFit: "cover",
                     }}
                   />
                 )}
                 <div style={{ textAlign: "right" }}>
-                  <div style={{
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    color: "#111827",
-                  }}>
-                    @{user.username}
-                  </div>
+                  {user.username ? (
+                    <div style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#111827",
+                    }}>
+                      @{user.username}
+                    </div>
+                  ) : (
+                    <div style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#111827",
+                    }}>
+                      {user.display_name || 'Admin User'}
+                    </div>
+                  )}
                   <div style={{
                     fontSize: "12px",
                     color: "#6b7280",
