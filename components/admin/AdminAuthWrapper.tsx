@@ -4,9 +4,10 @@
 import React, { useState, useEffect } from "react"
 import { NeynarContextProvider, useNeynarContext, NeynarAuthButton, Theme } from "@neynar/react"
 
-// Admin FIDs - add yours here
+// Admin FIDs
 const ADMIN_FIDS = [
-  // Add admin FIDs here, e.g.: 12345, 67890
+  6500,      // Primary admin
+  1477413,   // Secondary admin
 ]
 
 function AdminAuthContent({ children }: { children: React.ReactNode }) {
