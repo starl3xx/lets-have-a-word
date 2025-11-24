@@ -62,7 +62,21 @@ export default async function handler(
       sql`SELECT * FROM view_free_paid_ratio ORDER BY day DESC LIMIT 30`
     );
 
-    return res.status(200).json(result.rows);
+    console.log('[analytics/free-paid] Raw result:', JSON.stringify(result).substring(0, 300));
+
+    // db.execute returns the array directly, not an object with rows property
+    const rows = Array.isArray(result) ? result : [];
+
+    // Ensure proper serialization
+    const serializedData = rows.map(row => ({
+      day: row.day?.toString() || '',
+      free_guesses: Number(row.free_guesses) || 0,
+      paid_guesses: Number(row.paid_guesses) || 0,
+      free_to_paid_ratio: row.free_to_paid_ratio !== null ? Number(row.free_to_paid_ratio) : 0
+    }));
+
+    console.log('[analytics/free-paid] Returning data:', JSON.stringify(serializedData).substring(0, 200));
+    return res.status(200).json(serializedData);
   } catch (error) {
     console.error('[analytics/free-paid] Error fetching free/paid data:', error);
     return res.status(500).json({ error: 'Internal server error' });

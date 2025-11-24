@@ -986,9 +986,15 @@ Analytics data is stored in Neon PostgreSQL:
    # Apply migrations
    npm run db:migrate
 
-   # Apply analytics views manually
+   # Apply analytics views (REQUIRED for admin dashboard)
+   # Option 1: Use the setup script (recommended)
+   ./scripts/setup-analytics-views.sh
+
+   # Option 2: Apply manually
    psql $DATABASE_URL < drizzle/0001_analytics_views.sql
    ```
+
+   **⚠️ Important:** The analytics views must be created before accessing the admin dashboard at `/admin/analytics`, otherwise the API endpoints will return 500 errors. See `drizzle/README.md` for detailed setup instructions.
 
 ### Environment Variables
 
