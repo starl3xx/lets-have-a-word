@@ -1015,15 +1015,44 @@ NEYNAR_API_KEY=<your-neynar-api-key>                  # Server-side API key
 - Permissions: **Read + Write** are enabled (Write is required for SIWN)
 
 **Code Architecture Notes:**
-- Admin analytics uses **SIWN (Sign In With Neynar)** for authentication, NOT the Farcaster miniapp SDK
+
+**CRITICAL: Provider Scoping (BUG FIX #5 - 2025-11-24)**
+
+To prevent server-side bundling issues with `@farcaster/miniapp-sdk`, providers are scoped to specific pages:
+
+- **`pages/_app.tsx`**: Minimal, NO providers
+  - Only imports global styles
+  - Does NOT wrap pages with any providers
+
+- **`pages/index.tsx`** (Game page):
+  - Wraps with `WagmiProvider` + `QueryClientProvider`
+  - Imports `@farcaster/miniapp-sdk` for game functionality
+  - Uses `@farcaster/miniapp-wagmi-connector` for wallet connection
+
+- **`pages/admin/analytics.tsx`** (Admin page):
+  - Wraps with `NeynarContextProvider` for SIWN authentication
+  - ZERO dependency on Farcaster miniapp ecosystem
+  - Uses standard React Query for API calls
+
+**SDK Import Restrictions:**
+
 - `@farcaster/miniapp-sdk` should **ONLY** be imported in:
   - `pages/index.tsx` (main game page)
-  - Game-specific components (SharePromptModal, WinnerShareCard, etc.)
+  - Game-specific components (SharePromptModal, WinnerShareCard, StatsSheet, etc.)
+  - `src/lib/haptics.ts` (used only by game components)
+
 - `@farcaster/miniapp-sdk` must **NEVER** be imported in:
-  - `pages/_app.tsx` (causes server-side bundling issues)
+  - `pages/_app.tsx` (would affect ALL pages)
   - `pages/admin/*` (admin pages use SIWN, not miniapp context)
   - Any server-side code or API routes
-- The miniapp SDK is **client-side only** and not compatible with Node.js server environment
+  - Shared utilities used by both game and admin pages
+
+**Why This Matters:**
+
+- The miniapp SDK is **client-side only** and NOT compatible with Node.js server environment
+- `@farcaster/miniapp-wagmi-connector` has miniapp SDK as a peer dependency
+- If wagmi is in `_app.tsx`, it bundles the SDK for ALL pages including admin
+- This causes "Cannot use import statement outside a module" errors in Vercel SSR
 
 ### Analytics Events
 
