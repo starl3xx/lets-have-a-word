@@ -51,7 +51,14 @@ export default async function handler(
       sql`SELECT * FROM view_wau ORDER BY week_start DESC LIMIT 12`
     );
 
-    return res.status(200).json(result.rows);
+    // Ensure proper serialization
+    const serializedData = result.rows.map(row => ({
+      week_start: row.week_start?.toString() || '',
+      active_users: Number(row.active_users) || 0
+    }));
+
+    console.log('[analytics/wau] Returning data:', JSON.stringify(serializedData).substring(0, 200));
+    return res.status(200).json(serializedData);
   } catch (error) {
     console.error('[analytics/wau] Error fetching WAU:', error);
     return res.status(500).json({ error: 'Internal server error' });

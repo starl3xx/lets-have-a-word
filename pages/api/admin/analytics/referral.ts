@@ -54,7 +54,17 @@ export default async function handler(
       sql`SELECT * FROM view_referral_funnel ORDER BY day DESC LIMIT 30`
     );
 
-    return res.status(200).json(result.rows);
+    // Ensure proper serialization
+    const serializedData = result.rows.map(row => ({
+      day: row.day?.toString() || '',
+      referral_shares: Number(row.referral_shares) || 0,
+      referral_joins: Number(row.referral_joins) || 0,
+      referral_wins: Number(row.referral_wins) || 0,
+      bonus_unlocked: Number(row.bonus_unlocked) || 0
+    }));
+
+    console.log('[analytics/referral] Returning data:', JSON.stringify(serializedData).substring(0, 200));
+    return res.status(200).json(serializedData);
   } catch (error) {
     console.error('[analytics/referral] Error fetching referral data:', error);
     return res.status(500).json({ error: 'Internal server error' });
