@@ -36,9 +36,30 @@ interface AdminAuthWrapperProps {
 export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
   const [user, setUser] = useState<SIWNData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID
+
+  // Use different client IDs for dev vs prod
+  const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  const neynarClientId = isDev
+    ? process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID_DEV
+    : process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID_PROD
 
   useEffect(() => {
+    // LOG CONFIGURATION FOR DEBUGGING
+    console.log('═══════════════════════════════════════')
+    console.log('NEYNAR SIWN CONFIGURATION')
+    console.log('═══════════════════════════════════════')
+    console.log('Environment:', isDev ? 'DEVELOPMENT' : 'PRODUCTION')
+    console.log('Origin:', window.location.origin)
+    console.log('Client ID:', neynarClientId || 'NOT CONFIGURED')
+    console.log('═══════════════════════════════════════')
+
+    if (!neynarClientId) {
+      console.error('❌ Neynar client ID not configured!')
+      console.log('Set NEXT_PUBLIC_NEYNAR_CLIENT_ID_DEV for localhost')
+      console.log('Set NEXT_PUBLIC_NEYNAR_CLIENT_ID_PROD for production')
+      return
+    }
+
     // Check if user is already signed in (stored in localStorage)
     const storedUser = localStorage.getItem('neynar_user')
     if (storedUser) {
@@ -55,7 +76,7 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
 
     // Define the global callback for SIWN
     window.onSignInSuccess = (data: SIWNData) => {
-      console.log("Sign-in success:", data)
+      console.log("✅ Sign-in success:", data)
       setUser(data)
       // Store in localStorage for persistence
       localStorage.setItem('neynar_user', JSON.stringify(data))
@@ -91,8 +112,33 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
         background: "#f3f4f6",
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}>
-        <div style={{ color: "#dc2626" }}>
-          Neynar client ID not configured
+        <div style={{
+          background: "white",
+          padding: "48px",
+          borderRadius: "12px",
+          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+          maxWidth: "500px",
+        }}>
+          <div style={{ color: "#dc2626", fontWeight: 700, fontSize: "20px", marginBottom: "16px" }}>
+            ❌ Neynar Client ID Not Configured
+          </div>
+          <div style={{ fontSize: "14px", color: "#6b7280", lineHeight: "1.6" }}>
+            <p>Environment: <strong>{typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'Development' : 'Production'}</strong></p>
+            <p>Origin: <strong>{typeof window !== 'undefined' ? window.location.origin : ''}</strong></p>
+            <p style={{ marginTop: "16px" }}>Required environment variable:</p>
+            <code style={{
+              display: "block",
+              background: "#f3f4f6",
+              padding: "8px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              marginTop: "8px",
+            }}>
+              {typeof window !== 'undefined' && window.location.hostname === 'localhost'
+                ? 'NEXT_PUBLIC_NEYNAR_CLIENT_ID_DEV'
+                : 'NEXT_PUBLIC_NEYNAR_CLIENT_ID_PROD'}
+            </code>
+          </div>
         </div>
       </div>
     )
