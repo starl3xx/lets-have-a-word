@@ -55,13 +55,19 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
       // Fetch DAU data
       const dauResponse = await fetch(`/api/admin/analytics/dau${devFidParam}`)
-      if (!dauResponse.ok) throw new Error('Failed to fetch DAU data')
+      if (!dauResponse.ok) {
+        const errorData = await dauResponse.json()
+        throw new Error(errorData.error || 'Failed to fetch DAU data')
+      }
       const dau = await dauResponse.json()
       setDauData(dau)
 
       // Fetch Free/Paid data
       const guessResponse = await fetch(`/api/admin/analytics/free-paid${devFidParam}`)
-      if (!guessResponse.ok) throw new Error('Failed to fetch guess data')
+      if (!guessResponse.ok) {
+        const errorData = await guessResponse.json()
+        throw new Error(errorData.error || 'Failed to fetch guess data')
+      }
       const guesses = await guessResponse.json()
       setGuessData(guesses)
 
