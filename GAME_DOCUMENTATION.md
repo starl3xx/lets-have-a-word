@@ -85,13 +85,31 @@ Each player gets a daily allocation of guesses:
 lets-have-a-word/
 ├── pages/
 │   ├── index.tsx                    # Main game page
+│   ├── admin/
+│   │   └── analytics.tsx            # Admin dashboard (Milestone 5.2/5.3)
 │   └── api/
 │       ├── game.ts                  # Unified game state (dev mode)
-│       ├── guess.ts                 # Submit guess
+│       ├── guess.ts                 # Submit guess (with user quality check)
 │       ├── wheel.ts                 # Get wheel words
 │       ├── round-state.ts           # Get round status (with live ETH/USD)
 │       ├── user-state.ts            # Get user state
-│       └── share-callback.ts        # Handle share bonus
+│       ├── share-callback.ts        # Handle share bonus (logs SHARE_SUCCESS)
+│       ├── user/
+│       │   ├── stats.ts             # User statistics
+│       │   └── referrals.ts         # Referral data
+│       └── admin/
+│           ├── me.ts                # Admin status check
+│           └── analytics/           # Analytics endpoints
+│               ├── dau.ts           # Daily active users
+│               ├── wau.ts           # Weekly active users
+│               ├── events.ts        # Raw events (paginated)
+│               ├── free-paid.ts     # Free/paid ratio
+│               ├── jackpot.ts       # Jackpot growth
+│               ├── referral.ts      # Referral funnel
+│               ├── fairness.ts      # Fairness audits (5.3)
+│               ├── simulations.ts   # Run simulations (5.3)
+│               ├── performance.ts   # CLANKTON advantage (5.3)
+│               └── export.ts        # Data export (5.3)
 ├── components/
 │   ├── Wheel.tsx                    # 3D word wheel
 │   ├── LetterBoxes.tsx              # 5-letter input boxes
@@ -107,7 +125,7 @@ lets-have-a-word/
 │   ├── lib/
 │   │   ├── rounds.ts                # Round management
 │   │   ├── guesses.ts               # Guess submission
-│   │   ├── daily-limits.ts          # Daily guess tracking
+│   │   ├── daily-limits.ts          # Daily guess tracking (logs GUESS_PACK_USED)
 │   │   ├── wheel.ts                 # Wheel data logic
 │   │   ├── word-lists.ts            # Word validation
 │   │   ├── prices.ts                # ETH/USD price fetching (CoinGecko)
@@ -115,8 +133,17 @@ lets-have-a-word/
 │   │   ├── commit-reveal.ts         # Cryptographic hashing
 │   │   ├── clankton.ts              # Token balance checking
 │   │   ├── economics.ts             # Prize pool calculations
+│   │   ├── analytics.ts             # Analytics event logging (5.2)
+│   │   ├── announcer.ts             # Farcaster announcer bot (5.1)
+│   │   ├── user-quality.ts          # User quality gating (5.3)
 │   │   ├── devGameState.ts          # Dev mode helpers
 │   │   └── devMidRound.ts           # Dev test scenarios
+│   ├── services/                    # Service modules (Milestone 5.3)
+│   │   ├── fairness-monitor/
+│   │   │   ├── index.ts             # Fairness validation & audit
+│   │   │   └── prize-audit.ts       # Prize pool verification
+│   │   └── simulation-engine/
+│   │       └── index.ts             # Adversarial simulations
 │   ├── data/
 │   │   ├── answer_words.ts          # 2,279 canonical answer words (UPPERCASE)
 │   │   ├── guess_words.ts           # 10,516 canonical valid guesses (UPPERCASE)
@@ -127,6 +154,8 @@ lets-have-a-word/
 │   │   └── index.ts                 # Database client
 │   └── types/
 │       └── index.ts                 # TypeScript types
+├── docs/
+│   └── MILESTONE_5_3_DOCUMENTATION.md  # Detailed 5.3 docs
 └── .env.example                     # Environment variables
 ```
 
@@ -427,9 +456,15 @@ CREATE TABLE users (
   spam_score INTEGER DEFAULT 0,
   referrer_fid INTEGER REFERENCES users(fid),
   xp INTEGER DEFAULT 0,
+  -- Milestone 5.3: User Quality Gating
+  user_score DECIMAL(5, 3),              -- Neynar user quality score (0.000-1.000)
+  user_score_updated_at TIMESTAMP,        -- Cache timestamp for score refresh
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Milestone 5.3: Index for efficient cache expiration queries
+CREATE INDEX users_user_score_updated_at_idx ON users(user_score_updated_at);
 ```
 
 #### `rounds`
@@ -768,7 +803,7 @@ await sdk.actions.openUrl({
 
 ## Key Features by Milestone
 
-### Completed Milestones (1.1 - 4.11)
+### Completed Milestones (1.1 - 5.3)
 
 ### Milestone 1.1: Data Model + Rules
 - Database schema design (game_rules, users, rounds, guesses)
@@ -913,42 +948,76 @@ await sdk.actions.openUrl({
 - **Formatting**: USD always shows 2 decimal places for cents
 - **Error Handling**: Never blocks UI, shows ETH only if price unavailable
 
-### Planned Milestones (5.1 - 6.2)
-
 ### Milestone 5.1: Farcaster Announcer Bot
-- **Status**: Partially started (@letshaveaword account created)
-- Create and connect announcer bot signer
+- **Status**: ✅ Complete
+- Announcer bot account: @letshaveaword (FID 1477413)
+- Neynar signer integration
 - Automated announcements:
   - postRoundStarted() - New round notifications
-  - postRoundResolved() - Winner announcements
-  - postMilestoneJackpot() - Prize pool milestones
-  - postMilestoneGuesses() - Guess count milestones
-  - postReferralWin() - Referral bonus highlights
+  - postRoundResolved() - Winner announcements with commit-reveal verification
+  - postMilestoneJackpot() - Prize pool milestones (0.1, 0.25, 0.5, 1.0 ETH)
+  - postMilestoneGuesses() - Guess count milestones (100, 500, 1k, 5k, 10k)
+  - postReferralWin() - Referral bonus highlights (threaded reply)
+- Dev mode safety: announcements disabled when NODE_ENV !== 'production'
+- Idempotent via announcer_events table
 
 ### Milestone 5.2: Analytics & Tracking
-- **Status**: Not started
+- **Status**: ✅ Complete
 - Analytics infrastructure:
-  - Analytics table creation
-  - Event logging system (daily_open, free_guess, paid_guess, etc.)
-  - Log round lifecycle events (round_started, round_resolved)
-  - Log social events (share_bonus_unlocked, referral_join, referral_win)
-- Analytics views and dashboards:
-  - DAU/WAU calculation views
-  - Jackpot growth tracking
-  - Free/paid guess ratio analysis
-  - Admin analytics page
+  - analytics_events table with JSONB data
+  - Fire-and-forget event logging (non-blocking)
+  - Events: daily_open, free_guess_used, paid_guess_used, round_started, round_resolved, share_bonus_unlocked, referral_join, referral_win
+- Analytics views:
+  - view_dau - Daily Active Users
+  - view_wau - Weekly Active Users (ISO week)
+  - view_free_paid_ratio - Free vs paid guess breakdown
+  - view_jackpot_growth - Prize pool evolution
+  - view_referral_funnel - Referral metrics
+- Admin dashboard at /admin/analytics with Neynar SIWN authentication
 
-### Milestone 5.3: Anti-Abuse + Infrastructure
-- **Status**: Not started
-- **Anti-Abuse Measures**:
-  - Enforce Neynar spam score thresholds
-  - Abuse detection and user flagging
-  - Rate limiting for /guess endpoint
-- **Infrastructure Improvements**:
-  - Caching layers (jackpot, wheel words, global guesses)
-  - Cron job: daily reset automation
-  - Cron job: jackpot monitoring and alerts
-  - Logging and error monitoring system
+### Milestone 5.3: Advanced Analytics & Fairness Systems
+- **Status**: ✅ Complete
+- **Fairness Monitoring** (`src/services/fairness-monitor/`):
+  - Continuous commit-reveal validation: H(salt || answer) === commitHash
+  - Transaction-level prize audit against economic rules (80/10/10 split)
+  - Suspicious sequence detection (same winner, same answer patterns)
+  - Automated FAIRNESS_ALERT_* event logging
+- **User Quality Gating** (`src/lib/user-quality.ts`):
+  - Neynar User Score ≥ 0.6 required to submit guesses
+  - ~307,775 eligible Farcaster users (Nov 2024)
+  - 24-hour score caching with automatic refresh
+  - USER_QUALITY_BLOCKED event logging for blocked attempts
+- **Adversarial Simulation Engine** (`src/services/simulation-engine/`):
+  - `wallet_clustering` - Detect sybil attacks (shared wallets, referral chains)
+  - `rapid_winner` - Model improbable win streaks
+  - `frontrun_risk` - Assess commit-reveal vulnerabilities
+  - `jackpot_runway` - Project prize pool sustainability under stress
+  - `full_suite` - Combined risk report
+- **Enhanced Analytics Events**:
+  - FAIRNESS_ALERT_HASH_MISMATCH, FAIRNESS_ALERT_PAYOUT_MISMATCH
+  - SIM_STARTED, SIM_COMPLETED, CLUSTER_ALERT, RAPID_FIRE_ALERT
+  - USER_QUALITY_BLOCKED, USER_QUALITY_REFRESHED
+  - GUESS_PACK_USED (with credits_remaining, round_id, fid)
+  - SHARE_SUCCESS (with cast hash)
+- **New API Endpoints**:
+  - GET/POST /api/admin/analytics/fairness - Fairness audits
+  - POST /api/admin/analytics/simulations - Run simulations
+  - GET /api/admin/analytics/performance - CLANKTON advantage & referral metrics
+  - POST /api/admin/analytics/export - CSV/JSON data export
+- **Admin Dashboard Enhancements**:
+  - Fairness & Integrity section with alert monitoring
+  - User Quality Gating metrics (average score, eligible/blocked)
+  - CLANKTON holder solve-rate advantage
+  - Referral performance (guesses, wins, payouts, top referrers)
+  - Guess distribution histogram
+  - Simulation controls and results viewer
+- **Database Updates**:
+  - user_score (DECIMAL 5,3) on users table
+  - user_score_updated_at (TIMESTAMP) for cache management
+- **Configuration**:
+  - USER_QUALITY_GATING_ENABLED=true to enable anti-bot protection
+
+### Planned Milestones (5.4 - 6.2)
 
 ### Milestone 5.4: Round Archive
 - **Status**: Not started
@@ -1176,6 +1245,8 @@ All analytics events are logged to the `analytics_events` table with the followi
   - Data: `{ word, isCorrect, totalGuesses }`
 - `paid_guess_used` - Paid guess consumed
   - Data: `{ word, isCorrect, totalGuesses, ethSpent }`
+- `GUESS_PACK_USED` - Paid guess credit consumed (Milestone 5.3)
+  - Data: `{ credits_remaining, fid, round_id }`
 
 **Referrals:**
 - `referral_join` - New user joined via referral link
@@ -1184,12 +1255,46 @@ All analytics events are logged to the `analytics_events` table with the followi
   - Data: `{ referrerFid, roundId }`
 - `share_bonus_unlocked` - User unlocked share bonus (+1 free guess)
   - Data: `{ bonusGuesses }`
+- `SHARE_SUCCESS` - User shared to Farcaster (Milestone 5.3)
+  - Data: `{ castHash, bonusAwarded, newFreeGuessesRemaining }`
 
 **Rounds:**
 - `round_started` - New round created
   - Data: `{ prizePoolEth, commitHash }`
 - `round_resolved` - Round completed with winner
   - Data: `{ winnerFid, referrerFid, prizePoolEth, seedNextRoundEth }`
+
+**Fairness & Integrity (Milestone 5.3):**
+- `FAIRNESS_ALERT_HASH_MISMATCH` - Critical: commit hash doesn't match
+  - Data: `{ roundId, expected, actual, severity }`
+- `FAIRNESS_ALERT_PAYOUT_MISMATCH` - High: payout amounts incorrect
+  - Data: `{ roundId, expected, actual, difference }`
+- `FAIRNESS_ALERT_SUSPICIOUS_SEQUENCE` - Medium: suspicious pattern
+  - Data: `{ pattern, roundIds, details }`
+- `PRIZE_AUDIT_MISMATCH` - Prize pool doesn't match paid guesses
+  - Data: `{ roundId, expectedPool, actualPool }`
+- `FAIRNESS_AUDIT_COMPLETED` - Full audit completed
+  - Data: `{ roundsChecked, issuesFound, duration }`
+
+**Simulations (Milestone 5.3):**
+- `SIM_STARTED` - Simulation run started
+  - Data: `{ type, options }`
+- `SIM_COMPLETED` - Simulation run completed
+  - Data: `{ type, duration, riskScore }`
+- `CLUSTER_ALERT` - Wallet clustering detected sybil attack
+  - Data: `{ clusterSize, suspiciousFids, riskScore }`
+- `RAPID_FIRE_ALERT` - Suspicious win pattern detected
+  - Data: `{ winnerFid, winCount, probability }`
+- `FRONTRUN_RISK` - Front-run vulnerability assessment
+  - Data: `{ attackVector, riskLevel, recommendation }`
+- `RUNWAY_WARNING` - Jackpot sustainability warning
+  - Data: `{ daysToDepletion, sustainabilityScore }`
+
+**User Quality (Milestone 5.3):**
+- `USER_QUALITY_BLOCKED` - User blocked due to low score
+  - Data: `{ fid, score, minRequired, action }`
+- `USER_QUALITY_REFRESHED` - User score refreshed
+  - Data: `{ fid, previousScore, newScore }`
 
 ### Metrics
 
@@ -1398,6 +1503,219 @@ Views are non-materialized and automatically update. No refresh needed.
 - Authorized origin: `https://lets-have-a-word.vercel.app`
 - Permissions: Read + Write (Write required for SIWN)
 
+---
+
+## Fairness & Integrity Systems (Milestone 5.3)
+
+### Overview
+
+Milestone 5.3 implements comprehensive game integrity protections including fairness monitoring, user quality gating, and adversarial simulations.
+
+### User Quality Gating
+
+To prevent bot/sybil abuse, only Farcaster users with sufficient reputation can play.
+
+**Requirement:** Neynar User Score ≥ 0.6
+
+**Implementation:** `src/lib/user-quality.ts`
+
+```typescript
+import { checkUserQuality, logBlockedAttempt } from './user-quality';
+
+// Check if user can play
+const result = await checkUserQuality(fid);
+
+if (!result.eligible) {
+  // User blocked - low quality score
+  await logBlockedAttempt(fid, result.score, 'guess');
+  return { error: 'INSUFFICIENT_USER_SCORE', score: result.score };
+}
+
+// User can proceed
+```
+
+**Key Functions:**
+- `checkUserQuality(fid, forceRefresh?)` - Check eligibility with caching
+- `logBlockedAttempt(fid, score, action)` - Log blocked attempt for analytics
+- `batchRefreshUserScores(fids)` - Batch refresh for cron job
+- `getUserQualityStats()` - Get aggregate statistics
+
+**Caching:**
+- Scores cached in `users.user_score` column
+- Cache duration: 24 hours (`SCORE_CACHE_DURATION_MS`)
+- Automatic refresh when cache expires
+- Manual refresh with `forceRefresh: true`
+
+**Error Response:**
+```json
+{
+  "error": "INSUFFICIENT_USER_SCORE",
+  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.6)...",
+  "score": 0.45,
+  "minRequired": 0.6,
+  "helpUrl": "https://docs.neynar.com/docs/user-scores"
+}
+```
+
+**Configuration:**
+- Enable: `USER_QUALITY_GATING_ENABLED=true`
+- Threshold: 0.6 (configurable in `MIN_USER_SCORE` constant)
+
+### Fairness Monitoring
+
+Validates game integrity by checking commit-reveal pairs and payout amounts.
+
+**Implementation:** `src/services/fairness-monitor/index.ts`
+
+**Key Functions:**
+
+```typescript
+import {
+  validateRoundCommitment,
+  validateRoundPayouts,
+  runFairnessAudit,
+  detectSuspiciousSequences
+} from './services/fairness-monitor';
+
+// Validate a single round
+const result = await validateRoundCommitment(roundId);
+// Returns: { roundId, isValid, commitHashValid, payoutValid, errors, warnings }
+
+// Run full audit
+const report = await runFairnessAudit({
+  startDate: new Date('2024-01-01'),
+  endDate: new Date(),
+});
+
+// Detect suspicious patterns
+const suspicions = await detectSuspiciousSequences(100); // last 100 rounds
+```
+
+**What Gets Validated:**
+1. **Commit Hash**: Verifies `H(salt || answer) === commitHash`
+2. **Payout Amounts**: Ensures 80/10/10 split is correct
+3. **Prize Pool Growth**: Verifies paid guesses → pool accumulation
+4. **Win Patterns**: Detects statistically improbable sequences
+
+**Alert Events:**
+- `FAIRNESS_ALERT_HASH_MISMATCH` - Critical: commit hash invalid
+- `FAIRNESS_ALERT_PAYOUT_MISMATCH` - High: payout calculation error
+- `FAIRNESS_ALERT_SUSPICIOUS_SEQUENCE` - Medium: suspicious pattern
+
+### Prize Audit System
+
+Cross-checks prize amounts against expected economic rules.
+
+**Implementation:** `src/services/fairness-monitor/prize-audit.ts`
+
+**Economic Rules Verified:**
+```typescript
+const ECONOMIC_RULES = {
+  GUESS_PRICE_ETH: 0.0003,      // Price per paid guess
+  PRIZE_POOL_SHARE: 0.8,        // 80% to prize pool
+  SEED_CREATOR_SHARE: 0.2,      // 20% to seed/creator
+  WINNER_SHARE: 0.8,            // 80% of jackpot to winner
+  REFERRER_SHARE: 0.1,          // 10% to referrer
+  TOP_GUESSERS_SHARE: 0.1,      // 10% to top guessers
+  SEED_CAP_ETH: 0.1,            // 0.1 ETH seed cap
+};
+```
+
+**Key Functions:**
+- `auditPrizePoolGrowth(roundId)` - Verify prize pool against paid guesses
+- `runPrizeAudit(options)` - Full prize audit across rounds
+- `getPrizeAuditSummary()` - Get aggregate payout statistics
+
+### Adversarial Simulation Engine
+
+Models attack vectors and stress scenarios to identify vulnerabilities.
+
+**Implementation:** `src/services/simulation-engine/index.ts`
+
+**Available Simulations:**
+
+| Type | Purpose | Risk Factors |
+|------|---------|--------------|
+| `wallet_clustering` | Detect sybil attacks | Shared wallets, referral chains, timing |
+| `rapid_winner` | Flag improbable wins | Win frequency, statistical probability |
+| `frontrun_risk` | Assess commit-reveal | Pre-image attacks, timing attacks |
+| `jackpot_runway` | Project sustainability | Growth rate, depletion scenarios |
+| `full_suite` | Combined analysis | All risk factors |
+
+**Running Simulations:**
+
+```typescript
+import { runSimulation, runFullSimulationSuite } from './services/simulation-engine';
+
+// Run single simulation
+const result = await runSimulation('wallet_clustering', {
+  lookbackRounds: 100,
+});
+
+// Run all simulations
+const fullReport = await runFullSimulationSuite();
+```
+
+**Via API:**
+```bash
+curl -X POST /api/admin/analytics/simulations \
+  -H "Content-Type: application/json" \
+  -d '{"type": "full_suite"}'
+```
+
+**Wallet Clustering Output:**
+```typescript
+interface WalletClusterResult {
+  clusters: WalletCluster[];      // Detected clusters
+  totalUsersAnalyzed: number;
+  suspiciousUserCount: number;
+  clusterRiskScore: number;       // 0-100 risk score
+}
+```
+
+**Jackpot Runway Output:**
+```typescript
+interface RunwayResult {
+  currentJackpot: number;
+  projectedRounds: RunwayProjection[];
+  sustainabilityScore: number;    // 0-100
+  daysToDepletion: number | null;
+  scenarioResults: EconomicScenario[];
+}
+```
+
+### Admin Dashboard Enhancements
+
+The admin dashboard at `/admin/analytics` includes new sections for Milestone 5.3:
+
+**Fairness & Integrity Section:**
+- Overall fairness status indicator (healthy/warning/critical)
+- Recent alerts count with severity breakdown
+- Prize audit summary (total distributed, average jackpot)
+- Recent alerts list with expandable details
+
+**User Quality Gating Section:**
+- Average user score across all users
+- Eligible vs blocked user counts
+- Total blocked attempts
+- Recent blocked attempts list
+
+**Referral Performance Section:**
+- Total referrals and referral-generated guesses
+- Referral wins and total payouts
+- Top referrers table (FID, referrals, wins, earnings)
+
+**Adversarial Simulations Section:**
+- Simulation type selector
+- Run simulation button with loading state
+- Results display with risk scores
+- Historical simulation results
+
+**Guess Distribution Section:**
+- Histogram of guesses to solve (1-5, 6-10, 11-20, etc.)
+- Median and mean guesses statistics
+- CLANKTON holder advantage comparison
+
 ### Code Architecture Notes
 
 **CRITICAL: Provider Scoping (BUG FIX #5 - 2025-11-24) - FINAL FIX**
@@ -1505,6 +1823,6 @@ The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farc
 
 ---
 
-**Last Updated**: January 2025
-**Version**: 4.12 (Milestone 4.12 - ETH/USD Price Integration via CoinGecko)
+**Last Updated**: November 2025
+**Version**: 5.3 (Milestone 5.3 - Advanced Analytics & Fairness Systems)
 **Status**: Active Development
