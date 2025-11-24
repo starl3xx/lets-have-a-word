@@ -9,7 +9,7 @@ import { announceRoundResolved, announceReferralWin } from './announcer';
  * Handles jackpot splits, seed accumulation, and payouts
  */
 
-const SEED_CAP_ETH = '0.1'; // 0.1 ETH cap for seed accumulation
+const SEED_CAP_ETH = '0.03'; // 0.03 ETH cap for seed accumulation (updated from 0.1 in Milestone 5.4b)
 
 /**
  * Apply economic effects when a paid guess is made
@@ -17,7 +17,7 @@ const SEED_CAP_ETH = '0.1'; // 0.1 ETH cap for seed accumulation
  * Split logic:
  * - 80% goes to prize pool (P)
  * - 20% goes to seed/creator:
- *   - If seed S < 0.1 ETH, add to S
+ *   - If seed S < 0.03 ETH, add to S
  *   - Otherwise add to creator balance
  *
  * @param roundId - The round ID

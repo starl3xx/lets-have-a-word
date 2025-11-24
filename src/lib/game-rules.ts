@@ -18,7 +18,7 @@ export const DEFAULT_RULES_CONFIG: GameRulesConfig = {
     referrer: 0.1,
     top10: 0.1,
   },
-  seedCapEth: '0.1',
+  seedCapEth: '0.03', // Updated from 0.1 in Milestone 5.4b
   clanktonThreshold: '100000000',
 };
 

@@ -76,7 +76,7 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
 - **Transaction-Level Prize Audit**
   - Cross-checks prize amounts vs expected economic rules (80/10/10 split)
   - Detects underpayment, overpayment, or anomalies
-  - Tracks seed cap compliance (0.1 ETH max)
+  - Tracks seed cap compliance (0.03 ETH max)
   - Module: `src/services/fairness-monitor/prize-audit.ts`
 
 - **User Quality Gating (Anti-Bot)**
@@ -433,7 +433,7 @@ Updated jackpot settlement to prevent players from gaming the referral system:
 - **Non-Referral Prize Logic**
   - When a winner has no referrer, the 10% referrer share is NOT given to the winner
   - Instead, it flows through the seed + creator pipeline:
-    1. First fills next-round seed (up to 0.1 ETH cap)
+    1. First fills next-round seed (up to 0.03 ETH cap)
     2. Any overflow goes to creator wallet
   - Prevents incentive to avoid using referral links
   - Keeps the growth loop healthy
@@ -796,7 +796,7 @@ Complete economic system for prize distribution:
 
 - **Per-Guess Economics (80/20 Split)**
   - 80% → Prize pool
-  - 20% → Seed for next round (up to 0.1 ETH cap)
+  - 20% → Seed for next round (up to 0.03 ETH cap)
   - Overflow → Creator balance
 
 - **Jackpot Resolution (80/10/10 Split)**
@@ -1438,7 +1438,7 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
 
 **Per Paid Guess (80/20 Split)**
 - 80% → Prize pool
-- 20% → Seed for next round (capped at 0.1 ETH)
+- 20% → Seed for next round (capped at 0.03 ETH)
   - Overflow → Creator balance
 
 **Jackpot Resolution (80/10/10 Split)**
@@ -1457,7 +1457,7 @@ When a winner **does NOT have a referrer**:
 - Winner gets 80%
 - Top 10 get 10%
 - The unused 10% referrer share goes to:
-  1. Next-round seed (up to 0.1 ETH cap)
+  1. Next-round seed (up to 0.03 ETH cap)
   2. Creator wallet (any remaining overflow)
 
 This prevents players from avoiding referral links to maximize their payout and keeps the growth loop healthy.

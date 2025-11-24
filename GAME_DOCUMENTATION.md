@@ -870,7 +870,7 @@ await sdk.actions.openUrl({
 - Top 10 payout distribution logic
 - Creator balance tracking
 - round_payouts table for payout records
-- 0.1 ETH seed cap logic
+- 0.03 ETH seed cap logic
 - Comprehensive economic functions
 
 ### Milestone 3.2: Top Ticker Polish
@@ -1662,7 +1662,7 @@ const ECONOMIC_RULES = {
   WINNER_SHARE: 0.8,            // 80% of jackpot to winner
   REFERRER_SHARE: 0.1,          // 10% to referrer
   TOP_GUESSERS_SHARE: 0.1,      // 10% to top guessers
-  SEED_CAP_ETH: 0.1,            // 0.1 ETH seed cap
+  SEED_CAP_ETH: 0.03,           // 0.03 ETH seed cap
 };
 ```
 
