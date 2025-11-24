@@ -11,6 +11,7 @@ import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
 import GameKeyboard from '../components/GameKeyboard';
+import RoundArchiveModal from '../components/RoundArchiveModal';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
@@ -69,6 +70,10 @@ function GameContent() {
   const [showFAQSheet, setShowFAQSheet] = useState(false);
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
   const [hideStateError, setHideStateError] = useState(false);
+
+  // Round Archive modal state (Milestone 5.4)
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
 
   /**
    * Get Farcaster context on mount and signal ready
@@ -615,8 +620,13 @@ function GameContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Top Ticker (Milestone 2.3) */}
-      <TopTicker />
+      {/* Top Ticker (Milestone 2.3, 5.4: clickable round number) */}
+      <TopTicker
+        onRoundClick={(roundId) => {
+          setCurrentRoundId(roundId);
+          setShowArchiveModal(true);
+        }}
+      />
 
       {/* User State (Milestone 4.1) - Minimal */}
       <div className="px-4 pt-1">
@@ -885,6 +895,13 @@ function GameContent() {
           onClose={() => setShowWinnerShareCard(false)}
         />
       )}
+
+      {/* Round Archive Modal (Milestone 5.4) */}
+      <RoundArchiveModal
+        isOpen={showArchiveModal}
+        onClose={() => setShowArchiveModal(false)}
+        currentRoundId={currentRoundId}
+      />
     </div>
   );
 }
