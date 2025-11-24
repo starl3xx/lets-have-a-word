@@ -17,8 +17,22 @@ import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState }
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
+import { WagmiProvider } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { config } from '../src/config/wagmi';
 
-export default function Home() {
+// Create a client for React Query
+const queryClient = new QueryClient();
+
+/**
+ * GameContent - Main game component
+ *
+ * IMPORTANT: This component uses wagmi and @farcaster/miniapp-sdk, which are
+ * client-side only libraries. They are NOT compatible with server-side rendering.
+ * The parent Home component wraps this with WagmiProvider to scope these dependencies
+ * to the game page only, preventing them from affecting other pages like /admin/analytics.
+ */
+function GameContent() {
   // Word input state - now managed as array of 5 letters (Milestone 4.3)
   const [letters, setLetters] = useState<string[]>(['', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +71,10 @@ export default function Home() {
   const [hideStateError, setHideStateError] = useState(false);
 
   /**
-   * Get Farcaster context on mount
+   * Get Farcaster context on mount and signal ready
+   * NOTE: @farcaster/miniapp-sdk is ONLY imported here (main game page)
+   * It should NEVER be imported in _app.tsx, admin pages, or server-side code
+   * because it's not compatible with Node.js server environment
    */
   useEffect(() => {
     const getFarcasterContext = async () => {
@@ -73,6 +90,9 @@ export default function Home() {
           setFid(12345); // Dev fallback
           setIsInMiniApp(false);
         }
+
+        // Signal that the app is ready to the Farcaster mini-app runtime
+        sdk.actions.ready();
       } catch (error) {
         console.log('Not in Farcaster context, using dev mode');
         setFid(12345); // Dev fallback
@@ -866,5 +886,27 @@ export default function Home() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Home - Main game page wrapper
+ *
+ * Provides WagmiProvider and QueryClientProvider for the game page ONLY.
+ * This ensures that wagmi (which depends on @farcaster/miniapp-sdk via the
+ * miniapp-wagmi-connector) is NOT bundled into other pages like /admin/analytics.
+ *
+ * Architecture:
+ * - _app.tsx: Minimal, no providers
+ * - pages/index.tsx (this file): Game page with WagmiProvider
+ * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
+ */
+export default function Home() {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <GameContent />
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

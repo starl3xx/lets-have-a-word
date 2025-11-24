@@ -1,6 +1,7 @@
 import { db, users } from '../db';
 import { eq } from 'drizzle-orm';
 import type { UserRow } from '../db/schema';
+import { logReferralEvent, AnalyticsEventTypes } from './analytics';
 
 /**
  * Parameters for upserting a user from Farcaster context
@@ -78,6 +79,11 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
 
   if (validReferrerFid) {
     console.log(`✅ Created new user FID ${fid} with referrer FID ${validReferrerFid}`);
+
+    // Milestone 5.2: Log referral join analytics event (non-blocking)
+    logReferralEvent(AnalyticsEventTypes.REFERRAL_JOIN, fid.toString(), {
+      referrerFid: validReferrerFid,
+    });
   } else {
     console.log(`✅ Created new user FID ${fid}`);
   }

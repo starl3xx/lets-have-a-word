@@ -31,6 +31,8 @@
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@farcaster/miniapp-wagmi-connector": "^1.1.0",
     "@neynar/nodejs-sdk": "^3.89.0",
+    "@neynar/react": "^1.2.22",
+    "@pigment-css/react": "^0.0.30",
     "@tanstack/react-query": "^5.90.10",
     "autoprefixer": "^10.4.20",
     "canvas-confetti": "^1.9.4",
