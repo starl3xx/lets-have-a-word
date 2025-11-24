@@ -1398,6 +1398,31 @@ Views are non-materialized and automatically update. No refresh needed.
 - Authorized origin: `https://lets-have-a-word.vercel.app`
 - Permissions: Read + Write (Write required for SIWN)
 
+### Code Architecture Notes
+
+**IMPORTANT: SDK Import Restrictions**
+
+The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farcaster mini-app runtime. It is **NOT compatible with Node.js server environments** and must be used carefully to avoid server-side bundling issues.
+
+**Where to import `@farcaster/miniapp-sdk`:**
+- ✅ `pages/index.tsx` (main game page)
+- ✅ Game-specific components (SharePromptModal, WinnerShareCard, etc.)
+- ✅ Client-side only code that runs in the Farcaster frame
+
+**Where to NEVER import `@farcaster/miniapp-sdk`:**
+- ❌ `pages/_app.tsx` (causes server-side bundling for ALL pages)
+- ❌ `pages/admin/*` (admin pages use SIWN, not miniapp context)
+- ❌ `pages/api/*` (server-side API routes)
+- ❌ Any server-side code or utilities
+
+**Why this matters:**
+- Admin analytics uses **SIWN (Sign In With Neynar)** for authentication, not the miniapp SDK
+- The miniapp SDK causes "SyntaxError: Cannot use import statement outside a module" errors when bundled for server-side rendering
+- Importing SDK in `_app.tsx` affects ALL pages including admin routes
+- Admin dashboard is web-only and has no dependency on the Farcaster mini-app runtime
+
+**Bug Fix Reference:** See `pages/_app.tsx` header comment (BUG FIX #4) for detailed explanation of previous server-side bundling issue.
+
 ---
 
 ## Future Considerations
