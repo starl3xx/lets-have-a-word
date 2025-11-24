@@ -25,6 +25,8 @@ export const users = pgTable('users', {
   custodyAddress: varchar('custody_address', { length: 42 }), // Farcaster custody address
   referrerFid: integer('referrer_fid'), // FK to another user's FID
   spamScore: integer('spam_score'), // Neynar spam/trust score (higher = more trustworthy)
+  userScore: decimal('user_score', { precision: 5, scale: 3 }), // Neynar user quality score (0.0-1.0) - Milestone 5.3
+  userScoreUpdatedAt: timestamp('user_score_updated_at'), // Last time user score was fetched - Milestone 5.3
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -32,6 +34,7 @@ export const users = pgTable('users', {
 }, (table) => ({
   fidIdx: index('users_fid_idx').on(table.fid),
   walletIdx: index('users_wallet_idx').on(table.signerWalletAddress),
+  userScoreUpdatedAtIdx: index('users_user_score_updated_at_idx').on(table.userScoreUpdatedAt),
 }));
 
 /**
