@@ -16,7 +16,7 @@ import { submitGuess } from './guesses';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
 import { hasClanktonBonus } from './clankton';
-import { logGuessEvent, logReferralEvent, AnalyticsEventTypes } from './analytics';
+import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 
 /**
  * Game rules for daily limits
@@ -131,6 +131,17 @@ export async function getOrCreateDailyState(
   console.log(
     `✅ Created daily state for FID ${fid} on ${dateStr}: ${newState.freeAllocatedBase} base + ${newState.freeAllocatedClankton} CLANKTON = ${newState.freeAllocatedBase + newState.freeAllocatedClankton} free guesses, wheelStartIndex: ${wheelStartIndex}`
   );
+
+  // Analytics v2: Log game session start (non-blocking)
+  logAnalyticsEvent(AnalyticsEventTypes.GAME_SESSION_START, {
+    userId: fid.toString(),
+    data: {
+      date: dateStr,
+      free_base: newState.freeAllocatedBase,
+      free_clankton: newState.freeAllocatedClankton,
+      has_clankton: hasClankton,
+    },
+  });
 
   return created;
 }
