@@ -1,5 +1,5 @@
 // pages/admin/analytics.tsx
-import React from "react"
+import React, { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { AdminStatsCard } from "../../components/admin/AdminStatsCard"
 import { AdminSection } from "../../components/admin/AdminSection"
@@ -20,7 +20,72 @@ interface DashboardContentProps {
   onSignOut?: () => void
 }
 
+interface DAUData {
+  day: string
+  active_users: number
+}
+
+interface GuessData {
+  day: string
+  free_guesses: number
+  paid_guesses: number
+  free_to_paid_ratio: number
+}
+
 function DashboardContent({ user, onSignOut }: DashboardContentProps) {
+  const [dauData, setDauData] = useState<DAUData[]>([])
+  const [guessData, setGuessData] = useState<GuessData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (user) {
+      fetchAnalytics()
+    }
+  }, [user])
+
+  const fetchAnalytics = async () => {
+    if (!user) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const devFidParam = `?devFid=${user.fid}`
+
+      // Fetch DAU data
+      const dauResponse = await fetch(`/api/admin/analytics/dau${devFidParam}`)
+      if (!dauResponse.ok) throw new Error('Failed to fetch DAU data')
+      const dau = await dauResponse.json()
+      setDauData(dau)
+
+      // Fetch Free/Paid data
+      const guessResponse = await fetch(`/api/admin/analytics/free-paid${devFidParam}`)
+      if (!guessResponse.ok) throw new Error('Failed to fetch guess data')
+      const guesses = await guessResponse.json()
+      setGuessData(guesses)
+
+    } catch (err) {
+      console.error('Error fetching analytics:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load analytics')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Calculate stats from data
+  const todayDAU = dauData[0]?.active_users || 0
+  const yesterdayDAU = dauData[1]?.active_users || 0
+  const avgDAU7 = dauData.slice(0, 7).reduce((sum, d) => sum + d.active_users, 0) / Math.min(7, dauData.length) || 0
+  const avgDAU30 = dauData.reduce((sum, d) => sum + d.active_users, 0) / dauData.length || 0
+
+  const totalFreeGuesses = guessData.reduce((sum, d) => sum + d.free_guesses, 0)
+  const totalPaidGuesses = guessData.reduce((sum, d) => sum + d.paid_guesses, 0)
+  const totalGuesses = totalFreeGuesses + totalPaidGuesses
+  const avgRatio = guessData.length > 0
+    ? guessData.reduce((sum, d) => sum + d.free_to_paid_ratio, 0) / guessData.length
+    : 0
+
   return (
     <main style={{
       minHeight: "100vh",
@@ -49,7 +114,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 fontSize: "14px",
                 color: "#6b7280",
               }}>
-                Phase 2: SIWN authentication added
+                Phase 3: Real data from Neon database
               </p>
             </div>
 
@@ -116,6 +181,20 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         padding: "32px 24px",
       }}>
 
+        {/* Error Message */}
+        {error && (
+          <div style={{
+            background: "#fee2e2",
+            border: "1px solid #fecaca",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "24px",
+            color: "#991b1b",
+          }}>
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
         {/* Daily Active Users */}
         <AdminSection title="Daily Active Users">
           <div style={{
@@ -123,10 +202,30 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
           }}>
-            <AdminStatsCard title="Today" value="1,234" subtitle="Active players" />
-            <AdminStatsCard title="Yesterday" value="1,156" subtitle="Active players" />
-            <AdminStatsCard title="7-Day Average" value="1,189" subtitle="Active players" />
-            <AdminStatsCard title="30-Day Average" value="1,067" subtitle="Active players" />
+            <AdminStatsCard
+              title="Today"
+              value={loading ? "..." : todayDAU.toLocaleString()}
+              subtitle="Active players"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Yesterday"
+              value={loading ? "..." : yesterdayDAU.toLocaleString()}
+              subtitle="Active players"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="7-Day Average"
+              value={loading ? "..." : Math.round(avgDAU7).toLocaleString()}
+              subtitle="Active players"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="30-Day Average"
+              value={loading ? "..." : Math.round(avgDAU30).toLocaleString()}
+              subtitle="Active players"
+              loading={loading}
+            />
           </div>
         </AdminSection>
 
@@ -137,38 +236,58 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
           }}>
-            <AdminStatsCard title="Total Rounds" value="45,678" subtitle="Since launch" />
-            <AdminStatsCard title="Avg Guesses" value="3.4" subtitle="Per round" />
-            <AdminStatsCard title="Free Guesses" value="32,145" subtitle="70% of total" />
-            <AdminStatsCard title="Paid Guesses" value="13,533" subtitle="30% of total" />
+            <AdminStatsCard
+              title="Total Guesses"
+              value={loading ? "..." : totalGuesses.toLocaleString()}
+              subtitle="Last 30 days"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Free/Paid Ratio"
+              value={loading ? "..." : avgRatio.toFixed(2)}
+              subtitle="Free per paid"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Free Guesses"
+              value={loading ? "..." : totalFreeGuesses.toLocaleString()}
+              subtitle={`${totalGuesses > 0 ? Math.round((totalFreeGuesses / totalGuesses) * 100) : 0}% of total`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Paid Guesses"
+              value={loading ? "..." : totalPaidGuesses.toLocaleString()}
+              subtitle={`${totalGuesses > 0 ? Math.round((totalPaidGuesses / totalGuesses) * 100) : 0}% of total`}
+              loading={loading}
+            />
           </div>
         </AdminSection>
 
-        {/* Revenue */}
+        {/* Revenue - Placeholder */}
         <AdminSection title="Revenue">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
           }}>
-            <AdminStatsCard title="Total Revenue" value="$12,345" subtitle="All time" />
-            <AdminStatsCard title="This Month" value="$2,890" subtitle="November 2025" />
-            <AdminStatsCard title="Avg per User" value="$2.45" subtitle="Per paying user" />
-            <AdminStatsCard title="Conversion Rate" value="18.5%" subtitle="Free to paid" />
+            <AdminStatsCard title="Total Revenue" value="Coming soon" subtitle="All time" />
+            <AdminStatsCard title="This Month" value="Coming soon" subtitle="November 2025" />
+            <AdminStatsCard title="Avg per User" value="Coming soon" subtitle="Per paying user" />
+            <AdminStatsCard title="Conversion Rate" value="Coming soon" subtitle="Free to paid" />
           </div>
         </AdminSection>
 
-        {/* Player Retention */}
+        {/* Player Retention - Placeholder */}
         <AdminSection title="Player Retention">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
           }}>
-            <AdminStatsCard title="Day 1" value="67%" subtitle="Return rate" />
-            <AdminStatsCard title="Day 7" value="42%" subtitle="Return rate" />
-            <AdminStatsCard title="Day 30" value="28%" subtitle="Return rate" />
-            <AdminStatsCard title="Avg Sessions" value="4.2" subtitle="Per week" />
+            <AdminStatsCard title="Day 1" value="Coming soon" subtitle="Return rate" />
+            <AdminStatsCard title="Day 7" value="Coming soon" subtitle="Return rate" />
+            <AdminStatsCard title="Day 30" value="Coming soon" subtitle="Return rate" />
+            <AdminStatsCard title="Avg Sessions" value="Coming soon" subtitle="Per week" />
           </div>
         </AdminSection>
 
