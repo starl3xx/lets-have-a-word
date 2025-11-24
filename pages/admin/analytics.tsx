@@ -63,17 +63,25 @@ function AnalyticsDashboardContent() {
   // Check if Neynar is configured
   const neynarConfigured = !!process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
 
-  // Only call useNeynarContext when actually mounted and configured
+  // IMPORTANT: Hooks must ALWAYS be called unconditionally (Rules of Hooks)
+  // useNeynarContext will throw during SSR or when provider is not available
+  // We handle this gracefully with try-catch
   let user = null;
   let isAuthenticated = false;
 
-  if (isMounted && neynarConfigured) {
-    try {
-      const neynarContext = useNeynarContext();
+  try {
+    // MUST call hook unconditionally - moving the conditional logic AFTER the hook call
+    const neynarContext = useNeynarContext();
+    // Only use the context values if we're mounted and configured
+    if (isMounted && neynarConfigured) {
       user = neynarContext.user;
       isAuthenticated = neynarContext.isAuthenticated;
-    } catch (error) {
-      console.warn('Neynar context unavailable:', error);
+    }
+  } catch (error) {
+    // Expected during SSR or when provider not available
+    // Only warn if we expected the provider to be available
+    if (isMounted && neynarConfigured) {
+      console.warn('Neynar context unavailable (expected to be available):', error);
     }
   }
 
