@@ -11,6 +11,7 @@ import { analyticsEvents } from '../db/schema';
 
 /**
  * Event types tracked by the analytics system
+ * Analytics v2: Extended with gameplay, revenue, and share tracking
  */
 export const AnalyticsEventTypes = {
   // User activity
@@ -18,10 +19,38 @@ export const AnalyticsEventTypes = {
   FREE_GUESS_USED: 'free_guess_used',
   PAID_GUESS_USED: 'paid_guess_used',
 
-  // Referrals
+  // Gameplay Events (v2)
+  GAME_SESSION_START: 'game_session_start',
+  FIRST_GUESS_SUBMITTED: 'first_guess_submitted',
+  LAST_GUESS_SUBMITTED: 'last_guess_submitted',
+  WRONG_GUESS_SUBMITTED: 'wrong_guess_submitted',
+  SOLUTION_REVEALED: 'solution_revealed',
+  RAGE_QUIT: 'rage_quit',
+
+  // Guess Flow Events (v2)
+  GUESS_SUBMITTED: 'guess_submitted',
+  FIRST_GUESS_WORD: 'first_guess_word',
+  WORD_PROGRESS_STATE: 'word_progress_state',
+
+  // Revenue & Economy Events (v2)
+  GUESS_PACK_VIEWED: 'guess_pack_viewed',
+  GUESS_PACK_PURCHASED: 'guess_pack_purchased',
+  GUESS_PACK_USED: 'guess_pack_used',
+  SEED_AMOUNT_SET: 'seed_amount_set',
+  JACKPOT_CREATED: 'jackpot_created',
+  JACKPOT_CLAIMED: 'jackpot_claimed',
+  UNCLAIMED_JACKPOT_EXPIRED: 'unclaimed_jackpot_expired',
+
+  // Share & Referral Events (v2)
+  SHARE_PROMPT_SHOWN: 'share_prompt_shown',
+  SHARE_CLICKED: 'share_clicked',
+  SHARE_SUCCESS: 'share_success',
+
+  // Referrals (existing)
   REFERRAL_SHARE: 'referral_share',
   REFERRAL_JOIN: 'referral_join',
   REFERRAL_WIN: 'referral_win',
+  REFERRAL_GUESS: 'referral_guess',
   SHARE_BONUS_UNLOCKED: 'share_bonus_unlocked',
 
   // Rounds
