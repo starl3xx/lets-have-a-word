@@ -8,9 +8,8 @@
 
 'use client';
 
-import React, { useEffect, useState, type ReactNode } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNeynarContext, NeynarAuthButton, NeynarContextProvider, Theme } from '@neynar/react';
-import Head from 'next/head';
 
 // Error boundary for catching render errors
 class AnalyticsErrorBoundary extends React.Component<
@@ -135,9 +134,6 @@ function AnalyticsDashboardContent() {
   if (!neynarConfigured) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Head>
-          <title>Analytics - Let&apos;s Have A Word</title>
-        </Head>
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
           <h1 className="text-2xl font-bold mb-4 text-orange-600">Configuration Required</h1>
           <p className="mb-4 text-gray-600">
@@ -155,9 +151,6 @@ function AnalyticsDashboardContent() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Head>
-          <title>Analytics - Let&apos;s Have A Word</title>
-        </Head>
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
           <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
           <p className="mb-6 text-gray-600">
@@ -173,9 +166,6 @@ function AnalyticsDashboardContent() {
   if (isAdmin === null) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Head>
-          <title>Analytics - Let&apos;s Have A Word</title>
-        </Head>
         <div className="bg-white p-8 rounded-lg shadow-md">
           <p className="text-gray-600">Checking admin access...</p>
         </div>
@@ -187,9 +177,6 @@ function AnalyticsDashboardContent() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Head>
-          <title>Analytics - Let&apos;s Have A Word</title>
-        </Head>
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
           <h1 className="text-2xl font-bold mb-4 text-red-600">Access Denied</h1>
           <p className="mb-6 text-gray-600">
@@ -206,10 +193,6 @@ function AnalyticsDashboardContent() {
   // Admin - show dashboard
   return (
     <div className="min-h-screen bg-gray-100">
-      <Head>
-        <title>Analytics Dashboard - Let&apos;s Have A Word</title>
-      </Head>
-
       {/* Header */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
