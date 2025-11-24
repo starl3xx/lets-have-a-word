@@ -1,8 +1,11 @@
 // pages/admin/analytics.tsx
-import React, { useState, useEffect } from "react"
+// Phase 4: Advanced Analytics Dashboard
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
 import { AdminStatsCard } from "../../components/admin/AdminStatsCard"
 import { AdminSection } from "../../components/admin/AdminSection"
+import { AnalyticsChart } from "../../components/admin/AnalyticsChart"
+import { AnalyticsControls, TimeRange } from "../../components/admin/AnalyticsControls"
 
 // Dynamically import the auth wrapper (client-only)
 const AdminAuthWrapper = dynamic(
@@ -32,20 +35,29 @@ interface GuessData {
   free_to_paid_ratio: number
 }
 
+interface AdditionalMetrics {
+  avgRoundLengthMinutes: number
+  avgRoundJackpotEth: number
+  totalRounds: number
+  avgGuessesPerRound: number
+  avgGuessesPerDayPerUser: number
+  clanktonGuessesPerUser: number
+  creatorRevenuePerRound: number
+  creatorRevenueTotalEth: number
+  timeRange: string
+}
+
 function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
+  const [additionalMetrics, setAdditionalMetrics] = useState<AdditionalMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [timeRange, setTimeRange] = useState<TimeRange>("30d")
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    if (user) {
-      console.log('Dashboard user data:', user)
-      fetchAnalytics()
-    }
-  }, [user])
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     if (!user) return
 
     setLoading(true)
@@ -53,6 +65,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
     try {
       const devFidParam = `?devFid=${user.fid}`
+      const rangeParam = `&range=${timeRange}`
 
       // Fetch DAU data
       const dauResponse = await fetch(`/api/admin/analytics/dau${devFidParam}`)
@@ -70,10 +83,12 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       }
 
       const dauText = await dauResponse.text()
-      console.log('DAU Response text:', dauText.substring(0, 200))
       const dau = JSON.parse(dauText)
       console.log('DAU parsed data:', dau)
-      setDauData(Array.isArray(dau) ? dau : [])
+
+      // Apply time range filter
+      const filteredDau = filterByTimeRange(dau, timeRange)
+      setDauData(Array.isArray(filteredDau) ? filteredDau : [])
 
       // Fetch Free/Paid data
       const guessResponse = await fetch(`/api/admin/analytics/free-paid${devFidParam}`)
@@ -91,10 +106,20 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       }
 
       const guessText = await guessResponse.text()
-      console.log('Free/Paid Response text:', guessText.substring(0, 200))
       const guesses = JSON.parse(guessText)
       console.log('Free/Paid parsed data:', guesses)
-      setGuessData(Array.isArray(guesses) ? guesses : [])
+
+      // Apply time range filter
+      const filteredGuesses = filterByTimeRange(guesses, timeRange)
+      setGuessData(Array.isArray(filteredGuesses) ? filteredGuesses : [])
+
+      // Fetch additional metrics
+      const metricsResponse = await fetch(`/api/admin/analytics/metrics${devFidParam}${rangeParam}`)
+      if (metricsResponse.ok) {
+        const metrics = await metricsResponse.json()
+        console.log('Additional metrics:', metrics)
+        setAdditionalMetrics(metrics)
+      }
 
     } catch (err) {
       console.error('Error fetching analytics:', err)
@@ -102,12 +127,108 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
     } finally {
       setLoading(false)
     }
+  }, [user, timeRange])
+
+  // Filter data by time range
+  const filterByTimeRange = (data: any[], range: TimeRange) => {
+    if (range === "all") return data
+
+    const daysBack = range === "7d" ? 7 : 30
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack)
+
+    return data.filter(item => {
+      const itemDate = new Date(item.day || item.week_start)
+      return itemDate >= cutoffDate
+    })
+  }
+
+  useEffect(() => {
+    if (user) {
+      console.log('Dashboard user data:', user)
+      fetchAnalytics()
+    }
+  }, [user, fetchAnalytics])
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (autoRefresh) {
+      refreshIntervalRef.current = setInterval(() => {
+        console.log('Auto-refreshing analytics...')
+        fetchAnalytics()
+      }, 30000) // Refresh every 30 seconds
+    } else {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+        refreshIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+      }
+    }
+  }, [autoRefresh, fetchAnalytics])
+
+  // Export functions
+  const exportData = (format: "csv" | "json") => {
+    const data = {
+      dau: dauData,
+      guesses: guessData,
+      metrics: additionalMetrics,
+      exported_at: new Date().toISOString(),
+      time_range: timeRange
+    }
+
+    if (format === "json") {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+      downloadBlob(blob, `analytics-${timeRange}-${Date.now()}.json`)
+    } else {
+      // CSV export - combine all data
+      let csv = "Type,Date,Metric,Value\n"
+
+      dauData.forEach(row => {
+        csv += `DAU,${row.day},Active Users,${row.active_users}\n`
+      })
+
+      guessData.forEach(row => {
+        csv += `Guesses,${row.day},Free Guesses,${row.free_guesses}\n`
+        csv += `Guesses,${row.day},Paid Guesses,${row.paid_guesses}\n`
+        csv += `Guesses,${row.day},Free/Paid Ratio,${row.free_to_paid_ratio}\n`
+      })
+
+      if (additionalMetrics) {
+        csv += `Metrics,${new Date().toISOString()},Avg Round Length (min),${additionalMetrics.avgRoundLengthMinutes}\n`
+        csv += `Metrics,${new Date().toISOString()},Avg Round Jackpot (ETH),${additionalMetrics.avgRoundJackpotEth}\n`
+        csv += `Metrics,${new Date().toISOString()},Total Rounds,${additionalMetrics.totalRounds}\n`
+        csv += `Metrics,${new Date().toISOString()},Avg Guesses/Round,${additionalMetrics.avgGuessesPerRound}\n`
+        csv += `Metrics,${new Date().toISOString()},Avg Guesses/Day/User,${additionalMetrics.avgGuessesPerDayPerUser}\n`
+        csv += `Metrics,${new Date().toISOString()},CLANKTON Guesses/User,${additionalMetrics.clanktonGuessesPerUser}\n`
+        csv += `Metrics,${new Date().toISOString()},Creator Revenue/Round (ETH),${additionalMetrics.creatorRevenuePerRound}\n`
+        csv += `Metrics,${new Date().toISOString()},Total Creator Revenue (ETH),${additionalMetrics.creatorRevenueTotalEth}\n`
+      }
+
+      const blob = new Blob([csv], { type: "text/csv" })
+      downloadBlob(blob, `analytics-${timeRange}-${Date.now()}.csv`)
+    }
+  }
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   // Calculate stats from data
   const todayDAU = dauData[0]?.active_users || 0
   const yesterdayDAU = dauData[1]?.active_users || 0
-  const avgDAU7 = dauData.slice(0, 7).reduce((sum, d) => sum + d.active_users, 0) / Math.min(7, dauData.length) || 0
+  const avgDAU7 = dauData.slice(0, Math.min(7, dauData.length)).reduce((sum, d) => sum + d.active_users, 0) / Math.min(7, dauData.length) || 0
   const avgDAU30 = dauData.reduce((sum, d) => sum + d.active_users, 0) / dauData.length || 0
 
   const totalFreeGuesses = guessData.reduce((sum, d) => sum + d.free_guesses, 0)
@@ -116,6 +237,18 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const avgRatio = guessData.length > 0
     ? guessData.reduce((sum, d) => sum + d.free_to_paid_ratio, 0) / guessData.length
     : 0
+
+  // Prepare chart data
+  const dauChartData = [...dauData].reverse().map(d => ({
+    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    "Active Users": d.active_users
+  }))
+
+  const guessChartData = [...guessData].reverse().map(d => ({
+    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    "Free Guesses": d.free_guesses,
+    "Paid Guesses": d.paid_guesses
+  }))
 
   return (
     <main style={{
@@ -145,7 +278,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 fontSize: "14px",
                 color: "#6b7280",
               }}>
-                Phase 3: Real data from Neon database
+                Phase 4: Charts, filters, export & advanced metrics
               </p>
             </div>
 
@@ -223,6 +356,17 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         padding: "32px 24px",
       }}>
 
+        {/* Controls */}
+        <AnalyticsControls
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          autoRefresh={autoRefresh}
+          onAutoRefreshToggle={() => setAutoRefresh(!autoRefresh)}
+          onExport={exportData}
+          onRefresh={fetchAnalytics}
+          isLoading={loading}
+        />
+
         {/* Error Message */}
         {error && (
           <div style={{
@@ -243,6 +387,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
+            marginBottom: "24px",
           }}>
             <AdminStatsCard
               title="Today"
@@ -269,6 +414,16 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
               loading={loading}
             />
           </div>
+
+          {/* DAU Trend Chart */}
+          <AnalyticsChart
+            data={dauChartData}
+            type="line"
+            dataKey="Active Users"
+            xAxisKey="day"
+            title="Daily Active Users Trend"
+            colors={["#3b82f6"]}
+          />
         </AdminSection>
 
         {/* Guesses per Round */}
@@ -277,11 +432,12 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
+            marginBottom: "24px",
           }}>
             <AdminStatsCard
               title="Total Guesses"
               value={loading ? "..." : totalGuesses.toLocaleString()}
-              subtitle="Last 30 days"
+              subtitle={`Last ${timeRange}`}
               loading={loading}
             />
             <AdminStatsCard
@@ -303,33 +459,113 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
               loading={loading}
             />
           </div>
+
+          {/* Guesses Bar Chart */}
+          <AnalyticsChart
+            data={guessChartData}
+            type="bar"
+            dataKey={["Free Guesses", "Paid Guesses"]}
+            xAxisKey="day"
+            title="Free vs Paid Guesses"
+            colors={["#10b981", "#f59e0b"]}
+          />
         </AdminSection>
 
-        {/* Revenue - Placeholder */}
-        <AdminSection title="Revenue">
+        {/* Game Metrics */}
+        <AdminSection title="Game metrics">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
           }}>
-            <AdminStatsCard title="Total Revenue" value="Coming soon" subtitle="All time" />
-            <AdminStatsCard title="This Month" value="Coming soon" subtitle="November 2025" />
-            <AdminStatsCard title="Avg per User" value="Coming soon" subtitle="Per paying user" />
-            <AdminStatsCard title="Conversion Rate" value="Coming soon" subtitle="Free to paid" />
+            <AdminStatsCard
+              title="Avg Round Length"
+              value={loading ? "..." : additionalMetrics ? `${Math.round(additionalMetrics.avgRoundLengthMinutes)} min` : "0 min"}
+              subtitle="From start to resolution"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Round Jackpot"
+              value={loading ? "..." : additionalMetrics ? `${additionalMetrics.avgRoundJackpotEth.toFixed(4)} ETH` : "0 ETH"}
+              subtitle="Average prize pool"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Total Rounds"
+              value={loading ? "..." : additionalMetrics ? additionalMetrics.totalRounds.toLocaleString() : "0"}
+              subtitle={`In ${timeRange}`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Guesses/Round"
+              value={loading ? "..." : additionalMetrics ? additionalMetrics.avgGuessesPerRound.toFixed(1) : "0"}
+              subtitle="Per round"
+              loading={loading}
+            />
           </div>
         </AdminSection>
 
-        {/* Player Retention - Placeholder */}
-        <AdminSection title="Player retention">
+        {/* User Engagement */}
+        <AdminSection title="User engagement">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
             gap: "16px",
           }}>
-            <AdminStatsCard title="Day 1" value="Coming soon" subtitle="Return rate" />
-            <AdminStatsCard title="Day 7" value="Coming soon" subtitle="Return rate" />
-            <AdminStatsCard title="Day 30" value="Coming soon" subtitle="Return rate" />
-            <AdminStatsCard title="Avg Sessions" value="Coming soon" subtitle="Per week" />
+            <AdminStatsCard
+              title="Avg Guesses/Day/User"
+              value={loading ? "..." : additionalMetrics ? additionalMetrics.avgGuessesPerDayPerUser.toFixed(2) : "0"}
+              subtitle="Average daily activity"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="CLANKTON Guesses/User"
+              value={loading ? "..." : additionalMetrics ? additionalMetrics.clanktonGuessesPerUser.toFixed(2) : "0"}
+              subtitle="Holder bonus usage"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Day 7 Retention"
+              value="Coming soon"
+              subtitle="Return rate"
+            />
+            <AdminStatsCard
+              title="Day 30 Retention"
+              value="Coming soon"
+              subtitle="Return rate"
+            />
+          </div>
+        </AdminSection>
+
+        {/* Revenue */}
+        <AdminSection title="Creator revenue">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+          }}>
+            <AdminStatsCard
+              title="Total Creator Revenue"
+              value={loading ? "..." : additionalMetrics ? `${additionalMetrics.creatorRevenueTotalEth.toFixed(4)} ETH` : "0 ETH"}
+              subtitle={`In ${timeRange}`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Avg Revenue/Round"
+              value={loading ? "..." : additionalMetrics ? `${additionalMetrics.creatorRevenuePerRound.toFixed(4)} ETH` : "0 ETH"}
+              subtitle="Per round"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Conversion Rate"
+              value="Coming soon"
+              subtitle="Free to paid"
+            />
+            <AdminStatsCard
+              title="ARPU"
+              value="Coming soon"
+              subtitle="Avg revenue per user"
+            />
           </div>
         </AdminSection>
 
