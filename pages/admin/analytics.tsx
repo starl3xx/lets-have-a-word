@@ -17,9 +17,10 @@ interface DashboardContentProps {
     display_name?: string
     pfp_url?: string
   }
+  onSignOut?: () => void
 }
 
-function DashboardContent({ user }: DashboardContentProps) {
+function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   return (
     <main style={{
       minHeight: "100vh",
@@ -85,6 +86,23 @@ function DashboardContent({ user }: DashboardContentProps) {
                     FID: {user.fid}
                   </div>
                 </div>
+                {onSignOut && (
+                  <button
+                    onClick={onSignOut}
+                    style={{
+                      padding: "6px 12px",
+                      background: "#6b7280",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      marginLeft: "8px",
+                    }}
+                  >
+                    Sign Out
+                  </button>
+                )}
               </div>
             )}
           </div>
