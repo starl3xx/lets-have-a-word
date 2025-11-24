@@ -7,6 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { awardShareBonus, getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
+import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 
 export interface ShareCallbackResponse {
   ok: boolean;
@@ -55,6 +56,16 @@ export default async function handler(
     const newFreeGuessesRemaining = getFreeGuessesRemaining(dailyState);
 
     console.log(`[share-callback] Share bonus awarded to FID ${fid}. New free guesses: ${newFreeGuessesRemaining}`);
+
+    // Milestone 5.3: Log SHARE_SUCCESS event with cast hash (non-blocking)
+    logAnalyticsEvent(AnalyticsEventTypes.SHARE_SUCCESS, {
+      userId: fid.toString(),
+      data: {
+        castHash,
+        bonusAwarded: true,
+        newFreeGuessesRemaining,
+      },
+    });
 
     return res.status(200).json({
       ok: true,
