@@ -6,7 +6,7 @@ import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
 import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
-import { logGuessEvent, logReferralEvent, AnalyticsEventTypes } from './analytics';
+import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 
 /**
  * Normalize a guess word
@@ -232,12 +232,46 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
 
+      // Get guess count (after insert, so totalGuesses includes this winning guess)
+      const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
+
       // Milestone 5.2: Log analytics event (non-blocking)
       logGuessEvent(isPaidGuess, fid.toString(), round.id.toString(), {
         word,
         isCorrect: true,
         isWinner: true,
       });
+
+      // Analytics v2: Log enhanced guess event with metadata
+      logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
+        userId: fid.toString(),
+        roundId: round.id.toString(),
+        data: {
+          word,
+          is_correct: true,
+          guess_number: totalGuesses,
+          letters_correct_count: 5, // All letters correct!
+          is_paid: isPaidGuess,
+        },
+      });
+
+      // Analytics v2: Log if this was their first guess (hole-in-one!)
+      if (totalGuesses === 1) {
+        logAnalyticsEvent(AnalyticsEventTypes.FIRST_GUESS_SUBMITTED, {
+          userId: fid.toString(),
+          roundId: round.id.toString(),
+          data: {
+            word,
+            letters_correct: 5,
+            is_correct: true,
+          },
+        });
+        logAnalyticsEvent(AnalyticsEventTypes.FIRST_GUESS_WORD, {
+          userId: fid.toString(),
+          roundId: round.id.toString(),
+          data: { word },
+        });
+      }
 
       // Log referral win if applicable
       if (referrerFid) {
@@ -326,12 +360,57 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
 
     console.log(`❌ User ${fid} guessed "${word}" incorrectly (${totalGuesses} total guesses)`);
 
-    // Milestone 5.2: Log analytics event (non-blocking)
+    // Calculate letter matches for analytics
+    const lettersCorrect = word.split('').filter((char, idx) => char === normalizedAnswer[idx]).length;
+
+    // Milestone 5.2: Log analytics events (non-blocking)
+    // Log the basic guess event
     logGuessEvent(isPaidGuess, fid.toString(), round.id.toString(), {
       word,
       isCorrect: false,
       totalGuesses,
     });
+
+    // Analytics v2: Log enhanced guess event with metadata
+    logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
+      userId: fid.toString(),
+      roundId: round.id.toString(),
+      data: {
+        word,
+        is_correct: false,
+        guess_number: totalGuesses,
+        letters_correct_count: lettersCorrect,
+        is_paid: isPaidGuess,
+      },
+    });
+
+    // Analytics v2: Log wrong guess event
+    logAnalyticsEvent(AnalyticsEventTypes.WRONG_GUESS_SUBMITTED, {
+      userId: fid.toString(),
+      roundId: round.id.toString(),
+      data: {
+        word,
+        guess_number: totalGuesses,
+        letters_correct: lettersCorrect,
+      },
+    });
+
+    // Analytics v2: Log first guess if this is their first
+    if (totalGuesses === 1) {
+      logAnalyticsEvent(AnalyticsEventTypes.FIRST_GUESS_SUBMITTED, {
+        userId: fid.toString(),
+        roundId: round.id.toString(),
+        data: {
+          word,
+          letters_correct: lettersCorrect,
+        },
+      });
+      logAnalyticsEvent(AnalyticsEventTypes.FIRST_GUESS_WORD, {
+        userId: fid.toString(),
+        roundId: round.id.toString(),
+        data: { word },
+      });
+    }
 
     return {
       status: 'incorrect',
