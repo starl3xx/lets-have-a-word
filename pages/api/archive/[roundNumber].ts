@@ -1,0 +1,77 @@
+/**
+ * Get Archived Round by Number API
+ * Milestone 5.4: Round archive
+ *
+ * Returns a specific archived round by its number
+ *
+ * GET /api/archive/:roundNumber
+ */
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getArchivedRound, getRoundGuessDistribution } from '../../../src/lib/archive';
+import type { RoundArchiveRow } from '../../../src/db/schema';
+
+export interface ArchiveDetailResponse {
+  round: RoundArchiveRow | null;
+  distribution?: {
+    distribution: Array<{ hour: number; count: number }>;
+    byPlayer: Array<{ fid: number; count: number }>;
+  };
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ArchiveDetailResponse | { error: string }>
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { roundNumber } = req.query;
+    const includeDistribution = req.query.distribution === 'true';
+
+    if (!roundNumber || typeof roundNumber !== 'string') {
+      return res.status(400).json({ error: 'Round number is required' });
+    }
+
+    const roundNum = parseInt(roundNumber, 10);
+    if (isNaN(roundNum) || roundNum < 1) {
+      return res.status(400).json({ error: 'Invalid round number' });
+    }
+
+    const round = await getArchivedRound(roundNum);
+
+    if (!round) {
+      return res.status(404).json({ error: `Round ${roundNum} not found in archive` });
+    }
+
+    // Serialize decimal/date values
+    const serialized = serializeArchiveRow(round);
+
+    // Optionally include guess distribution
+    let distribution;
+    if (includeDistribution) {
+      distribution = await getRoundGuessDistribution(roundNum);
+    }
+
+    return res.status(200).json({ round: serialized, distribution });
+  } catch (error) {
+    console.error('[api/archive/[roundNumber]] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
+ * Serialize archive row for JSON response
+ */
+function serializeArchiveRow(row: RoundArchiveRow): any {
+  return {
+    ...row,
+    seedEth: row.seedEth.toString(),
+    finalJackpotEth: row.finalJackpotEth.toString(),
+    startTime: row.startTime.toISOString(),
+    endTime: row.endTime.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+  };
+}

@@ -11,11 +11,59 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 5.3 Complete
+## 🎯 Current Status: Milestone 5.4 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, and anti-abuse systems are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, and round archive are fully implemented and production-ready:
 
-### ✅ Milestone 5.3 - Advanced Analytics & Fairness Systems (Latest)
+### ✅ Milestone 5.4 - Round Archive (Latest)
+
+Comprehensive round archive system for storing and browsing historical round data:
+
+- **Database Schema**
+  - New `round_archive` table for archived round data
+  - Fields: roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount, referralBonusCount
+  - Index on `round_number` for fast lookups
+  - New `round_archive_errors` table for tracking archive anomalies
+  - Migration: `drizzle/0002_round_archive.sql`
+
+- **Backend Logic**
+  - `archiveRound()` function computes and stores round statistics
+  - Idempotent - safe to call multiple times
+  - Computes: totalGuesses, uniquePlayers, CLANKTON bonus count, referral signups
+  - Attaches payout JSON with winner, referrer, top guessers, seed, creator
+  - Module: `src/lib/archive.ts`
+
+- **Public API Endpoints**
+  - `GET /api/archive/latest` - Most recently archived round
+  - `GET /api/archive/:roundNumber` - Specific round with optional distribution histogram
+  - `GET /api/archive/list` - Paginated list with optional aggregate stats
+
+- **Admin API Endpoints**
+  - `POST /api/admin/archive/sync` - Archive all unarchived resolved rounds
+  - `GET /api/admin/archive/debug/:roundNumber` - Compare archived vs raw data
+  - `GET /api/admin/archive/errors` - View archiving errors
+
+- **Admin Dashboard**
+  - New `/admin/archive` page with full archive management
+  - Statistics overview: total rounds, guesses, unique winners, jackpot distributed
+  - Paginated round table with click-to-detail
+  - Detail view: winner info, payouts breakdown, guess distribution histogram
+  - Sync controls and error monitoring
+
+- **Player UI**
+  - `/archive` - Browse all archived rounds with pagination
+  - `/archive/:roundNumber` - Individual round detail page
+  - Displays: word, jackpot, winner, guesses, players, duration
+  - Guess distribution histogram by hour
+  - Commit-reveal verification info (salt)
+  - Responsive dark theme matching game UI
+
+- **Error Handling**
+  - Archive errors stored in `round_archive_errors` table
+  - Debug endpoint compares archived vs raw data
+  - Discrepancy detection and reporting
+
+### ✅ Milestone 5.3 - Advanced Analytics & Fairness Systems
 
 Comprehensive game integrity protections, adversarial simulations, and provable-fairness monitoring:
 
