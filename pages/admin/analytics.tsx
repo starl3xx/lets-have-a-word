@@ -238,7 +238,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         )}
 
         {/* Daily Active Users */}
-        <AdminSection title="Daily Active Users">
+        <AdminSection title="Daily active users">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
@@ -272,7 +272,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         </AdminSection>
 
         {/* Guesses per Round */}
-        <AdminSection title="Guesses per Round">
+        <AdminSection title="Guesses per round">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
@@ -320,7 +320,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         </AdminSection>
 
         {/* Player Retention - Placeholder */}
-        <AdminSection title="Player Retention">
+        <AdminSection title="Player retention">
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
