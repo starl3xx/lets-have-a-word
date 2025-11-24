@@ -207,7 +207,16 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
   }
 
   // Check if user is admin
-  const isAdmin = ADMIN_FIDS.includes(user.fid)
+  const userFid = typeof user.fid === 'string' ? parseInt(user.fid) : user.fid
+  const isAdmin = ADMIN_FIDS.includes(userFid)
+
+  console.log('Admin check:', {
+    userFid,
+    userFidType: typeof user.fid,
+    originalFid: user.fid,
+    ADMIN_FIDS,
+    isAdmin,
+  })
 
   // Not an admin
   if (!isAdmin) {
