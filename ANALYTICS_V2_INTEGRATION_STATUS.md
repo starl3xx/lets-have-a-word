@@ -297,6 +297,33 @@ The events currently being logged are sufficient to populate:
 
 ---
 
-**Last Updated:** Analytics v2 backend complete, gameplay event logging integrated
-**Commit:** `d428b4e` - Gameplay event logging
-**Branch:** `claude/admin-analytics-page-017p2PFAWu3WtA9dz5Nb4Yba`
+## 🗄️ Round Archive (Milestone 5.4)
+
+A complete round archive system has been added for storing and browsing historical round data.
+
+### Archive Features
+- **Database Tables**: `round_archive` and `round_archive_errors`
+- **Archive Logic**: `src/lib/archive.ts` with idempotent archiving
+- **Public API Endpoints**:
+  - `GET /api/archive/latest` - Latest archived round
+  - `GET /api/archive/:roundNumber` - Specific round detail
+  - `GET /api/archive/list` - Paginated list with stats
+- **Admin API Endpoints**:
+  - `POST /api/admin/archive/sync` - Sync all rounds
+  - `GET /api/admin/archive/debug/:roundNumber` - Debug comparison
+  - `GET /api/admin/archive/errors` - View errors
+- **Admin Dashboard**: `/admin/archive` for full archive management
+- **Player UI**: `/archive` and `/archive/:roundNumber` pages
+
+### Archive Statistics Available
+- Total rounds, guesses, unique winners
+- Total jackpot distributed
+- Average guesses/players per round
+- Average round length
+- Guess distribution by hour
+
+---
+
+**Last Updated:** Milestone 5.4 Round Archive complete
+**Commit:** See current branch
+**Branch:** `claude/create-round-archive-table-01QvvtJb7N5e3PpLUVNg5Hk3`
