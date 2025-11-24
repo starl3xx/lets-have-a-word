@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { NeynarContextProvider, useNeynarContext, NeynarAuthButton, Theme } from "@neynar/react"
 
 // Admin FIDs
 const ADMIN_FIDS = [
@@ -10,12 +9,97 @@ const ADMIN_FIDS = [
   1477413,   // Secondary admin
 ]
 
-function AdminAuthContent({ children }: { children: React.ReactNode }) {
-  const neynarContext = useNeynarContext()
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+interface SIWNData {
+  fid: number
+  username: string
+  display_name?: string
+  pfp_url?: string
+  bio?: string
+  custody_address?: string
+  verified_addresses?: {
+    eth_addresses: string[]
+    sol_addresses: string[]
+  }
+  signer_uuid?: string
+}
 
-  // Handle case where context isn't ready yet
-  if (!neynarContext) {
+declare global {
+  interface Window {
+    onSignInSuccess?: (data: SIWNData) => void
+  }
+}
+
+interface AdminAuthWrapperProps {
+  children: React.ReactNode
+}
+
+export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
+  const [user, setUser] = useState<SIWNData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID
+
+  useEffect(() => {
+    // Check if user is already signed in (stored in localStorage)
+    const storedUser = localStorage.getItem('neynar_user')
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+        setIsLoading(false)
+      } catch (e) {
+        localStorage.removeItem('neynar_user')
+        setIsLoading(false)
+      }
+    } else {
+      setIsLoading(false)
+    }
+
+    // Define the global callback for SIWN
+    window.onSignInSuccess = (data: SIWNData) => {
+      console.log("Sign-in success:", data)
+      setUser(data)
+      // Store in localStorage for persistence
+      localStorage.setItem('neynar_user', JSON.stringify(data))
+    }
+
+    // Load the Neynar SIWN script
+    const script = document.createElement('script')
+    script.src = 'https://neynarxyz.github.io/siwn/raw/1.2.0/index.js'
+    script.async = true
+    document.body.appendChild(script)
+
+    return () => {
+      // Cleanup
+      delete window.onSignInSuccess
+      if (script.parentNode) {
+        script.parentNode.removeChild(script)
+      }
+    }
+  }, [])
+
+  const handleSignOut = () => {
+    setUser(null)
+    localStorage.removeItem('neynar_user')
+  }
+
+  if (!neynarClientId) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f3f4f6",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+      }}>
+        <div style={{ color: "#dc2626" }}>
+          Neynar client ID not configured
+        </div>
+      </div>
+    )
+  }
+
+  // Loading
+  if (isLoading) {
     return (
       <div style={{
         minHeight: "100vh",
@@ -29,20 +113,8 @@ function AdminAuthContent({ children }: { children: React.ReactNode }) {
     )
   }
 
-  const { user, isAuthenticated } = neynarContext
-
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      // Check if user's FID is in admin list
-      const userFid = user.fid
-      setIsAdmin(ADMIN_FIDS.includes(userFid))
-    } else {
-      setIsAdmin(null)
-    }
-  }, [isAuthenticated, user])
-
   // Not authenticated - show login
-  if (!isAuthenticated) {
+  if (!user) {
     return (
       <div style={{
         minHeight: "100vh",
@@ -75,26 +147,21 @@ function AdminAuthContent({ children }: { children: React.ReactNode }) {
           }}>
             Sign in with your Farcaster account to access the admin dashboard.
           </p>
-          <NeynarAuthButton />
+
+          {/* Neynar SIWN Button */}
+          <div
+            className="neynar_signin"
+            data-client_id={neynarClientId}
+            data-success-callback="onSignInSuccess"
+            data-theme="light"
+          />
         </div>
       </div>
     )
   }
 
-  // Checking admin status
-  if (isAdmin === null) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f3f4f6",
-      }}>
-        <div style={{ color: "#6b7280" }}>Checking admin access...</div>
-      </div>
-    )
-  }
+  // Check if user is admin
+  const isAdmin = ADMIN_FIDS.includes(user.fid)
 
   // Not an admin
   if (!isAdmin) {
@@ -136,52 +203,34 @@ function AdminAuthContent({ children }: { children: React.ReactNode }) {
             borderRadius: "6px",
             fontSize: "12px",
             color: "#6b7280",
+            marginBottom: "16px",
           }}>
-            FID: {user?.fid}<br />
-            Username: @{user?.username}
+            FID: {user.fid}<br />
+            Username: @{user.username}
           </div>
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: "8px 16px",
+              background: "#6b7280",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+          >
+            Sign Out
+          </button>
         </div>
       </div>
     )
   }
 
-  // Admin - show dashboard with user info in header
+  // Admin - show dashboard
   return (
     <>
-      {React.cloneElement(children as React.ReactElement, { user })}
+      {React.cloneElement(children as React.ReactElement, { user, onSignOut: handleSignOut })}
     </>
-  )
-}
-
-interface AdminAuthWrapperProps {
-  children: React.ReactNode
-}
-
-export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
-  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID
-
-  if (!neynarClientId) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f3f4f6",
-      }}>
-        <div style={{ color: "#dc2626" }}>
-          Neynar client ID not configured
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <NeynarContextProvider
-      clientId={neynarClientId}
-      defaultTheme={Theme.Light}
-    >
-      <AdminAuthContent>{children}</AdminAuthContent>
-    </NeynarContextProvider>
   )
 }
