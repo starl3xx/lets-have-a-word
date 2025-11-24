@@ -11,14 +11,12 @@ export default function AnalyticsDashboardClient() {
 
   return (
     <NeynarContextProvider
-      settings={{
-        clientId: neynarClientId,
-        defaultTheme: Theme.Light,
-      }}
+      clientId={neynarClientId}
+      defaultTheme={Theme.Light}
     >
       <div style={{ padding: "24px" }}>
         <h1>Analytics</h1>
-        <p>Step 1: Neynar provider added. Still working?</p>
+        <p>Step 2: Fixed Neynar provider props (no settings wrapper)</p>
       </div>
     </NeynarContextProvider>
   )
