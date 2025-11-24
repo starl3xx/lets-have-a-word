@@ -64,19 +64,28 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
     const storedUser = localStorage.getItem('neynar_user')
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser))
+        const parsedUser = JSON.parse(storedUser)
+        console.log('📦 Loaded user from localStorage:', parsedUser)
+        setUser(parsedUser)
         setIsLoading(false)
       } catch (e) {
+        console.error('❌ Failed to parse stored user:', e)
         localStorage.removeItem('neynar_user')
         setIsLoading(false)
       }
     } else {
+      console.log('ℹ️ No stored user found')
       setIsLoading(false)
     }
 
     // Define the global callback for SIWN
     window.onSignInSuccess = (data: SIWNData) => {
-      console.log("✅ Sign-in success:", data)
+      console.log("✅ Sign-in success:")
+      console.log("  FID:", data.fid)
+      console.log("  Username:", data.username)
+      console.log("  Display name:", data.display_name)
+      console.log("  Profile pic:", data.pfp_url)
+      console.log("  Full data:", data)
       setUser(data)
       // Store in localStorage for persistence
       localStorage.setItem('neynar_user', JSON.stringify(data))
