@@ -1,31 +1,29 @@
 /**
  * _app.tsx - Root Application Component
  *
- * BUG FIX #3 (2025-11-24) - FINAL FIX:
- * Removed NeynarContextProvider entirely from _app.tsx.
+ * BUG FIX #4 (2025-11-24):
+ * Removed @farcaster/miniapp-sdk import to prevent server-side bundling issues.
  *
- * Root cause discovered:
- * NeynarContextProvider does NOT support server-side rendering. When included in _app.tsx,
- * it causes React error #31 during SSR with the message:
- * "Objects are not valid as a React child (found: object with keys {$$typeof, type, key, ref, props})"
+ * Root cause:
+ * @farcaster/miniapp-sdk was imported in _app.tsx, which meant it was included
+ * in the server-side bundle for ALL pages, including /admin/analytics.
+ * This caused "SyntaxError: Cannot use import statement outside a module" errors
+ * in Vercel because the miniapp SDK is not compatible with Node.js server environment.
  *
- * Previous attempts:
- * 1. Conditional returns based on isMounted → Changed tree structure → React #31
- * 2. Build-time conditional → Still tried to SSR the provider → React #31
+ * Solution:
+ * - Removed @farcaster/miniapp-sdk import from _app.tsx
+ * - Moved Farcaster SDK initialization to pages/index.tsx (main game page only)
+ * - Admin analytics (/admin/analytics) now has NO dependency on miniapp SDK
+ * - Admin auth uses SIWN only, not Farcaster mini-app context
  *
- * Final solution:
- * Do NOT include NeynarContextProvider in the root _app.tsx at all.
- * Only use it on specific pages that need it (/admin/analytics), and handle it
- * client-side only within those pages.
- *
- * This keeps the main game page (/) free from any Neynar dependencies and prevents
- * any SSR issues with the Neynar provider.
+ * Important: @farcaster/miniapp-sdk should ONLY be imported in:
+ * - pages/index.tsx (main game page)
+ * - Game-specific components (SharePromptModal, WinnerShareCard, etc.)
+ * - NEVER in _app.tsx, admin pages, or server-side code
  */
 
 import type { AppProps } from 'next/app';
-import { useEffect } from 'react';
 import '../styles/globals.css';
-import sdk from '@farcaster/miniapp-sdk';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
@@ -34,25 +32,8 @@ import { config } from '../src/config/wagmi';
 const queryClient = new QueryClient();
 
 export default function App({ Component, pageProps }: AppProps) {
-  useEffect(() => {
-    // Initialize Farcaster Miniapp SDK
-    const initFarcaster = async () => {
-      try {
-        // Add frame context to the app
-        const context = await sdk.context;
-        console.log('Farcaster context:', context);
-
-        // Signal that the app is ready
-        sdk.actions.ready();
-      } catch (error) {
-        console.log('Not in Farcaster context:', error);
-      }
-    };
-
-    initFarcaster();
-  }, []);
-
-  // Simple, clean provider tree without Neynar
+  // Simple, clean provider tree
+  // Farcaster SDK initialization moved to pages/index.tsx (game page only)
   // Neynar is only used on /admin/analytics page (handled there)
   return (
     <WagmiProvider config={config}>

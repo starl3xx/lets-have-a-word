@@ -57,7 +57,10 @@ export default function Home() {
   const [hideStateError, setHideStateError] = useState(false);
 
   /**
-   * Get Farcaster context on mount
+   * Get Farcaster context on mount and signal ready
+   * NOTE: @farcaster/miniapp-sdk is ONLY imported here (main game page)
+   * It should NEVER be imported in _app.tsx, admin pages, or server-side code
+   * because it's not compatible with Node.js server environment
    */
   useEffect(() => {
     const getFarcasterContext = async () => {
@@ -73,6 +76,9 @@ export default function Home() {
           setFid(12345); // Dev fallback
           setIsInMiniApp(false);
         }
+
+        // Signal that the app is ready to the Farcaster mini-app runtime
+        sdk.actions.ready();
       } catch (error) {
         console.log('Not in Farcaster context, using dev mode');
         setFid(12345); // Dev fallback

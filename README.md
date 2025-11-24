@@ -1014,6 +1014,17 @@ NEYNAR_API_KEY=<your-neynar-api-key>                  # Server-side API key
 - Confirm on the Neynar app SIWN tab that `https://lets-have-a-word.vercel.app` is an authorized origin
 - Permissions: **Read + Write** are enabled (Write is required for SIWN)
 
+**Code Architecture Notes:**
+- Admin analytics uses **SIWN (Sign In With Neynar)** for authentication, NOT the Farcaster miniapp SDK
+- `@farcaster/miniapp-sdk` should **ONLY** be imported in:
+  - `pages/index.tsx` (main game page)
+  - Game-specific components (SharePromptModal, WinnerShareCard, etc.)
+- `@farcaster/miniapp-sdk` must **NEVER** be imported in:
+  - `pages/_app.tsx` (causes server-side bundling issues)
+  - `pages/admin/*` (admin pages use SIWN, not miniapp context)
+  - Any server-side code or API routes
+- The miniapp SDK is **client-side only** and not compatible with Node.js server environment
+
 ### Analytics Events
 
 The system logs the following event types:
