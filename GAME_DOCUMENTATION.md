@@ -1400,28 +1400,60 @@ Views are non-materialized and automatically update. No refresh needed.
 
 ### Code Architecture Notes
 
-**IMPORTANT: SDK Import Restrictions**
+**CRITICAL: Provider Scoping (BUG FIX #5 - 2025-11-24) - FINAL FIX**
 
-The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farcaster mini-app runtime. It is **NOT compatible with Node.js server environments** and must be used carefully to avoid server-side bundling issues.
+To prevent server-side bundling issues with `@farcaster/miniapp-sdk`, providers are scoped to specific pages:
+
+**Provider Architecture:**
+
+- **`pages/_app.tsx`**: Minimal, NO providers
+  - Only imports global styles (`globals.css`)
+  - Does NOT wrap pages with any providers (no WagmiProvider, no QueryClientProvider)
+  - Clean pass-through to page components
+
+- **`pages/index.tsx`** (Game page):
+  - Wraps `GameContent` with `WagmiProvider` + `QueryClientProvider`
+  - Imports `@farcaster/miniapp-sdk` for Farcaster mini-app functionality
+  - Uses `@farcaster/miniapp-wagmi-connector` for wallet connection
+  - Scoped to game page ONLY
+
+- **`pages/admin/analytics.tsx`** (Admin page):
+  - Wraps dashboard with `NeynarContextProvider` for SIWN authentication
+  - ZERO dependency on Farcaster miniapp ecosystem
+  - No wagmi, no miniapp SDK, no game components
+  - Uses standard React Query for analytics API calls
+
+**SDK Import Restrictions:**
+
+The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farcaster mini-app runtime. It is **NOT compatible with Node.js server environments**.
 
 **Where to import `@farcaster/miniapp-sdk`:**
 - ✅ `pages/index.tsx` (main game page)
-- ✅ Game-specific components (SharePromptModal, WinnerShareCard, etc.)
+- ✅ Game-specific components (SharePromptModal, WinnerShareCard, StatsSheet, FAQSheet, etc.)
+- ✅ `src/lib/haptics.ts` (used only by game components)
 - ✅ Client-side only code that runs in the Farcaster frame
 
 **Where to NEVER import `@farcaster/miniapp-sdk`:**
-- ❌ `pages/_app.tsx` (causes server-side bundling for ALL pages)
+- ❌ `pages/_app.tsx` (would bundle SDK for ALL pages)
 - ❌ `pages/admin/*` (admin pages use SIWN, not miniapp context)
 - ❌ `pages/api/*` (server-side API routes)
-- ❌ Any server-side code or utilities
+- ❌ `src/config/wagmi.ts` should NOT be imported by `_app.tsx`
+- ❌ Any shared utilities used by both game and admin pages
 
-**Why this matters:**
-- Admin analytics uses **SIWN (Sign In With Neynar)** for authentication, not the miniapp SDK
-- The miniapp SDK causes "SyntaxError: Cannot use import statement outside a module" errors when bundled for server-side rendering
-- Importing SDK in `_app.tsx` affects ALL pages including admin routes
-- Admin dashboard is web-only and has no dependency on the Farcaster mini-app runtime
+**Why This Matters:**
 
-**Bug Fix Reference:** See `pages/_app.tsx` header comment (BUG FIX #4) for detailed explanation of previous server-side bundling issue.
+- The miniapp SDK is **client-side only** and NOT compatible with Node.js server environment
+- `@farcaster/miniapp-wagmi-connector` has `@farcaster/miniapp-sdk` as a peer dependency
+- If `wagmi` config is in `_app.tsx`, the SDK gets bundled for ALL pages including admin
+- This causes "SyntaxError: Cannot use import statement outside a module" errors in Vercel SSR
+- Admin analytics must have ZERO dependency on the Farcaster ecosystem
+
+**Root Cause of Previous Issues:**
+
+1. **BUG FIX #4**: SDK was imported directly in `_app.tsx` → Removed import
+2. **BUG FIX #5**: `WagmiProvider` was in `_app.tsx`, which imported wagmi config, which imported `@farcaster/miniapp-wagmi-connector`, which has miniapp SDK as peer dependency → Moved WagmiProvider to `pages/index.tsx` only
+
+**Bug Fix Reference:** See `pages/_app.tsx` header comment (BUG FIX #5) and `pages/index.tsx` for detailed architecture.
 
 ---
 
