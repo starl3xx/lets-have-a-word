@@ -15,7 +15,7 @@ export interface GameRulesConfig {
     referrer: number; // 0.1 = 10%
     top10: number; // 0.1 = 10%
   };
-  seedCapEth: string; // e.g. "0.1"
+  seedCapEth: string; // e.g. "0.03"
   clanktonThreshold: string; // e.g. "100000000"
 }
 
