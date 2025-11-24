@@ -145,6 +145,76 @@ interface ShareFunnelAnalytics {
   timeRange: string
 }
 
+// Milestone 5.3: Fairness Analytics
+interface FairnessAlert {
+  id: string
+  type: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  roundId: number
+  message: string
+  createdAt: string
+}
+
+interface FairnessAnalytics {
+  recentAlerts: FairnessAlert[]
+  prizeAuditSummary: {
+    totalJackpotDistributed: number
+    totalPaidGuesses: number
+    totalRevenue: number
+    averageJackpot: number
+    largestJackpot: number
+  }
+  fairnessStatus: 'healthy' | 'warning' | 'critical'
+}
+
+interface PerformanceMetrics {
+  medianGuessesToSolve: number
+  meanGuessesToSolve: number
+  totalGuesses: number
+  totalRounds: number
+  guessDistribution: Array<{
+    bucket: string
+    count: number
+    percentage: number
+  }>
+  clanktonAdvantage: {
+    clanktonSolveRate: number
+    regularSolveRate: number
+    clanktonAvgGuesses: number
+    regularAvgGuesses: number
+    advantagePercentage: number
+    clanktonWinRate: number
+    regularWinRate: number
+  }
+  referralMetrics: {
+    totalReferrals: number
+    referralGeneratedGuesses: number
+    referralWins: number
+    referralPayoutsEth: number
+    topReferrers: Array<{
+      fid: number
+      username: string | null
+      referralCount: number
+      referralGuesses: number
+    }>
+  }
+  userQualityMetrics: {
+    avgUserScore: number
+    eligibleUsers: number
+    blockedUsers: number
+    blockedAttempts: number
+  }
+  timeRange: string
+}
+
+interface SimulationResult {
+  simulationId: string
+  type: string
+  status: 'success' | 'warning' | 'critical' | 'error'
+  summary: string
+  executionTimeMs?: number
+}
+
 function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
@@ -153,6 +223,11 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [clanktonAnalytics, setClanktonAnalytics] = useState<ClanktonAnalytics | null>(null)
   const [economyAnalytics, setEconomyAnalytics] = useState<EconomyAnalytics | null>(null)
   const [shareFunnelAnalytics, setShareFunnelAnalytics] = useState<ShareFunnelAnalytics | null>(null)
+  // Milestone 5.3: New state for fairness, performance, and simulations
+  const [fairnessAnalytics, setFairnessAnalytics] = useState<FairnessAnalytics | null>(null)
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null)
+  const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([])
+  const [runningSimulation, setRunningSimulation] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<TimeRange>("30d")
@@ -276,6 +351,32 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         setShareFunnelAnalytics(null)
       }
 
+      // Milestone 5.3: Fairness analytics
+      try {
+        const fairnessResponse = await fetch(`/api/admin/analytics/fairness${devFidParam}`)
+        if (fairnessResponse.ok) {
+          const fairness = await fairnessResponse.json()
+          console.log('Fairness analytics:', fairness)
+          setFairnessAnalytics(fairness)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch fairness analytics:', err)
+        setFairnessAnalytics(null)
+      }
+
+      // Milestone 5.3: Performance metrics
+      try {
+        const performanceResponse = await fetch(`/api/admin/analytics/performance${devFidParam}${rangeParam}`)
+        if (performanceResponse.ok) {
+          const performance = await performanceResponse.json()
+          console.log('Performance metrics:', performance)
+          setPerformanceMetrics(performance)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch performance metrics:', err)
+        setPerformanceMetrics(null)
+      }
+
     } catch (err) {
       console.error('Error fetching analytics:', err)
       setError(err instanceof Error ? err.message : 'Failed to load analytics')
@@ -283,6 +384,30 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       setLoading(false)
     }
   }, [user, timeRange])
+
+  // Milestone 5.3: Run simulation function
+  const runSimulation = async (type: string) => {
+    if (!user) return
+    setRunningSimulation(type)
+
+    try {
+      const response = await fetch(`/api/admin/analytics/simulations?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Simulation result:', result)
+        setSimulationResults(prev => [result, ...prev.slice(0, 9)]) // Keep last 10 results
+      }
+    } catch (err) {
+      console.error('Simulation failed:', err)
+    } finally {
+      setRunningSimulation(null)
+    }
+  }
 
   // Filter data by time range
   const filterByTimeRange = (data: any[], range: TimeRange) => {
@@ -915,6 +1040,321 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             />
           </div>
         </AdminSection>
+
+        {/* Milestone 5.3: Fairness & Integrity */}
+        <AdminSection title="Fairness & integrity (Milestone 5.3)">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+            marginBottom: "24px",
+          }}>
+            <AdminStatsCard
+              title="Fairness Status"
+              value={loading ? "..." : fairnessAnalytics ? fairnessAnalytics.fairnessStatus.toUpperCase() : "Unknown"}
+              subtitle={fairnessAnalytics?.fairnessStatus === 'healthy' ? 'All systems normal' :
+                fairnessAnalytics?.fairnessStatus === 'warning' ? 'Review alerts below' : 'Immediate attention needed'}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Recent Alerts"
+              value={loading ? "..." : fairnessAnalytics ? fairnessAnalytics.recentAlerts.length.toString() : "0"}
+              subtitle="In last 24 hours"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Total Jackpot Distributed"
+              value={loading ? "..." : fairnessAnalytics ? `${fairnessAnalytics.prizeAuditSummary.totalJackpotDistributed.toFixed(4)} ETH` : "0 ETH"}
+              subtitle="All time"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Average Jackpot"
+              value={loading ? "..." : fairnessAnalytics ? `${fairnessAnalytics.prizeAuditSummary.averageJackpot.toFixed(4)} ETH` : "0 ETH"}
+              subtitle="Per resolved round"
+              loading={loading}
+            />
+          </div>
+
+          {/* Alerts List */}
+          {fairnessAnalytics && fairnessAnalytics.recentAlerts.length > 0 && (
+            <div style={{
+              background: "#fef3c7",
+              border: "1px solid #fbbf24",
+              borderRadius: "8px",
+              padding: "16px",
+              marginBottom: "16px",
+            }}>
+              <h4 style={{ margin: "0 0 12px 0", color: "#92400e" }}>Recent Fairness Alerts</h4>
+              {fairnessAnalytics.recentAlerts.slice(0, 5).map((alert, idx) => (
+                <div key={idx} style={{
+                  padding: "8px",
+                  background: alert.severity === 'critical' ? '#fecaca' :
+                    alert.severity === 'high' ? '#fed7aa' : '#fef9c3',
+                  borderRadius: "4px",
+                  marginBottom: "8px",
+                  fontSize: "13px",
+                }}>
+                  <strong>{alert.type}</strong> (Round {alert.roundId}): {alert.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </AdminSection>
+
+        {/* Milestone 5.3: User Quality Gating */}
+        <AdminSection title="User quality gating (Milestone 5.3)">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+          }}>
+            <AdminStatsCard
+              title="Avg User Score"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.userQualityMetrics.avgUserScore.toFixed(3) : "N/A"}
+              subtitle="Neynar quality score"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Eligible Users"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.userQualityMetrics.eligibleUsers.toLocaleString() : "0"}
+              subtitle="Score >= 0.6"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Blocked Users"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.userQualityMetrics.blockedUsers.toLocaleString() : "0"}
+              subtitle="Score < 0.6"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Blocked Attempts"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.userQualityMetrics.blockedAttempts.toLocaleString() : "0"}
+              subtitle="Total blocked gameplay attempts"
+              loading={loading}
+            />
+          </div>
+        </AdminSection>
+
+        {/* Milestone 5.3: Referral Performance */}
+        <AdminSection title="Referral performance (Milestone 5.3)">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "16px",
+            marginBottom: "24px",
+          }}>
+            <AdminStatsCard
+              title="Total Referrals"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.referralMetrics.totalReferrals.toLocaleString() : "0"}
+              subtitle="Users with referrers"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Referral-Generated Guesses"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.referralMetrics.referralGeneratedGuesses.toLocaleString() : "0"}
+              subtitle={`In ${timeRange}`}
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Referral Wins"
+              value={loading ? "..." : performanceMetrics ? performanceMetrics.referralMetrics.referralWins.toLocaleString() : "0"}
+              subtitle="Referred users who won"
+              loading={loading}
+            />
+            <AdminStatsCard
+              title="Referral Payouts"
+              value={loading ? "..." : performanceMetrics ? `${performanceMetrics.referralMetrics.referralPayoutsEth.toFixed(4)} ETH` : "0 ETH"}
+              subtitle="Total paid to referrers"
+              loading={loading}
+            />
+          </div>
+
+          {/* Top Referrers */}
+          {performanceMetrics && performanceMetrics.referralMetrics.topReferrers.length > 0 && (
+            <div style={{
+              background: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "8px",
+              padding: "16px",
+            }}>
+              <h4 style={{ margin: "0 0 12px 0" }}>Top Referrers</h4>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <th style={{ padding: "8px", textAlign: "left" }}>User</th>
+                    <th style={{ padding: "8px", textAlign: "right" }}>Referrals</th>
+                    <th style={{ padding: "8px", textAlign: "right" }}>Guesses</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {performanceMetrics.referralMetrics.topReferrers.map((ref, idx) => (
+                    <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "8px" }}>
+                        {ref.username ? `@${ref.username}` : `FID ${ref.fid}`}
+                      </td>
+                      <td style={{ padding: "8px", textAlign: "right" }}>{ref.referralCount}</td>
+                      <td style={{ padding: "8px", textAlign: "right" }}>{ref.referralGuesses}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </AdminSection>
+
+        {/* Milestone 5.3: Simulation Controls */}
+        <AdminSection title="Adversarial simulations (Milestone 5.3)">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "12px",
+            marginBottom: "24px",
+          }}>
+            <button
+              onClick={() => runSimulation('wallet_clustering')}
+              disabled={runningSimulation !== null}
+              style={{
+                padding: "12px 16px",
+                background: runningSimulation === 'wallet_clustering' ? "#d1d5db" : "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: runningSimulation ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              {runningSimulation === 'wallet_clustering' ? 'Running...' : 'Run Wallet Clustering'}
+            </button>
+            <button
+              onClick={() => runSimulation('rapid_winner')}
+              disabled={runningSimulation !== null}
+              style={{
+                padding: "12px 16px",
+                background: runningSimulation === 'rapid_winner' ? "#d1d5db" : "#8b5cf6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: runningSimulation ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              {runningSimulation === 'rapid_winner' ? 'Running...' : 'Run Rapid Winner'}
+            </button>
+            <button
+              onClick={() => runSimulation('frontrun_risk')}
+              disabled={runningSimulation !== null}
+              style={{
+                padding: "12px 16px",
+                background: runningSimulation === 'frontrun_risk' ? "#d1d5db" : "#f59e0b",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: runningSimulation ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              {runningSimulation === 'frontrun_risk' ? 'Running...' : 'Run Front-Run Risk'}
+            </button>
+            <button
+              onClick={() => runSimulation('jackpot_runway')}
+              disabled={runningSimulation !== null}
+              style={{
+                padding: "12px 16px",
+                background: runningSimulation === 'jackpot_runway' ? "#d1d5db" : "#10b981",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: runningSimulation ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              {runningSimulation === 'jackpot_runway' ? 'Running...' : 'Run Jackpot Runway'}
+            </button>
+            <button
+              onClick={() => runSimulation('full_suite')}
+              disabled={runningSimulation !== null}
+              style={{
+                padding: "12px 16px",
+                background: runningSimulation === 'full_suite' ? "#d1d5db" : "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: runningSimulation ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              {runningSimulation === 'full_suite' ? 'Running...' : 'Run Full Suite'}
+            </button>
+          </div>
+
+          {/* Simulation Results */}
+          {simulationResults.length > 0 && (
+            <div style={{
+              background: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "8px",
+              padding: "16px",
+            }}>
+              <h4 style={{ margin: "0 0 12px 0" }}>Recent Simulation Results</h4>
+              {simulationResults.map((result, idx) => (
+                <div key={idx} style={{
+                  padding: "12px",
+                  background: result.result?.status === 'critical' ? '#fecaca' :
+                    result.result?.status === 'warning' ? '#fef3c7' :
+                    result.result?.status === 'error' ? '#fee2e2' : '#d1fae5',
+                  borderRadius: "6px",
+                  marginBottom: "8px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <strong>{result.type}</strong>
+                    <span style={{
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                      background: result.result?.status === 'critical' ? '#ef4444' :
+                        result.result?.status === 'warning' ? '#f59e0b' :
+                        result.result?.status === 'error' ? '#ef4444' : '#10b981',
+                      color: "white",
+                    }}>
+                      {result.result?.status?.toUpperCase() || 'UNKNOWN'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "13px", marginTop: "8px", color: "#4b5563" }}>
+                    {result.result?.summary || 'No summary available'}
+                  </div>
+                  {result.executionTimeMs && (
+                    <div style={{ fontSize: "11px", marginTop: "4px", color: "#9ca3af" }}>
+                      Completed in {result.executionTimeMs}ms
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </AdminSection>
+
+        {/* Milestone 5.3: Performance Histogram */}
+        {performanceMetrics && performanceMetrics.guessDistribution.length > 0 && (
+          <AdminSection title="Guess distribution histogram (Milestone 5.3)">
+            <AnalyticsChart
+              data={performanceMetrics.guessDistribution.map(d => ({
+                bucket: d.bucket,
+                "Rounds": d.count
+              }))}
+              type="bar"
+              dataKey="Rounds"
+              xAxisKey="bucket"
+              title="Rounds by Guess Count Buckets"
+              colors={["#6366f1"]}
+            />
+          </AdminSection>
+        )}
 
       </div>
     </main>
