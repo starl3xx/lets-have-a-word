@@ -120,34 +120,43 @@ export default function LetterBoxes({
   }, [canHandleTap]);
 
   /**
-   * Get box styling based on state (Milestone 4.6)
+   * Get box styling based on state (Milestone 4.6 + 6.4.2)
    * Uses state machine for consistent visual behavior
+   *
+   * Milestone 6.4.2: Optimized for instant visual feedback
+   * - Letter presence is checked FIRST for immediate styling
+   * - This prevents gray flicker on first keystroke
+   * - State machine overrides for special states (error, locked, result)
    */
   const getBoxStyle = (letter: string, index: number) => {
-    // Use state machine if available (Milestone 4.6)
-    if (inputState) {
-      const borderColor = getBoxBorderColor(inputState, !!letter);
-      const bgColor = getBoxBackgroundColor(inputState);
-      const textColor = getBoxTextColor(inputState, !!letter);
-      return `${bgColor} ${borderColor} ${textColor}`;
-    }
+    const hasLetter = !!letter;
 
-    // Fallback to old three-state system if inputState not provided
-    if (resultState === 'wrong') {
-      return 'bg-white border-red-500 text-gray-900';
-    }
-    if (resultState === 'correct') {
+    // Priority 1: Result states (highest priority - override everything)
+    if (inputState === 'RESULT_CORRECT' || resultState === 'correct') {
       return 'bg-white border-green-500 text-gray-900';
     }
+    if (inputState === 'RESULT_WRONG_VALID' || resultState === 'wrong') {
+      return 'bg-white border-red-500 text-gray-900';
+    }
 
-    if (disabled) {
+    // Priority 2: Error states (red borders)
+    if (inputState === 'TYPING_FULL_INVALID_NONSENSE' ||
+        inputState === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
+      return 'bg-white border-red-500 text-gray-900';
+    }
+
+    // Priority 3: Disabled/locked state
+    if (disabled || inputState === 'OUT_OF_GUESSES') {
       return 'bg-gray-100 border-gray-300 text-gray-400';
     }
 
-    if (letter) {
+    // Priority 4: Normal typing states - INSTANT visual feedback
+    // If there's a letter, show it with black text and blue border immediately
+    if (hasLetter) {
       return 'bg-white border-blue-500 text-gray-900';
     }
 
+    // Priority 5: Empty box
     return 'bg-white border-gray-300 text-gray-300';
   };
 
