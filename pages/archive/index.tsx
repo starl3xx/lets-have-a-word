@@ -1,5 +1,6 @@
 // pages/archive/index.tsx
-// Milestone 5.4: Public Round Archive Page
+// Milestone 5.4, Updated Milestone 6.3: Public Round Archive Page
+// Restyled to match blue theme with three-zone structure
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
@@ -25,6 +26,20 @@ interface ArchiveStats {
   avgPlayersPerRound: number;
   avgRoundLengthMinutes: number;
 }
+
+// Color palette - Blue theme (matching RoundArchiveModal)
+const COLORS = {
+  blueMain: '#2D68C7',
+  blueDark: '#1F4DA0',
+  blueLight: '#EEF3FF',
+  purpleAccent: '#5C3ED6',
+  textPrimary: '#0F172A',
+  textMuted: '#6B7280',
+  borderSoft: '#D2D7E5',
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  white: '#FFFFFF',
+};
 
 export default function ArchiveListPage() {
   const [loading, setLoading] = useState(true);
@@ -79,25 +94,30 @@ export default function ArchiveListPage() {
 
       <main style={{
         minHeight: '100vh',
-        background: '#2D68C7',
-        color: 'white',
+        background: COLORS.blueLight,
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}>
-        {/* Header */}
+        {/* Header - Blue Gradient Band */}
         <header style={{
+          background: `linear-gradient(135deg, ${COLORS.blueDark} 0%, ${COLORS.blueMain} 100%)`,
           padding: '24px',
-          borderBottom: '1px solid rgba(255,255,255,0.2)',
         }}>
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <Link
               href="/"
               style={{
-                color: '#3A2E8A',
+                color: 'rgba(255,255,255,0.7)',
                 textDecoration: 'none',
                 fontSize: '14px',
-                display: 'inline-block',
-                marginBottom: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                marginBottom: '12px',
+                fontWeight: 500,
+                transition: 'color 0.15s ease',
               }}
+              onMouseEnter={(e) => e.currentTarget.style.color = COLORS.white}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
             >
               ← Back to game
             </Link>
@@ -105,173 +125,260 @@ export default function ArchiveListPage() {
               margin: 0,
               fontSize: '28px',
               fontWeight: 700,
+              color: COLORS.white,
+              letterSpacing: '-0.02em',
             }}>
-              LHAW archive
+              LHAW Archive
             </h1>
             <p style={{
               margin: '8px 0 0 0',
-              fontSize: '14px',
-              color: 'rgba(255,255,255,0.6)',
+              fontSize: '15px',
+              color: 'rgba(255,255,255,0.7)',
+              fontWeight: 500,
             }}>
               Browse completed rounds and their statistics
             </p>
           </div>
         </header>
 
-        {/* Content */}
-        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px' }}>
-          {/* Stats Summary */}
-          {stats && (
+        {/* Stats Zone - Light Blue Background with White Cards */}
+        {stats && (
+          <div style={{
+            background: COLORS.blueLight,
+            padding: '24px',
+            borderBottom: `1px solid ${COLORS.borderSoft}`,
+          }}>
             <div style={{
+              maxWidth: '800px',
+              margin: '0 auto',
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
               gap: '12px',
-              marginBottom: '24px',
             }}>
               <StatCard label="Total rounds" value={stats.totalRounds.toLocaleString()} />
               <StatCard label="Total guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
               <StatCard label="Unique winners" value={stats.uniqueWinners.toLocaleString()} />
               <StatCard
-                label="Total jackpot"
+                label="Jackpot distributed"
                 value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
+                highlight
               />
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Error */}
-          {error && (
+        {/* Content Zone - White Background */}
+        <div style={{
+          background: COLORS.white,
+          minHeight: 'calc(100vh - 300px)',
+        }}>
+          <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px' }}>
+            {/* Section Label */}
             <div style={{
-              background: 'rgba(239, 68, 68, 0.2)',
-              border: '1px solid rgba(239, 68, 68, 0.5)',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '24px',
-              color: '#fca5a5',
+              fontSize: '11px',
+              color: COLORS.textMuted,
+              marginBottom: '16px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              fontWeight: 600,
             }}>
-              {error}
+              All completed rounds
             </div>
-          )}
 
-          {/* Rounds list */}
-          <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: '12px',
-            overflow: 'hidden',
-          }}>
-            {loading ? (
-              <div style={{ padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
-                Loading...
+            {/* Error */}
+            {error && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '24px',
+                color: '#dc2626',
+                fontSize: '15px',
+              }}>
+                {error}
               </div>
-            ) : rounds.length === 0 ? (
-              <div style={{ padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
-                No archived rounds yet
-              </div>
-            ) : (
-              <>
-                {rounds.map((round) => (
-                  <Link
-                    key={round.roundNumber}
-                    href={`/archive/${round.roundNumber}`}
-                    style={{ textDecoration: 'none', color: 'inherit' }}
-                  >
+            )}
+
+            {/* Rounds list */}
+            <div style={{
+              background: COLORS.white,
+              borderRadius: '12px',
+              border: `1px solid ${COLORS.borderSoft}`,
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+            }}>
+              {loading ? (
+                <div style={{
+                  padding: '48px',
+                  textAlign: 'center',
+                  color: COLORS.textMuted,
+                  fontSize: '15px',
+                }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    border: `3px solid ${COLORS.blueLight}`,
+                    borderTopColor: COLORS.blueMain,
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    margin: '0 auto 12px',
+                  }} />
+                  Loading archive...
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                </div>
+              ) : rounds.length === 0 ? (
+                <div style={{
+                  padding: '48px',
+                  textAlign: 'center',
+                  color: COLORS.textMuted,
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📭</div>
+                  No archived rounds yet
+                </div>
+              ) : (
+                <>
+                  {rounds.map((round, index) => (
+                    <Link
+                      key={round.roundNumber}
+                      href={`/archive/${round.roundNumber}`}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <div
+                        style={{
+                          padding: '16px 20px',
+                          borderBottom: index < rounds.length - 1 ? `1px solid ${COLORS.borderSoft}` : 'none',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s ease',
+                          background: COLORS.white,
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = COLORS.blueLight}
+                        onMouseLeave={(e) => e.currentTarget.style.background = COLORS.white}
+                      >
+                        <div>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                          }}>
+                            <span style={{
+                              fontWeight: 600,
+                              fontSize: '15px',
+                              color: COLORS.textPrimary,
+                            }}>
+                              Round #{round.roundNumber}
+                            </span>
+                            <span style={{
+                              fontFamily: 'monospace',
+                              fontSize: '14px',
+                              color: COLORS.blueMain,
+                              letterSpacing: '2px',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                            }}>
+                              {round.targetWord}
+                            </span>
+                          </div>
+                          <div style={{
+                            fontSize: '13px',
+                            color: COLORS.textMuted,
+                            marginTop: '4px',
+                          }}>
+                            {round.totalGuesses} guesses · {round.uniquePlayers} players · {formatDuration(round.startTime, round.endTime)}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div>
+                            <div style={{ fontWeight: 700, color: COLORS.success, fontSize: '15px' }}>
+                              {formatEth(round.finalJackpotEth)} ETH
+                            </div>
+                            <div style={{ fontSize: '12px', color: COLORS.textMuted }}>
+                              {round.winnerFid ? `FID ${round.winnerFid}` : 'No winner'}
+                            </div>
+                          </div>
+                          <span style={{ color: COLORS.textMuted, fontSize: '18px' }}>›</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+
+                  {/* Pagination */}
+                  {totalRounds > pageSize && (
                     <div style={{
                       padding: '16px 20px',
-                      borderBottom: '1px solid rgba(255,255,255,0.1)',
                       display: 'flex',
-                      justifyContent: 'space-between',
+                      justifyContent: 'center',
                       alignItems: 'center',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{
-                            fontWeight: 600,
-                            fontSize: '16px',
-                          }}>
-                            Round #{round.roundNumber}
-                          </span>
-                          <span style={{
-                            fontFamily: 'monospace',
-                            fontSize: '14px',
-                            color: '#3A2E8A',
-                            letterSpacing: '2px',
-                          }}>
-                            {round.targetWord}
-                          </span>
-                        </div>
-                        <div style={{
-                          fontSize: '13px',
-                          color: 'rgba(255,255,255,0.5)',
-                          marginTop: '4px',
-                        }}>
-                          {round.totalGuesses} guesses, {round.uniquePlayers} players, {formatDuration(round.startTime, round.endTime)}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 600, color: '#34d399' }}>
-                          {formatEth(round.finalJackpotEth)} ETH
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                          {round.winnerFid ? `Winner: FID ${round.winnerFid}` : 'No winner'}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-
-                {/* Pagination */}
-                {totalRounds > pageSize && (
-                  <div style={{
-                    padding: '16px',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}>
-                    <button
-                      onClick={() => setPage(p => Math.max(0, p - 1))}
-                      disabled={page === 0}
-                      style={{
-                        padding: '8px 16px',
-                        background: page === 0 ? 'rgba(255,255,255,0.1)' : '#8b5cf6',
-                        color: page === 0 ? 'rgba(255,255,255,0.3)' : 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: page === 0 ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                      }}
-                    >
-                      Previous
-                    </button>
-                    <span style={{
-                      padding: '8px 16px',
-                      color: 'rgba(255,255,255,0.6)',
-                      fontSize: '14px',
+                      gap: '12px',
+                      borderTop: `1px solid ${COLORS.borderSoft}`,
+                      background: COLORS.blueLight,
                     }}>
-                      Page {page + 1} of {Math.ceil(totalRounds / pageSize)}
-                    </span>
-                    <button
-                      onClick={() => setPage(p => p + 1)}
-                      disabled={(page + 1) * pageSize >= totalRounds}
-                      style={{
+                      <button
+                        onClick={() => setPage(p => Math.max(0, p - 1))}
+                        disabled={page === 0}
+                        style={{
+                          padding: '10px 20px',
+                          background: page === 0 ? COLORS.borderSoft : COLORS.blueMain,
+                          color: page === 0 ? COLORS.textMuted : COLORS.white,
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: page === 0 ? 'not-allowed' : 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (page !== 0) e.currentTarget.style.background = COLORS.blueDark;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (page !== 0) e.currentTarget.style.background = COLORS.blueMain;
+                        }}
+                      >
+                        ← Previous
+                      </button>
+                      <span style={{
                         padding: '8px 16px',
-                        background: (page + 1) * pageSize >= totalRounds ? 'rgba(255,255,255,0.1)' : '#8b5cf6',
-                        color: (page + 1) * pageSize >= totalRounds ? 'rgba(255,255,255,0.3)' : 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: (page + 1) * pageSize >= totalRounds ? 'not-allowed' : 'pointer',
+                        color: COLORS.textMuted,
                         fontSize: '14px',
-                      }}
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
+                        fontWeight: 500,
+                      }}>
+                        Page {page + 1} of {Math.ceil(totalRounds / pageSize)}
+                      </span>
+                      <button
+                        onClick={() => setPage(p => p + 1)}
+                        disabled={(page + 1) * pageSize >= totalRounds}
+                        style={{
+                          padding: '10px 20px',
+                          background: (page + 1) * pageSize >= totalRounds ? COLORS.borderSoft : COLORS.blueMain,
+                          color: (page + 1) * pageSize >= totalRounds ? COLORS.textMuted : COLORS.white,
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: (page + 1) * pageSize >= totalRounds ? 'not-allowed' : 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!((page + 1) * pageSize >= totalRounds)) e.currentTarget.style.background = COLORS.blueDark;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!((page + 1) * pageSize >= totalRounds)) e.currentTarget.style.background = COLORS.blueMain;
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </main>
@@ -279,18 +386,29 @@ export default function ArchiveListPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.1)',
-      borderRadius: '8px',
+      background: COLORS.white,
+      borderRadius: '12px',
       padding: '16px',
       textAlign: 'center',
+      border: `1px solid ${COLORS.borderSoft}`,
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
     }}>
-      <div style={{ fontSize: '20px', fontWeight: 600, color: '#3A2E8A' }}>
+      <div style={{
+        fontSize: '20px',
+        fontWeight: 700,
+        color: highlight ? COLORS.success : COLORS.textPrimary,
+        marginBottom: '4px',
+      }}>
         {value}
       </div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+      <div style={{
+        fontSize: '12px',
+        color: COLORS.textMuted,
+        fontWeight: 500,
+      }}>
         {label}
       </div>
     </div>
