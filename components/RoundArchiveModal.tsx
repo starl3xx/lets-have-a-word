@@ -155,10 +155,10 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header - Blue Gradient Band */}
+        {/* Header - Solid Blue Band */}
         <div
           style={{
-            background: `linear-gradient(135deg, ${COLORS.blueDark} 0%, ${COLORS.blueMain} 100%)`,
+            background: COLORS.blueMain,
             padding: '20px 24px',
             display: 'flex',
             justifyContent: 'space-between',
