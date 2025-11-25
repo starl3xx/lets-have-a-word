@@ -175,9 +175,16 @@ export default function SharePromptModal({
             {interjection} {t('shareForGuess.titleSuffix')}
           </h2>
           <p className="text-gray-600 mt-3">
-            {word
-              ? t('shareForGuess.description', { word: word.toUpperCase() })
-              : 'Share to unlock +1 free guess today!'}
+            {word ? (
+              <>
+                Share your guess <span className="font-bold">{word.toUpperCase()}</span> to unlock{' '}
+                <span className="font-bold text-green-600">+1 free guess</span> today!
+              </>
+            ) : (
+              <>
+                Share to unlock <span className="font-bold text-green-600">+1 free guess</span> today!
+              </>
+            )}
           </p>
         </div>
 
@@ -205,7 +212,7 @@ export default function SharePromptModal({
               if (!isSharing) e.currentTarget.style.backgroundColor = '#6A3CFF';
             }}
           >
-            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-6 h-6" />}
+            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />}
             <span>
               {isSharing ? t('shareForGuess.sharing') : t('shareForGuess.ctaButton')}
             </span>
