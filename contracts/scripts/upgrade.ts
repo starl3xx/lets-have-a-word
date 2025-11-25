@@ -13,7 +13,7 @@ import hre from "hardhat";
 
 // Deployed proxy addresses
 const PROXY_ADDRESSES: Record<string, string> = {
-  base: "0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5",
+  base: "0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5",
   baseSepolia: "", // To be filled after testnet deployment
 };
 
