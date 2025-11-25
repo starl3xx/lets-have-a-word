@@ -1273,6 +1273,21 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
   - Not a valid word: "Not a valid word" (warning)
   - Winner: "Correct! You found the word \"[WORD]\" and won this round!"
 
+#### 6.4.5: Wheel Jump UX - Uniform Perceived Speed
+- **Problem**: Large letter jumps (e.g., D→R) felt slower than small jumps (D→E) even with capped duration, because the wheel visibly scrolled through many rows.
+- **Solution**: Two-mode animation based on row distance:
+  - **Small Jumps** (≤10 rows): Smooth scroll animation with fixed 150ms duration
+  - **Large Jumps** (>10 rows): "Teleport + Settle" approach:
+    1. Instantly snap to 3 rows before target (no visible scroll)
+    2. Animate the final 3 rows with same 150ms duration
+    3. User never sees long "train ride" scroll - just quick snap + small settle
+- **Configuration** (`components/Wheel.tsx`):
+  - `JUMP_THRESHOLD = 10` - rows threshold for large jump detection
+  - `SETTLE_ROWS = 3` - rows to animate after teleport
+  - `ANIMATION_DURATION_UNIFORM = 150` - fixed duration for all visible animations
+- **Reduced Motion Support**: If `prefers-reduced-motion: reduce` is set, all animations snap instantly
+- **Result**: Typing "ABOUT" (small jump) and "READY" (large jump) now feel equally fast and snappy
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)

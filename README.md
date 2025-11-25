@@ -11,11 +11,36 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.4.4 Complete
+## 🎯 Current Status: Milestone 6.4.5 Complete
 
 All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, and UI polish are fully implemented and production-ready:
 
-### ✅ Milestone 6.4.4 - Unified Result Banner System (Latest)
+### ✅ Milestone 6.4.5 - Wheel Jump UX: Uniform Perceived Speed (Latest)
+
+Fixed the "big jump feels slower" issue where large letter jumps (D→R) felt heavier than small jumps (D→E):
+
+- **Two-Mode Animation** based on row distance:
+  - **Small Jumps** (≤10 rows): Smooth scroll with fixed 150ms duration
+  - **Large Jumps** (>10 rows): "Teleport + Settle" - instant snap near target, then animate final 3 rows
+
+- **Teleport + Settle Approach**:
+  - Instantly snap to 3 rows before target (no visible long scroll)
+  - Animate the final 3 rows with same 150ms duration
+  - User never sees "train ride" scroll - just quick snap + small settle
+
+- **Uniform Perceived Speed**:
+  - Typing "ABOUT" (A-words, small jump) feels same as "READY" (R-words, large jump)
+  - All visible animations use fixed 150ms duration
+  - No more distance-based duration scaling
+
+- **Accessibility**: Respects `prefers-reduced-motion` - snaps instantly if enabled
+
+- **Configuration** (`components/Wheel.tsx`):
+  - `JUMP_THRESHOLD = 10` rows
+  - `SETTLE_ROWS = 3` rows
+  - `ANIMATION_DURATION_UNIFORM = 150` ms
+
+### ✅ Milestone 6.4.4 - Unified Result Banner System
 
 Replaced ad-hoc result banners with a unified, consistent ResultBanner component:
 
