@@ -2,21 +2,24 @@ import { useState } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
+import { useTranslation } from '../src/hooks/useTranslation';
 
 interface SharePromptModalProps {
   fid: number | null;
-  guessResult: SubmitGuessResult;
+  guessResult?: SubmitGuessResult; // Optional - if not provided, use generic share text
   onClose: () => void;
   onShareSuccess: () => void;
 }
 
 /**
  * SharePromptModal
- * Milestone 4.2
+ * Milestone 4.2, Updated Milestone 6.3
  *
- * Prompts user to share their guess to Farcaster to earn +1 free guess
- * Shows after each guess (correct or incorrect)
- * Only shows if share bonus hasn't been claimed today
+ * Prompts user to share to Farcaster to earn +1 free guess.
+ * - Shows after incorrect guesses (with guess context)
+ * - Can also be triggered directly (without guess context)
+ * - Only Farcaster users can claim share bonus
+ * - Share bonus can only be earned once per day
  */
 export default function SharePromptModal({
   fid,
@@ -24,42 +27,42 @@ export default function SharePromptModal({
   onClose,
   onShareSuccess,
 }: SharePromptModalProps) {
+  const { t } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Get the guessed word from the result
+   * Get the guessed word from the result (if available)
    */
   const getGuessedWord = (): string | null => {
+    if (!guessResult) return null;
     if (guessResult.status === 'incorrect' || guessResult.status === 'correct') {
       return guessResult.word;
     }
     return null;
-  }
+  };
 
   /**
    * Get the global guess number for this user's round
    */
   const getGuessNumber = (): number | null => {
+    if (!guessResult) return null;
     if (guessResult.status === 'incorrect') {
       return guessResult.totalGuessesForUserThisRound;
     }
-    // For correct guesses, we don't have this data yet
-    // TODO: Add to API response
     return null;
-  }
+  };
 
   /**
    * Get the round ID
    */
   const getRoundId = (): number | null => {
+    if (!guessResult) return null;
     if (guessResult.status === 'correct') {
       return guessResult.roundId;
     }
-    // For incorrect guesses, we don't have this data yet
-    // TODO: Add to API response
     return null;
-  }
+  };
 
   /**
    * Handle share button click
@@ -71,27 +74,27 @@ export default function SharePromptModal({
       return;
     }
 
-    const word = getGuessedWord();
-    if (!word) {
-      setError('Unable to share: No guess found');
-      return;
-    }
-
     void haptics.buttonTapMinor();
     setIsSharing(true);
     setError(null);
 
     try {
       // Build share text
+      const word = getGuessedWord();
       const guessNumber = getGuessNumber();
       const roundId = getRoundId();
 
       let shareText: string;
-      if (guessNumber && roundId) {
+
+      if (word && guessNumber && roundId) {
+        // Context-rich share (after a guess)
         shareText = `My guess "${word}" was #${guessNumber} in round #${roundId} of Let's Have A Word!\n\nEvery guess helps narrow the field — and one person wins the ETH jackpot! 🎯\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
-      } else {
-        // Fallback if we don't have round data
+      } else if (word) {
+        // Share with word but limited context
         shareText = `My guess "${word}" in Let's Have A Word!\n\nEvery guess helps narrow the field — and one person wins the ETH jackpot! 🎯\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
+      } else {
+        // Generic share text (Milestone 6.3 spec)
+        shareText = `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\nhttps://lets-have-a-word.vercel.app`;
       }
 
       console.log('[SharePromptModal] Opening composer with text:', shareText);
@@ -124,12 +127,12 @@ export default function SharePromptModal({
 
           if (data.ok) {
             console.log('[SharePromptModal] Share bonus awarded!', data);
-            void haptics.shareBonusUnlocked();
+            void haptics.shareCompleted();
             onShareSuccess();
             onClose();
           } else {
             console.log('[SharePromptModal] Share bonus not awarded:', data.message);
-            setError(data.message || 'Share bonus already claimed');
+            setError(data.message || t('shareForGuess.alreadyClaimed'));
           }
         } catch (err) {
           console.error('[SharePromptModal] Error calling share callback:', err);
@@ -148,35 +151,47 @@ export default function SharePromptModal({
   const word = getGuessedWord();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="text-center">
+          <div className="text-5xl mb-3">🎁</div>
           <h2 className="text-2xl font-bold text-gray-900">
-            Want another free guess?
+            {t('shareForGuess.title')}
           </h2>
-        </div>
-
-        {/* Content */}
-        <div className="text-center space-y-3">
-          <p className="text-gray-700">
-            Share your guess <span className="font-bold">{word}</span> to Farcaster
-            to unlock <span className="font-bold text-green-600">+1 free guess</span> today!
+          <p className="text-gray-600 mt-2">
+            {t('shareForGuess.description')}
           </p>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded p-3">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
         </div>
+
+        {/* Word preview (if available) */}
+        {word && (
+          <div className="bg-gray-50 rounded-xl p-4 text-center">
+            <p className="text-sm text-gray-600 mb-1">Your guess:</p>
+            <p className="text-2xl font-bold text-gray-900 tracking-wider">{word}</p>
+          </div>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm text-red-600 text-center">{error}</p>
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex flex-col gap-3">
+          {/* Big CTA button */}
           <button
             onClick={handleShare}
             disabled={isSharing}
-            className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-lg"
             style={{
               backgroundColor: isSharing ? '#9ca3af' : '#6A3CFF',
             }}
@@ -187,22 +202,24 @@ export default function SharePromptModal({
               if (!isSharing) e.currentTarget.style.backgroundColor = '#6A3CFF';
             }}
           >
-            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />}
-            {isSharing ? 'Sharing...' : 'Share to Farcaster'}
+            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-6 h-6" />}
+            <span>
+              {isSharing ? t('shareForGuess.sharing') : t('shareForGuess.ctaButton')}
+            </span>
           </button>
 
           <button
             onClick={onClose}
             disabled={isSharing}
-            className="w-full py-3 px-4 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-6 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Not now
+            {t('anotherGuess.notNow')}
           </button>
         </div>
 
         {/* Info */}
         <p className="text-xs text-gray-500 text-center">
-          Share bonus can only be earned once per day
+          Share bonus can only be earned once per day (Farcaster only)
         </p>
       </div>
     </div>

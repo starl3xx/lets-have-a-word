@@ -96,6 +96,14 @@ export const haptics = {
   shareBonusUnlocked: () => safeNotification("success"),
   buttonTapMinor: () => safeImpact("light"),   // Stats/Refer/FAQ, etc.
   selectionChanged: () => safeSelection(),     // toggles, tabs, etc.
+
+  // Milestone 6.3: Additional haptics
+  packPurchased: () => safeNotification("success"),  // Guess pack purchased
+  linkCopied: () => safeImpact("medium"),            // Referral link copied
+  shareCompleted: () => safeNotification("success"), // Share completed
+  cardSaved: () => safeImpact("medium"),             // Share card saved/downloaded
+  losing: () => safeNotification("warning"),         // Round lost / out of guesses
+  winning: () => safeNotification("success"),        // Alias for guessSuccess
 };
 
 // Legacy compatibility - keep old triggerHaptic for backward compatibility

@@ -29,6 +29,9 @@ export interface UserStateResponse {
   maxPaidPacksPerDay: number;
   canBuyMorePacks: boolean;
   wheelStartIndex: number | null; // Milestone 4.14: Per-user random wheel start position
+  // Milestone 6.3: New fields
+  hasSharedToday: boolean; // Whether user has already claimed share bonus today
+  isClanktonHolder: boolean; // Whether user holds CLANKTON tokens
 }
 
 export default async function handler(
@@ -190,6 +193,9 @@ export default async function handler(
     // Check if can buy more packs
     const canBuyMorePacks = dailyState.paidPacksPurchased < 3; // DAILY_LIMITS_RULES.maxPaidPacksPerDay
 
+    // Milestone 6.3: Check if user has already shared today
+    const hasSharedToday = dailyState.freeAllocatedShareBonus > 0;
+
     const response: UserStateResponse = {
       fid,
       freeGuessesRemaining: freeRemaining,
@@ -205,6 +211,9 @@ export default async function handler(
       maxPaidPacksPerDay: 3,
       canBuyMorePacks,
       wheelStartIndex: dailyState.wheelStartIndex, // Milestone 4.14
+      // Milestone 6.3: New fields
+      hasSharedToday,
+      isClanktonHolder: clanktonBonusActive,
     };
 
     return res.status(200).json(response);
