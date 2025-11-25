@@ -97,9 +97,9 @@ export default function ArchiveListPage() {
         background: COLORS.blueLight,
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}>
-        {/* Header - Blue Gradient Band */}
+        {/* Header - Solid Blue Band */}
         <header style={{
-          background: `linear-gradient(135deg, ${COLORS.blueDark} 0%, ${COLORS.blueMain} 100%)`,
+          background: COLORS.blueMain,
           padding: '24px',
         }}>
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
