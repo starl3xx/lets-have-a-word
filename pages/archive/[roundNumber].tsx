@@ -406,7 +406,7 @@ function StatCard({ label, value, highlight }: { label: string; value: string; h
       <div style={{
         fontSize: '20px',
         fontWeight: 600,
-        color: highlight ? '#34d399' : '#a78bfa',
+        color: highlight ? '#34d399' : '#7436c9',
       }}>
         {value}
       </div>

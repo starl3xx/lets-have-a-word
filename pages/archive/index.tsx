@@ -287,7 +287,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
       padding: '16px',
       textAlign: 'center',
     }}>
-      <div style={{ fontSize: '20px', fontWeight: 600, color: '#a78bfa' }}>
+      <div style={{ fontSize: '20px', fontWeight: 600, color: '#7436c9' }}>
         {value}
       </div>
       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
