@@ -246,21 +246,25 @@ type InputState =
 
 ### Wheel Component (`components/Wheel.tsx`)
 
-**Features (Milestone 4.11 - Virtualized):**
-- **Alphabetical Display**: All 10,516 words sorted A-Z
-- **Virtual Scrolling**: Renders only ~100 visible words (99.5% DOM reduction)
-- **Fast Rotation**: 150ms animated scroll with visible rotation effect
+**Features (Milestone 4.11 - Virtualized, 6.4 - Performance Tuned):**
+- **Alphabetical Display**: All ~5,900 words sorted A-Z
+- **Virtual Scrolling**: Renders only ~100 visible words (99% DOM reduction)
+- **Fast Rotation**: 200ms CSS transitions with capped scroll animation (100-250ms)
 - **Auto-Scrolling**: Jumps to alphabetical position as you type
 - **3D Effect**: Scale/opacity/color based on distance from center
 - **Dynamic Gap**: 10vh gap where input boxes appear
 - **Status-Based Colors**: Unguessed (gray), wrong (red), winner (gold)
-- **Binary Search**: O(log n) alphabetical positioning (750x faster)
+- **Binary Search**: O(log n) alphabetical positioning
 
-**Performance:**
-- Renders ~100 words instead of 10,516 (99.5% reduction)
+**Performance (Milestone 6.4):**
+- Renders ~100 words instead of all words (99% reduction)
 - 60 FPS smooth scrolling
 - Instant response to keyboard input
-- Custom requestAnimationFrame animation
+- Custom requestAnimationFrame animation with easeOutCubic easing
+- CSS transitions at 200ms (reduced from 300ms)
+- Scroll animation capped at 250ms max (A→Z feels same as C→D)
+- GPU acceleration via `will-change: transform, opacity`
+- Debug mode: `NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true` slows animations 3x
 
 **How It Works:**
 ```typescript
@@ -277,11 +281,13 @@ while (left <= right) {
   }
 }
 
-// Custom 150ms scroll animation for visible rotation
-const animateScrollTo = (targetScrollTop) => {
-  const duration = 150; // Fast but visible
-  const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-  containerRef.current.scrollTop = start + distance * easeOutCubic;
+// Custom scroll animation with capped duration (Milestone 6.4)
+const animateScrollTo = (targetScrollTop: number, immediate: boolean) => {
+  const distance = Math.abs(targetScrollTop - startScrollTop);
+  // Duration capped between 100-250ms regardless of distance
+  const duration = Math.min(250, Math.max(100, distance * 0.5));
+  const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+  // requestAnimationFrame loop for smooth 60fps animation
 };
 
 // Dynamic 10vh gap
@@ -290,12 +296,29 @@ const GAP_HEIGHT = Math.round(window.innerHeight * 0.10);
 
 ### Letter Boxes Component (`components/LetterBoxes.tsx`)
 
-**Features:**
+**Features (Milestone 4.6, updated 6.4):**
 - 5 individual input boxes
 - State-based border colors (blue=valid, red=invalid, green=correct)
 - Shake animation on invalid input
 - Auto-focus management
 - Hardware keyboard support
+
+**Tap/Focus Behavior (Milestone 6.4):**
+The input row uses a centralized state machine (`useGuessInput` hook) for predictable behavior:
+
+| State | Tap Behavior | Typing Behavior |
+|-------|--------------|-----------------|
+| Empty row | Focus first box | Fill left-to-right |
+| Partial row | Do nothing | Append to first empty |
+| Full row | Do nothing | Ignored until backspace |
+| Error/red state | Do nothing | Ignored until reset |
+| Out of guesses | Do nothing | Ignored (visually disabled) |
+| Submitting | Do nothing | Locked during API call |
+
+**Visual Feedback:**
+- Locked state: 60% opacity, `cursor-not-allowed`
+- Error state: `cursor-default` (no interaction feedback)
+- Empty row: `cursor-text` with hover highlight
 
 **Border Color Logic:**
 ```typescript
@@ -305,6 +328,17 @@ RESULT_CORRECT             → Green (#22c55e)
 RESULT_WRONG_VALID         → Red (#ef4444)
 OUT_OF_GUESSES             → Gray (#9ca3af)
 ```
+
+**Hook: `useGuessInput` (Milestone 6.4)**
+Centralized input control that returns:
+- `canAcceptInput`: Whether new letters are allowed
+- `canHandleTap`: Whether box taps should focus input
+- `canHandleBackspace`: Whether backspace is allowed
+- `isErrorState`: Whether in error (red) state
+- `isLockedState`: Whether input is locked
+- `handleLetter(letter)`: Returns new letters array or null if blocked
+- `handleBackspace()`: Returns new letters array or null if blocked
+- `handleBoxTap(index)`: Returns true if tap should focus input
 
 ---
 

@@ -2,6 +2,7 @@
  * Economy Configuration
  * Milestone 5.4c: CLANKTON Bonus Market Cap Tiers
  * Milestone 6.3: Guess Pack Configuration
+ * Milestone 6.4: Animation Debug Settings
  *
  * Centralized configuration for economy-related constants
  * including CLANKTON holder bonuses, market cap thresholds,
@@ -155,3 +156,35 @@ export function getPackPricingInfo(): {
     ],
   };
 }
+
+// =============================================================================
+// Milestone 6.4: Animation Debug Configuration
+// =============================================================================
+
+/**
+ * Debug flag for slowing down wheel animations
+ * Set NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true in .env to enable
+ *
+ * When enabled:
+ * - Word wheel scroll animations are 3x slower
+ * - CSS transitions are 3x slower
+ * - Useful for debugging animation timing and visual artifacts
+ *
+ * Note: This is a NEXT_PUBLIC_ variable so it's available on the client side
+ */
+export const WHEEL_ANIMATION_DEBUG_SLOW = process.env.NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW === 'true';
+
+/**
+ * Animation timing configuration
+ * These values control the word wheel animation performance
+ */
+export const WHEEL_ANIMATION_CONFIG = {
+  /** Minimum scroll animation duration in milliseconds */
+  durationMin: 100,
+  /** Maximum scroll animation duration in milliseconds (caps long jumps like A->Z) */
+  durationMax: 250,
+  /** Default CSS transition duration in milliseconds */
+  cssTransition: 200,
+  /** Multiplier applied when debug slow mode is enabled */
+  debugMultiplier: 3,
+};

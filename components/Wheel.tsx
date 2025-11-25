@@ -3,7 +3,7 @@ import type { InputState } from '../src/lib/input-state';
 import type { WheelWord, WheelWordStatus } from '../src/types';
 
 /**
- * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored
+ * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored + 6.4 performance tuning
  *
  * Animation behavior: Exact match to milestone 4.5 (proven perfect)
  * Performance: Virtualization + binary search for 10,516 words
@@ -19,6 +19,12 @@ import type { WheelWord, WheelWordStatus } from '../src/types';
  * - Binary search O(log n) instead of findIndex O(n)
  * - Renders only ~100 visible words instead of all 10,516
  * - useDeferredValue to keep input responsive
+ *
+ * Milestone 6.4: Animation performance tuning
+ * - Reduced transition duration: 200ms (was 300ms)
+ * - Custom scroll animation with capped duration (100-250ms)
+ * - will-change: transform for GPU acceleration
+ * - Debug mode via WHEEL_ANIMATION_DEBUG_SLOW config
  */
 interface WheelProps {
   words: WheelWord[];
@@ -30,6 +36,20 @@ interface WheelProps {
 const ITEM_HEIGHT = 33; // pixels (lineHeight 1.6 * fontSize 1.3rem ≈ 33px)
 const VIEWPORT_PADDING = 400; // Top/bottom padding (≈ 40vh at 1000px height)
 const OVERSCAN_COUNT = 30; // Extra items to render above/below viewport
+
+/**
+ * Milestone 6.4: Animation timing constants
+ * These can be overridden by env vars for debugging
+ */
+const ANIMATION_DURATION_MIN = 100; // Minimum animation duration (ms)
+const ANIMATION_DURATION_MAX = 250; // Maximum animation duration (ms) - caps long jumps
+const ANIMATION_DURATION_DEFAULT = 200; // Default for most operations
+const CSS_TRANSITION_DURATION = 200; // CSS property transitions (ms)
+
+// Debug mode: set NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true to slow animations
+const DEBUG_SLOW_MODE = typeof window !== 'undefined' &&
+  process.env.NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW === 'true';
+const DEBUG_DURATION_MULTIPLIER = 3; // Slow down animations 3x in debug mode
 
 export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -189,33 +209,83 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
   }, []);
 
   /**
-   * Auto-scroll to center the gap (Milestone 4.5 behavior restored)
-   * Uses native scrollIntoView for smooth, predictable animation
+   * Milestone 6.4: Custom scroll animation with capped duration
+   * Ensures animation completes within 100-250ms regardless of distance
+   */
+  const animateScrollTo = useCallback((targetScrollTop: number, immediate: boolean = false) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Immediate scroll (initial load)
+    if (immediate) {
+      container.scrollTop = targetScrollTop;
+      return;
+    }
+
+    const startScrollTop = container.scrollTop;
+    const distance = Math.abs(targetScrollTop - startScrollTop);
+
+    // Skip animation if already at target
+    if (distance < 1) return;
+
+    // Calculate duration based on distance, capped within min/max
+    // Faster for short jumps, capped for long jumps (A->Z should feel same as C->D)
+    let duration = Math.min(
+      ANIMATION_DURATION_MAX,
+      Math.max(ANIMATION_DURATION_MIN, distance * 0.5)
+    );
+
+    // Apply debug multiplier if in slow mode
+    if (DEBUG_SLOW_MODE) {
+      duration *= DEBUG_DURATION_MULTIPLIER;
+    }
+
+    const startTime = performance.now();
+
+    // Easing function: easeOutCubic for natural deceleration
+    const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const easedProgress = easeOutCubic(progress);
+
+      container.scrollTop = startScrollTop + (targetScrollTop - startScrollTop) * easedProgress;
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, []);
+
+  /**
+   * Auto-scroll to center the gap (Milestone 4.5 behavior restored + 6.4 performance)
+   * Uses custom animation with capped duration for consistent feel
    */
   useEffect(() => {
-    if (!gapRef.current) {
-      console.log('[Wheel] gapRef.current is null, skipping scroll');
+    if (!gapRef.current || !containerRef.current) {
       return;
     }
     if (!isInitialized) {
-      console.log('[Wheel] Not initialized yet, skipping scroll');
       return;
     }
 
-    console.log('[Wheel] Scrolling to gap, centerIndex:', centerIndex, 'gapIndex:', gapIndex);
+    // Calculate target scroll position to center the gap
+    const container = containerRef.current;
+    const gapTop = gapTopOffset;
+    const containerMiddle = container.clientHeight / 2;
+    const targetScrollTop = gapTop - containerMiddle + GAP_HEIGHT / 2;
 
-    // Use setTimeout to defer scroll to next tick (Milestone 4.5 pattern)
+    // Use setTimeout to defer scroll to next tick (allows DOM to update)
     const timeoutId = setTimeout(() => {
-      if (!gapRef.current) return;
-
-      gapRef.current.scrollIntoView({
-        behavior: centerIndex === -1 ? 'auto' : 'smooth', // Instant on load, smooth when typing
-        block: 'center',
-      });
+      // Instant on initial load (centerIndex === -1), animated when typing
+      animateScrollTo(targetScrollTop, centerIndex === -1);
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [centerIndex, gapIndex, words.length, isInitialized]);
+  }, [centerIndex, gapTopOffset, GAP_HEIGHT, isInitialized, animateScrollTo]);
 
   /**
    * Initialize on mount
@@ -422,7 +492,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
             />
           )}
           <div
-            className="absolute w-full text-center transition-all duration-300 ease-out"
+            className="absolute w-full text-center transition-all ease-out"
             style={{
               top: `${topOffset + gapOffset}px`,
               transform: `scale(${style.scale})`,
@@ -435,6 +505,9 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
               letterSpacing: style.letterSpacing,
               textShadow: style.textShadow,
               pointerEvents: 'none',
+              // Milestone 6.4: Optimized animation settings
+              transitionDuration: `${DEBUG_SLOW_MODE ? CSS_TRANSITION_DURATION * DEBUG_DURATION_MULTIPLIER : CSS_TRANSITION_DURATION}ms`,
+              willChange: 'transform, opacity',
             }}
           >
             {wheelWord.word}
