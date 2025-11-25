@@ -36,11 +36,12 @@
     "purchaseFailed": "Purchase failed. Please try again."
   },
   "shareForGuess": {
-    "title": "Share for a free guess!",
-    "description": "Share to Farcaster to unlock 1 bonus guess",
-    "ctaButton": "Share to Farcaster for a free guess",
+    "titleSuffix": "Want another guess?",
+    "description": "Share your guess {{word}} to unlock +1 free guess today!",
+    "ctaButton": "Share",
     "sharing": "Sharing...",
     "alreadyClaimed": "You've already claimed your share bonus today",
+    "footer": "Share bonus can only be earned once per day (Farcaster only)",
     "shareText": "I'm playing Let's Have A Word!\nDaily jackpot-based word puzzle on Base.\nhttps://lets-have-a-word.vercel.app"
   },
   "anotherGuess": {

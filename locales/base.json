@@ -37,11 +37,12 @@
     "purchaseFailed": ""
   },
   "shareForGuess": {
-    "title": "",
+    "titleSuffix": "",
     "description": "",
     "ctaButton": "",
     "sharing": "",
     "alreadyClaimed": "",
+    "footer": "",
     "shareText": ""
   },
   "anotherGuess": {

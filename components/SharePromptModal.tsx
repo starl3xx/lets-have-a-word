@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -20,6 +20,13 @@ interface SharePromptModalProps {
  * - Can also be triggered directly (without guess context)
  * - Only Farcaster users can claim share bonus
  * - Share bonus can only be earned once per day
+ *
+ * Updated spec:
+ * - Title: "[Interjection] Want another guess?"
+ * - Body: "Share your guess [WORD] to unlock +1 free guess today!"
+ * - Primary button: "Share" with arch icon
+ * - Secondary button: "Not now"
+ * - Footer: "Share bonus can only be earned once per day (Farcaster only)"
  */
 export default function SharePromptModal({
   fid,
@@ -27,9 +34,12 @@ export default function SharePromptModal({
   onClose,
   onShareSuccess,
 }: SharePromptModalProps) {
-  const { t } = useTranslation();
+  const { t, getRandomInterjection } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Get random interjection once when modal mounts (memoized)
+  const interjection = useMemo(() => getRandomInterjection(), [getRandomInterjection]);
 
   /**
    * Get the guessed word from the result (if available)
@@ -159,24 +169,17 @@ export default function SharePromptModal({
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header with interjection */}
         <div className="text-center">
-          <div className="text-5xl mb-3">🎁</div>
           <h2 className="text-2xl font-bold text-gray-900">
-            {t('shareForGuess.title')}
+            {interjection} {t('shareForGuess.titleSuffix')}
           </h2>
-          <p className="text-gray-600 mt-2">
-            {t('shareForGuess.description')}
+          <p className="text-gray-600 mt-3">
+            {word
+              ? t('shareForGuess.description', { word: word.toUpperCase() })
+              : 'Share to unlock +1 free guess today!'}
           </p>
         </div>
-
-        {/* Word preview (if available) */}
-        {word && (
-          <div className="bg-gray-50 rounded-xl p-4 text-center">
-            <p className="text-sm text-gray-600 mb-1">Your guess:</p>
-            <p className="text-2xl font-bold text-gray-900 tracking-wider">{word}</p>
-          </div>
-        )}
 
         {/* Error message */}
         {error && (
@@ -187,7 +190,7 @@ export default function SharePromptModal({
 
         {/* Buttons */}
         <div className="flex flex-col gap-3">
-          {/* Big CTA button */}
+          {/* Primary CTA button - Share with arch icon */}
           <button
             onClick={handleShare}
             disabled={isSharing}
@@ -208,6 +211,7 @@ export default function SharePromptModal({
             </span>
           </button>
 
+          {/* Secondary button - Not now */}
           <button
             onClick={onClose}
             disabled={isSharing}
@@ -217,9 +221,9 @@ export default function SharePromptModal({
           </button>
         </div>
 
-        {/* Info */}
+        {/* Footer info */}
         <p className="text-xs text-gray-500 text-center">
-          Share bonus can only be earned once per day (Farcaster only)
+          {t('shareForGuess.footer')}
         </p>
       </div>
     </div>
