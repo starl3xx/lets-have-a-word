@@ -11,11 +11,84 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 5.4 Complete
+## 🎯 Current Status: Milestone 6.3 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, and round archive are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, and UX/growth features are fully implemented and production-ready:
 
-### ✅ Milestone 5.4 - Round Archive (Latest)
+### ✅ Milestone 6.3 - UX, Growth, Guess Packs, Referrals, Share Flow (Latest)
+
+Comprehensive UX and growth mechanics for pre-production readiness:
+
+- **Guess Pack Purchase Flow**
+  - Users can purchase 1, 2, or 3 packs per day (3 guesses per pack)
+  - Max 9 paid guesses per day
+  - Dynamic pricing from smart contract or environment variable
+  - Purchase tracking per UTC day
+  - Components: `GuessPurchaseModal.tsx`
+  - API: `POST /api/purchase-guess-pack`, `GET /api/guess-pack-pricing`
+
+- **Share-for-Free-Guess Flow (Farcaster Only)**
+  - One free guess per day for sharing to Farcaster
+  - Auto-populated share text with game link
+  - Only Farcaster users (via Neynar SIWN) eligible
+  - Components: `SharePromptModal.tsx` (updated)
+
+- **"Want Another Guess?" Popup**
+  - Random interjection from internationalized list (25 options)
+  - Options: Share for free guess OR Buy guess packs
+  - Components: `AnotherGuessModal.tsx`
+
+- **Referral UX Polish**
+  - Auto-copy referral link when opening modal (optional toggle)
+  - Animated ETH earned counter
+  - Enhanced haptics for copy/share actions
+  - Analytics events: `REFERRAL_MODAL_OPENED`, `REFERRAL_LINK_COPIED`, `REFERRAL_SHARE_CLICKED`
+  - Components: `ReferralSheet.tsx` (updated)
+
+- **Stats Page Enhancements**
+  - Guesses per round histogram (last 10 rounds)
+  - Median guesses to solve (for won rounds)
+  - Free vs bonus vs paid guesses breakdown
+  - Referrals generated this round
+  - Components: `StatsSheet.tsx` (updated)
+  - API: `GET /api/user/stats` (extended)
+
+- **Share Card Polish**
+  - Brand color palette (purple gradient)
+  - CLANKTON mascot for token holders
+  - Jackpot amount display
+  - Round number badge
+  - Text anti-aliasing
+  - Components: `WinnerShareCard.tsx` (updated)
+
+- **Localization Scaffolding**
+  - Locale files: `/locales/en.json`, `/locales/base.json`
+  - Translation hook: `useTranslation()` with `t()` function
+  - Supports variable interpolation (`{{variable}}`)
+  - Browser language detection with English fallback
+  - All new UI strings wrapped in translation keys
+
+- **Micro-Interaction Haptics**
+  - Pack purchased: success notification
+  - Link copied: medium impact
+  - Share completed: success notification
+  - Card saved: medium impact
+  - Module: `src/lib/haptics.ts` (extended)
+
+- **Daily Guess Flow Modal Decision Logic**
+  - Smart modal sequencing based on user state
+  - Session-level tracking to avoid repeat modal spam
+  - Decision tree: share modal → pack modal → out-of-guesses
+  - Hook: `useModalDecision` in `src/hooks/useModalDecision.ts`
+  - Exported types: `ModalDecision`, `ModalDecisionState`, `ModalDecisionParams`
+
+- **Analytics Events**
+  - Guess Pack: `GUESS_PACK_VIEWED`, `GUESS_PACK_PURCHASED`, `GUESS_PACK_USED`
+  - Share: `SHARE_PROMPT_SHOWN`, `SHARE_CLICKED`, `SHARE_SUCCESS`
+  - Referral: `REFERRAL_MODAL_OPENED`, `REFERRAL_LINK_COPIED`, `REFERRAL_SHARE_CLICKED`
+  - Module: `src/lib/analytics.ts` (extended)
+
+### ✅ Milestone 5.4 - Round Archive
 
 Comprehensive round archive system for storing and browsing historical round data:
 
@@ -1436,6 +1509,26 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
   - +2-3 if holding ≥100M CLANKTON (tiered by market cap)
   - +1 share bonus
 
+### Daily Guess Flow Modal Logic
+
+The game uses smart modal sequencing to offer guesses without being annoying:
+
+**Decision Tree (after each guess):**
+1. **If guesses remain** → Only show share modal once per session (if share bonus unused)
+2. **If out of guesses** → Show share modal first (if unused and not seen this session)
+3. **If share declined/used** → Show pack purchase modal (if packs available)
+4. **Otherwise** → Show "out of guesses" state
+
+**Session Tracking:**
+- `hasSeenShareModalThisSession` - Prevents share modal spam
+- `hasSeenPackModalThisSession` - Prevents pack modal spam
+- Both reset on page refresh or new session
+
+**Implementation:**
+- Hook: `useModalDecision` (`src/hooks/useModalDecision.ts`)
+- Returns: `decideModal()`, `markShareModalSeen()`, `markPackModalSeen()`
+- See GAME_DOCUMENTATION.md for detailed flow diagrams
+
 ### Economics (Milestone 3.1, Updated in 4.9)
 
 **Per Paid Guess (80/20 Split)**
@@ -1810,6 +1903,10 @@ Buttons:
 src/
 ├── config/            # Configuration
 │   └── wagmi.ts           # Wagmi wallet config
+├── hooks/             # React hooks
+│   ├── index.ts           # Hooks barrel export
+│   ├── useTranslation.ts  # i18n translation hook
+│   └── useModalDecision.ts # Daily guess flow modal logic
 ├── lib/               # Core game logic
 │   ├── word-lists.ts      # Word validation
 │   ├── game-rules.ts      # Rule management
@@ -1954,32 +2051,127 @@ await resolveRound(roundId, winnerFid, referrerFid);
 // Payouts are created in round_payouts table
 ```
 
+## Architecture Overview
+
+### Tech Stack
+- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes (serverless)
+- **Database**: PostgreSQL with Drizzle ORM
+- **Blockchain**: Base (Ethereum L2), Ethers.js v6
+- **Social**: Farcaster miniapp SDK, Neynar API
+
+### Smart Contract
+- **JackpotManager Proxy**: `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5` (Base Mainnet)
+- **Implementation**: UUPS upgradeable pattern
+- **Features**: Jackpot management, guess purchase, payout distribution, CLANKTON oracle
+
+### CLANKTON Oracle
+- Market cap oracle for dynamic bonus tiers
+- Threshold: $250,000 USD for tier upgrade
+- Bonus tiers: LOW (+2 guesses), HIGH (+3 guesses)
+- Staleness threshold: 24 hours
+- Updated via `npm run oracle:cron`
+
+## Daily Free Guess Rules
+
+Each player's daily allocation:
+1. **Base**: 1 free guess per day
+2. **CLANKTON Bonus**: +2 or +3 guesses if holding 100M+ tokens
+   - Market cap < $250k: +2 guesses/day
+   - Market cap >= $250k: +3 guesses/day
+3. **Share Bonus**: +1 guess for sharing to Farcaster (once per day)
+4. **Paid Packs**: Buy 3-packs, up to 3 packs/day (9 paid guesses max)
+
+**Total possible daily guesses**: 12-13 (1 + 3 + 1 + 9)
+
+## Guess Pack System
+
+- **Pack Size**: 3 guesses per pack
+- **Daily Limit**: 3 packs (9 guesses max)
+- **Price**: 0.0003 ETH per pack (configurable via `GUESS_PACK_PRICE_ETH`)
+- **Tracking**: Per UTC day, resets at 11:00 UTC
+
+## Referral System
+
+- **Reward**: 10% of referred user's jackpot winnings
+- **Tracking**: `referrerFid` field on users table
+- **Payouts**: Handled in round resolution
+- **Link format**: `https://lets-have-a-word.vercel.app?ref={fid}`
+
+## How to Run
+
+### Development
+
+```bash
+# Install dependencies
+npm install
+
+# Set up database
+npm run db:push
+
+# Run development server
+npm run dev
+```
+
+### Production Scripts
+
+```bash
+# Run CLANKTON market cap oracle (cron)
+npm run oracle:cron
+
+# Create a new round (after previous round resolves)
+npm run create-round
+```
+
+### Environment Variables
+
+```env
+# Database
+DATABASE_URL=postgresql://...
+
+# Farcaster/Neynar
+NEYNAR_API_KEY=...
+NEXT_PUBLIC_NEYNAR_CLIENT_ID=...
+
+# Blockchain (Base)
+BASE_RPC_URL=https://mainnet.base.org
+JACKPOT_MANAGER_ADDRESS=0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5
+OPERATOR_PRIVATE_KEY=...
+OPERATOR_WALLET=0xaee1ee60...
+CREATOR_PROFIT_WALLET=0x3Cee63...
+
+# Economy
+GUESS_PACK_PRICE_ETH=0.0003
+CLANKTON_MARKET_CAP_USD=...
+
+# Analytics
+ANALYTICS_ENABLED=true
+ANALYTICS_DEBUG=false
+
+# Admin
+LHAW_ADMIN_USER_IDS=6500,1477413
+```
+
 ## What's Next?
 
 Planned future milestones:
 
-### 📚 Milestone 5.4 - Round Archive
-- Round summary fields on rounds table
-- Historical round browsing
-- Past winner showcase
-- Archive UI and navigation
+### 🚀 Milestone 7.0 - Pre-Production QA
+- Comprehensive testing of all flows
+- Mobile UI testing
+- Performance optimization
+- Security audit
 
-### ⛓️ Milestone 6.1 - Smart Contract Integration
-- Smart contract development:
-  - Paid guess escrow
-  - Payout function
-  - Purchase event handling
-  - Creator withdrawal mechanism
-- Contract testing and auditing
-- Mainnet deployment
+### 💰 Milestone 6.4 - Payout Engine
+- Referral ETH payouts
+- Automated payout processing
+- Transaction tracking
 
-### 🎯 Milestone 6.2 - Optional / Future Enhancements
-- Purchase web domain (http://letshaveaword.fun)
+### 🎯 Future Enhancements
 - Multi-wallet CLANKTON support
 - XP system v2 with progression
 - Leaderboard system
-- Localization support
-- Custom animations
+- Full localization (translations)
 - Achievement badges and unlockables
 
 ## Testing

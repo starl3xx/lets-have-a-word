@@ -1,9 +1,11 @@
 /**
  * Economy Configuration
  * Milestone 5.4c: CLANKTON Bonus Market Cap Tiers
+ * Milestone 6.3: Guess Pack Configuration
  *
  * Centralized configuration for economy-related constants
- * including CLANKTON holder bonuses and market cap thresholds.
+ * including CLANKTON holder bonuses, market cap thresholds,
+ * and guess pack pricing.
  */
 
 /**
@@ -93,4 +95,63 @@ export function formatMarketCap(marketCapUsd: number): string {
   } else {
     return `$${marketCapUsd}`;
   }
+}
+
+// =============================================================================
+// Milestone 6.3: Guess Pack Configuration
+// =============================================================================
+
+/**
+ * Guess pack size (guesses per pack)
+ */
+export const GUESS_PACK_SIZE = 3;
+
+/**
+ * Maximum guess packs purchasable per day
+ */
+export const MAX_PACKS_PER_DAY = 3;
+
+/**
+ * Price per guess pack in ETH
+ * Can be overridden via GUESS_PACK_PRICE_ETH env variable
+ */
+export const GUESS_PACK_PRICE_ETH = process.env.GUESS_PACK_PRICE_ETH || '0.0003';
+
+/**
+ * Get pack pricing info for display
+ */
+export function getPackPricingInfo(): {
+  pricePerPack: string;
+  guessesPerPack: number;
+  maxPacksPerDay: number;
+  packOptions: Array<{
+    packCount: number;
+    guessCount: number;
+    totalPrice: string;
+  }>;
+} {
+  const priceNum = parseFloat(GUESS_PACK_PRICE_ETH);
+
+  return {
+    pricePerPack: GUESS_PACK_PRICE_ETH,
+    guessesPerPack: GUESS_PACK_SIZE,
+    maxPacksPerDay: MAX_PACKS_PER_DAY,
+    packOptions: [
+      {
+        packCount: 1,
+        guessCount: GUESS_PACK_SIZE,
+        totalPrice: GUESS_PACK_PRICE_ETH,
+      },
+      {
+        packCount: 2,
+        guessCount: GUESS_PACK_SIZE * 2,
+        totalPrice: (priceNum * 2).toFixed(4),
+      },
+      {
+        packCount: 3,
+        guessCount: GUESS_PACK_SIZE * 3,
+        totalPrice: (priceNum * 3).toFixed(4),
+      },
+    ],
+  };
 }

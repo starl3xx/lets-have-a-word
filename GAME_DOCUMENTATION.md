@@ -12,6 +12,12 @@
 9. [Word Lists & Validation](#word-lists--validation)
 10. [Farcaster Integration](#farcaster-integration)
 11. [Key Features by Milestone](#key-features-by-milestone)
+12. [Daily Guess Flow](#daily-guess-flow)
+13. [Guess Packs](#guess-packs)
+14. [Share-for-Free-Guess](#share-for-free-guess)
+15. [CLANKTON Holder Bonus](#clankton-holder-bonus)
+16. [Referral System](#referral-system)
+17. [UX Design Guidelines](#ux-design-guidelines)
 
 ---
 
@@ -1072,26 +1078,79 @@ await sdk.actions.openUrl({
   - Errors stored in `round_archive_errors` table
   - Debug endpoint detects discrepancies between archived and raw data
 
-### Planned Milestones (6.1 - 6.2)
+### Milestone 6.3: UX & Growth Mechanics
+- **Status**: ✅ Complete
+- **Localization Scaffolding**:
+  - `locales/en.json` - English translations with all UI strings
+  - `locales/base.json` - Template for new locales
+  - `src/lib/i18n.ts` - Core i18n implementation with `t()` and `tArray()`
+  - `src/hooks/useTranslation.ts` - React hook wrapper for components
+  - Browser locale detection with English fallback
+- **Guess Pack System**:
+  - `GuessPurchaseModal` - Pack selection (1-3 packs), pricing, daily limits
+  - `AnotherGuessModal` - "Want another guess?" popup with randomized interjections
+  - `/api/guess-pack-pricing` - Pack pricing info endpoint
+  - `/api/purchase-guess-pack` - Purchase processing with validation
+  - 3-packs only @ 0.0003 ETH, max 3 packs/day (9 guesses)
+- **Share-for-Free-Guess**:
+  - Updated `SharePromptModal` with translation support
+  - Farcaster-only share (no X/Twitter for free guess)
+  - Once per day limit tracked in `daily_guess_state`
+- **Referral UX Polish**:
+  - Auto-copy referral link on modal open
+  - Animated ETH counter using requestAnimationFrame
+  - Analytics event logging (modal open, link copied, share clicked)
+- **Stats Page Enhancements**:
+  - Guess breakdown (free/bonus/paid)
+  - Guesses per round histogram visualization
+  - Median guesses to solve
+  - Referrals generated this round
+- **Share Card Polish**:
+  - Purple gradient background with brand colors
+  - CLANKTON mascot (🐟) for token holders
+  - Jackpot amount display with round number badge
+  - Text anti-aliasing for smooth rendering
+- **Analytics Events**:
+  - `GUESS_PACK_MODAL_OPENED`, `GUESS_PACK_PURCHASED`
+  - `ANOTHER_GUESS_MODAL_SHOWN`, `SHARE_FOR_GUESS_CLICKED`, `BUY_PACK_CLICKED`
+  - `REFERRAL_MODAL_OPENED`, `REFERRAL_LINK_COPIED`, `REFERRAL_SHARE_CLICKED`
+  - `WINNER_SHARE_CARD_SHOWN`, `WINNER_SHARED_FARCASTER`, `WINNER_SHARED_X`
+- **Haptic Patterns**:
+  - `packPurchased()` - Success notification on purchase
+  - `linkCopied()` - Medium impact on copy
+  - `shareCompleted()` - Success on share
+  - `cardSaved()` - Medium impact on save
+  - `losing()` / `winning()` - Game result haptics
+- **API Enhancements**:
+  - `/api/user-state` - Added `hasSharedToday`, `isClanktonHolder`
+  - `/api/user/stats` - Added histogram, median, referrals this round
+  - `/api/analytics/log` - Client-side event logging endpoint
+
+### Completed Milestones (6.1 - 6.2)
 
 ### Milestone 6.1: Smart Contract Integration
-- **Status**: Not started
+- **Status**: ✅ Complete
 - **Smart Contract Development**:
-  - Paid guess escrow contract
-  - Automated payout function
-  - Purchase event handling
-  - Creator withdrawal mechanism
+  - JackpotManager contract deployed at `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5`
+  - Automated jackpot distribution
+  - CLANKTON Oracle integration for holder verification
+  - Winner payout processing
 - Contract testing and auditing
 - Testnet deployment and validation
-- Mainnet deployment
+- Mainnet deployment on Base
 
-### Milestone 6.2: Optional / Future Enhancements
+### Milestone 6.2: Oracle & Enhanced Features
+- **Status**: ✅ Complete
+- CLANKTON Oracle integration for real-time holder verification
+- Multi-wallet support for CLANKTON balance checking
+- Enhanced round management with on-chain verification
+
+### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)
-- Multi-wallet CLANKTON support (check all verified addresses)
 - XP system v2 with progression paths
 - Global leaderboards and rankings
-- Localization support (i18n)
+- Additional language translations
 - Custom animations and transitions
 - Achievement badge system
 - Unlockable rewards and perks
@@ -1850,6 +1909,740 @@ The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farc
 
 ---
 
+## Daily Guess Flow
+
+### Overview
+
+The Daily Guess Flow spec defines how players interact with the game throughout a day, including when and how modals are shown for share bonuses and guess pack purchases.
+
+### Daily Counters & State
+
+Per FID, per calendar day (UTC):
+
+| Counter | Description |
+|---------|-------------|
+| `baseFreeGuesses` | 1 per day |
+| `clanktonBonusGuesses` | 2 or 3 (market cap tier dependent) |
+| `shareBonusGuesses` | 1 (Farcaster share, once per day) |
+| `packsPurchasedToday` | 0-3, each pack = 3 guesses |
+| `totalGuessCapToday` | baseFree + clanktonBonus + shareBonus + 3 * packsPurchased |
+
+**State Flags:**
+- `hasUsedShareBonusToday` - Whether share bonus already claimed
+- `hasSeenShareModalThisSession` - Session-level tracking to avoid repeat modals
+- `hasSeenPackModalThisSession` - Session-level tracking for pack modal
+- `guessesRemainingToday` - Current remaining guesses
+
+### High-Level Daily Flow
+
+```
+DAY START
+  ↓
+User lands on game
+  ↓
+Initialize session:
+  - Detect FID
+  - Detect CLANKTON tier
+  - Load counters + flags
+  ↓
+LOOP: While user has guessesRemainingToday > 0
+  1. User enters a word and hits GUESS
+  2. Validate + submit guess
+  3. Update guessesRemainingToday--
+  4. Resolve feedback (colors, stats, etc.)
+  5. Decide which (if any) modal to show
+  6. User either leaves or continues to next guess
+END LOOP
+  ↓
+If guessesRemainingToday == 0:
+  - Offer last-chance share and/or packs
+  - If declined / exhausted → "You're out of guesses" state
+```
+
+### Modal Decision Logic
+
+The `useModalDecision` hook (`src/hooks/useModalDecision.ts`) implements this decision tree:
+
+```typescript
+function decideModal(params: ModalDecisionParams): ModalDecision {
+  const {
+    guessesRemaining,
+    hasUsedShareBonusToday,
+    packsPurchasedToday,
+    maxPacksPerDay,
+  } = params;
+
+  // 1. Still have guesses → no paywall, maybe show share once
+  if (guessesRemaining > 0) {
+    if (!hasUsedShareBonusToday && !hasSeenShareModalThisSession) {
+      return 'share';
+    }
+    return 'none';
+  }
+
+  // 2. Out of guesses: prioritize free share
+  if (!hasUsedShareBonusToday && !hasSeenShareModalThisSession) {
+    return 'share';
+  }
+
+  // 3. Share exhausted or declined: offer packs if available
+  if (packsPurchasedToday < maxPacksPerDay && !hasSeenPackModalThisSession) {
+    return 'pack';
+  }
+
+  // 4. Hard stop
+  return 'out_of_guesses';
+}
+```
+
+### Modal Types
+
+| Decision | Modal Shown | Description |
+|----------|-------------|-------------|
+| `none` | No modal | User has guesses, can continue playing |
+| `share` | SharePromptModal | Offer to share for +1 free guess |
+| `pack` | GuessPurchaseModal | Offer to buy guess packs |
+| `out_of_guesses` | AnotherGuessModal | Show "out of guesses" state |
+
+### Session State Tracking
+
+Session-level flags prevent modals from appearing repeatedly within the same browsing session:
+
+- **`hasSeenShareModalThisSession`**: Set to `true` when SharePromptModal closes (regardless of whether user shared)
+- **`hasSeenPackModalThisSession`**: Set to `true` when GuessPurchaseModal closes (regardless of purchase)
+
+These flags reset on:
+- Page refresh
+- New browser session
+- Daily reset (11:00 UTC)
+
+### User Type Flows
+
+#### Non-CLANKTON Holder
+
+**Daily caps:**
+- Base free guesses: 1
+- CLANKTON bonus: 0
+- Share bonus: 1
+- Packs available: up to 3 (9 guesses)
+
+**Example Flow - "Guess → Share → Bonus Guess → Quit":**
+1. Start → 1 free guess
+2. Guess #1 → Share modal appears
+3. User shares → `hasUsedShareBonusToday = true`, `guessesRemaining = 1`
+4. Guess #2 (share bonus) → `guessesRemaining = 0`
+5. Share bonus used → Pack modal appears
+6. User declines → Out-of-guesses state
+
+#### CLANKTON Holder (LOW Tier: +2, HIGH Tier: +3)
+
+**Daily caps (LOW example):**
+- Base free guesses: 1
+- CLANKTON bonus: 2 → total free = 3
+- Share bonus: 1
+- Packs: up to 3
+
+**Recommended timing:**
+- Show share modal when `guessesRemaining == 1` (creates urgency)
+- Pack modal only when completely out of guesses
+
+### Implementation
+
+**Hook Location:** `src/hooks/useModalDecision.ts`
+
+**Integration in `pages/index.tsx`:**
+
+```typescript
+const {
+  decideModal,
+  markShareModalSeen,
+  markPackModalSeen,
+} = useModalDecision();
+
+// After guess resolved:
+const decision = decideModal({
+  guessesRemaining: stateData.totalGuessesRemaining,
+  hasUsedShareBonusToday: stateData.hasSharedToday,
+  packsPurchasedToday: stateData.paidPacksPurchased,
+  maxPacksPerDay: stateData.maxPaidPacksPerDay,
+});
+
+// Show appropriate modal based on decision
+switch (decision) {
+  case 'share':
+    setShowShareModal(true);
+    break;
+  case 'pack':
+    setShowGuessPurchaseModal(true);
+    break;
+  case 'out_of_guesses':
+    setShowAnotherGuessModal(true);
+    break;
+  case 'none':
+  default:
+    // No modal needed
+    break;
+}
+```
+
+**Modal Close Handlers:**
+
+```typescript
+// SharePromptModal close
+const handleShareModalClose = () => {
+  setShowShareModal(false);
+  markShareModalSeen();
+
+  if (!hasGuessesLeft) {
+    // User closed without sharing - offer packs
+    if (paidPacksPurchased < maxPaidPacksPerDay) {
+      setShowGuessPurchaseModal(true);
+    } else {
+      setShowAnotherGuessModal(true);
+    }
+  }
+};
+
+// GuessPurchaseModal close
+onClose={() => {
+  setShowGuessPurchaseModal(false);
+  markPackModalSeen();
+
+  if (!hasGuessesLeft) {
+    setShowAnotherGuessModal(true);
+  }
+}}
+```
+
+### API Requirements
+
+The `/api/user-state` endpoint must return:
+
+```json
+{
+  "totalGuessesRemaining": 3,
+  "hasSharedToday": false,
+  "paidPacksPurchased": 0,
+  "maxPaidPacksPerDay": 3
+}
+```
+
+These fields are used by the modal decision logic to determine which modal to show.
+
+---
+
+## Guess Packs
+
+### Overview
+
+Guess Packs are the primary monetization mechanism, allowing players to purchase additional guesses beyond their daily free allocation.
+
+### Pack Definitions
+
+| Pack Size | Price (ETH) | Guesses | Daily Limit |
+|-----------|-------------|---------|-------------|
+| 1 Pack    | 0.0003      | 3       | 3 packs max |
+| 2 Packs   | 0.0006      | 6       | 3 packs max |
+| 3 Packs   | 0.0009      | 9       | 3 packs max |
+
+**Key Rules:**
+- Packs contain **3 guesses each** (fixed, not configurable per-pack)
+- Maximum **3 packs per day** (9 paid guesses)
+- Price: **0.0003 ETH per pack** (~$1 at current prices)
+- Pack credits **do not expire** - carry over between rounds
+- Pack credits are used **after** free guesses are exhausted
+
+### Pricing Configuration
+
+Defined in `config/economy.ts`:
+
+```typescript
+export const GUESS_PACK_SIZE = 3;           // Guesses per pack
+export const MAX_PACKS_PER_DAY = 3;          // Daily purchase limit
+export const GUESS_PACK_PRICE_ETH = '0.0003'; // Price per pack
+
+export function getPackPricingInfo() {
+  return {
+    packSize: GUESS_PACK_SIZE,
+    maxPacksPerDay: MAX_PACKS_PER_DAY,
+    pricePerPackEth: GUESS_PACK_PRICE_ETH,
+    pricePerGuessEth: (parseFloat(GUESS_PACK_PRICE_ETH) / GUESS_PACK_SIZE).toFixed(6),
+  };
+}
+```
+
+### How Guesses Decrement
+
+1. **Free guesses first**: Base (1) → CLANKTON bonus (2-3) → Share bonus (1)
+2. **Then paid credits**: From `daily_guess_state.paid_guess_credits`
+3. **Track separately**: `free_spent` vs `paid_spent` columns
+
+```typescript
+// In daily-limits.ts
+export function decrementGuess(dailyState: DailyGuessState): 'free' | 'paid' {
+  const freeRemaining = getFreeGuessesRemaining(dailyState);
+
+  if (freeRemaining > 0) {
+    // Decrement free guess
+    await db.update(dailyGuessState)
+      .set({ freeSpent: dailyState.freeSpent + 1 })
+      .where(eq(dailyGuessState.id, dailyState.id));
+    return 'free';
+  } else if (dailyState.paidGuessCredits > 0) {
+    // Decrement paid guess
+    await db.update(dailyGuessState)
+      .set({
+        paidGuessCredits: dailyState.paidGuessCredits - 1,
+        paidSpent: dailyState.paidSpent + 1,
+      })
+      .where(eq(dailyGuessState.id, dailyState.id));
+    return 'paid';
+  }
+
+  throw new Error('No guesses remaining');
+}
+```
+
+### Tracking & Rate-Limiting
+
+**Database Tracking:**
+```sql
+-- Daily state per user
+SELECT * FROM daily_guess_state WHERE fid = 12345 AND date = CURRENT_DATE;
+
+-- Fields:
+-- paid_packs_purchased: Number of packs bought today (max 3)
+-- paid_guess_credits: Remaining paid guesses
+-- paid_spent: Paid guesses used today
+```
+
+**API Validation:**
+```typescript
+// In purchase-guess-pack.ts
+if (dailyState.paidPacksPurchased >= MAX_PACKS_PER_DAY) {
+  return res.status(400).json({
+    error: 'Daily pack limit reached',
+    packsRemaining: 0,
+  });
+}
+```
+
+### API Endpoints
+
+#### `GET /api/guess-pack-pricing`
+Returns current pack pricing info.
+
+**Response:**
+```json
+{
+  "packSize": 3,
+  "maxPacksPerDay": 3,
+  "pricePerPackEth": "0.0003",
+  "pricePerGuessEth": "0.0001"
+}
+```
+
+#### `POST /api/purchase-guess-pack`
+Process pack purchase.
+
+**Request:**
+```json
+{
+  "fid": 12345,
+  "packCount": 2,
+  "txHash": "0x..." // Optional: on-chain transaction hash
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "packsPurchased": 2,
+  "guessesAdded": 6,
+  "totalPaidCredits": 9,
+  "packsRemainingToday": 1
+}
+```
+
+### UI Components
+
+**GuessPurchaseModal** (`components/GuessPurchaseModal.tsx`):
+- Pack quantity selector (1, 2, or 3 packs)
+- Dynamic price calculation
+- Daily limit indicator ("2 of 3 packs purchased today")
+- Purchase button with loading state
+
+**AnotherGuessModal** (`components/AnotherGuessModal.tsx`):
+- "Want another guess?" popup after wrong guess
+- Random interjection from 25 phrases
+- Two CTAs: "Share for Free Guess" and "Buy Pack"
+
+---
+
+## Share-for-Free-Guess
+
+### Overview
+
+Players can earn +1 free guess per day by sharing to Farcaster. This is the primary organic growth mechanism.
+
+### Eligibility Rules
+
+1. **Once per day**: Only one share bonus per 24-hour period
+2. **Farcaster only**: X/Twitter shares do not qualify for free guess
+3. **Must complete share**: Bonus awarded after Farcaster composer action
+4. **Tracked in database**: `daily_guess_state.free_allocated_share_bonus`
+
+### Flow
+
+1. User submits a guess (correct or incorrect)
+2. After 2-second delay, `SharePromptModal` appears
+3. User clicks "Share to Farcaster"
+4. Farcaster composer opens with pre-filled text
+5. After share, `/api/share-callback` is called
+6. If eligible, +1 free guess awarded
+7. User state updated to show new allocation
+
+### Anti-Abuse Model
+
+**Rate Limiting:**
+- One share bonus per calendar day (UTC)
+- Tracked via `free_allocated_share_bonus` column
+- Cannot be "stacked" across days
+
+**Verification:**
+- Share callback requires valid FID
+- Database check prevents duplicate awards
+- Analytics logged for monitoring
+
+**Share Text:**
+```typescript
+const shareText = `I just made a guess on Let's Have A Word! 🎯
+
+The jackpot is now ${prizePoolEth} ETH (~$${prizePoolUsd})
+
+Play now: https://lets-have-a-word.vercel.app?ref=${fid}`;
+```
+
+### API Implementation
+
+```typescript
+// share-callback.ts
+export default async function handler(req, res) {
+  const { fid, castHash } = req.body;
+
+  // Get daily state
+  const dailyState = await getOrCreateDailyState(fid);
+
+  // Check if already shared today
+  if (dailyState.freeAllocatedShareBonus > 0) {
+    return res.json({
+      ok: true,
+      message: 'Share bonus already claimed today',
+      alreadyClaimed: true,
+    });
+  }
+
+  // Award share bonus
+  await db.update(dailyGuessState)
+    .set({ freeAllocatedShareBonus: 1 })
+    .where(eq(dailyGuessState.id, dailyState.id));
+
+  // Log analytics
+  logAnalyticsEvent('SHARE_SUCCESS', {
+    userId: fid.toString(),
+    data: { castHash, bonusAwarded: true },
+  });
+
+  return res.json({
+    ok: true,
+    message: 'Share bonus awarded!',
+    bonusAwarded: true,
+  });
+}
+```
+
+### User State Response
+
+```json
+{
+  "freeAllocations": {
+    "base": 1,
+    "clankton": 2,
+    "shareBonus": 1  // 0 if not yet shared
+  },
+  "hasSharedToday": true  // Milestone 6.3 field
+}
+```
+
+---
+
+## CLANKTON Holder Bonus
+
+### Overview
+
+CLANKTON token holders receive bonus daily guesses as a loyalty reward. The bonus amount scales with the token's market cap.
+
+### Market Cap Tiers
+
+| Market Cap       | Bonus Guesses | Min Balance |
+|------------------|---------------|-------------|
+| < $250,000       | +2/day        | 100M tokens |
+| >= $250,000      | +3/day        | 100M tokens |
+
+**Token Contract:** `0x1D008f50FB828eF9DEBBBEaE1b71fFFE929bf317` (Base)
+
+### Oracle Freshness Rules
+
+The CLANKTON oracle verifies holder status with specific freshness requirements:
+
+1. **Check Frequency**: Balance checked on first action of day
+2. **Cache Duration**: 24 hours (same as daily reset)
+3. **Fallback**: If oracle unavailable, use last known status
+4. **Refresh Trigger**: Wallet reconnection forces fresh check
+
+### Implementation
+
+**Balance Check** (`src/lib/clankton.ts`):
+```typescript
+const CLANKTON_MIN_BALANCE = 100_000_000n; // 100M tokens
+
+export async function hasClanktonBonus(walletAddress: string): Promise<boolean> {
+  try {
+    const balance = await publicClient.readContract({
+      address: CLANKTON_TOKEN_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [walletAddress],
+    });
+
+    return balance >= CLANKTON_MIN_BALANCE;
+  } catch (error) {
+    console.error('[clankton] Balance check failed:', error);
+    return false; // Conservative fallback
+  }
+}
+```
+
+**Market Cap Check** (via CoinGecko or DEX):
+```typescript
+export async function getClanktonBonusTier(): Promise<number> {
+  const marketCap = await getClanktonMarketCap();
+  return marketCap >= 250_000 ? 3 : 2;
+}
+```
+
+### Fallback Behavior
+
+1. **Oracle Down**: Use database-cached `clanktonBonusActive` status
+2. **Wallet Not Connected**: No CLANKTON bonus (cannot verify)
+3. **API Error**: Log error, continue with conservative (no bonus) default
+4. **Dev Mode**: Uses real wallet check when wallet connected
+
+### User State Fields
+
+```json
+{
+  "clanktonBonusActive": true,
+  "isClanktonHolder": true,
+  "freeAllocations": {
+    "base": 1,
+    "clankton": 2,  // or 3 at higher market cap
+    "shareBonus": 0
+  }
+}
+```
+
+---
+
+## Referral System
+
+### Overview
+
+Players earn 10% of their referrals' jackpot winnings. This creates viral growth through aligned incentives.
+
+### 10% Jackpot Reward
+
+When a referred player wins the jackpot:
+- **80%** goes to the winner
+- **10%** goes to the referrer
+- **10%** goes to top 10 guessers (split equally)
+
+**Example:**
+- Jackpot: 1.0 ETH
+- Winner receives: 0.8 ETH
+- Referrer receives: 0.1 ETH
+- Top 10 share: 0.1 ETH (0.01 ETH each)
+
+### Tracking
+
+**Referral Link Format:**
+```
+https://lets-have-a-word.vercel.app?ref={FID}
+```
+
+**Database Storage:**
+```sql
+-- users table
+referrer_fid INTEGER REFERENCES users(fid)
+```
+
+**When Tracked:**
+- New user's first visit with `?ref=` parameter
+- Stored permanently (referrer never changes)
+- Logged via `REFERRAL_JOIN` analytics event
+
+### Limits
+
+- **One referrer per user**: Cannot change referrer
+- **Self-referral blocked**: Cannot refer yourself
+- **No chain limits**: Referrers can refer unlimited users
+- **No expiration**: Referral relationship is permanent
+
+### Fraud Protection
+
+1. **User Quality Gating**: Only users with Neynar score >= 0.6 can play
+2. **Wallet Clustering**: Simulation detects shared wallets
+3. **Rapid Win Detection**: Flags statistically improbable wins
+4. **Analytics Monitoring**: All referral events logged for review
+
+### Referral UI
+
+**ReferralSheet** (`components/ReferralSheet.tsx`):
+- Referral link display with copy button
+- Auto-copy on modal open (optional)
+- Animated ETH earned counter
+- Share to Farcaster/X buttons
+- Total referrals count
+
+**Stats Display:**
+```json
+{
+  "referralsThisRound": 5,
+  "totalReferralEarnings": "0.15"
+}
+```
+
+### API Endpoints
+
+#### `GET /api/user/referrals`
+Get referral statistics.
+
+**Response:**
+```json
+{
+  "totalReferrals": 42,
+  "activeReferrals": 38,
+  "totalEarningsEth": "0.42",
+  "referralsThisRound": 5,
+  "topReferrals": [
+    { "fid": 12345, "guesses": 15, "hasWon": false }
+  ]
+}
+```
+
+---
+
+## UX Design Guidelines
+
+### Interjection Randomizer
+
+The "Want another guess?" popup displays one of 25 random interjections to keep the experience fresh.
+
+**Implementation** (`locales/en.json`):
+```json
+{
+  "interjections": [
+    "So close! 🎯",
+    "Almost had it! 💪",
+    "Nice try! Keep going! 🔥",
+    "The word is still out there... 🔍",
+    "Don't give up now! 🚀",
+    // ... 20 more variations
+  ]
+}
+```
+
+**Usage:**
+```typescript
+import { useTranslation } from '../src/hooks/useTranslation';
+
+function AnotherGuessModal() {
+  const { getRandomInterjection } = useTranslation();
+  const interjection = getRandomInterjection();
+
+  return <h2>{interjection}</h2>;
+}
+```
+
+**Rules:**
+- Show random interjection each time modal appears
+- Do not repeat same interjection consecutively
+- Localization-ready (can translate all 25 phrases)
+
+### Haptics Patterns
+
+All haptic feedback uses the Farcaster MiniApp SDK:
+
+| Action | Pattern | Function |
+|--------|---------|----------|
+| Key press | Light tap | `haptics.keyTap()` |
+| Guess submitting | Medium impact | `haptics.guessSubmitting()` |
+| Invalid word | Error vibration | `haptics.invalidWord()` |
+| Wrong guess | Subtle feedback | `haptics.wrongGuess()` |
+| Correct guess | Success pattern | `haptics.correctGuess()` |
+| Pack purchased | Success notification | `haptics.packPurchased()` |
+| Link copied | Medium impact | `haptics.linkCopied()` |
+| Share completed | Success notification | `haptics.shareCompleted()` |
+| Card saved | Medium impact | `haptics.cardSaved()` |
+| Losing state | Warning | `haptics.losing()` |
+| Winning state | Success | `haptics.winning()` |
+
+**Implementation** (`src/lib/haptics.ts`):
+```typescript
+import sdk from '@farcaster/miniapp-sdk';
+
+const haptics = {
+  packPurchased: () => sdk.haptics.notificationOccurred("success"),
+  linkCopied: () => sdk.haptics.impactOccurred("medium"),
+  shareCompleted: () => sdk.haptics.notificationOccurred("success"),
+  cardSaved: () => sdk.haptics.impactOccurred("medium"),
+  losing: () => sdk.haptics.notificationOccurred("warning"),
+  winning: () => sdk.haptics.notificationOccurred("success"),
+};
+```
+
+### Share Card Design Rules
+
+**WinnerShareCard** design guidelines:
+
+1. **Background**: Purple gradient (`from-purple-600 via-purple-700 to-indigo-800`)
+2. **Pattern**: Subtle radial gradient dots at 10% opacity
+3. **Round Badge**: Top-left, white/20 background with backdrop blur
+4. **Typography**:
+   - Title: 3xl bold white with text shadow
+   - Word: 4xl bold white uppercase with letter-spacing
+   - Jackpot: 3xl bold on yellow/orange gradient background
+5. **CLANKTON Mascot**: Show 🐟 emoji with 🎉 for holders only
+6. **Text Smoothing**: `fontSmooth: 'always'`, `WebkitFontSmoothing: 'antialiased'`
+
+**Share Text Format:**
+```
+I just hit the {jackpot} ETH jackpot on Let's Have A Word! 🎉🟩
+
+I found the winning word "{word}" in round #{roundId}!
+
+@letshaveaword
+https://lets-have-a-word.vercel.app
+```
+
+**Button Styling:**
+- Farcaster: Purple (#6A3CFF) with Farcaster icon
+- X/Twitter: Black with 𝕏 symbol
+- Both: Full width, rounded-xl, shadow-lg, active:scale-95
+
+---
+
 ## Contact & Resources
 
 ### Documentation
@@ -1871,5 +2664,5 @@ The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farc
 ---
 
 **Last Updated**: November 2025
-**Version**: 5.3 (Milestone 5.3 - Advanced Analytics & Fairness Systems)
+**Version**: 6.3 (Milestone 6.3 - UX & Growth Mechanics)
 **Status**: Active Development
