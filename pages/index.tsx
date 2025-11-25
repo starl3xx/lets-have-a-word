@@ -272,13 +272,24 @@ function GameContent() {
 
   /**
    * Milestone 6.4.2: Update wheel's current guess as a transition (low priority)
+   * Milestone 6.4.6: Use requestIdleCallback for even better deferral
    * This prevents wheel updates from blocking input box rendering
    * Input boxes update immediately (high priority), wheel catches up afterwards
    */
   useEffect(() => {
-    startWheelTransition(() => {
-      setWheelCurrentGuess(currentWord);
-    });
+    // Use requestIdleCallback if available, otherwise fall back to transition
+    if (typeof requestIdleCallback !== 'undefined') {
+      const id = requestIdleCallback(() => {
+        startWheelTransition(() => {
+          setWheelCurrentGuess(currentWord);
+        });
+      }, { timeout: 100 }); // Max 100ms delay
+      return () => cancelIdleCallback(id);
+    } else {
+      startWheelTransition(() => {
+        setWheelCurrentGuess(currentWord);
+      });
+    }
   }, [currentWord]);
 
   /**
@@ -397,25 +408,39 @@ function GameContent() {
   /**
    * Handle letter input from GameKeyboard (Milestone 4.4)
    * Milestone 6.4: Uses centralized input control for consistent behavior
+   * Milestone 6.4.6: Optimized for instant first-letter response
    */
   const handleLetter = (letter: string) => {
-    // Milestone 6.4: Use centralized input control to check if input is allowed
-    const newLetters = guessInputControl.handleLetter(letter);
-    if (!newLetters) {
-      // Input blocked (error state, locked state, or row full)
-      return;
+    // Fast path: inline the common case check to avoid hook overhead
+    // Only call the hook for edge cases (error states, locked states)
+    const filledCount = letters.filter(l => l !== '').length;
+
+    // Quick rejection: row is full
+    if (filledCount >= 5) return;
+
+    // Quick rejection: locked or error states need full check
+    if (isLoading || boxResultState === 'correct' || !hasGuessesLeft) {
+      const newLetters = guessInputControl.handleLetter(letter);
+      if (!newLetters) return;
+      setLetters(newLetters);
+    } else {
+      // Fast path: directly compute new letters array
+      const nextIndex = letters.findIndex(l => l === '');
+      if (nextIndex === -1 || nextIndex >= 5) return;
+
+      const newLetters = [...letters];
+      newLetters[nextIndex] = letter.toUpperCase();
+      setLetters(newLetters);
     }
 
-    setLetters(newLetters);
-
-    // Reset to typing state when user starts typing
-    setBoxResultState('typing');
-
-    // Clear previous result and errors when user starts typing
-    if (result || errorMessage) {
-      setResult(null);
-      setErrorMessage(null);
+    // Only update boxResultState if it's not already 'typing'
+    if (boxResultState !== 'typing') {
+      setBoxResultState('typing');
     }
+
+    // Only clear result/error if they exist
+    if (result) setResult(null);
+    if (errorMessage) setErrorMessage(null);
 
     void haptics.keyTap();
   };
@@ -423,25 +448,40 @@ function GameContent() {
   /**
    * Handle backspace from GameKeyboard (Milestone 4.4)
    * Milestone 6.4: Uses centralized input control for consistent behavior
+   * Milestone 6.4.6: Optimized to avoid redundant state updates
    */
   const handleBackspace = () => {
-    // Milestone 6.4: Use centralized input control to check if backspace is allowed
-    const newLetters = guessInputControl.handleBackspace();
-    if (!newLetters) {
-      // Backspace blocked (error state, locked state, or row empty)
-      return;
+    // Fast path: check if locked (don't allow backspace during submission or after winning)
+    if (isLoading || boxResultState === 'correct' || !hasGuessesLeft) {
+      const newLetters = guessInputControl.handleBackspace();
+      if (!newLetters) return;
+      setLetters(newLetters);
+    } else {
+      // Fast path: directly compute new letters array
+      let lastFilledIndex = -1;
+      for (let i = letters.length - 1; i >= 0; i--) {
+        if (letters[i] !== '') {
+          lastFilledIndex = i;
+          break;
+        }
+      }
+
+      // Nothing to delete
+      if (lastFilledIndex < 0) return;
+
+      const newLetters = [...letters];
+      newLetters[lastFilledIndex] = '';
+      setLetters(newLetters);
     }
 
-    setLetters(newLetters);
-
-    // Reset to typing state
-    setBoxResultState('typing');
-
-    // Clear previous result and errors
-    if (result || errorMessage) {
-      setResult(null);
-      setErrorMessage(null);
+    // Only update boxResultState if it's not already 'typing'
+    if (boxResultState !== 'typing') {
+      setBoxResultState('typing');
     }
+
+    // Only clear result/error if they exist
+    if (result) setResult(null);
+    if (errorMessage) setErrorMessage(null);
 
     void haptics.keyBackspace();
   };
