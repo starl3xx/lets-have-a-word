@@ -209,10 +209,13 @@ function GameContent() {
           // Milestone 6.3: Track pack purchases for modal decision logic
           setPaidPacksPurchased(data.paidPacksPurchased || 0);
           setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
-          // Milestone 4.14 + dev mode: Set wheel start index (randomizes in dev mode)
-          if (data.wheelStartIndex !== null && data.wheelStartIndex !== undefined) {
-            setWheelStartIndex(data.wheelStartIndex);
-          }
+          // Milestone 4.14 + dev mode: Set wheel start index ONLY on initial load
+          // In dev mode, preserve the session's random position across refetches
+          // (wheel should return to same position after guess, not get a new random)
+          setWheelStartIndex(prev => {
+            if (prev !== null) return prev; // Already set, keep session position
+            return data.wheelStartIndex ?? prev;
+          });
         }
       } catch (error) {
         console.error('Error fetching user guess count:', error);
