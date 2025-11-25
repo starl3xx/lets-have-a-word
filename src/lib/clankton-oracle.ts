@@ -302,11 +302,10 @@ export function formatMarketCap(marketCapUsd: number): string {
  *
  * Recommended frequency: every 15 minutes
  *
- * Example cron setup (using node-cron or similar):
- * ```
+ * @example
+ * // Using node-cron or similar
  * import { runOracleUpdate } from './clankton-oracle';
- * cron.schedule('*/15 * * * *', runOracleUpdate);
- * ```
+ * cron.schedule('0,15,30,45 * * * *', runOracleUpdate);
  */
 export async function runOracleUpdate(): Promise<void> {
   console.log('[ORACLE] Running scheduled market cap update...');
