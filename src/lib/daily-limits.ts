@@ -17,6 +17,7 @@ import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
 import { hasClanktonBonus } from './clankton';
+import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import {
   getClanktonHolderBonusGuesses,
@@ -121,8 +122,9 @@ export async function getOrCreateDailyState(
   const clanktonBonusGuesses = getClanktonHolderBonusGuesses();
 
   // Generate random wheel start index (Milestone 4.14)
-  // Random index between 0 and 10,013 (total GUESS_WORDS - 1)
-  const wheelStartIndex = Math.floor(Math.random() * 10014);
+  // Random index between 0 and (total GUESS_WORDS - 1)
+  const totalGuessWords = getGuessWords().length;
+  const wheelStartIndex = Math.floor(Math.random() * totalGuessWords);
 
   const newState: DailyGuessStateInsert = {
     fid,
@@ -172,12 +174,13 @@ export async function getOrCreateDailyState(
  *
  * @param fid - Farcaster ID of the user
  * @param roundId - Optional round ID for per-round reset
+ * @param totalWords - Total number of guess words (should be getGuessWords().length)
  * @returns Random start index between 0 and totalWords-1
  */
 export async function getOrGenerateWheelStartIndex(
   fid: number,
-  roundId?: number,
-  totalWords: number = 10014
+  roundId: number | undefined,
+  totalWords: number
 ): Promise<number> {
   // Import dev mode check dynamically to avoid circular dependencies
   const { isDevModeEnabled } = await import('./devGameState');
