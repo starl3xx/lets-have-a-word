@@ -57,6 +57,7 @@ function GameContent() {
   // Wheel state (Milestone 2.3, updated Milestone 4.10)
   const [wheelWords, setWheelWords] = useState<WheelWord[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+  const [wheelStartIndex, setWheelStartIndex] = useState<number | null>(null);
 
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
@@ -206,6 +207,10 @@ function GameContent() {
           // Milestone 6.3: Track pack purchases for modal decision logic
           setPaidPacksPurchased(data.paidPacksPurchased || 0);
           setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
+          // Milestone 4.14 + dev mode: Set wheel start index (randomizes in dev mode)
+          if (data.wheelStartIndex !== null && data.wheelStartIndex !== undefined) {
+            setWheelStartIndex(data.wheelStartIndex);
+          }
         }
       } catch (error) {
         console.error('Error fetching user guess count:', error);
@@ -786,6 +791,7 @@ function GameContent() {
                   words={wheelWords}
                   currentGuess={wheelCurrentGuess}
                   inputState={currentInputState}
+                  startIndex={wheelStartIndex}
                 />
               )}
             </div>

@@ -30,6 +30,7 @@ interface WheelProps {
   words: WheelWord[];
   currentGuess: string;
   inputState?: InputState;
+  startIndex?: number | null; // Milestone 4.14: Initial wheel position (randomizes in dev mode)
 }
 
 // Constants
@@ -51,7 +52,7 @@ const DEBUG_SLOW_MODE = typeof window !== 'undefined' &&
   process.env.NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW === 'true';
 const DEBUG_DURATION_MULTIPLIER = 3; // Slow down animations 3x in debug mode
 
-export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
+export default function Wheel({ words, currentGuess, inputState, startIndex }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gapRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -108,6 +109,7 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
    * Determine where to insert the gap
    * Gap should appear AFTER centerIndex so focused word appears ABOVE gap
    * Special case: For last word, gap appears BEFORE it
+   * Milestone 4.14: Uses startIndex for initial position (randomizes in dev mode)
    */
   const gapIndex = useMemo(() => {
     if (centerIndex !== -1) {
@@ -118,9 +120,13 @@ export default function Wheel({ words, currentGuess, inputState }: WheelProps) {
       // Normal case: gap AFTER centered word (so word appears above gap)
       return centerIndex + 1;
     }
-    // Default to middle of list when not typing
+    // Use startIndex if provided, otherwise default to middle of list
+    if (startIndex !== null && startIndex !== undefined && startIndex >= 0 && startIndex < words.length) {
+      return startIndex;
+    }
+    // Fallback to middle of list when not typing and no startIndex
     return Math.floor(words.length / 2);
-  }, [centerIndex, words.length]);
+  }, [centerIndex, words.length, startIndex]);
 
   /**
    * Calculate total height for virtual scrolling
