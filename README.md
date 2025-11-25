@@ -11,11 +11,41 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.4 Complete
+## 🎯 Current Status: Milestone 6.4.3 Complete
 
 All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, and UI polish are fully implemented and production-ready:
 
-### ✅ Milestone 6.4 - UI Polish & Interaction Refinements (Latest)
+### ✅ Milestone 6.4.3 - Input & Word Wheel Performance Audit (Latest)
+
+Comprehensive performance audit and optimization pass to make the guessing experience feel instant and "buttery smooth" on every device:
+
+- **Memoized Input Boxes**
+  - Individual letter boxes wrapped in `React.memo` (`GuessSlot` component)
+  - Each slot only re-renders when its own props change
+  - Eliminates "gray then black" flicker on first input box
+  - Visual state computed once per render, not per-slot
+  - Component: `LetterBoxes.tsx` (updated)
+
+- **Performance Debugging Tools**
+  - New utility: `src/lib/perf-debug.ts`
+  - Enable via `NEXT_PUBLIC_PERF_DEBUG=true`
+  - Measures keydown-to-paint timing for input boxes
+  - Measures keydown-to-wheel-animation timing
+  - `ExtremeJumpTests` constants for A↔Z rotation testing
+  - `devLog()` / `perfLog()` utilities for gated console output
+
+- **Wheel Component Optimizations**
+  - Console.log statements gated behind dev mode checks
+  - Performance logs only appear when PERF_DEBUG enabled
+  - Animation timing logged for debugging wheel responsiveness
+  - Component: `Wheel.tsx` (updated)
+
+- **Verified Behaviors**
+  - Tap/focus rules preserved: empty row focuses first box, partial/full rows ignore taps
+  - Dev mode wheel start index changes on every refresh (for testing)
+  - Production wheel start index stable per-day-per-user
+
+### ✅ Milestone 6.4 - UI Polish & Interaction Refinements
 
 Improved core game feel and responsiveness with focus on input behavior and animation performance:
 

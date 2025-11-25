@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent, useTransition } from 'react';
+import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition } from 'react';
 import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
@@ -21,6 +21,7 @@ import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState }
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
 import { useGuessInput } from '../src/hooks/useGuessInput';
+import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider } from 'wagmi';
@@ -277,6 +278,16 @@ function GameContent() {
   }, [currentWord]);
 
   /**
+   * Milestone 6.4.3: Mark input as painted for performance measurement
+   * Uses useLayoutEffect to run synchronously after DOM updates
+   * This allows measuring the time between keydown and first paint
+   */
+  useLayoutEffect(() => {
+    // Mark that input boxes have been painted (for perf debugging)
+    markInputPainted();
+  }, [letters]);
+
+  /**
    * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
    * Provides immediate visual feedback for invalid state
    * Note: Haptics for invalid states are now handled by useInputStateHaptics hook (Milestone 4.7)
@@ -292,6 +303,7 @@ function GameContent() {
 
   /**
    * Hardware keyboard support for desktop (Milestone 4.4)
+   * Milestone 6.4.3: Added performance marker for keydown events
    */
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
@@ -303,6 +315,8 @@ function GameContent() {
       // Handle A-Z letters
       if (/^[a-zA-Z]$/.test(e.key)) {
         e.preventDefault();
+        // Milestone 6.4.3: Mark keydown for performance measurement
+        markKeydown();
         handleLetter(e.key);
         return;
       }
@@ -310,6 +324,8 @@ function GameContent() {
       // Handle backspace
       if (e.key === 'Backspace') {
         e.preventDefault();
+        // Milestone 6.4.3: Mark keydown for performance measurement
+        markKeydown();
         handleBackspace();
         return;
       }
