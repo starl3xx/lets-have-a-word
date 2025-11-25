@@ -77,6 +77,25 @@ Each player gets a daily allocation of guesses:
 - Case-insensitive (BRAIN = brain = BrAiN)
 - All words normalized to UPPERCASE internally
 
+### Per-User Per-Day Random Wheel Start Position
+
+The word wheel displays all 10,516 possible guess words. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
+
+**Production Behavior:**
+- Random starting index generated **once per day** at 11:00 UTC per user
+- Persisted in database (`dailyGuessState.wheelStartIndex`)
+- Stable across all page refreshes throughout the day
+- Ensures consistent UX for the same user on the same day
+- Optionally resets per round if configured
+
+**Dev Mode Behavior:**
+- Random starting index generated **on every page load**
+- Does NOT persist or reuse from database
+- Helps with faster testing and UX iteration
+- Allows developers to quickly test different wheel positions and animations
+
+Enable dev mode by setting `LHAW_DEV_MODE=true` in your environment variables.
+
 ---
 
 ## Technical Architecture
