@@ -100,6 +100,7 @@
   },
   "stats": {
     "title": "Your stats",
+    "shareButton": "Share my stats",
     "thisRound": "This round",
     "allTime": "All time",
     "totalGuesses": "Total guesses",
