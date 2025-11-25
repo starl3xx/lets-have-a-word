@@ -4,7 +4,7 @@ import type { WheelWord, WheelWordStatus } from '../src/types';
 import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '../src/lib/perf-debug';
 
 /**
- * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored + 6.4.3 performance tuning
+ * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored + 6.4.5 uniform jump UX
  *
  * Animation behavior: Exact match to milestone 4.5 (proven perfect)
  * Performance: Virtualization + binary search for 10,516 words
@@ -31,6 +31,27 @@ import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '.
  * - Console.log statements gated behind dev mode checks
  * - Performance debugging hooks for timing measurements
  * - All debug output uses devLog/perfLog utilities
+ *
+ * Milestone 6.4.5: Uniform Jump UX - Two-Mode Animation
+ * =====================================================
+ * Problem: Large letter jumps (e.g., D→R) felt slower than small jumps (D→E)
+ * even with capped duration, because the wheel visibly scrolled through many rows.
+ *
+ * Solution: Two-mode animation based on row distance:
+ *
+ * 1. SMALL JUMPS (≤ JUMP_THRESHOLD rows):
+ *    - Smooth scroll animation from current position to target
+ *    - Fixed duration (ANIMATION_DURATION_UNIFORM) regardless of distance
+ *    - User sees the wheel slide naturally to the new position
+ *
+ * 2. LARGE JUMPS (> JUMP_THRESHOLD rows):
+ *    - "Teleport + Settle" approach:
+ *      a) Instantly snap to a position SETTLE_ROWS before the target (no visible scroll)
+ *      b) Animate the final SETTLE_ROWS with the same duration as small jumps
+ *    - User never sees a long "train ride" scroll - just a quick snap + small settle
+ *    - Feels equally fast and snappy as small jumps
+ *
+ * Reduced Motion: If prefers-reduced-motion is enabled, all animations snap instantly.
  */
 interface WheelProps {
   words: WheelWord[];
@@ -45,18 +66,26 @@ const VIEWPORT_PADDING = 400; // Top/bottom padding (≈ 40vh at 1000px height)
 const OVERSCAN_COUNT = 30; // Extra items to render above/below viewport
 
 /**
- * Milestone 6.4: Animation timing constants
- * These can be overridden by env vars for debugging
+ * Milestone 6.4.5: Jump animation configuration
+ * These control the two-mode jump behavior for uniform perceived speed
  */
-const ANIMATION_DURATION_MIN = 100; // Minimum animation duration (ms)
-const ANIMATION_DURATION_MAX = 250; // Maximum animation duration (ms) - caps long jumps
-const ANIMATION_DURATION_DEFAULT = 200; // Default for most operations
-const CSS_TRANSITION_DURATION = 200; // CSS property transitions (ms)
+const JUMP_THRESHOLD = 10; // Rows: jumps larger than this use teleport + settle
+const SETTLE_ROWS = 3; // Rows: how many rows to animate after teleport
+const ANIMATION_DURATION_UNIFORM = 150; // ms: fixed duration for ALL visible animations
+const CSS_TRANSITION_DURATION = 150; // CSS property transitions (ms) - matched to scroll animation
 
 // Debug mode: set NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true to slow animations
 const DEBUG_SLOW_MODE = typeof window !== 'undefined' &&
   process.env.NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW === 'true';
 const DEBUG_DURATION_MULTIPLIER = 3; // Slow down animations 3x in debug mode
+
+/**
+ * Check if user prefers reduced motion
+ */
+const prefersReducedMotion = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+};
 
 export default function Wheel({ words, currentGuess, inputState, startIndex }: WheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +94,9 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   const [containerHeight, setContainerHeight] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
+
+  // Track previous gapIndex to calculate jump distance
+  const prevGapIndexRef = useRef<number | null>(null);
 
   /**
    * Defer expensive wheel calculations to keep input responsive (Milestone 4.11)
@@ -261,32 +293,69 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   }, []);
 
   /**
-   * Milestone 6.4: Custom scroll animation with capped duration
-   * Milestone 6.4.3: Added performance logging for debugging
-   * Ensures animation completes within 100-250ms regardless of distance
+   * Milestone 6.4.5: Two-mode scroll animation for uniform perceived speed
+   *
+   * Small jumps: Smooth scroll with fixed duration
+   * Large jumps: Teleport + settle animation (instant snap + small animated settle)
+   *
+   * @param targetScrollTop - Final scroll position
+   * @param rowDelta - Number of rows being jumped (used to determine animation mode)
+   * @param immediate - If true, skip all animation (used for initial load)
    */
-  const animateScrollTo = useCallback((targetScrollTop: number, immediate: boolean = false) => {
+  const animateScrollTo = useCallback((
+    targetScrollTop: number,
+    rowDelta: number,
+    immediate: boolean = false
+  ) => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Immediate scroll (initial load)
-    if (immediate) {
+    // Immediate scroll (initial load or reduced motion preference)
+    if (immediate || prefersReducedMotion()) {
       container.scrollTop = targetScrollTop;
+      devLog('Wheel', 'Instant scroll (immediate or reduced-motion)');
       return;
     }
 
     const startScrollTop = container.scrollTop;
-    const distance = Math.abs(targetScrollTop - startScrollTop);
+    const pixelDistance = Math.abs(targetScrollTop - startScrollTop);
 
     // Skip animation if already at target
-    if (distance < 1) return;
+    if (pixelDistance < 1) return;
 
-    // Calculate duration based on distance, capped within min/max
-    // Faster for short jumps, capped for long jumps (A->Z should feel same as C->D)
-    let duration = Math.min(
-      ANIMATION_DURATION_MAX,
-      Math.max(ANIMATION_DURATION_MIN, distance * 0.5)
-    );
+    // Determine animation mode based on row delta
+    const isLargeJump = Math.abs(rowDelta) > JUMP_THRESHOLD;
+    const direction = targetScrollTop > startScrollTop ? 1 : -1;
+
+    // Calculate animation parameters
+    let animationStartPos: number;
+    let animationEndPos: number;
+
+    if (isLargeJump) {
+      // LARGE JUMP: Teleport + Settle
+      // 1. Instantly snap to SETTLE_ROWS before target
+      // 2. Animate the final SETTLE_ROWS
+      const settleDistance = SETTLE_ROWS * ITEM_HEIGHT;
+      const teleportPos = targetScrollTop - (direction * settleDistance);
+
+      // Teleport instantly (no visible scroll)
+      container.scrollTop = teleportPos;
+
+      // Animate from teleport position to final target
+      animationStartPos = teleportPos;
+      animationEndPos = targetScrollTop;
+
+      devLog('Wheel', `Large jump (${rowDelta} rows): teleport to ${teleportPos}, settle to ${targetScrollTop}`);
+    } else {
+      // SMALL JUMP: Normal smooth scroll
+      animationStartPos = startScrollTop;
+      animationEndPos = targetScrollTop;
+
+      devLog('Wheel', `Small jump (${rowDelta} rows): smooth scroll from ${startScrollTop} to ${targetScrollTop}`);
+    }
+
+    // Fixed duration for uniform perceived speed
+    let duration = ANIMATION_DURATION_UNIFORM;
 
     // Apply debug multiplier if in slow mode
     if (DEBUG_SLOW_MODE) {
@@ -297,6 +366,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     logWheelAnimationStart();
 
     const startTime = performance.now();
+    const animationDistance = Math.abs(animationEndPos - animationStartPos);
 
     // Easing function: easeOutCubic for natural deceleration
     const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
@@ -306,13 +376,13 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
       const progress = Math.min(1, elapsed / duration);
       const easedProgress = easeOutCubic(progress);
 
-      container.scrollTop = startScrollTop + (targetScrollTop - startScrollTop) * easedProgress;
+      container.scrollTop = animationStartPos + (animationEndPos - animationStartPos) * easedProgress;
 
       if (progress < 1) {
         requestAnimationFrame(animate);
       } else {
         // Milestone 6.4.3: Log animation end for performance debugging
-        logWheelAnimationEnd(distance, duration);
+        logWheelAnimationEnd(animationDistance, duration);
       }
     };
 
@@ -320,10 +390,11 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   }, []);
 
   /**
-   * Auto-scroll to center the gap (Milestone 4.5 behavior restored + 6.4 performance)
-   * Uses custom animation with capped duration for consistent feel
+   * Auto-scroll to center the gap (Milestone 4.5 behavior restored + 6.4.5 uniform jump UX)
+   * Uses two-mode animation: small jumps smooth scroll, large jumps teleport + settle
    *
    * Milestone 6.4.2: Uses useLayoutEffect and waits for fonts to prevent misalignment
+   * Milestone 6.4.5: Calculates row delta for uniform perceived speed
    */
   useLayoutEffect(() => {
     if (!gapRef.current || !containerRef.current) {
@@ -339,12 +410,20 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     const containerMiddle = container.clientHeight / 2;
     const targetScrollTop = gapTop - containerMiddle + GAP_HEIGHT / 2;
 
-    devLog('Wheel', 'Centering - gapTop:', gapTop, 'containerMiddle:', containerMiddle, 'targetScrollTop:', targetScrollTop);
+    // Calculate row delta for animation mode selection
+    const prevGapIndex = prevGapIndexRef.current;
+    const rowDelta = prevGapIndex !== null ? gapIndex - prevGapIndex : 0;
+
+    devLog('Wheel', 'Centering - gapIndex:', gapIndex, 'prevGapIndex:', prevGapIndex, 'rowDelta:', rowDelta, 'targetScrollTop:', targetScrollTop);
+
+    // Update previous gapIndex for next calculation
+    prevGapIndexRef.current = gapIndex;
 
     // Use setTimeout to defer scroll to next tick (allows DOM to update)
     const timeoutId = setTimeout(() => {
-      // Instant on initial load (centerIndex === -1), animated when typing
-      animateScrollTo(targetScrollTop, centerIndex === -1);
+      // Instant on initial load (centerIndex === -1 and no previous position), animated when typing
+      const isInitialPosition = centerIndex === -1 && prevGapIndex === null;
+      animateScrollTo(targetScrollTop, rowDelta, isInitialPosition);
 
       // Dev-mode alignment validator
       if (process.env.NODE_ENV === 'development' && centerIndex === -1) {
@@ -355,7 +434,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [centerIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, animateScrollTo]);
+  }, [centerIndex, gapIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, animateScrollTo]);
 
   /**
    * Initialize on mount - only after fonts are ready
