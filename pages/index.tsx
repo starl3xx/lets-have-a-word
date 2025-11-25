@@ -930,7 +930,7 @@ function GameContent() {
               </button>
 
               {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 mb-3 grid grid-cols-3 gap-2">
+              <div className="mt-4 mb-4 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -965,7 +965,7 @@ function GameContent() {
 
       {/* Custom Keyboard (Milestone 4.4) */}
       <div
-        className="fixed bottom-0 left-0 right-0 bg-gray-100 pt-3"
+        className="fixed bottom-0 left-0 right-0 bg-gray-100 pt-2"
         style={{
           zIndex: 50,
           paddingBottom: isInMiniApp
