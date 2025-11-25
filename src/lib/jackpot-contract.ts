@@ -31,6 +31,16 @@ const JACKPOT_MANAGER_ABI = [
   'function getPlayerGuessCount(address player) view returns (uint256)',
   'function creatorProfitAccumulated() view returns (uint256)',
 
+  // Market cap oracle functions (Milestone 6.2)
+  'function clanktonMarketCapUsd() view returns (uint256)',
+  'function lastMarketCapUpdate() view returns (uint256)',
+  'function MARKET_CAP_TIER_THRESHOLD() view returns (uint256)',
+  'function MARKET_CAP_STALENESS_THRESHOLD() view returns (uint256)',
+  'function getCurrentBonusTier() view returns (uint8)',
+  'function getFreeGuessesForTier() view returns (uint256)',
+  'function isMarketCapStale() view returns (bool)',
+  'function getMarketCapInfo() view returns (uint256 marketCap, uint256 lastUpdate, bool isStale, uint8 tier)',
+
   // Write functions (operator only)
   'function seedJackpot() payable',
   'function resolveRound(address winner)',
@@ -45,6 +55,7 @@ const JACKPOT_MANAGER_ABI = [
   'event JackpotSeeded(uint256 indexed roundNumber, address indexed seeder, uint256 amount, uint256 newJackpot)',
   'event GuessesPurchased(uint256 indexed roundNumber, address indexed player, uint256 quantity, uint256 ethAmount, uint256 toJackpot, uint256 toCreator)',
   'event CreatorProfitPaid(address indexed recipient, uint256 amount)',
+  'event MarketCapUpdated(uint256 marketCapUsd, uint256 timestamp)',
 ];
 
 /**

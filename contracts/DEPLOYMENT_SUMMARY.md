@@ -185,19 +185,42 @@ OPERATOR_PRIVATE_KEY=<operator-wallet-private-key>
 ## Next Steps
 
 1. ✅ **Deploy Contract**: Base Mainnet deployed
-2. ⏳ **Verify Contract**: Run verification on BaseScan
+2. ✅ **Verify Contract**: Verified on Sourcify
 3. ⏳ **Seed Jackpot**: Initial 0.03 ETH seed from operator wallet
 4. ⏳ **Update Backend**: Set `JACKPOT_MANAGER_ADDRESS` in production
 5. ⏳ **Base Sepolia**: Deploy testnet version when RPC issues resolved
+6. ⏳ **Upgrade to 6.2**: Deploy oracle upgrade (see below)
 
-## Milestone 6.2 Preview
+## Milestone 6.2 - Oracle Integration
 
-Oracle integration for CLANKTON market cap:
-- See `docs/MILESTONE_6_2_ORACLE_SPEC.md` for specification
-- Contract already has `updateClanktonMarketCap()` placeholder
-- Will enable automatic bonus tier adjustment
+CLANKTON market cap oracle integration is **implemented and ready to deploy**.
+
+### New Features (6.2)
+
+| Function | Description |
+|----------|-------------|
+| `updateClanktonMarketCap(uint256)` | Push market cap from oracle |
+| `getCurrentBonusTier()` | Get LOW/HIGH tier |
+| `getFreeGuessesForTier()` | Get 2 or 3 free guesses |
+| `isMarketCapStale()` | Check if data > 1 hour old |
+| `getMarketCapInfo()` | Full market cap info |
+
+### Deploy Upgrade
+
+```bash
+cd contracts
+npx hardhat run scripts/upgrade.ts --network base
+```
+
+### Backend Files
+
+- `src/lib/clankton-oracle.ts` - Oracle service (DexScreener + CoinGecko)
+- `src/lib/clankton.ts` - Updated with contract integration
+
+See `docs/MILESTONE_6_2_ORACLE_SPEC.md` for full documentation.
 
 ---
 
 *Deployed: 2025-11-25*
 *Milestone: 6.1 - Smart Contract Specification*
+*Milestone 6.2 - Oracle Integration (Ready to Deploy)*
