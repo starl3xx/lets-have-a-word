@@ -96,7 +96,6 @@ const GuessSlot = memo(function GuessSlot({
         flex items-center justify-center
         text-3xl font-bold uppercase
         border-4 rounded-lg
-        transition-all duration-150
         ${slotClasses}
         ${cursorClass}
         ${showReadyGlow ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}
@@ -104,6 +103,11 @@ const GuessSlot = memo(function GuessSlot({
         ${isLockedState ? 'opacity-60' : ''}
         shadow-md
       `}
+      style={{
+        // Milestone 6.4.6: Only transition border-color and ring, not all properties
+        // This avoids expensive style recalculation on every keystroke
+        transition: 'border-color 150ms, box-shadow 150ms',
+      }}
     >
       {letter || '_'}
     </div>
