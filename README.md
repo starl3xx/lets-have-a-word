@@ -1158,6 +1158,39 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 - Test word lists are separate from production word lists
 - Perfect for UI development, screenshots, and demos
 
+### Random Wheel Start Position - Dev Mode Override
+
+The word wheel displays all 10,516 possible guess words, and each user sees a different starting position to provide variety and prevent pattern recognition.
+
+**Production Behavior:**
+- Random wheel start position is generated **once per day per user** (at 11:00 UTC)
+- Persisted in database for stability across page refreshes
+- Same user sees the same wheel position throughout the entire UTC day
+
+**Dev Mode Behavior:**
+- In dev mode, the wheel start position is **randomized on every page load**
+- Does NOT persist or reuse from database
+- Helps speed up iteration on wheel animations, UI behavior, and testing different alphabetical positions
+- Perfect for testing how the wheel looks at different starting points (A, M, Z, etc.)
+
+To enable dev mode for the wheel (and other dev features):
+
+1. **Set the environment variable** in your `.env.local` file:
+   ```bash
+   LHAW_DEV_MODE=true
+   ```
+
+2. **Restart your dev server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Refresh the page** - You'll see the wheel start at a different random position each time
+
+4. **Check console logs** - Look for: `🎡 [DEV MODE] Generated fresh random wheel start index`
+
+**Note:** This dev mode override also affects other game features like the guess API and round state, allowing you to test different game scenarios without database persistence.
+
 ## Analytics (Milestone 5.2)
 
 **Let's Have A Word** includes a comprehensive analytics system for tracking user activity, game metrics, and business intelligence. The system is feature-flagged and includes a web-based admin dashboard with Neynar SIWN authentication.

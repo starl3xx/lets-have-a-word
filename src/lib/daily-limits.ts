@@ -162,8 +162,13 @@ export async function getOrCreateDailyState(
  * Get or generate wheel start index for a user
  * Milestone 4.14: Per-user, per-day random wheel start position
  *
- * Generates a random index once per day per user (resets at 11:00 UTC)
- * Optionally resets per round if roundId changes
+ * Production: Generates a random index once per day per user (resets at 11:00 UTC)
+ *            Optionally resets per round if roundId changes
+ *            Persists in database for stability across page refreshes
+ *
+ * Dev Mode:   Generates a fresh random index on EVERY call (every page load)
+ *            Does NOT persist or reuse from database
+ *            Helps with faster testing and UX iteration
  *
  * @param fid - Farcaster ID of the user
  * @param roundId - Optional round ID for per-round reset
@@ -174,6 +179,19 @@ export async function getOrGenerateWheelStartIndex(
   roundId?: number,
   totalWords: number = 10014
 ): Promise<number> {
+  // Import dev mode check dynamically to avoid circular dependencies
+  const { isDevModeEnabled } = await import('./devGameState');
+
+  // DEV MODE: Generate fresh random on every call (every page load)
+  if (isDevModeEnabled()) {
+    const randomIndex = Math.floor(Math.random() * totalWords);
+    console.log(
+      `🎡 [DEV MODE] Generated fresh random wheel start index for FID ${fid}: ${randomIndex} (not persisted)`
+    );
+    return randomIndex;
+  }
+
+  // PRODUCTION: Stable per-day-per-user logic
   const dateStr = getTodayUTC();
   const state = await getOrCreateDailyState(fid, dateStr, roundId);
 
