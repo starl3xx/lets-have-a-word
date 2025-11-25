@@ -2,26 +2,37 @@
 
 ## Deployment Status
 
-| Network | Status | Address |
-|---------|--------|---------|
-| Base Sepolia | **Pending Funding** | - |
-| Base Mainnet | **Pending Funding** | - |
+| Network | Status | Proxy Address | Implementation |
+|---------|--------|---------------|----------------|
+| Base Sepolia | Pending (RPC issues) | - | - |
+| Base Mainnet | **DEPLOYED** | `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5` | `0x326C037B5FD53C9aDACd05122A8C7B4713D8760b` |
+
+## Deployed Contract Addresses
+
+### Base Mainnet (Chain ID: 8453)
+
+| Contract | Address | BaseScan |
+|----------|---------|----------|
+| **Proxy (Use This)** | `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5` | [View](https://basescan.org/address/0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5) |
+| Implementation | `0x326C037B5FD53C9aDACd05122A8C7B4713D8760b` | [View](https://basescan.org/address/0x326C037B5FD53C9aDACd05122A8C7B4713D8760b) |
+
+### Deployment Transaction
+- **Deployer**: `0x58a585909ccCd4f84EBc3868db6dA8d9882fEe9C`
+- **Deployed**: 2025-11-25
+- **Gas Used**: ~2.5M gas
 
 ## Deployer Wallet
 
 - **Address**: `0x58a585909ccCd4f84EBc3868db6dA8d9882fEe9C`
 - **Private Key**: Configured in `.env`
 
-### Current Balances
-- **Base Sepolia**: 0 ETH (needs testnet faucet)
-- **Base Mainnet**: ~0.008 ETH (needs ~0.015 ETH more for deployment)
-
 ## Contract Configuration
 
-### Wallet Addresses (Hardcoded in Contract)
+### Wallet Addresses (Initialized in Contract)
 
 | Role | Address | Description |
 |------|---------|-------------|
+| Owner | `0x58a585909ccCd4f84EBc3868db6dA8d9882fEe9C` | Can upgrade contract, change wallets |
 | Prize Pool | `0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB` | letshaveaword.eth - Seeds jackpots |
 | Operator | `0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38` | Authorized for resolving rounds |
 | Creator Profit | `0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223` | Receives 20% of guess purchases |
@@ -82,42 +93,24 @@
   27 passing
 ```
 
-## Deployment Steps
+## Post-Deployment Steps
 
-### Prerequisites
-1. Fund the deployer wallet with ETH:
-   - **Base Sepolia**: Get testnet ETH from [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
-   - **Base Mainnet**: Send ~0.02 ETH to `0x58a585909ccCd4f84EBc3868db6dA8d9882fEe9C`
-
-2. Update RPC endpoints (optional - for better rate limits):
-   - Get an Alchemy/QuickNode API key for Base
-   - Update `BASE_RPC_URL` and `BASE_SEPOLIA_RPC_URL` in `.env`
-
-### Deploy to Base Sepolia
+### 1. Update Environment Variables
+Add to your `.env`:
 ```bash
-cd contracts
-npm run deploy:base-sepolia
+JACKPOT_MANAGER_ADDRESS=0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5
 ```
 
-### Deploy to Base Mainnet
+### 2. Verify Contract on BaseScan
 ```bash
 cd contracts
-npm run deploy:base
+npx hardhat verify --network base 0x326C037B5FD53C9aDACd05122A8C7B4713D8760b
 ```
 
-### Post-Deployment
-1. Copy the proxy address to `.env`:
-   ```
-   JACKPOT_MANAGER_ADDRESS=<deployed-proxy-address>
-   ```
-
-2. Verify contract on BaseScan:
-   ```bash
-   npx hardhat verify --network base <implementation-address>
-   ```
-
-3. Seed initial jackpot (0.03 ETH minimum):
-   - Call `seedJackpot()` from operator wallet with 0.03+ ETH
+### 3. Seed Initial Jackpot
+From the operator wallet (`0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38`):
+- Call `seedJackpot()` with at least 0.03 ETH
+- This will automatically start Round 1
 
 ## Contract Functions
 
@@ -180,8 +173,8 @@ npm run deploy:base
 
 ### Environment Variables
 ```bash
-# Contract addresses (set after deployment)
-JACKPOT_MANAGER_ADDRESS=<proxy-address>
+# Contract address (DEPLOYED)
+JACKPOT_MANAGER_ADDRESS=0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5
 
 # Wallet configuration
 PRIZE_POOL_WALLET=0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB
@@ -194,11 +187,11 @@ OPERATOR_PRIVATE_KEY=<operator-wallet-private-key>
 
 ## Next Steps
 
-1. **Fund Deployer**: Send ETH to `0x58a585909ccCd4f84EBc3868db6dA8d9882fEe9C`
-2. **Deploy Contracts**: Run deployment scripts
-3. **Verify Contracts**: Verify on BaseScan for transparency
-4. **Seed Jackpot**: Initial 0.03 ETH seed
-5. **Update Backend**: Set `JACKPOT_MANAGER_ADDRESS` in production
+1. ✅ **Deploy Contract**: Base Mainnet deployed
+2. ⏳ **Verify Contract**: Run verification on BaseScan
+3. ⏳ **Seed Jackpot**: Initial 0.03 ETH seed from operator wallet
+4. ⏳ **Update Backend**: Set `JACKPOT_MANAGER_ADDRESS` in production
+5. ⏳ **Base Sepolia**: Deploy testnet version when RPC issues resolved
 
 ## Milestone 6.2 Preview
 
@@ -209,5 +202,5 @@ Oracle integration for CLANKTON market cap:
 
 ---
 
-*Generated: 2025-11-25*
+*Deployed: 2025-11-25*
 *Milestone: 6.1 - Smart Contract Specification*
