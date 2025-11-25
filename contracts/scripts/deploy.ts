@@ -9,7 +9,7 @@
  *   npx hardhat run scripts/deploy.ts --network baseSepolia
  */
 
-import { ethers, upgrades } from "hardhat";
+import hre from "hardhat";
 
 // Wallet addresses from spec
 const WALLETS = {
@@ -24,10 +24,10 @@ const WALLETS = {
 };
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const [deployer] = await hre.ethers.getSigners();
 
   console.log("Deploying JackpotManager with the account:", deployer.address);
-  console.log("Account balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)), "ETH");
+  console.log("Account balance:", hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)), "ETH");
   console.log("");
   console.log("Wallet Configuration:");
   console.log("  - Operator:", WALLETS.operator);
@@ -36,11 +36,11 @@ async function main() {
   console.log("");
 
   // Deploy upgradeable proxy
-  const JackpotManager = await ethers.getContractFactory("JackpotManager");
+  const JackpotManager = await hre.ethers.getContractFactory("JackpotManager");
 
   console.log("Deploying JackpotManager proxy...");
 
-  const jackpotManager = await upgrades.deployProxy(
+  const jackpotManager = await hre.upgrades.deployProxy(
     JackpotManager,
     [WALLETS.operator, WALLETS.creatorProfit, WALLETS.prizePool],
     {
@@ -52,7 +52,7 @@ async function main() {
   await jackpotManager.waitForDeployment();
 
   const proxyAddress = await jackpotManager.getAddress();
-  const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+  const implementationAddress = await hre.upgrades.erc1967.getImplementationAddress(proxyAddress);
 
   console.log("");
   console.log("=".repeat(60));
