@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue, useLayoutEffect } from 'react';
 import type { InputState } from '../src/lib/input-state';
 import type { WheelWord, WheelWordStatus } from '../src/types';
+import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '../src/lib/perf-debug';
 
 /**
- * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored + 6.4 performance tuning
+ * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored + 6.4.3 performance tuning
  *
  * Animation behavior: Exact match to milestone 4.5 (proven perfect)
  * Performance: Virtualization + binary search for 10,516 words
@@ -25,6 +26,11 @@ import type { WheelWord, WheelWordStatus } from '../src/types';
  * - Custom scroll animation with capped duration (100-250ms)
  * - will-change: transform for GPU acceleration
  * - Debug mode via WHEEL_ANIMATION_DEBUG_SLOW config
+ *
+ * Milestone 6.4.3: Performance audit improvements
+ * - Console.log statements gated behind dev mode checks
+ * - Performance debugging hooks for timing measurements
+ * - All debug output uses devLog/perfLog utilities
  */
 interface WheelProps {
   words: WheelWord[];
@@ -207,9 +213,9 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
       if (typeof document !== 'undefined' && 'fonts' in document) {
         try {
           await document.fonts.ready;
-          console.log('[Wheel] Fonts loaded, ready to center');
+          devLog('Wheel', 'Fonts loaded, ready to center');
         } catch (err) {
-          console.warn('[Wheel] Font load detection failed:', err);
+          devLog('Wheel', 'Font load detection failed:', err);
         }
       }
       setFontsReady(true);
@@ -229,7 +235,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
       if (containerRef.current) {
         const newHeight = containerRef.current.clientHeight;
         setContainerHeight(newHeight);
-        console.log('[Wheel] Container height updated:', newHeight);
+        devLog('Wheel', 'Container height updated:', newHeight);
       }
     };
 
@@ -256,6 +262,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
 
   /**
    * Milestone 6.4: Custom scroll animation with capped duration
+   * Milestone 6.4.3: Added performance logging for debugging
    * Ensures animation completes within 100-250ms regardless of distance
    */
   const animateScrollTo = useCallback((targetScrollTop: number, immediate: boolean = false) => {
@@ -286,6 +293,9 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
       duration *= DEBUG_DURATION_MULTIPLIER;
     }
 
+    // Milestone 6.4.3: Log animation start for performance debugging
+    logWheelAnimationStart();
+
     const startTime = performance.now();
 
     // Easing function: easeOutCubic for natural deceleration
@@ -300,6 +310,9 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
 
       if (progress < 1) {
         requestAnimationFrame(animate);
+      } else {
+        // Milestone 6.4.3: Log animation end for performance debugging
+        logWheelAnimationEnd(distance, duration);
       }
     };
 
@@ -326,7 +339,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     const containerMiddle = container.clientHeight / 2;
     const targetScrollTop = gapTop - containerMiddle + GAP_HEIGHT / 2;
 
-    console.log('[Wheel] Centering - gapTop:', gapTop, 'containerMiddle:', containerMiddle, 'targetScrollTop:', targetScrollTop);
+    devLog('Wheel', 'Centering - gapTop:', gapTop, 'containerMiddle:', containerMiddle, 'targetScrollTop:', targetScrollTop);
 
     // Use setTimeout to defer scroll to next tick (allows DOM to update)
     const timeoutId = setTimeout(() => {
@@ -349,7 +362,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
    */
   useEffect(() => {
     if (!isInitialized && words.length > 0 && fontsReady) {
-      console.log('[Wheel] Initializing, words.length:', words.length, 'gapIndex:', gapIndex);
+      devLog('Wheel', 'Initializing, words.length:', words.length, 'gapIndex:', gapIndex);
       setIsInitialized(true);
     }
   }, [isInitialized, words.length, gapIndex, fontsReady]);
@@ -371,7 +384,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     const tolerance = 5; // pixels
 
     if (diff > tolerance) {
-      console.warn('[Wheel] MISALIGNED!', {
+      devLog('Wheel', 'MISALIGNED!', {
         expected: expectedScrollTop,
         actual: currentScrollTop,
         diff,
@@ -381,7 +394,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
         itemHeight: ITEM_HEIGHT,
       });
     } else {
-      console.log('[Wheel] ✓ Properly centered (diff:', diff.toFixed(1), 'px)');
+      devLog('Wheel', '✓ Properly centered (diff:', diff.toFixed(1), 'px)');
     }
   }, [GAP_HEIGHT]);
 
@@ -550,7 +563,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     const items: JSX.Element[] = [];
     const { startIndex, endIndex } = visibleRange;
 
-    console.log('[Wheel] Rendering range:', startIndex, '-', endIndex, 'gapIndex:', gapIndex, 'words.length:', words.length);
+    perfLog('Wheel', 'Rendering range:', startIndex, '-', endIndex, 'gapIndex:', gapIndex, 'words.length:', words.length);
 
     for (let i = startIndex; i < endIndex; i++) {
       if (i >= words.length) break;

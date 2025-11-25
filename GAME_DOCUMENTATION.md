@@ -1198,6 +1198,62 @@ await sdk.actions.openUrl({
 - Multi-wallet support for CLANKTON balance checking
 - Enhanced round management with on-chain verification
 
+### Milestone 6.4: Input & Word Wheel Performance Audit
+- **Status**: ✅ Complete
+- **Goal**: Make the main guessing experience feel instant and "buttery smooth" on every device
+
+#### 6.4.1 - 6.4.2: Responsive Input (Previously Completed)
+- **useTransition Integration**: Separates urgent input updates from low-priority wheel updates
+- **Split State Architecture**:
+  - `currentWord` → Used by input boxes (urgent, high priority)
+  - `wheelCurrentGuess` → Used by wheel (deferred, low priority)
+- **Execution Flow**:
+  1. User types
+  2. Input boxes render immediately (high priority)
+  3. Browser paints input
+  4. Wheel updates as transition (low priority)
+
+#### 6.4.3: Performance Audit & Optimization
+- **Memoized GuessSlot Component** (`components/LetterBoxes.tsx`):
+  - Individual letter boxes wrapped in `React.memo`
+  - Each slot only re-renders when its own props change
+  - Eliminates "gray then black" flicker on first input box
+  - Minimal prop surface: `letter`, `index`, `visualState`, `showReadyGlow`, `isLockedState`, `cursorType`
+  - Visual state computed once per render, not per-slot
+- **Performance Debugging Tools** (`src/lib/perf-debug.ts`):
+  - Enable via `NEXT_PUBLIC_PERF_DEBUG=true`
+  - `markKeydown()` / `markInputPainted()` for input timing
+  - `logWheelAnimationStart()` / `logWheelAnimationEnd()` for wheel timing
+  - Measures keydown-to-paint and keydown-to-wheel-animation times
+  - `ExtremeJumpTests` for testing A↔Z wheel rotations
+- **Wheel Component Optimizations** (`components/Wheel.tsx`):
+  - Console.log statements gated behind `devLog()` utility
+  - Performance logs use `perfLog()` (only when PERF_DEBUG enabled)
+  - Animation timing logged for debugging
+- **Tap/Focus Behavior Rules** (Preserved):
+  - Empty row: Tapping any box focuses first box
+  - Partial/full row: Tapping does nothing
+  - Error/red state: Tapping does nothing
+  - Locked states (SUBMITTING, OUT_OF_GUESSES, RESULT_CORRECT): All interaction blocked
+- **Dev Mode Wheel Start Index** (Verified):
+  - Production: Stable per-day-per-user from database
+  - Dev mode: Fresh random on every page load for testing
+
+#### Performance Metrics
+- Input boxes re-render only affected slot (not all 5)
+- Wheel animation capped at 100-250ms regardless of distance
+- Virtual scrolling renders ~100 words instead of 10,516
+- Binary search O(log n) for alphabetical positioning
+
+#### Environment Variables
+```bash
+# Enable performance debugging logs
+NEXT_PUBLIC_PERF_DEBUG=true
+
+# Slow down wheel animations 3x for debugging
+NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
+```
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)
