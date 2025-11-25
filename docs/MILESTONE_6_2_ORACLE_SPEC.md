@@ -200,7 +200,7 @@ CLANKTON_MARKET_CAP_USD=150000
 ## References
 
 - CLANKTON Token: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
-- JackpotManager Proxy: `0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5`
+- JackpotManager Proxy: `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5`
 - DexScreener API: https://docs.dexscreener.com/
 - CoinGecko API: https://www.coingecko.com/api/documentation
 
