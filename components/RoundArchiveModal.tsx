@@ -45,7 +45,7 @@ interface RoundArchiveModalProps {
 // Color palette based on #2D68C7
 const COLORS = {
   primary: '#2D68C7',
-  accent: '#a78bfa', // Purple for numbers/values like elsewhere in app
+  accent: '#7436c9', // Purple accent matching FAQ
   success: '#34d399',
   successBg: 'rgba(52, 211, 153, 0.1)',
 };
