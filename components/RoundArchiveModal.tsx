@@ -45,10 +45,7 @@ interface RoundArchiveModalProps {
 // Color palette based on #2D68C7
 const COLORS = {
   primary: '#2D68C7',
-  primaryLight: '#4A82D9',
-  primaryDark: '#1E4D8F',
-  gradientStart: '#1a2d4d',
-  gradientEnd: '#0f1a2e',
+  accent: '#a78bfa', // Purple for numbers/values like elsewhere in app
   success: '#34d399',
   successBg: 'rgba(52, 211, 153, 0.1)',
 };
@@ -126,7 +123,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
     >
       <div
         style={{
-          background: `linear-gradient(180deg, ${COLORS.gradientStart} 0%, ${COLORS.gradientEnd} 100%)`,
+          background: COLORS.primary,
           borderRadius: '16px',
           maxWidth: '500px',
           width: '100%',
@@ -141,7 +138,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
         <div
           style={{
             padding: '20px',
-            borderBottom: `1px solid ${COLORS.primary}33`,
+            borderBottom: '1px solid rgba(255,255,255,0.2)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -160,7 +157,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
           <button
             onClick={selectedRound ? () => setSelectedRound(null) : onClose}
             style={{
-              background: `${COLORS.primary}33`,
+              background: 'rgba(255,255,255,0.15)',
               border: 'none',
               borderRadius: '8px',
               padding: '8px 12px',
@@ -194,7 +191,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                     fontSize: '36px',
                     fontWeight: 700,
                     letterSpacing: '6px',
-                    color: COLORS.primaryLight,
+                    color: COLORS.accent,
                   }}
                 >
                   {selectedRound.targetWord}
@@ -257,7 +254,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                   display: 'block',
                   textAlign: 'center',
                   padding: '12px',
-                  background: COLORS.primary,
+                  background: 'rgba(255,255,255,0.15)',
                   color: 'white',
                   borderRadius: '8px',
                   textDecoration: 'none',
@@ -281,10 +278,10 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                     marginBottom: '20px',
                   }}
                 >
-                  <MiniStat label="Total Rounds" value={stats.totalRounds.toLocaleString()} />
-                  <MiniStat label="Total Guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
-                  <MiniStat label="Unique Winners" value={stats.uniqueWinners.toLocaleString()} />
-                  <MiniStat label="Total Jackpot" value={`${formatEth(stats.totalJackpotDistributed)} ETH`} />
+                  <MiniStat label="Total rounds" value={stats.totalRounds.toLocaleString()} />
+                  <MiniStat label="Total guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
+                  <MiniStat label="Unique winners" value={stats.uniqueWinners.toLocaleString()} />
+                  <MiniStat label="Total jackpot" value={`${formatEth(stats.totalJackpotDistributed)} ETH`} />
                 </div>
               )}
 
@@ -303,7 +300,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                       key={round.roundNumber}
                       onClick={() => fetchRoundDetail(round.roundNumber)}
                       style={{
-                        background: `${COLORS.primary}15`,
+                        background: 'rgba(255,255,255,0.1)',
                         border: 'none',
                         borderRadius: '8px',
                         padding: '12px',
@@ -321,7 +318,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                             style={{
                               marginLeft: '8px',
                               fontFamily: 'monospace',
-                              color: COLORS.primaryLight,
+                              color: COLORS.accent,
                               letterSpacing: '1px',
                             }}
                           >
@@ -348,7 +345,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                   textAlign: 'center',
                   padding: '12px',
                   marginTop: '16px',
-                  background: `${COLORS.primary}33`,
+                  background: 'rgba(255,255,255,0.15)',
                   color: 'white',
                   borderRadius: '8px',
                   textDecoration: 'none',
@@ -369,13 +366,13 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
   return (
     <div
       style={{
-        background: highlight ? COLORS.successBg : `${COLORS.primary}15`,
+        background: highlight ? COLORS.successBg : 'rgba(255,255,255,0.1)',
         borderRadius: '8px',
         padding: '12px',
         textAlign: 'center',
       }}
     >
-      <div style={{ fontSize: '18px', fontWeight: 600, color: highlight ? COLORS.success : COLORS.primaryLight }}>
+      <div style={{ fontSize: '18px', fontWeight: 600, color: highlight ? COLORS.success : COLORS.accent }}>
         {value}
       </div>
       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
@@ -389,13 +386,13 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        background: `${COLORS.primary}15`,
+        background: 'rgba(255,255,255,0.1)',
         borderRadius: '6px',
         padding: '8px',
         textAlign: 'center',
       }}
     >
-      <div style={{ fontSize: '14px', fontWeight: 600, color: COLORS.primaryLight }}>{value}</div>
+      <div style={{ fontSize: '14px', fontWeight: 600, color: COLORS.accent }}>{value}</div>
       <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>{label}</div>
     </div>
   );

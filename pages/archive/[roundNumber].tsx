@@ -113,34 +113,34 @@ export default function RoundDetailPage() {
 
       <main style={{
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+        background: '#2D68C7',
         color: 'white',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}>
         {/* Header */}
         <header style={{
           padding: '24px',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: '1px solid rgba(255,255,255,0.2)',
         }}>
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <Link
               href="/archive"
               style={{
-                color: '#a78bfa',
+                color: 'rgba(255,255,255,0.8)',
                 textDecoration: 'none',
                 fontSize: '14px',
                 display: 'inline-block',
                 marginBottom: '8px',
               }}
             >
-              Back to Archive
+              ← Back to archive
             </Link>
             <h1 style={{
               margin: 0,
               fontSize: '28px',
               fontWeight: 700,
             }}>
-              {loading ? 'Loading...' : round ? `Round #${round.roundNumber}` : 'Round Not Found'}
+              {loading ? 'Loading...' : round ? `Round #${round.roundNumber}` : 'Round not found'}
             </h1>
           </div>
         </header>
@@ -164,10 +164,10 @@ export default function RoundDetailPage() {
                 style={{
                   display: 'block',
                   marginTop: '12px',
-                  color: '#a78bfa',
+                  color: 'rgba(255,255,255,0.8)',
                 }}
               >
-                Browse all rounds
+                ← Browse all rounds
               </Link>
             </div>
           )}
@@ -206,12 +206,12 @@ export default function RoundDetailPage() {
                 marginBottom: '24px',
               }}>
                 <StatCard label="Jackpot" value={`${formatEth(round.finalJackpotEth)} ETH`} highlight />
-                <StatCard label="Total Guesses" value={round.totalGuesses.toLocaleString()} />
+                <StatCard label="Total guesses" value={round.totalGuesses.toLocaleString()} />
                 <StatCard label="Players" value={round.uniquePlayers.toLocaleString()} />
                 <StatCard label="Duration" value={formatDuration(round.startTime, round.endTime)} />
               </div>
 
-              {/* Winner Section */}
+              {/* Winner section */}
               <Section title="Winner">
                 {round.winnerFid ? (
                   <div style={{
@@ -257,7 +257,7 @@ export default function RoundDetailPage() {
                   </div>
                 ) : (
                   <div style={{
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'rgba(255,255,255,0.1)',
                     borderRadius: '8px',
                     padding: '16px',
                     textAlign: 'center',
@@ -268,11 +268,11 @@ export default function RoundDetailPage() {
                 )}
               </Section>
 
-              {/* Top Guessers */}
+              {/* Top guessers */}
               {round.payoutsJson.topGuessers.length > 0 && (
-                <Section title="Top Guessers">
+                <Section title="Top guessers">
                   <div style={{
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'rgba(255,255,255,0.1)',
                     borderRadius: '8px',
                     overflow: 'hidden',
                   }}>
@@ -302,11 +302,11 @@ export default function RoundDetailPage() {
                 </Section>
               )}
 
-              {/* Guess Distribution Histogram */}
+              {/* Guess distribution histogram */}
               {distribution && distribution.distribution.length > 0 && (
-                <Section title="Guess Distribution by Hour">
+                <Section title="Guess distribution by hour">
                   <div style={{
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'rgba(255,255,255,0.1)',
                     borderRadius: '8px',
                     padding: '16px',
                   }}>
@@ -347,10 +347,10 @@ export default function RoundDetailPage() {
                 </Section>
               )}
 
-              {/* Round Info */}
-              <Section title="Round Details">
+              {/* Round info */}
+              <Section title="Round details">
                 <div style={{
-                  background: 'rgba(255,255,255,0.05)',
+                  background: 'rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   padding: '16px',
                 }}>
@@ -362,10 +362,10 @@ export default function RoundDetailPage() {
                 </div>
               </Section>
 
-              {/* Commit-Reveal Verification */}
-              <Section title="Verification (Commit-Reveal)">
+              {/* Commit-reveal verification */}
+              <Section title="Verification (commit-reveal)">
                 <div style={{
-                  background: 'rgba(255,255,255,0.05)',
+                  background: 'rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   padding: '16px',
                   fontSize: '13px',
@@ -398,7 +398,7 @@ export default function RoundDetailPage() {
 function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div style={{
-      background: highlight ? 'rgba(52, 211, 153, 0.1)' : 'rgba(255,255,255,0.05)',
+      background: highlight ? 'rgba(52, 211, 153, 0.1)' : 'rgba(255,255,255,0.1)',
       borderRadius: '8px',
       padding: '16px',
       textAlign: 'center',

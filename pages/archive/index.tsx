@@ -79,34 +79,34 @@ export default function ArchiveListPage() {
 
       <main style={{
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+        background: '#2D68C7',
         color: 'white',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}>
         {/* Header */}
         <header style={{
           padding: '24px',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: '1px solid rgba(255,255,255,0.2)',
         }}>
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <Link
               href="/"
               style={{
-                color: '#a78bfa',
+                color: 'rgba(255,255,255,0.8)',
                 textDecoration: 'none',
                 fontSize: '14px',
                 display: 'inline-block',
                 marginBottom: '8px',
               }}
             >
-              Back to Game
+              ← Back to game
             </Link>
             <h1 style={{
               margin: 0,
               fontSize: '28px',
               fontWeight: 700,
             }}>
-              Round Archive
+              LHAW archive
             </h1>
             <p style={{
               margin: '8px 0 0 0',
@@ -128,11 +128,11 @@ export default function ArchiveListPage() {
               gap: '12px',
               marginBottom: '24px',
             }}>
-              <StatCard label="Total Rounds" value={stats.totalRounds.toLocaleString()} />
-              <StatCard label="Total Guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
-              <StatCard label="Unique Winners" value={stats.uniqueWinners.toLocaleString()} />
+              <StatCard label="Total rounds" value={stats.totalRounds.toLocaleString()} />
+              <StatCard label="Total guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
+              <StatCard label="Unique winners" value={stats.uniqueWinners.toLocaleString()} />
               <StatCard
-                label="Total Jackpot"
+                label="Total jackpot"
                 value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
               />
             </div>
@@ -152,9 +152,9 @@ export default function ArchiveListPage() {
             </div>
           )}
 
-          {/* Rounds List */}
+          {/* Rounds list */}
           <div style={{
-            background: 'rgba(255,255,255,0.05)',
+            background: 'rgba(255,255,255,0.1)',
             borderRadius: '12px',
             overflow: 'hidden',
           }}>
@@ -282,7 +282,7 @@ export default function ArchiveListPage() {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.05)',
+      background: 'rgba(255,255,255,0.1)',
       borderRadius: '8px',
       padding: '16px',
       textAlign: 'center',
