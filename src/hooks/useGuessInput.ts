@@ -141,14 +141,15 @@ export function useGuessInput({
 
   /**
    * Can handle backspace?
-   * Blocked if: disabled, locked, error state, or all boxes empty
+   * Blocked if: disabled, locked state, or all boxes empty
+   * Note: Error states (red borders) should NOT block backspace - users should be able to correct their input
    */
   const canHandleBackspace = useMemo(() => {
-    if (isLockedState || isErrorState) return false;
+    if (isLockedState) return false;
 
     // Check if there's anything to delete
     return letters.some(l => l !== '');
-  }, [isLockedState, isErrorState, letters]);
+  }, [isLockedState, letters]);
 
   /**
    * Get the next empty index (first empty slot from left)
