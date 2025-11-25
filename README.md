@@ -75,6 +75,13 @@ Comprehensive UX and growth mechanics for pre-production readiness:
   - Card saved: medium impact
   - Module: `src/lib/haptics.ts` (extended)
 
+- **Daily Guess Flow Modal Decision Logic**
+  - Smart modal sequencing based on user state
+  - Session-level tracking to avoid repeat modal spam
+  - Decision tree: share modal → pack modal → out-of-guesses
+  - Hook: `useModalDecision` in `src/hooks/useModalDecision.ts`
+  - Exported types: `ModalDecision`, `ModalDecisionState`, `ModalDecisionParams`
+
 - **Analytics Events**
   - Guess Pack: `GUESS_PACK_VIEWED`, `GUESS_PACK_PURCHASED`, `GUESS_PACK_USED`
   - Share: `SHARE_PROMPT_SHOWN`, `SHARE_CLICKED`, `SHARE_SUCCESS`
@@ -1502,6 +1509,26 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
   - +2-3 if holding ≥100M CLANKTON (tiered by market cap)
   - +1 share bonus
 
+### Daily Guess Flow Modal Logic
+
+The game uses smart modal sequencing to offer guesses without being annoying:
+
+**Decision Tree (after each guess):**
+1. **If guesses remain** → Only show share modal once per session (if share bonus unused)
+2. **If out of guesses** → Show share modal first (if unused and not seen this session)
+3. **If share declined/used** → Show pack purchase modal (if packs available)
+4. **Otherwise** → Show "out of guesses" state
+
+**Session Tracking:**
+- `hasSeenShareModalThisSession` - Prevents share modal spam
+- `hasSeenPackModalThisSession` - Prevents pack modal spam
+- Both reset on page refresh or new session
+
+**Implementation:**
+- Hook: `useModalDecision` (`src/hooks/useModalDecision.ts`)
+- Returns: `decideModal()`, `markShareModalSeen()`, `markPackModalSeen()`
+- See GAME_DOCUMENTATION.md for detailed flow diagrams
+
 ### Economics (Milestone 3.1, Updated in 4.9)
 
 **Per Paid Guess (80/20 Split)**
@@ -1876,6 +1903,10 @@ Buttons:
 src/
 ├── config/            # Configuration
 │   └── wagmi.ts           # Wagmi wallet config
+├── hooks/             # React hooks
+│   ├── index.ts           # Hooks barrel export
+│   ├── useTranslation.ts  # i18n translation hook
+│   └── useModalDecision.ts # Daily guess flow modal logic
 ├── lib/               # Core game logic
 │   ├── word-lists.ts      # Word validation
 │   ├── game-rules.ts      # Rule management
