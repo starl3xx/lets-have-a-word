@@ -1,0 +1,498 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5",
+      "txHash": "0x767b3f89395d7ea73ab441d940daf53cec70d4f501f1c98b0e08bc1e19d8d798",
+      "kind": "uups"
+    }
+  ],
+  "impls": {
+    "842512c4309c489debc1c6d0f90ec1d435f7f952552fb5a06547fac40789488e": {
+      "address": "0x326C037B5FD53C9aDACd05122A8C7B4713D8760b",
+      "txHash": "0x2acda373be192aeba0e7b23cfc9a8b3b725943664fa71ec855874e3fff2fdaa1",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "operatorWallet",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:44"
+          },
+          {
+            "label": "creatorProfitWallet",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:47"
+          },
+          {
+            "label": "prizePoolWallet",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:50"
+          },
+          {
+            "label": "currentRound",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:53"
+          },
+          {
+            "label": "currentJackpot",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:56"
+          },
+          {
+            "label": "creatorProfitAccumulated",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:59"
+          },
+          {
+            "label": "rounds",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_mapping(t_uint256,t_struct(Round)1637_storage)",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:62"
+          },
+          {
+            "label": "playerGuessesThisRound",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:65"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)226_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Round)1637_storage)": {
+            "label": "mapping(uint256 => struct JackpotManager.Round)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Round)1637_storage": {
+            "label": "struct JackpotManager.Round",
+            "members": [
+              {
+                "label": "roundNumber",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "startingJackpot",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "finalJackpot",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "winner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "winnerPayout",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "startedAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "resolvedAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "74b0bfe9b14feab4d531fcd2a606dcd1aa5358426db882af7e17bca196d1625d": {
+      "address": "0xE01A8803C3EF669075F9860bF5ccA41647Adec90",
+      "txHash": "0x72da05696f9f3e6aa1771072a562f034d84851e445be38fe8befa8c36d503274",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "operatorWallet",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:59"
+          },
+          {
+            "label": "creatorProfitWallet",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:62"
+          },
+          {
+            "label": "prizePoolWallet",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:65"
+          },
+          {
+            "label": "currentRound",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:68"
+          },
+          {
+            "label": "currentJackpot",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:71"
+          },
+          {
+            "label": "creatorProfitAccumulated",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:74"
+          },
+          {
+            "label": "rounds",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_mapping(t_uint256,t_struct(Round)1657_storage)",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:77"
+          },
+          {
+            "label": "playerGuessesThisRound",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:80"
+          },
+          {
+            "label": "clanktonMarketCapUsd",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:83"
+          },
+          {
+            "label": "lastMarketCapUpdate",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "JackpotManager",
+            "src": "src/JackpotManager.sol:86"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)226_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Round)1657_storage)": {
+            "label": "mapping(uint256 => struct JackpotManager.Round)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Round)1657_storage": {
+            "label": "struct JackpotManager.Round",
+            "members": [
+              {
+                "label": "roundNumber",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "startingJackpot",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "finalJackpot",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "winner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "winnerPayout",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "startedAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "resolvedAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
