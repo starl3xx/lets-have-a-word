@@ -705,6 +705,45 @@ Located in `/src/data/test-word-lists.ts`:
 - All lowercase, 5 letters
 - No overlap between answer/seed
 
+### Dev Mode Persona Switcher (Milestone 6.4.7)
+
+A client-side tool for QA testing different user states without modifying the database.
+
+**Enabling:**
+```bash
+# Add to .env.local
+NEXT_PUBLIC_LHAW_DEV_MODE=true
+```
+
+**Usage:**
+1. Look for the "DEV" pill button in the top-right corner
+2. Click to open the persona panel
+3. Select a persona to override user state
+4. Button shows "DEV*" (pulsing) when override is active
+5. Click "Reset to Real State" to clear overrides
+
+**Available Personas:**
+
+| Persona | Description |
+|---------|-------------|
+| Real State | Use actual API data (no overrides) |
+| New Non-Holder | 1 free guess, share available, no CLANKTON |
+| Engaged Non-Holder | Share bonus available, no guesses left |
+| Non-Holder Out of Guesses | Share used, no guesses, no packs bought |
+| CLANKTON Holder (Low Tier) | +2 bonus guesses, share available |
+| CLANKTON Holder (High Tier) | +3 bonus guesses, share available |
+| Maxed-Out Buyer | Max packs bought, share used, no guesses |
+
+**Key Files:**
+- `src/contexts/DevPersonaContext.tsx` - State management and personas
+- `components/DevPersonaPanel.tsx` - UI component
+- Integration in `pages/index.tsx`
+
+**Notes:**
+- Overrides are client-side only; they don't affect the database
+- Overrides persist during the session until manually reset
+- When a persona is active, the user state is re-fetched with overrides applied
+
 ---
 
 ## UI/UX Patterns

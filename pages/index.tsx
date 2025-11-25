@@ -16,6 +16,9 @@ import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
 import AnotherGuessModal from '../components/AnotherGuessModal';
+// Milestone 6.4.7: Dev mode persona switcher
+import { DevPersonaProvider, useDevPersona } from '../src/contexts/DevPersonaContext';
+import DevPersonaSwitcher from '../components/DevPersonaPanel';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
@@ -103,6 +106,9 @@ function GameContent() {
     markShareModalSeen,
     markPackModalSeen,
   } = useModalDecision();
+
+  // Milestone 6.4.7: Dev persona overrides for QA testing
+  const { applyOverrides: applyDevPersonaOverrides } = useDevPersona();
 
   /**
    * Get Farcaster context on mount and signal ready
@@ -192,6 +198,7 @@ function GameContent() {
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
    * Milestone 6.3: Also check share bonus eligibility, CLANKTON holder status, and pack purchase status
+   * Milestone 6.4.7: Apply dev persona overrides for QA testing
    */
   useEffect(() => {
     const fetchUserGuessCount = async () => {
@@ -200,7 +207,10 @@ function GameContent() {
       try {
         const response = await fetch(`/api/user-state?devFid=${fid}`);
         if (response.ok) {
-          const data: UserStateResponse = await response.json();
+          const rawData: UserStateResponse = await response.json();
+          // Milestone 6.4.7: Apply dev persona overrides if active
+          const data = applyDevPersonaOverrides(rawData);
+
           setHasGuessesLeft(data.totalGuessesRemaining > 0);
           // Milestone 6.3: Check if user can still claim share bonus
           setCanClaimShareBonus(!data.hasSharedToday);
@@ -226,7 +236,7 @@ function GameContent() {
     };
 
     fetchUserGuessCount();
-  }, [fid, userStateKey]); // Re-fetch when userStateKey changes
+  }, [fid, userStateKey, applyDevPersonaOverrides]); // Re-fetch when userStateKey changes or persona changes
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
@@ -802,6 +812,9 @@ function GameContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Milestone 6.4.7: Dev Persona Switcher (only visible in dev mode) */}
+      <DevPersonaSwitcher />
+
       {/* Top Ticker (Milestone 2.3, 5.4: clickable round number) */}
       <TopTicker
         onRoundClick={(roundId) => {
@@ -1126,12 +1139,16 @@ function GameContent() {
  * - _app.tsx: Minimal, no providers
  * - pages/index.tsx (this file): Game page with WagmiProvider
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
+ *
+ * Milestone 6.4.7: DevPersonaProvider wraps GameContent for QA testing
  */
 export default function Home() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <GameContent />
+        <DevPersonaProvider>
+          <GameContent />
+        </DevPersonaProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
