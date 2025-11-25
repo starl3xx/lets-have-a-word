@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex } from '../../src/lib/daily-limits';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
 import { hasClanktonBonus } from '../../src/lib/clankton';
+import { getGuessWords } from '../../src/lib/word-lists';
 import { db } from '../../src/db';
 import { users } from '../../src/db/schema';
 import { eq } from 'drizzle-orm';
@@ -199,7 +200,8 @@ export default async function handler(
     // Milestone 4.14: Get wheel start index (with dev mode override support)
     // In production: stable per-day per-user, from database
     // In dev mode: fresh random on every request
-    const wheelStartIndex = await getOrGenerateWheelStartIndex(fid, undefined, 10014);
+    const totalGuessWords = getGuessWords().length;
+    const wheelStartIndex = await getOrGenerateWheelStartIndex(fid, undefined, totalGuessWords);
 
     const response: UserStateResponse = {
       fid,
