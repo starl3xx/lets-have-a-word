@@ -615,9 +615,10 @@ function GameContent() {
         }, 2000); // 2 second delay
       }
 
-      // Clear input after successful submission (Milestone 4.3)
-      // Milestone 4.14: Keep winning word in input boxes, only clear for incorrect guesses
-      if (data.status === 'incorrect') {
+      // Clear input after submission (Milestone 4.3)
+      // Milestone 4.14: Keep winning word in input boxes, only clear for non-winning guesses
+      // This also resets the wheel to its daily start position
+      if (data.status !== 'correct') {
         setLetters(['', '', '', '', '']);
       }
       // For 'correct', keep the winning word in the boxes with green pulse-glow
