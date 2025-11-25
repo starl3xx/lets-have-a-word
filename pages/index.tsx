@@ -293,9 +293,13 @@ function GameContent() {
         return;
       }
 
-      // Handle enter - submit guess
+      // Handle enter - submit guess (only if guess button would be enabled)
       if (e.key === 'Enter') {
         e.preventDefault();
+        // Milestone 6.4: Respect same validation as GUESS button
+        if (!isGuessButtonEnabled(currentInputState) || isLoading) {
+          return;
+        }
         handleSubmit();
         return;
       }
@@ -303,7 +307,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
