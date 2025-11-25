@@ -12,11 +12,12 @@
 9. [Word Lists & Validation](#word-lists--validation)
 10. [Farcaster Integration](#farcaster-integration)
 11. [Key Features by Milestone](#key-features-by-milestone)
-12. [Guess Packs](#guess-packs)
-13. [Share-for-Free-Guess](#share-for-free-guess)
-14. [CLANKTON Holder Bonus](#clankton-holder-bonus)
-15. [Referral System](#referral-system)
-16. [UX Design Guidelines](#ux-design-guidelines)
+12. [Daily Guess Flow](#daily-guess-flow)
+13. [Guess Packs](#guess-packs)
+14. [Share-for-Free-Guess](#share-for-free-guess)
+15. [CLANKTON Holder Bonus](#clankton-holder-bonus)
+16. [Referral System](#referral-system)
+17. [UX Design Guidelines](#ux-design-guidelines)
 
 ---
 
@@ -1905,6 +1906,228 @@ The `@farcaster/miniapp-sdk` is a client-side only library designed for the Farc
 - **Prize Pool Safety**: Multi-sig wallet for funds
 - **Smart Contract Audit**: Before mainnet launch
 - **Bot Detection**: Honeypot words, timing analysis
+
+---
+
+## Daily Guess Flow
+
+### Overview
+
+The Daily Guess Flow spec defines how players interact with the game throughout a day, including when and how modals are shown for share bonuses and guess pack purchases.
+
+### Daily Counters & State
+
+Per FID, per calendar day (UTC):
+
+| Counter | Description |
+|---------|-------------|
+| `baseFreeGuesses` | 1 per day |
+| `clanktonBonusGuesses` | 2 or 3 (market cap tier dependent) |
+| `shareBonusGuesses` | 1 (Farcaster share, once per day) |
+| `packsPurchasedToday` | 0-3, each pack = 3 guesses |
+| `totalGuessCapToday` | baseFree + clanktonBonus + shareBonus + 3 * packsPurchased |
+
+**State Flags:**
+- `hasUsedShareBonusToday` - Whether share bonus already claimed
+- `hasSeenShareModalThisSession` - Session-level tracking to avoid repeat modals
+- `hasSeenPackModalThisSession` - Session-level tracking for pack modal
+- `guessesRemainingToday` - Current remaining guesses
+
+### High-Level Daily Flow
+
+```
+DAY START
+  ↓
+User lands on game
+  ↓
+Initialize session:
+  - Detect FID
+  - Detect CLANKTON tier
+  - Load counters + flags
+  ↓
+LOOP: While user has guessesRemainingToday > 0
+  1. User enters a word and hits GUESS
+  2. Validate + submit guess
+  3. Update guessesRemainingToday--
+  4. Resolve feedback (colors, stats, etc.)
+  5. Decide which (if any) modal to show
+  6. User either leaves or continues to next guess
+END LOOP
+  ↓
+If guessesRemainingToday == 0:
+  - Offer last-chance share and/or packs
+  - If declined / exhausted → "You're out of guesses" state
+```
+
+### Modal Decision Logic
+
+The `useModalDecision` hook (`src/hooks/useModalDecision.ts`) implements this decision tree:
+
+```typescript
+function decideModal(params: ModalDecisionParams): ModalDecision {
+  const {
+    guessesRemaining,
+    hasUsedShareBonusToday,
+    packsPurchasedToday,
+    maxPacksPerDay,
+  } = params;
+
+  // 1. Still have guesses → no paywall, maybe show share once
+  if (guessesRemaining > 0) {
+    if (!hasUsedShareBonusToday && !hasSeenShareModalThisSession) {
+      return 'share';
+    }
+    return 'none';
+  }
+
+  // 2. Out of guesses: prioritize free share
+  if (!hasUsedShareBonusToday && !hasSeenShareModalThisSession) {
+    return 'share';
+  }
+
+  // 3. Share exhausted or declined: offer packs if available
+  if (packsPurchasedToday < maxPacksPerDay && !hasSeenPackModalThisSession) {
+    return 'pack';
+  }
+
+  // 4. Hard stop
+  return 'out_of_guesses';
+}
+```
+
+### Modal Types
+
+| Decision | Modal Shown | Description |
+|----------|-------------|-------------|
+| `none` | No modal | User has guesses, can continue playing |
+| `share` | SharePromptModal | Offer to share for +1 free guess |
+| `pack` | GuessPurchaseModal | Offer to buy guess packs |
+| `out_of_guesses` | AnotherGuessModal | Show "out of guesses" state |
+
+### Session State Tracking
+
+Session-level flags prevent modals from appearing repeatedly within the same browsing session:
+
+- **`hasSeenShareModalThisSession`**: Set to `true` when SharePromptModal closes (regardless of whether user shared)
+- **`hasSeenPackModalThisSession`**: Set to `true` when GuessPurchaseModal closes (regardless of purchase)
+
+These flags reset on:
+- Page refresh
+- New browser session
+- Daily reset (11:00 UTC)
+
+### User Type Flows
+
+#### Non-CLANKTON Holder
+
+**Daily caps:**
+- Base free guesses: 1
+- CLANKTON bonus: 0
+- Share bonus: 1
+- Packs available: up to 3 (9 guesses)
+
+**Example Flow - "Guess → Share → Bonus Guess → Quit":**
+1. Start → 1 free guess
+2. Guess #1 → Share modal appears
+3. User shares → `hasUsedShareBonusToday = true`, `guessesRemaining = 1`
+4. Guess #2 (share bonus) → `guessesRemaining = 0`
+5. Share bonus used → Pack modal appears
+6. User declines → Out-of-guesses state
+
+#### CLANKTON Holder (LOW Tier: +2, HIGH Tier: +3)
+
+**Daily caps (LOW example):**
+- Base free guesses: 1
+- CLANKTON bonus: 2 → total free = 3
+- Share bonus: 1
+- Packs: up to 3
+
+**Recommended timing:**
+- Show share modal when `guessesRemaining == 1` (creates urgency)
+- Pack modal only when completely out of guesses
+
+### Implementation
+
+**Hook Location:** `src/hooks/useModalDecision.ts`
+
+**Integration in `pages/index.tsx`:**
+
+```typescript
+const {
+  decideModal,
+  markShareModalSeen,
+  markPackModalSeen,
+} = useModalDecision();
+
+// After guess resolved:
+const decision = decideModal({
+  guessesRemaining: stateData.totalGuessesRemaining,
+  hasUsedShareBonusToday: stateData.hasSharedToday,
+  packsPurchasedToday: stateData.paidPacksPurchased,
+  maxPacksPerDay: stateData.maxPaidPacksPerDay,
+});
+
+// Show appropriate modal based on decision
+switch (decision) {
+  case 'share':
+    setShowShareModal(true);
+    break;
+  case 'pack':
+    setShowGuessPurchaseModal(true);
+    break;
+  case 'out_of_guesses':
+    setShowAnotherGuessModal(true);
+    break;
+  case 'none':
+  default:
+    // No modal needed
+    break;
+}
+```
+
+**Modal Close Handlers:**
+
+```typescript
+// SharePromptModal close
+const handleShareModalClose = () => {
+  setShowShareModal(false);
+  markShareModalSeen();
+
+  if (!hasGuessesLeft) {
+    // User closed without sharing - offer packs
+    if (paidPacksPurchased < maxPaidPacksPerDay) {
+      setShowGuessPurchaseModal(true);
+    } else {
+      setShowAnotherGuessModal(true);
+    }
+  }
+};
+
+// GuessPurchaseModal close
+onClose={() => {
+  setShowGuessPurchaseModal(false);
+  markPackModalSeen();
+
+  if (!hasGuessesLeft) {
+    setShowAnotherGuessModal(true);
+  }
+}}
+```
+
+### API Requirements
+
+The `/api/user-state` endpoint must return:
+
+```json
+{
+  "totalGuessesRemaining": 3,
+  "hasSharedToday": false,
+  "paidPacksPurchased": 0,
+  "maxPaidPacksPerDay": 3
+}
+```
+
+These fields are used by the modal decision logic to determine which modal to show.
 
 ---
 
