@@ -11,11 +11,42 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.3 Complete
+## 🎯 Current Status: Milestone 6.4 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, and UX/growth features are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, and UI polish are fully implemented and production-ready:
 
-### ✅ Milestone 6.3 - UX, Growth, Guess Packs, Referrals, Share Flow (Latest)
+### ✅ Milestone 6.4 - UI Polish & Interaction Refinements (Latest)
+
+Improved core game feel and responsiveness with focus on input behavior and animation performance:
+
+- **Guess Input Row - Tap/Focus Logic**
+  - Centralized state machine in `useGuessInput` hook
+  - Empty row: tapping any box focuses first box; typing fills left-to-right
+  - Partial/full row: tapping does nothing; typing appends; backspace deletes from right
+  - Error/red state: all taps and input ignored until state resets
+  - Out of guesses: input disabled with visual feedback (lowered opacity, cursor changes)
+  - Submitting: input locked during API call
+  - Consistent behavior across desktop, mobile Safari/Chrome, and Farcaster mini-app
+  - Hook: `src/hooks/useGuessInput.ts`
+  - Components: `LetterBoxes.tsx`, `pages/index.tsx` (updated)
+
+- **Stats Sheet Copy**
+  - Button text changed to sentence case: "Share my stats"
+  - Wired through i18n layer: `t('stats.shareButton')`
+  - Locale: `locales/en.json` (updated)
+  - Component: `StatsSheet.tsx` (updated)
+
+- **Word Wheel Animation - Performance Tuning**
+  - Reduced CSS transition duration: 200ms (was 300ms)
+  - Custom scroll animation with capped duration (100-250ms)
+  - Animation cap ensures A→Z feels same speed as C→D
+  - Added `will-change: transform, opacity` for GPU acceleration
+  - Uses `requestAnimationFrame` with easeOutCubic easing
+  - Debug mode: set `NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true` to slow animations 3x
+  - Config: `config/economy.ts` (WHEEL_ANIMATION_CONFIG)
+  - Component: `Wheel.tsx` (updated)
+
+### ✅ Milestone 6.3 - UX, Growth, Guess Packs, Referrals, Share Flow
 
 Comprehensive UX and growth mechanics for pre-production readiness:
 
