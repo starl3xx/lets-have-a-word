@@ -362,4 +362,113 @@ describe("JackpotManager", function () {
       expect(await jackpotManager.currentJackpot()).to.equal(MINIMUM_SEED);
     });
   });
+
+  describe("Market Cap Oracle (Milestone 6.2)", function () {
+    const LOW_MARKET_CAP = hre.ethers.parseUnits("100000", 8); // $100,000 with 8 decimals
+    const HIGH_MARKET_CAP = hre.ethers.parseUnits("300000", 8); // $300,000 with 8 decimals
+    const THRESHOLD = hre.ethers.parseUnits("250000", 8); // $250,000 threshold
+
+    it("should allow operator to update market cap", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+
+      expect(await jackpotManager.clanktonMarketCapUsd()).to.equal(LOW_MARKET_CAP);
+    });
+
+    it("should emit MarketCapUpdated event", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await expect(jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP))
+        .to.emit(jackpotManager, "MarketCapUpdated")
+        .withArgs(LOW_MARKET_CAP, (timestamp: bigint) => timestamp > 0n);
+    });
+
+    it("should revert if non-operator tries to update market cap", async function () {
+      const { jackpotManager, player1 } = await loadFixture(deployJackpotManagerFixture);
+
+      await expect(
+        jackpotManager.connect(player1).updateClanktonMarketCap(LOW_MARKET_CAP)
+      ).to.be.revertedWithCustomError(jackpotManager, "OnlyOperator");
+    });
+
+    it("should return LOW tier when market cap is below threshold", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+
+      expect(await jackpotManager.getCurrentBonusTier()).to.equal(0); // LOW = 0
+    });
+
+    it("should return HIGH tier when market cap meets threshold", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(THRESHOLD);
+
+      expect(await jackpotManager.getCurrentBonusTier()).to.equal(1); // HIGH = 1
+    });
+
+    it("should return HIGH tier when market cap exceeds threshold", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP);
+
+      expect(await jackpotManager.getCurrentBonusTier()).to.equal(1); // HIGH = 1
+    });
+
+    it("should return 2 free guesses for LOW tier", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+
+      expect(await jackpotManager.getFreeGuessesForTier()).to.equal(2);
+    });
+
+    it("should return 3 free guesses for HIGH tier", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP);
+
+      expect(await jackpotManager.getFreeGuessesForTier()).to.equal(3);
+    });
+
+    it("should report stale when never updated", async function () {
+      const { jackpotManager } = await loadFixture(deployJackpotManagerFixture);
+
+      expect(await jackpotManager.isMarketCapStale()).to.be.true;
+    });
+
+    it("should not be stale immediately after update", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+
+      expect(await jackpotManager.isMarketCapStale()).to.be.false;
+    });
+
+    it("should return complete market cap info", async function () {
+      const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
+
+      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP);
+
+      const info = await jackpotManager.getMarketCapInfo();
+
+      expect(info.marketCap).to.equal(HIGH_MARKET_CAP);
+      expect(info.lastUpdate).to.be.gt(0);
+      expect(info.isStale).to.be.false;
+      expect(info.tier).to.equal(1); // HIGH
+    });
+
+    it("should have correct threshold constant", async function () {
+      const { jackpotManager } = await loadFixture(deployJackpotManagerFixture);
+
+      expect(await jackpotManager.MARKET_CAP_TIER_THRESHOLD()).to.equal(THRESHOLD);
+    });
+
+    it("should have correct staleness threshold (1 hour)", async function () {
+      const { jackpotManager } = await loadFixture(deployJackpotManagerFixture);
+
+      expect(await jackpotManager.MARKET_CAP_STALENESS_THRESHOLD()).to.equal(3600); // 1 hour in seconds
+    });
+  });
 });

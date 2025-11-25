@@ -10,6 +10,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
  * @title JackpotManager
  * @notice Manages jackpots, paid guesses, and payouts for Let's Have A Word game
  * @dev Milestone 6.1 - Smart Contract Specification
+ *      Milestone 6.2 - CLANKTON Market Cap Oracle Integration
  *
  * Deployed on Base mainnet
  *
@@ -38,6 +39,20 @@ contract JackpotManager is
     /// @notice Basis points denominator
     uint256 public constant BPS_DENOMINATOR = 10000;
 
+    /// @notice Market cap threshold for HIGH bonus tier ($250,000 with 8 decimals)
+    uint256 public constant MARKET_CAP_TIER_THRESHOLD = 250_000 * 1e8;
+
+    /// @notice Maximum age for market cap data before considered stale (1 hour)
+    uint256 public constant MARKET_CAP_STALENESS_THRESHOLD = 1 hours;
+
+    // ============ Enums ============
+
+    /// @notice Bonus tier based on CLANKTON market cap
+    enum BonusTier {
+        LOW,  // 2 free guesses per day for CLANKTON holders
+        HIGH  // 3 free guesses per day for CLANKTON holders
+    }
+
     // ============ State Variables ============
 
     /// @notice Operator wallet address (authorized to resolve rounds)
@@ -63,6 +78,12 @@ contract JackpotManager is
 
     /// @notice Mapping of player address to total guesses purchased in current round
     mapping(address => uint256) public playerGuessesThisRound;
+
+    /// @notice CLANKTON market cap in USD (8 decimals precision)
+    uint256 public clanktonMarketCapUsd;
+
+    /// @notice Timestamp of last market cap update
+    uint256 public lastMarketCapUpdate;
 
     // ============ Structs ============
 
@@ -135,6 +156,12 @@ contract JackpotManager is
     event PrizePoolWalletUpdated(
         address indexed oldWallet,
         address indexed newWallet
+    );
+
+    /// @notice Emitted when CLANKTON market cap is updated
+    event MarketCapUpdated(
+        uint256 marketCapUsd,
+        uint256 timestamp
     );
 
     // ============ Errors ============
@@ -433,21 +460,76 @@ contract JackpotManager is
         return currentJackpot >= MINIMUM_SEED;
     }
 
-    // ============ Oracle-Ready Functions (Milestone 6.2) ============
+    // ============ Oracle Functions (Milestone 6.2) ============
 
     /**
-     * @notice Placeholder for CLANKTON market cap oracle integration
-     * @dev To be implemented in Milestone 6.2
+     * @notice Updates the CLANKTON market cap from oracle
+     * @dev Only callable by operator. Used to determine bonus tier for CLANKTON holders.
      * @param marketCapUsd The market cap in USD (with 8 decimals)
      *
-     * This will be used to determine bonus tier:
-     * - mcap < $250,000: 2 free guesses/day for CLANKTON holders
-     * - mcap >= $250,000: 3 free guesses/day for CLANKTON holders
+     * Bonus tiers:
+     * - mcap < $250,000: LOW tier (2 free guesses/day for CLANKTON holders)
+     * - mcap >= $250,000: HIGH tier (3 free guesses/day for CLANKTON holders)
      */
     function updateClanktonMarketCap(uint256 marketCapUsd) external onlyOperator {
-        // Milestone 6.2: Implement oracle integration
-        // For now, this is a placeholder that emits an event
-        // The actual market cap logic is handled off-chain in the backend
+        clanktonMarketCapUsd = marketCapUsd;
+        lastMarketCapUpdate = block.timestamp;
+
+        emit MarketCapUpdated(marketCapUsd, block.timestamp);
+    }
+
+    /**
+     * @notice Gets the current bonus tier based on CLANKTON market cap
+     * @return tier The current bonus tier (LOW or HIGH)
+     */
+    function getCurrentBonusTier() external view returns (BonusTier) {
+        if (clanktonMarketCapUsd >= MARKET_CAP_TIER_THRESHOLD) {
+            return BonusTier.HIGH;
+        }
+        return BonusTier.LOW;
+    }
+
+    /**
+     * @notice Gets the number of free guesses for CLANKTON holders based on current tier
+     * @return Number of free guesses per day (2 for LOW, 3 for HIGH)
+     */
+    function getFreeGuessesForTier() external view returns (uint256) {
+        if (clanktonMarketCapUsd >= MARKET_CAP_TIER_THRESHOLD) {
+            return 3;
+        }
+        return 2;
+    }
+
+    /**
+     * @notice Checks if the market cap data is stale (older than 1 hour)
+     * @return True if market cap data is stale or never set
+     */
+    function isMarketCapStale() external view returns (bool) {
+        if (lastMarketCapUpdate == 0) {
+            return true;
+        }
+        return block.timestamp > lastMarketCapUpdate + MARKET_CAP_STALENESS_THRESHOLD;
+    }
+
+    /**
+     * @notice Gets the full market cap info
+     * @return marketCap Current market cap in USD (8 decimals)
+     * @return lastUpdate Timestamp of last update
+     * @return isStale Whether the data is stale
+     * @return tier Current bonus tier
+     */
+    function getMarketCapInfo() external view returns (
+        uint256 marketCap,
+        uint256 lastUpdate,
+        bool isStale,
+        BonusTier tier
+    ) {
+        bool stale = lastMarketCapUpdate == 0 ||
+                     block.timestamp > lastMarketCapUpdate + MARKET_CAP_STALENESS_THRESHOLD;
+        BonusTier currentTier = clanktonMarketCapUsd >= MARKET_CAP_TIER_THRESHOLD
+                                ? BonusTier.HIGH
+                                : BonusTier.LOW;
+        return (clanktonMarketCapUsd, lastMarketCapUpdate, stale, currentTier);
     }
 
     // ============ Internal Functions ============
