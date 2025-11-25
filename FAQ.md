@@ -18,7 +18,7 @@ If you hold 100M CLANKTON tokens in your connected wallet, you get additional fr
 - **+2 guesses/day** while CLANKTON market cap is below $250k
 - **+3 guesses/day** once market cap reaches $250k
 
-This bonus is automatically detected when you connect. Market cap is currently supplied via configuration and will be replaced with a live oracle in a future update.
+This bonus is automatically detected based on your **unified signer wallet** - the same wallet address used for CLANKTON balance checks, paid guess purchases, and jackpot payouts. Market cap is currently supplied via configuration and will be replaced with a live oracle in a future update.
 
 ## How does the share bonus work?
 

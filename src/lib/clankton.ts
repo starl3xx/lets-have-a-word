@@ -1,6 +1,7 @@
 /**
  * CLANKTON Integration
- * Milestone 4.1
+ * Milestone 4.1 - Balance checking for CLANKTON token bonus
+ * Milestone 6.2 - Market cap oracle integration for bonus tier
  *
  * Implements onchain balance checking for CLANKTON token bonus
  */
@@ -97,4 +98,55 @@ export function formatClanktonBalance(balance: bigint): string {
   } else {
     return num.toFixed(2);
   }
+}
+
+/**
+ * Get free guesses for CLANKTON holders
+ * Milestone 6.2: Now determined by market cap tier from contract
+ *
+ * Uses environment variable as fallback if contract call fails.
+ *
+ * @param useContract - Whether to query contract (default: true)
+ * @returns Number of free guesses (2 for LOW tier, 3 for HIGH tier)
+ */
+export async function getClanktonFreeGuesses(useContract: boolean = true): Promise<number> {
+  if (useContract) {
+    try {
+      // Dynamic import to avoid circular dependency
+      const { getFreeGuessesFromContract } = await import('./clankton-oracle');
+      return await getFreeGuessesFromContract();
+    } catch (error) {
+      console.warn('[CLANKTON] Failed to get free guesses from contract, using fallback:', error);
+    }
+  }
+
+  // Fallback to environment variable
+  const marketCapUsd = parseFloat(process.env.CLANKTON_MARKET_CAP_USD || '0');
+  const threshold = 250_000; // $250k threshold
+
+  return marketCapUsd >= threshold ? 3 : 2;
+}
+
+/**
+ * Get current bonus tier for CLANKTON holders
+ * Milestone 6.2: Determined by market cap from contract or env
+ *
+ * @param useContract - Whether to query contract (default: true)
+ * @returns 'LOW' (2 guesses) or 'HIGH' (3 guesses)
+ */
+export async function getClanktonBonusTier(useContract: boolean = true): Promise<'LOW' | 'HIGH'> {
+  if (useContract) {
+    try {
+      const { getCurrentBonusTierFromContract } = await import('./clankton-oracle');
+      return await getCurrentBonusTierFromContract();
+    } catch (error) {
+      console.warn('[CLANKTON] Failed to get bonus tier from contract, using fallback:', error);
+    }
+  }
+
+  // Fallback to environment variable
+  const marketCapUsd = parseFloat(process.env.CLANKTON_MARKET_CAP_USD || '0');
+  const threshold = 250_000;
+
+  return marketCapUsd >= threshold ? 'HIGH' : 'LOW';
 }

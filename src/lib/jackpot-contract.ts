@@ -1,0 +1,342 @@
+/**
+ * JackpotManager Contract Integration
+ * Milestone 6.1 - Smart Contract Specification
+ *
+ * Backend utilities for interacting with the JackpotManager smart contract on Base.
+ *
+ * Key responsibilities:
+ * - Call resolveRound with verified winner wallet address
+ * - Track on-chain round state
+ * - Verify contract state matches backend state
+ */
+
+import { ethers, Contract, Wallet } from 'ethers';
+import { getBaseProvider } from './clankton';
+import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
+
+/**
+ * JackpotManager ABI (minimal - only functions we call from backend)
+ */
+const JACKPOT_MANAGER_ABI = [
+  // Read functions
+  'function currentRound() view returns (uint256)',
+  'function currentJackpot() view returns (uint256)',
+  'function MINIMUM_SEED() view returns (uint256)',
+  'function operatorWallet() view returns (address)',
+  'function creatorProfitWallet() view returns (address)',
+  'function prizePoolWallet() view returns (address)',
+  'function isMinimumSeedMet() view returns (bool)',
+  'function getCurrentRoundInfo() view returns (uint256 roundNumber, uint256 jackpot, bool isActive, uint256 startedAt)',
+  'function getRound(uint256 roundNumber) view returns (tuple(uint256 roundNumber, uint256 startingJackpot, uint256 finalJackpot, address winner, uint256 winnerPayout, uint256 startedAt, uint256 resolvedAt, bool isActive))',
+  'function getPlayerGuessCount(address player) view returns (uint256)',
+  'function creatorProfitAccumulated() view returns (uint256)',
+
+  // Market cap oracle functions (Milestone 6.2)
+  'function clanktonMarketCapUsd() view returns (uint256)',
+  'function lastMarketCapUpdate() view returns (uint256)',
+  'function MARKET_CAP_TIER_THRESHOLD() view returns (uint256)',
+  'function MARKET_CAP_STALENESS_THRESHOLD() view returns (uint256)',
+  'function getCurrentBonusTier() view returns (uint8)',
+  'function getFreeGuessesForTier() view returns (uint256)',
+  'function isMarketCapStale() view returns (bool)',
+  'function getMarketCapInfo() view returns (uint256 marketCap, uint256 lastUpdate, bool isStale, uint8 tier)',
+
+  // Write functions (operator only)
+  'function seedJackpot() payable',
+  'function resolveRound(address winner)',
+  'function startNextRound()',
+  'function purchaseGuesses(address player, uint256 quantity) payable',
+  'function withdrawCreatorProfit()',
+  'function updateClanktonMarketCap(uint256 marketCapUsd)',
+
+  // Events
+  'event RoundStarted(uint256 indexed roundNumber, uint256 startingJackpot, uint256 timestamp)',
+  'event RoundResolved(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 winnerPayout, uint256 timestamp)',
+  'event JackpotSeeded(uint256 indexed roundNumber, address indexed seeder, uint256 amount, uint256 newJackpot)',
+  'event GuessesPurchased(uint256 indexed roundNumber, address indexed player, uint256 quantity, uint256 ethAmount, uint256 toJackpot, uint256 toCreator)',
+  'event CreatorProfitPaid(address indexed recipient, uint256 amount)',
+  'event MarketCapUpdated(uint256 marketCapUsd, uint256 timestamp)',
+];
+
+/**
+ * Configuration for contract addresses
+ */
+export interface ContractConfig {
+  jackpotManagerAddress: string;
+  prizePoolWallet: string;
+  operatorWallet: string;
+  creatorProfitWallet: string;
+}
+
+/**
+ * Get contract configuration from environment
+ */
+export function getContractConfig(): ContractConfig {
+  const jackpotManagerAddress = process.env.JACKPOT_MANAGER_ADDRESS;
+
+  if (!jackpotManagerAddress) {
+    throw new Error('JACKPOT_MANAGER_ADDRESS not configured');
+  }
+
+  return {
+    jackpotManagerAddress,
+    prizePoolWallet: process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB',
+    operatorWallet: process.env.OPERATOR_WALLET || '0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38',
+    creatorProfitWallet: process.env.CREATOR_PROFIT_WALLET || '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223',
+  };
+}
+
+/**
+ * Get read-only contract instance
+ */
+export function getJackpotManagerReadOnly(): Contract {
+  const config = getContractConfig();
+  const provider = getBaseProvider();
+
+  return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, provider);
+}
+
+/**
+ * Get contract instance with operator signer for write operations
+ *
+ * IMPORTANT: Only use for backend automated operations
+ * The operator private key must be securely managed
+ */
+export function getJackpotManagerWithOperator(): Contract {
+  const config = getContractConfig();
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+
+  if (!operatorPrivateKey) {
+    throw new Error('OPERATOR_PRIVATE_KEY not configured for contract writes');
+  }
+
+  const provider = getBaseProvider();
+  const wallet = new Wallet(operatorPrivateKey, provider);
+
+  return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, wallet);
+}
+
+/**
+ * Contract round info structure
+ */
+export interface ContractRoundInfo {
+  roundNumber: bigint;
+  jackpot: bigint;
+  isActive: boolean;
+  startedAt: bigint;
+}
+
+/**
+ * Get current round information from contract
+ */
+export async function getContractRoundInfo(): Promise<ContractRoundInfo> {
+  const contract = getJackpotManagerReadOnly();
+  const [roundNumber, jackpot, isActive, startedAt] = await contract.getCurrentRoundInfo();
+
+  return {
+    roundNumber,
+    jackpot,
+    isActive,
+    startedAt,
+  };
+}
+
+/**
+ * Check if minimum seed requirement is met on contract
+ */
+export async function isMinimumSeedMetOnChain(): Promise<boolean> {
+  const contract = getJackpotManagerReadOnly();
+  return await contract.isMinimumSeedMet();
+}
+
+/**
+ * Get current jackpot amount from contract
+ */
+export async function getCurrentJackpotOnChain(): Promise<string> {
+  const contract = getJackpotManagerReadOnly();
+  const jackpot = await contract.currentJackpot();
+  return ethers.formatEther(jackpot);
+}
+
+/**
+ * Resolve round on smart contract
+ *
+ * CRITICAL: This function uses the unified wallet identity system
+ * to ensure the winner receives payout at the correct address.
+ *
+ * Flow:
+ * 1. Get winner's canonical wallet from FID
+ * 2. Call contract's resolveRound with verified address
+ * 3. Contract pays jackpot to winner
+ *
+ * @param winnerFid - FID of the round winner
+ * @returns Transaction hash
+ */
+export async function resolveRoundOnChain(winnerFid: number): Promise<string> {
+  // Get winner's canonical wallet address
+  const winnerWallet = await getWinnerPayoutAddress(winnerFid);
+  logWalletResolution('PAYOUT', winnerFid, winnerWallet);
+
+  // Get contract with operator signer
+  const contract = getJackpotManagerWithOperator();
+
+  console.log(`[CONTRACT] Resolving round - Winner FID: ${winnerFid}, Wallet: ${winnerWallet}`);
+
+  // Call resolveRound on contract
+  const tx = await contract.resolveRound(winnerWallet);
+  console.log(`[CONTRACT] Transaction submitted: ${tx.hash}`);
+
+  // Wait for confirmation
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Round resolved - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
+
+  return tx.hash;
+}
+
+/**
+ * Seed jackpot on smart contract
+ *
+ * @param amountEth - Amount to seed in ETH (string)
+ * @returns Transaction hash
+ */
+export async function seedJackpotOnChain(amountEth: string): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+  const amountWei = ethers.parseEther(amountEth);
+
+  console.log(`[CONTRACT] Seeding jackpot with ${amountEth} ETH`);
+
+  const tx = await contract.seedJackpot({ value: amountWei });
+  console.log(`[CONTRACT] Seed transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Jackpot seeded - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Start next round on smart contract
+ *
+ * @returns Transaction hash
+ */
+export async function startNextRoundOnChain(): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+
+  console.log(`[CONTRACT] Starting next round`);
+
+  const tx = await contract.startNextRound();
+  console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Next round started - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Withdraw accumulated creator profit
+ *
+ * @returns Transaction hash
+ */
+export async function withdrawCreatorProfitOnChain(): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+
+  const accumulated = await contract.creatorProfitAccumulated();
+  console.log(`[CONTRACT] Withdrawing creator profit: ${ethers.formatEther(accumulated)} ETH`);
+
+  const tx = await contract.withdrawCreatorProfit();
+  console.log(`[CONTRACT] Withdrawal transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Creator profit withdrawn - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Verify contract state matches expected state
+ *
+ * Used for consistency checks between backend and on-chain state.
+ *
+ * @param expectedRound - Expected round number
+ * @param expectedJackpotEth - Expected jackpot in ETH (string)
+ * @returns true if states match
+ */
+export async function verifyContractState(
+  expectedRound: number,
+  expectedJackpotEth: string
+): Promise<boolean> {
+  try {
+    const roundInfo = await getContractRoundInfo();
+    const expectedJackpotWei = ethers.parseEther(expectedJackpotEth);
+
+    const roundMatches = Number(roundInfo.roundNumber) === expectedRound;
+    const jackpotMatches = roundInfo.jackpot === expectedJackpotWei;
+
+    if (!roundMatches || !jackpotMatches) {
+      console.warn(
+        `[CONTRACT] State mismatch - ` +
+          `Round: expected ${expectedRound}, got ${roundInfo.roundNumber} | ` +
+          `Jackpot: expected ${expectedJackpotEth}, got ${ethers.formatEther(roundInfo.jackpot)}`
+      );
+    }
+
+    return roundMatches && jackpotMatches;
+  } catch (error) {
+    console.error('[CONTRACT] Failed to verify state:', error);
+    return false;
+  }
+}
+
+/**
+ * Get contract addresses for display/debugging
+ */
+export async function getContractAddresses(): Promise<{
+  operator: string;
+  creatorProfit: string;
+  prizePool: string;
+}> {
+  const contract = getJackpotManagerReadOnly();
+
+  const [operator, creatorProfit, prizePool] = await Promise.all([
+    contract.operatorWallet(),
+    contract.creatorProfitWallet(),
+    contract.prizePoolWallet(),
+  ]);
+
+  return {
+    operator,
+    creatorProfit,
+    prizePool,
+  };
+}
+
+/**
+ * Format ETH amount with appropriate precision
+ */
+export function formatJackpotEth(weiAmount: bigint): string {
+  const ethAmount = parseFloat(ethers.formatEther(weiAmount));
+
+  if (ethAmount >= 1) {
+    return ethAmount.toFixed(4);
+  } else if (ethAmount >= 0.01) {
+    return ethAmount.toFixed(6);
+  } else {
+    return ethAmount.toFixed(8);
+  }
+}
+
+/**
+ * Check if contract is deployed and accessible
+ */
+export async function isContractDeployed(): Promise<boolean> {
+  try {
+    const config = getContractConfig();
+    const provider = getBaseProvider();
+
+    const code = await provider.getCode(config.jackpotManagerAddress);
+    return code !== '0x';
+  } catch {
+    return false;
+  }
+}

@@ -1,0 +1,22 @@
+# Hardhat artifacts
+artifacts/
+cache/
+typechain-types/
+
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+coverage.json
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
