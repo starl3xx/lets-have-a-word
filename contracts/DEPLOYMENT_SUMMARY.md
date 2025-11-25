@@ -5,7 +5,7 @@
 | Network | Status | Proxy Address | Implementation |
 |---------|--------|---------------|----------------|
 | Base Sepolia | Pending (RPC issues) | - | - |
-| Base Mainnet | **DEPLOYED** | `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5` | `0x326C037B5FD53C9aDACd05122A8C7B4713D8760b` |
+| Base Mainnet | **DEPLOYED & VERIFIED** | `0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5` | `0x326C037B5FD53C9aDACd05122A8C7B4713D8760b` |
 
 ## Deployed Contract Addresses
 
@@ -13,7 +13,7 @@
 
 | Contract | Address | BaseScan |
 |----------|---------|----------|
-| **Proxy (Use This)** | `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5` | [View](https://basescan.org/address/0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5) |
+| **Proxy (Use This)** | `0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5` | [View](https://basescan.org/address/0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5) |
 | Implementation | `0x326C037B5FD53C9aDACd05122A8C7B4713D8760b` | [View](https://basescan.org/address/0x326C037B5FD53C9aDACd05122A8C7B4713D8760b) |
 
 ### Deployment Transaction
@@ -98,14 +98,11 @@
 ### 1. Update Environment Variables
 Add to your `.env`:
 ```bash
-JACKPOT_MANAGER_ADDRESS=0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5
+JACKPOT_MANAGER_ADDRESS=0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5
 ```
 
 ### 2. Verify Contract on BaseScan
-```bash
-cd contracts
-npx hardhat verify --network base 0x326C037B5FD53C9aDACd05122A8C7B4713D8760b
-```
+✅ **VERIFIED** on Sourcify: https://repo.sourcify.dev/contracts/full_match/8453/0x326C037B5FD53C9aDACd05122A8C7B4713D8760b/
 
 ### 3. Seed Initial Jackpot
 From the operator wallet (`0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38`):
@@ -174,7 +171,7 @@ From the operator wallet (`0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38`):
 ### Environment Variables
 ```bash
 # Contract address (DEPLOYED)
-JACKPOT_MANAGER_ADDRESS=0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5
+JACKPOT_MANAGER_ADDRESS=0xfcb0D007a5BB5B004A1580D5Ae90E33c4A79EdB5
 
 # Wallet configuration
 PRIZE_POOL_WALLET=0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB
