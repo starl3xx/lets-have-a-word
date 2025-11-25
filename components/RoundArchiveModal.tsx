@@ -29,6 +29,13 @@ interface ArchiveStats {
   avgPlayersPerRound: number;
 }
 
+interface TopGuesser {
+  fid: number;
+  username: string;
+  guessCount: number;
+  pfpUrl: string;
+}
+
 interface RoundArchiveModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -63,6 +70,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
   const [loading, setLoading] = useState(true);
   const [rounds, setRounds] = useState<ArchivedRound[]>([]);
   const [stats, setStats] = useState<ArchiveStats | null>(null);
+  const [topGuessers, setTopGuessers] = useState<TopGuesser[]>([]);
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -71,6 +79,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
     if (isOpen) {
       setIsAnimating(true);
       fetchArchiveData();
+      fetchTopGuessers();
     } else {
       setIsAnimating(false);
     }
@@ -90,6 +99,18 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
       setError(err instanceof Error ? err.message : 'Failed to load archive');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTopGuessers = async () => {
+    try {
+      const response = await fetch('/api/round/top-guessers');
+      if (!response.ok) throw new Error('Failed to load top guessers');
+      const data = await response.json();
+      setTopGuessers(data.topGuessers || []);
+    } catch (err) {
+      console.error('Failed to fetch top guessers:', err);
+      // Don't set error state, just log - top guessers is non-critical
     }
   };
 
@@ -182,7 +203,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                 color: 'rgba(255,255,255,0.7)',
                 fontWeight: 500,
               }}>
-                Current: Round #{currentRoundId}
+                Current round: #{currentRoundId}
               </p>
             )}
           </div>
@@ -220,6 +241,106 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
             background: COLORS.blueLight,
             padding: '20px 24px',
           }}>
+            {/* Top 10 Guessers Section */}
+            {topGuessers.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{
+                  fontSize: '11px',
+                  color: COLORS.textMuted,
+                  marginBottom: '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  fontWeight: 600,
+                }}>
+                  Top 10 guessers this round
+                </div>
+                <div
+                  style={{
+                    background: COLORS.white,
+                    borderRadius: '12px',
+                    padding: '16px',
+                    border: `1px solid ${COLORS.borderSoft}`,
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {topGuessers.map((guesser, index) => (
+                      <div
+                        key={guesser.fid}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                        }}
+                      >
+                        {/* Rank */}
+                        <div
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: index < 3 ? COLORS.blueMain : COLORS.blueLight,
+                            color: index < 3 ? COLORS.white : COLORS.textMuted,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {index + 1}
+                        </div>
+                        {/* Avatar */}
+                        <img
+                          src={guesser.pfpUrl}
+                          alt={guesser.username}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: `2px solid ${COLORS.borderSoft}`,
+                            flexShrink: 0,
+                          }}
+                          onError={(e) => {
+                            // Fallback to placeholder if image fails to load
+                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
+                          }}
+                        />
+                        {/* Username */}
+                        <div
+                          style={{
+                            flex: 1,
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            color: COLORS.textPrimary,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {guesser.username}
+                        </div>
+                        {/* Guess Count */}
+                        <div
+                          style={{
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            color: COLORS.blueMain,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {guesser.guessCount} {guesser.guessCount === 1 ? 'guess' : 'guesses'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Stats Cards */}
             <div
               style={{
                 display: 'grid',
