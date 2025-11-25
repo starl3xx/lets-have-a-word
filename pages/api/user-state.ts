@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
+import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex } from '../../src/lib/daily-limits';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
 import { hasClanktonBonus } from '../../src/lib/clankton';
 import { db } from '../../src/db';
@@ -196,6 +196,11 @@ export default async function handler(
     // Milestone 6.3: Check if user has already shared today
     const hasSharedToday = dailyState.freeAllocatedShareBonus > 0;
 
+    // Milestone 4.14: Get wheel start index (with dev mode override support)
+    // In production: stable per-day per-user, from database
+    // In dev mode: fresh random on every request
+    const wheelStartIndex = await getOrGenerateWheelStartIndex(fid, undefined, 10014);
+
     const response: UserStateResponse = {
       fid,
       freeGuessesRemaining: freeRemaining,
@@ -210,7 +215,7 @@ export default async function handler(
       paidPacksPurchased: dailyState.paidPacksPurchased,
       maxPaidPacksPerDay: 3,
       canBuyMorePacks,
-      wheelStartIndex: dailyState.wheelStartIndex, // Milestone 4.14
+      wheelStartIndex, // Milestone 4.14 (now with dev mode override)
       // Milestone 6.3: New fields
       hasSharedToday,
       isClanktonHolder: clanktonBonusActive,
