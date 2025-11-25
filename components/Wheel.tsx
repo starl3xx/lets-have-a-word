@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue, useLayoutEffect } from 'react';
 import type { InputState } from '../src/lib/input-state';
 import type { WheelWord, WheelWordStatus } from '../src/types';
 
@@ -34,7 +34,7 @@ interface WheelProps {
 }
 
 // Constants
-const ITEM_HEIGHT = 33; // pixels (lineHeight 1.6 * fontSize 1.3rem ≈ 33px)
+const ITEM_HEIGHT = 33; // pixels - FIXED CSS height for consistent layout regardless of font load
 const VIEWPORT_PADDING = 400; // Top/bottom padding (≈ 40vh at 1000px height)
 const OVERSCAN_COUNT = 30; // Extra items to render above/below viewport
 
@@ -58,6 +58,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [fontsReady, setFontsReady] = useState(false);
 
   /**
    * Defer expensive wheel calculations to keep input responsive (Milestone 4.11)
@@ -198,20 +199,59 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   }, []);
 
   /**
-   * Track container height for virtualization
+   * Wait for fonts to load before initializing wheel
+   * This prevents misalignment caused by font metric changes
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const waitForFonts = async () => {
+      if (typeof document !== 'undefined' && 'fonts' in document) {
+        try {
+          await document.fonts.ready;
+          console.log('[Wheel] Fonts loaded, ready to center');
+        } catch (err) {
+          console.warn('[Wheel] Font load detection failed:', err);
+        }
+      }
+      setFontsReady(true);
+    };
+
+    waitForFonts();
+  }, []);
+
+  /**
+   * Track container height for virtualization
+   * Uses useLayoutEffect for synchronous measurement after font load
+   */
+  useLayoutEffect(() => {
     if (!containerRef.current) return;
 
     const updateHeight = () => {
       if (containerRef.current) {
-        setContainerHeight(containerRef.current.clientHeight);
+        const newHeight = containerRef.current.clientHeight;
+        setContainerHeight(newHeight);
+        console.log('[Wheel] Container height updated:', newHeight);
       }
     };
 
+    // Initial measurement
     updateHeight();
+
+    // Re-measure on resize and orientation change
     window.addEventListener('resize', updateHeight);
-    return () => window.removeEventListener('resize', updateHeight);
+    window.addEventListener('orientationchange', updateHeight);
+
+    // Re-measure on font load events
+    if ('fonts' in document) {
+      document.fonts.addEventListener('loadingdone', updateHeight);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      window.removeEventListener('orientationchange', updateHeight);
+      if ('fonts' in document) {
+        document.fonts.removeEventListener('loadingdone', updateHeight);
+      }
+    };
   }, []);
 
   /**
@@ -269,12 +309,14 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   /**
    * Auto-scroll to center the gap (Milestone 4.5 behavior restored + 6.4 performance)
    * Uses custom animation with capped duration for consistent feel
+   *
+   * Milestone 6.4.2: Uses useLayoutEffect and waits for fonts to prevent misalignment
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!gapRef.current || !containerRef.current) {
       return;
     }
-    if (!isInitialized) {
+    if (!isInitialized || !fontsReady) {
       return;
     }
 
@@ -284,24 +326,64 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     const containerMiddle = container.clientHeight / 2;
     const targetScrollTop = gapTop - containerMiddle + GAP_HEIGHT / 2;
 
+    console.log('[Wheel] Centering - gapTop:', gapTop, 'containerMiddle:', containerMiddle, 'targetScrollTop:', targetScrollTop);
+
     // Use setTimeout to defer scroll to next tick (allows DOM to update)
     const timeoutId = setTimeout(() => {
       // Instant on initial load (centerIndex === -1), animated when typing
       animateScrollTo(targetScrollTop, centerIndex === -1);
+
+      // Dev-mode alignment validator
+      if (process.env.NODE_ENV === 'development' && centerIndex === -1) {
+        setTimeout(() => {
+          validateAlignment(container, gapTop, containerMiddle);
+        }, 100); // Wait for scroll to complete
+      }
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [centerIndex, gapTopOffset, GAP_HEIGHT, isInitialized, animateScrollTo]);
+  }, [centerIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, animateScrollTo]);
 
   /**
-   * Initialize on mount
+   * Initialize on mount - only after fonts are ready
    */
   useEffect(() => {
-    if (!isInitialized && words.length > 0) {
+    if (!isInitialized && words.length > 0 && fontsReady) {
       console.log('[Wheel] Initializing, words.length:', words.length, 'gapIndex:', gapIndex);
       setIsInitialized(true);
     }
-  }, [isInitialized, words.length, gapIndex]);
+  }, [isInitialized, words.length, gapIndex, fontsReady]);
+
+  /**
+   * Dev-mode alignment validator
+   * Checks if the wheel is properly centered and logs warnings if not
+   */
+  const validateAlignment = useCallback((
+    container: HTMLDivElement,
+    gapTop: number,
+    containerMiddle: number
+  ) => {
+    if (process.env.NODE_ENV !== 'development') return;
+
+    const currentScrollTop = container.scrollTop;
+    const expectedScrollTop = gapTop - containerMiddle + GAP_HEIGHT / 2;
+    const diff = Math.abs(currentScrollTop - expectedScrollTop);
+    const tolerance = 5; // pixels
+
+    if (diff > tolerance) {
+      console.warn('[Wheel] MISALIGNED!', {
+        expected: expectedScrollTop,
+        actual: currentScrollTop,
+        diff,
+        gapTop,
+        containerMiddle,
+        containerHeight: container.clientHeight,
+        itemHeight: ITEM_HEIGHT,
+      });
+    } else {
+      console.log('[Wheel] ✓ Properly centered (diff:', diff.toFixed(1), 'px)');
+    }
+  }, [GAP_HEIGHT]);
 
   /**
    * Get status-based styling (Milestone 4.10+)
@@ -498,15 +580,15 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
             />
           )}
           <div
-            className="absolute w-full text-center transition-all ease-out"
+            className="absolute w-full text-center transition-all ease-out flex items-center justify-center"
             style={{
               top: `${topOffset + gapOffset}px`,
+              height: `${ITEM_HEIGHT}px`, // FIXED height to prevent font-load misalignment
               transform: `scale(${style.scale})`,
               opacity: style.opacity,
               fontWeight: style.fontWeight,
               color: style.color,
               fontSize: '1.3rem',
-              lineHeight: '1.6',
               textTransform: 'uppercase',
               letterSpacing: style.letterSpacing,
               textShadow: style.textShadow,
