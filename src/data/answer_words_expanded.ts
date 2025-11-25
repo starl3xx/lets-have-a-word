@@ -1038,7 +1038,6 @@ export const ANSWER_WORDS_EXPANDED: string[] = [
   "EXPAT",
   "EXPEL",
   "EXTRA",
-  "EXXON",
   "FABER",
   "FABIO",
   "FABLE",
