@@ -1254,6 +1254,25 @@ NEXT_PUBLIC_PERF_DEBUG=true
 NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
 ```
 
+#### 6.4.4: Unified Result Banner System
+- **ResultBanner Component** (`components/ResultBanner.tsx`):
+  - Three variants: `error`, `warning`, `success`
+  - Consistent layout: All banners share identical padding, border radius, typography
+  - Theme-appropriate colors:
+    - Error (red): Incorrect guesses, validation failures
+    - Warning (amber): Already guessed words, "Not a valid word"
+    - Success (green): Winner announcements
+  - Icon handling:
+    - Error: Red X icon (no emoji)
+    - Warning: Amber warning triangle icon (no emoji)
+    - Success: 🎉 emoji allowed
+  - Accessibility: Uses `role="status"` and `aria-live="polite"`
+- **Banner Messages**:
+  - Incorrect: "Incorrect. You've made N guess(es) this round."
+  - Already guessed: "Already guessed this round." (warning)
+  - Not a valid word: "Not a valid word" (warning)
+  - Winner: "Correct! You found the word \"[WORD]\" and won this round!"
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)

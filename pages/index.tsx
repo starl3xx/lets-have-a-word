@@ -6,6 +6,7 @@ import UserState from '../components/UserState';
 import SharePromptModal from '../components/SharePromptModal';
 import WinnerShareCard from '../components/WinnerShareCard';
 import LetterBoxes from '../components/LetterBoxes';
+import ResultBanner, { type ResultBannerVariant } from '../components/ResultBanner';
 import FirstTimeOverlay from '../components/FirstTimeOverlay';
 import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
@@ -633,52 +634,53 @@ function GameContent() {
 
   /**
    * Get feedback message based on result
+   * Returns variant and message for unified ResultBanner component
    */
-  const getFeedbackMessage = (): { text: string; color: string } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: string } | null => {
     if (!result) return null;
 
     switch (result.status) {
       case 'correct':
         return {
-          text: `🎉 Correct! You found the word "${result.word}" and won this round!`,
-          color: 'text-green-600',
+          variant: 'success',
+          message: `Correct! You found the word "${result.word}" and won this round!`,
         };
 
       case 'incorrect':
         return {
-          text: `❌ Incorrect guess. You've made ${result.totalGuessesForUserThisRound} guess${result.totalGuessesForUserThisRound === 1 ? '' : 'es'} this round.`,
-          color: 'text-red-600',
+          variant: 'error',
+          message: `Incorrect. You've made ${result.totalGuessesForUserThisRound} guess${result.totalGuessesForUserThisRound === 1 ? '' : 'es'} this round.`,
         };
 
       case 'already_guessed_word':
         return {
-          text: `⚠️ The word "${result.word}" has already been guessed by someone else this round.`,
-          color: 'text-yellow-600',
+          variant: 'warning',
+          message: `The word "${result.word}" has already been guessed this round.`,
         };
 
       case 'invalid_word':
         if (result.reason === 'not_5_letters') {
           return {
-            text: 'Word must be exactly 5 letters',
-            color: 'text-red-600',
+            variant: 'error',
+            message: 'Word must be exactly 5 letters',
           };
         } else if (result.reason === 'non_alpha') {
           return {
-            text: 'Word can only contain letters A–Z',
-            color: 'text-red-600',
+            variant: 'error',
+            message: 'Word can only contain letters A–Z',
           };
         } else if (result.reason === 'not_in_dictionary') {
           return {
-            text: 'Not a valid word',
-            color: 'text-red-600',
+            variant: 'warning',
+            message: 'Not a valid word',
           };
         }
         break;
 
       case 'round_closed':
         return {
-          text: 'This round is already over. A new round will start soon.',
-          color: 'text-gray-600',
+          variant: 'warning',
+          message: 'This round is already over. A new round will start soon.',
         };
     }
 
@@ -866,36 +868,31 @@ function GameContent() {
                   height: '3.5rem', // Fixed height - content toggles opacity only
                 }}
               >
-                {/* Show explicit error messages first */}
+                {/* Show explicit error messages first - using unified ResultBanner */}
                 {errorMessage && (
-                  <div
-                    className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-300"
-                    style={{ opacity: 1 }}
-                  >
-                    <p className="text-red-700 text-center text-sm font-medium">{errorMessage}</p>
-                  </div>
+                  <ResultBanner
+                    variant="error"
+                    message={errorMessage}
+                  />
                 )}
 
-                {/* Show state-based error messages (Milestone 4.6) */}
+                {/* Show state-based error messages (Milestone 4.6) - using unified ResultBanner */}
+                {/* "Not a valid word" and "Already guessed this round" use warning variant per spec */}
+                {/* "No guesses left today" uses error variant */}
                 {!errorMessage && stateErrorMessage && (
-                  <div
-                    className="bg-red-50 border-2 border-red-300 rounded-lg p-3 transition-opacity duration-300"
-                    style={{ opacity: hideStateError ? 0 : 1 }}
-                  >
-                    <p className="text-red-700 text-center text-sm font-medium">{stateErrorMessage}</p>
-                  </div>
+                  <ResultBanner
+                    variant={stateErrorMessage === 'No guesses left today' ? 'error' : 'warning'}
+                    message={stateErrorMessage}
+                    visible={!hideStateError}
+                  />
                 )}
 
-                {/* Show feedback from last submission */}
+                {/* Show feedback from last submission - using unified ResultBanner */}
                 {feedback && !errorMessage && !stateErrorMessage && (
-                  <div
-                    className="bg-white border-2 border-gray-200 rounded-lg p-3 shadow transition-opacity duration-300"
-                    style={{ opacity: 1 }}
-                  >
-                    <p className={`${feedback.color} text-center text-sm font-medium`}>
-                      {feedback.text}
-                    </p>
-                  </div>
+                  <ResultBanner
+                    variant={feedback.variant}
+                    message={feedback.message}
+                  />
                 )}
               </div>
             </div>
