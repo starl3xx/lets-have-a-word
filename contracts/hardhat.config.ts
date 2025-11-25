@@ -3,11 +3,11 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import * as dotenv from "dotenv";
 
-dotenv.config({ path: "../.env" });
+dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.20",
+    version: "0.8.24",
     settings: {
       optimizer: {
         enabled: true,
@@ -65,7 +65,7 @@ const config: HardhatUserConfig = {
     ],
   },
   paths: {
-    sources: "./",
+    sources: "./src",
     tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts",
