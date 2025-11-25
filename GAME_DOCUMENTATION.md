@@ -29,7 +29,7 @@
 - **Social Deduction**: Wrong guesses benefit everyone
 - **Real ETH Stakes**: Prize pool grows with paid guesses
 - **Referral System**: Earn 10% of your referrals' winnings
-- **CLANKTON Bonus**: Token holders get +3 daily guesses
+- **CLANKTON Bonus**: Token holders get +2-3 daily guesses (scales with market cap)
 
 ---
 
@@ -38,11 +38,13 @@
 ### Daily Guess Allocation
 Each player gets a daily allocation of guesses:
 - **Base Free Guesses**: 1 per day
-- **CLANKTON Bonus**: +3 if holding 100M+ CLANKTON tokens
+- **CLANKTON Bonus**: +2-3 if holding 100M+ CLANKTON tokens (tiered by market cap)
+  - +2 guesses/day when market cap < $250k
+  - +3 guesses/day when market cap >= $250k
 - **Share Bonus**: +1 for sharing to Farcaster (once per day)
 - **Paid Guess Packs**: Buy 3 guesses for 0.0003 ETH (max 3 packs/day)
 
-**Total Possible Daily Guesses**: 13 (1 base + 3 CLANKTON + 1 share + 9 paid)
+**Total Possible Daily Guesses**: 12-13 (1 base + 2-3 CLANKTON + 1 share + 9 paid)
 
 ### Prize Pool Economics
 - **70% to Prize Pool**: Accumulates for the winner
@@ -85,8 +87,12 @@ Each player gets a daily allocation of guesses:
 lets-have-a-word/
 ├── pages/
 │   ├── index.tsx                    # Main game page
+│   ├── archive/
+│   │   ├── index.tsx                # Archive list page (5.4)
+│   │   └── [roundNumber].tsx        # Archive detail page (5.4)
 │   ├── admin/
-│   │   └── analytics.tsx            # Admin dashboard (Milestone 5.2/5.3)
+│   │   ├── analytics.tsx            # Admin dashboard (5.2/5.3)
+│   │   └── archive.tsx              # Admin archive management (5.4)
 │   └── api/
 │       ├── game.ts                  # Unified game state (dev mode)
 │       ├── guess.ts                 # Submit guess (with user quality check)
@@ -94,11 +100,20 @@ lets-have-a-word/
 │       ├── round-state.ts           # Get round status (with live ETH/USD)
 │       ├── user-state.ts            # Get user state
 │       ├── share-callback.ts        # Handle share bonus (logs SHARE_SUCCESS)
+│       ├── archive/                 # Archive endpoints (5.4)
+│       │   ├── latest.ts            # Get latest archived round
+│       │   ├── list.ts              # List archived rounds (paginated)
+│       │   └── [roundNumber].ts     # Get specific round detail
 │       ├── user/
 │       │   ├── stats.ts             # User statistics
 │       │   └── referrals.ts         # Referral data
 │       └── admin/
 │           ├── me.ts                # Admin status check
+│           ├── archive/             # Admin archive endpoints (5.4)
+│           │   ├── sync.ts          # Sync/archive rounds
+│           │   ├── errors.ts        # View archive errors
+│           │   └── debug/
+│           │       └── [roundNumber].ts  # Debug info for round
 │           └── analytics/           # Analytics endpoints
 │               ├── dau.ts           # Daily active users
 │               ├── wau.ts           # Weekly active users
@@ -136,6 +151,7 @@ lets-have-a-word/
 │   │   ├── analytics.ts             # Analytics event logging (5.2)
 │   │   ├── announcer.ts             # Farcaster announcer bot (5.1)
 │   │   ├── user-quality.ts          # User quality gating (5.3)
+│   │   ├── archive.ts               # Round archive logic (5.4)
 │   │   ├── devGameState.ts          # Dev mode helpers
 │   │   └── devMidRound.ts           # Dev test scenarios
 │   ├── services/                    # Service modules (Milestone 5.3)
@@ -803,7 +819,7 @@ await sdk.actions.openUrl({
 
 ## Key Features by Milestone
 
-### Completed Milestones (1.1 - 5.3)
+### Completed Milestones (1.1 - 5.4)
 
 ### Milestone 1.1: Data Model + Rules
 - Database schema design (game_rules, users, rounds, guesses)
@@ -856,7 +872,7 @@ await sdk.actions.openUrl({
 - Top 10 payout distribution logic
 - Creator balance tracking
 - round_payouts table for payout records
-- 0.1 ETH seed cap logic
+- 0.03 ETH seed cap logic
 - Comprehensive economic functions
 
 ### Milestone 3.2: Top Ticker Polish
@@ -1017,15 +1033,46 @@ await sdk.actions.openUrl({
 - **Configuration**:
   - USER_QUALITY_GATING_ENABLED=true to enable anti-bot protection
 
-### Planned Milestones (5.4 - 6.2)
-
 ### Milestone 5.4: Round Archive
-- **Status**: Not started
-- Round summary fields on rounds table
-- Historical round data API
-- Archive browsing UI
-- Past winners showcase
-- Search and filter functionality
+- **Status**: ✅ Complete
+- **Database Schema** (`src/db/schema.ts`):
+  - `round_archive` table with roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount, referralBonusCount
+  - `round_archive_errors` table for tracking archiving anomalies
+  - Index on `round_number` for fast lookups
+  - Migration: `drizzle/0002_round_archive.sql`
+- **Archive Logic** (`src/lib/archive.ts`):
+  - `archiveRound({ roundId })` - Archives a resolved round with computed stats
+  - `syncAllRounds()` - Archives all unarchived resolved rounds
+  - `getArchivedRound(roundNumber)` - Fetch specific round
+  - `getArchivedRounds({ limit, offset, orderBy })` - Paginated list
+  - `getLatestArchivedRound()` - Most recent round
+  - `getArchiveDebugInfo(roundNumber)` - Compare archived vs raw data
+  - `getRoundGuessDistribution(roundNumber)` - Hour-by-hour histogram
+  - `getArchiveStats()` - Aggregate statistics
+  - Idempotent archiving (safe to call multiple times)
+- **Public API Endpoints**:
+  - `GET /api/archive/latest` - Latest archived round
+  - `GET /api/archive/:roundNumber` - Specific round (optional `?distribution=true`)
+  - `GET /api/archive/list` - Paginated list (optional `?stats=true`)
+- **Admin API Endpoints**:
+  - `POST /api/admin/archive/sync` - Archive all rounds (optional `{ roundId }` for specific)
+  - `GET /api/admin/archive/debug/:roundNumber` - Debug info with discrepancies
+  - `GET /api/admin/archive/errors` - View archive errors
+- **Admin Dashboard** (`pages/admin/archive.tsx`):
+  - Statistics overview (total rounds, guesses, winners, jackpot distributed)
+  - Paginated round table with click-to-detail
+  - Detail view: winner info, payouts, guess distribution histogram
+  - Sync controls and error monitoring
+- **Player UI**:
+  - `/archive` - Browse rounds with pagination, aggregate stats
+  - `/archive/:roundNumber` - Round detail with word, jackpot, winner, distribution
+  - Dark theme matching game UI
+  - Commit-reveal verification (displays salt)
+- **Error Handling**:
+  - Errors stored in `round_archive_errors` table
+  - Debug endpoint detects discrepancies between archived and raw data
+
+### Planned Milestones (6.1 - 6.2)
 
 ### Milestone 6.1: Smart Contract Integration
 - **Status**: Not started
@@ -1617,7 +1664,7 @@ const ECONOMIC_RULES = {
   WINNER_SHARE: 0.8,            // 80% of jackpot to winner
   REFERRER_SHARE: 0.1,          // 10% to referrer
   TOP_GUESSERS_SHARE: 0.1,      // 10% to top guessers
-  SEED_CAP_ETH: 0.1,            // 0.1 ETH seed cap
+  SEED_CAP_ETH: 0.03,           // 0.03 ETH seed cap
 };
 ```
 

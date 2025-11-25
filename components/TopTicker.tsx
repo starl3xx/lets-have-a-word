@@ -41,9 +41,14 @@ function formatUsd(value: string | number): string {
   }).format(num);
 }
 
+interface TopTickerProps {
+  onRoundClick?: (roundId: number) => void;
+}
+
 /**
  * TopTicker Component
  * Milestone 3.2: Displays live round status with polished formatting
+ * Milestone 5.4: Round number is clickable to open archive modal
  *
  * Shows:
  * - Prize pool in ETH and USD (formatted properly)
@@ -51,7 +56,7 @@ function formatUsd(value: string | number): string {
  *
  * Polls /api/round-state every 15 seconds for live updates.
  */
-export default function TopTicker() {
+export default function TopTicker({ onRoundClick }: TopTickerProps) {
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,12 +168,35 @@ export default function TopTicker() {
           </p>
         </div>
 
-        {/* Round Number */}
-        <div>
+        {/* Round Number - Clickable to open archive */}
+        <div
+          onClick={() => onRoundClick?.(status.roundId)}
+          style={{
+            cursor: onRoundClick ? 'pointer' : 'default',
+            padding: '4px 8px',
+            margin: '-4px -8px',
+            borderRadius: '8px',
+            transition: 'background 0.2s',
+          }}
+          className={onRoundClick ? 'hover:bg-white/10' : ''}
+          role={onRoundClick ? 'button' : undefined}
+          tabIndex={onRoundClick ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (onRoundClick && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              onRoundClick(status.roundId);
+            }
+          }}
+        >
           <p className="text-xs uppercase font-light tracking-wide opacity-90">
             Round
           </p>
-          <p className="text-lg font-bold">#{status.roundId}</p>
+          <p className="text-lg font-bold">
+            #{status.roundId}
+            {onRoundClick && (
+              <span className="text-xs font-normal opacity-70 ml-1">▼</span>
+            )}
+          </p>
         </div>
       </div>
     </div>

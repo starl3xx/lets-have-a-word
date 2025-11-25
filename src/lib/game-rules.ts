@@ -1,13 +1,15 @@
 import { db, gameRules, rounds } from '../db';
 import { eq } from 'drizzle-orm';
 import type { GameRules, GameRulesConfig } from '../types';
+import { getClanktonHolderBonusGuesses } from '../../config/economy';
 
 /**
  * Default ruleset configuration (v1)
+ * Note: clanktonBonusGuesses is now dynamic based on market cap (Milestone 5.4c)
  */
 export const DEFAULT_RULES_CONFIG: GameRulesConfig = {
   freeGuessesPerDayBase: 1,
-  clanktonBonusGuesses: 3,
+  clanktonBonusGuesses: getClanktonHolderBonusGuesses(), // Dynamic: 2 if mcap < $250k, 3 if >= $250k
   shareBonusGuesses: 1,
   paidGuessPackSize: 3, // Buy 3 guesses at a time
   paidGuessPackPriceEth: '0.0003', // 0.0003 ETH per pack of 3
@@ -18,7 +20,7 @@ export const DEFAULT_RULES_CONFIG: GameRulesConfig = {
     referrer: 0.1,
     top10: 0.1,
   },
-  seedCapEth: '0.1',
+  seedCapEth: '0.03', // Updated from 0.1 in Milestone 5.4b
   clanktonThreshold: '100000000',
 };
 

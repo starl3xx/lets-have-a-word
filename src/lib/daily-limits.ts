@@ -18,14 +18,22 @@ import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
 import { hasClanktonBonus } from './clankton';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
+import {
+  getClanktonHolderBonusGuesses,
+  CLANKTON_MARKET_CAP_USD,
+} from '../../config/economy';
 
 /**
  * Game rules for daily limits
  * These will eventually come from the game_rules table
+ *
+ * Note: clanktonBonusGuesses is now dynamic based on market cap (Milestone 5.4c)
+ * Use getClanktonHolderBonusGuesses() for the current value
  */
 export const DAILY_LIMITS_RULES = {
   freeGuessesPerDayBase: 1,
-  clanktonBonusGuesses: 3,
+  /** @deprecated Use getClanktonHolderBonusGuesses() instead - value depends on market cap */
+  clanktonBonusGuesses: getClanktonHolderBonusGuesses(), // Dynamic: 2 if mcap < $250k, 3 if >= $250k
   shareBonusGuesses: 1,
   clanktonThreshold: 100_000_000, // 100M tokens
   paidGuessPackSize: 3,
@@ -109,6 +117,9 @@ export async function getOrCreateDailyState(
   // Create new state for today
   const hasClankton = await hasCLANKTONBonus(fid);
 
+  // Milestone 5.4c: Get dynamic CLANKTON bonus based on current market cap
+  const clanktonBonusGuesses = getClanktonHolderBonusGuesses();
+
   // Generate random wheel start index (Milestone 4.14)
   // Random index between 0 and 10,013 (total GUESS_WORDS - 1)
   const wheelStartIndex = Math.floor(Math.random() * 10014);
@@ -117,7 +128,7 @@ export async function getOrCreateDailyState(
     fid,
     date: dateStr,
     freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
-    freeAllocatedClankton: hasClankton ? DAILY_LIMITS_RULES.clanktonBonusGuesses : 0,
+    freeAllocatedClankton: hasClankton ? clanktonBonusGuesses : 0,
     freeAllocatedShareBonus: 0,
     freeUsed: 0,
     paidGuessCredits: 0,
