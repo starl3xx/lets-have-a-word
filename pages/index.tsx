@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent, useTransition } from 'react';
 import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
@@ -45,6 +45,11 @@ function GameContent() {
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Milestone 6.4.2: Deferred wheel update for instant input responsiveness
+  // Wheel updates are marked as transitions (low priority) to prevent blocking input rendering
+  const [wheelCurrentGuess, setWheelCurrentGuess] = useState<string>('');
+  const [isPendingWheelUpdate, startWheelTransition] = useTransition();
+
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
@@ -52,6 +57,7 @@ function GameContent() {
   // Wheel state (Milestone 2.3, updated Milestone 4.10)
   const [wheelWords, setWheelWords] = useState<WheelWord[]>([]);
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+  const [wheelStartIndex, setWheelStartIndex] = useState<number | null>(null);
 
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
@@ -201,6 +207,10 @@ function GameContent() {
           // Milestone 6.3: Track pack purchases for modal decision logic
           setPaidPacksPurchased(data.paidPacksPurchased || 0);
           setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
+          // Milestone 4.14 + dev mode: Set wheel start index (randomizes in dev mode)
+          if (data.wheelStartIndex !== null && data.wheelStartIndex !== undefined) {
+            setWheelStartIndex(data.wheelStartIndex);
+          }
         }
       } catch (error) {
         console.error('Error fetching user guess count:', error);
@@ -254,6 +264,17 @@ function GameContent() {
     inputState: currentInputState,
     disabled: isLoading,
   });
+
+  /**
+   * Milestone 6.4.2: Update wheel's current guess as a transition (low priority)
+   * This prevents wheel updates from blocking input box rendering
+   * Input boxes update immediately (high priority), wheel catches up afterwards
+   */
+  useEffect(() => {
+    startWheelTransition(() => {
+      setWheelCurrentGuess(currentWord);
+    });
+  }, [currentWord]);
 
   /**
    * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
@@ -768,8 +789,9 @@ function GameContent() {
               ) : (
                 <Wheel
                   words={wheelWords}
-                  currentGuess={currentWord}
+                  currentGuess={wheelCurrentGuess}
                   inputState={currentInputState}
+                  startIndex={wheelStartIndex}
                 />
               )}
             </div>
