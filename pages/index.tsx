@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, ChangeEvent, KeyboardEvent, useTransition } from 'react';
 import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
@@ -44,6 +44,11 @@ function GameContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Milestone 6.4.2: Deferred wheel update for instant input responsiveness
+  // Wheel updates are marked as transitions (low priority) to prevent blocking input rendering
+  const [wheelCurrentGuess, setWheelCurrentGuess] = useState<string>('');
+  const [isPendingWheelUpdate, startWheelTransition] = useTransition();
 
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
@@ -254,6 +259,17 @@ function GameContent() {
     inputState: currentInputState,
     disabled: isLoading,
   });
+
+  /**
+   * Milestone 6.4.2: Update wheel's current guess as a transition (low priority)
+   * This prevents wheel updates from blocking input box rendering
+   * Input boxes update immediately (high priority), wheel catches up afterwards
+   */
+  useEffect(() => {
+    startWheelTransition(() => {
+      setWheelCurrentGuess(currentWord);
+    });
+  }, [currentWord]);
 
   /**
    * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
@@ -768,7 +784,7 @@ function GameContent() {
               ) : (
                 <Wheel
                   words={wheelWords}
-                  currentGuess={currentWord}
+                  currentGuess={wheelCurrentGuess}
                   inputState={currentInputState}
                 />
               )}
