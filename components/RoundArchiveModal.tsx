@@ -227,11 +227,11 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                 gap: '12px',
               }}
             >
-              <StatsCard label="Total Rounds" value={stats.totalRounds.toLocaleString()} />
-              <StatsCard label="Total Guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
-              <StatsCard label="Unique Winners" value={stats.uniqueWinners.toLocaleString()} />
+              <StatsCard label="Total rounds" value={stats.totalRounds.toLocaleString()} />
+              <StatsCard label="Total guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
+              <StatsCard label="Unique winners" value={stats.uniqueWinners.toLocaleString()} />
               <StatsCard
-                label="Jackpot Distributed"
+                label="Jackpot distributed"
                 value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
                 highlight
               />
@@ -305,7 +305,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                   letterSpacing: '0.1em',
                   fontWeight: 500,
                 }}>
-                  The Secret Word
+                  The secret word
                 </div>
               </div>
 
@@ -375,7 +375,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                 letterSpacing: '0.1em',
                 fontWeight: 600,
               }}>
-                Recent Completed Rounds
+                Recent completed rounds
               </div>
 
               {rounds.length === 0 ? (
@@ -498,7 +498,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
               e.currentTarget.style.boxShadow = '0 4px 12px rgba(45, 104, 199, 0.3)';
             }}
           >
-            {selectedRound ? 'View Full Details' : 'View All Rounds'}
+            {selectedRound ? 'View full details' : 'View all rounds'}
           </a>
         </div>
       </div>
