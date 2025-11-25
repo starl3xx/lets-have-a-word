@@ -38,7 +38,21 @@ interface RoundArchiveModalProps {
 /**
  * RoundArchiveModal Component
  * Milestone 5.4: Shows round archive information when user taps round number
+ *
+ * Primary color: #2D68C7
  */
+
+// Color palette based on #2D68C7
+const COLORS = {
+  primary: '#2D68C7',
+  primaryLight: '#4A82D9',
+  primaryDark: '#1E4D8F',
+  gradientStart: '#1a2d4d',
+  gradientEnd: '#0f1a2e',
+  success: '#34d399',
+  successBg: 'rgba(52, 211, 153, 0.1)',
+};
+
 export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: RoundArchiveModalProps) {
   const [loading, setLoading] = useState(true);
   const [rounds, setRounds] = useState<ArchivedRound[]>([]);
@@ -112,7 +126,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
     >
       <div
         style={{
-          background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+          background: `linear-gradient(180deg, ${COLORS.gradientStart} 0%, ${COLORS.gradientEnd} 100%)`,
           borderRadius: '16px',
           maxWidth: '500px',
           width: '100%',
@@ -127,7 +141,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
         <div
           style={{
             padding: '20px',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            borderBottom: `1px solid ${COLORS.primary}33`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -135,7 +149,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
         >
           <div>
             <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'white' }}>
-              {selectedRound ? `Round #${selectedRound.roundNumber}` : 'Round Archive'}
+              {selectedRound ? `Round #${selectedRound.roundNumber}` : 'LHAW archive'}
             </h2>
             {currentRoundId && !selectedRound && (
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
@@ -146,7 +160,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
           <button
             onClick={selectedRound ? () => setSelectedRound(null) : onClose}
             style={{
-              background: 'rgba(255,255,255,0.1)',
+              background: `${COLORS.primary}33`,
               border: 'none',
               borderRadius: '8px',
               padding: '8px 12px',
@@ -172,7 +186,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
           ) : selectedRound ? (
             // Round Detail View
             <div>
-              {/* Word Display */}
+              {/* Word display */}
               <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                 <div
                   style={{
@@ -180,7 +194,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                     fontSize: '36px',
                     fontWeight: 700,
                     letterSpacing: '6px',
-                    color: '#a78bfa',
+                    color: COLORS.primaryLight,
                   }}
                 >
                   {selectedRound.targetWord}
@@ -209,7 +223,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
               {selectedRound.winnerFid && (
                 <div
                   style={{
-                    background: 'rgba(52, 211, 153, 0.1)',
+                    background: COLORS.successBg,
                     borderRadius: '8px',
                     padding: '12px',
                     marginBottom: '16px',
@@ -228,7 +242,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                       )}
                     </span>
                     {selectedRound.payoutsJson.winner && (
-                      <span style={{ color: '#34d399', fontWeight: 600 }}>
+                      <span style={{ color: COLORS.success, fontWeight: 600 }}>
                         {formatEth(selectedRound.payoutsJson.winner.amountEth)} ETH
                       </span>
                     )}
@@ -236,14 +250,14 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                 </div>
               )}
 
-              {/* View Full Details Link */}
+              {/* View full details link */}
               <a
                 href={`/archive/${selectedRound.roundNumber}`}
                 style={{
                   display: 'block',
                   textAlign: 'center',
                   padding: '12px',
-                  background: '#8b5cf6',
+                  background: COLORS.primary,
                   color: 'white',
                   borderRadius: '8px',
                   textDecoration: 'none',
@@ -251,7 +265,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                   fontWeight: 500,
                 }}
               >
-                View Full Details
+                View full details
               </a>
             </div>
           ) : (
@@ -274,9 +288,9 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                 </div>
               )}
 
-              {/* Recent Rounds */}
+              {/* Recent rounds */}
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>
-                Recent Completed Rounds
+                Recent completed rounds
               </div>
               {rounds.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', padding: '20px' }}>
@@ -289,7 +303,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                       key={round.roundNumber}
                       onClick={() => fetchRoundDetail(round.roundNumber)}
                       style={{
-                        background: 'rgba(255,255,255,0.05)',
+                        background: `${COLORS.primary}15`,
                         border: 'none',
                         borderRadius: '8px',
                         padding: '12px',
@@ -307,7 +321,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                             style={{
                               marginLeft: '8px',
                               fontFamily: 'monospace',
-                              color: '#a78bfa',
+                              color: COLORS.primaryLight,
                               letterSpacing: '1px',
                             }}
                           >
@@ -318,7 +332,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                           {round.totalGuesses} guesses, {round.uniquePlayers} players
                         </div>
                       </div>
-                      <div style={{ color: '#34d399', fontWeight: 600, fontSize: '14px' }}>
+                      <div style={{ color: COLORS.success, fontWeight: 600, fontSize: '14px' }}>
                         {formatEth(round.finalJackpotEth)} ETH
                       </div>
                     </button>
@@ -326,7 +340,7 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                 </div>
               )}
 
-              {/* View All Link */}
+              {/* View all link */}
               <a
                 href="/archive"
                 style={{
@@ -334,14 +348,14 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
                   textAlign: 'center',
                   padding: '12px',
                   marginTop: '16px',
-                  background: 'rgba(255,255,255,0.1)',
+                  background: `${COLORS.primary}33`,
                   color: 'white',
                   borderRadius: '8px',
                   textDecoration: 'none',
                   fontSize: '14px',
                 }}
               >
-                View All Rounds
+                View all rounds
               </a>
             </div>
           )}
@@ -355,13 +369,13 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
   return (
     <div
       style={{
-        background: highlight ? 'rgba(52, 211, 153, 0.1)' : 'rgba(255,255,255,0.05)',
+        background: highlight ? COLORS.successBg : `${COLORS.primary}15`,
         borderRadius: '8px',
         padding: '12px',
         textAlign: 'center',
       }}
     >
-      <div style={{ fontSize: '18px', fontWeight: 600, color: highlight ? '#34d399' : '#a78bfa' }}>
+      <div style={{ fontSize: '18px', fontWeight: 600, color: highlight ? COLORS.success : COLORS.primaryLight }}>
         {value}
       </div>
       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
@@ -375,13 +389,13 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        background: 'rgba(255,255,255,0.05)',
+        background: `${COLORS.primary}15`,
         borderRadius: '6px',
         padding: '8px',
         textAlign: 'center',
       }}
     >
-      <div style={{ fontSize: '14px', fontWeight: 600, color: '#a78bfa' }}>{value}</div>
+      <div style={{ fontSize: '14px', fontWeight: 600, color: COLORS.primaryLight }}>{value}</div>
       <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>{label}</div>
     </div>
   );
