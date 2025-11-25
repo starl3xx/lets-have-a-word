@@ -1,0 +1,130 @@
+{
+  "_description": "Base locale file - contains all translation keys with empty values. Used as a template for new locales.",
+  "common": {
+    "close": "",
+    "cancel": "",
+    "copy": "",
+    "share": "",
+    "loading": "",
+    "error": "",
+    "success": "",
+    "copied": ""
+  },
+  "game": {
+    "guess": "",
+    "submitting": "",
+    "stats": "",
+    "refer": "",
+    "faq": ""
+  },
+  "guessPack": {
+    "title": "",
+    "subtitle": "",
+    "packOption": {
+      "one": "",
+      "oneGuesses": "",
+      "two": "",
+      "twoGuesses": "",
+      "three": "",
+      "threeGuesses": ""
+    },
+    "limitIndicator": "",
+    "buyButton": "",
+    "buyButtonLoading": "",
+    "maxPacksReached": "",
+    "connectWallet": "",
+    "purchaseSuccess": "",
+    "purchaseFailed": ""
+  },
+  "shareForGuess": {
+    "title": "",
+    "description": "",
+    "ctaButton": "",
+    "sharing": "",
+    "alreadyClaimed": "",
+    "shareText": ""
+  },
+  "anotherGuess": {
+    "title": "",
+    "shareOption": "",
+    "buyOption": "",
+    "notNow": ""
+  },
+  "interjections": [],
+  "referral": {
+    "title": "",
+    "yourLink": "",
+    "copyLink": "",
+    "shareLink": "",
+    "stats": {
+      "title": "",
+      "referrals": "",
+      "ethEarned": ""
+    },
+    "howItWorks": {
+      "title": "",
+      "step1": "",
+      "step2": "",
+      "step3": ""
+    },
+    "autoCopy": {
+      "enabled": "",
+      "disabled": ""
+    }
+  },
+  "stats": {
+    "title": "",
+    "thisRound": "",
+    "allTime": "",
+    "totalGuesses": "",
+    "paidGuesses": "",
+    "freeGuesses": "",
+    "bonusGuesses": "",
+    "jackpots": {
+      "title": "",
+      "won": "",
+      "topPlacements": "",
+      "ethFromTop": "",
+      "referralWins": "",
+      "ethFromReferrals": "",
+      "allTimeEth": ""
+    },
+    "guessDistribution": {
+      "title": "",
+      "median": ""
+    },
+    "guessBreakdown": {
+      "title": "",
+      "free": "",
+      "bonus": "",
+      "paid": ""
+    },
+    "referralsThisRound": "",
+    "xp": {
+      "title": "",
+      "comingSoon": "",
+      "description": "",
+      "futureUpdates": "",
+      "features": [],
+      "howToEarn": "",
+      "earnMethods": [],
+      "keepPlaying": ""
+    },
+    "shareMyStats": ""
+  },
+  "winner": {
+    "congratulations": "",
+    "foundWord": "",
+    "wonJackpot": "",
+    "shareVictory": "",
+    "shareOnFarcaster": "",
+    "shareOnX": ""
+  },
+  "errors": {
+    "wordTooShort": "",
+    "invalidWord": "",
+    "alreadyGuessed": "",
+    "noGuessesLeft": "",
+    "notAuthenticated": ""
+  }
+}

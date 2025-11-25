@@ -21,6 +21,12 @@ export interface UserStatsResponse {
   topGuesserEthWon: string;
   referralWins: number;
   referralEthWon: string;
+  // Milestone 6.3: New stats
+  freeGuessesAllTime: number;
+  bonusGuessesAllTime: number; // CLANKTON + share bonus
+  guessesPerRoundHistogram: { round: number; guesses: number }[];
+  medianGuessesToSolve: number | null;
+  referralsGeneratedThisRound: number;
 }
 
 export default async function handler(
@@ -127,6 +133,72 @@ export default async function handler(
     const referralWins = Number(referralStats[0]?.count || 0);
     const referralEthWon = referralStats[0]?.total || '0';
 
+    // Milestone 6.3: Calculate new stats
+
+    // Free guesses (not paid, not bonus) - approximation since we track isPaid
+    const freeGuessesAllTime = guessesAllTime - paidGuessesAllTime;
+    const bonusGuessesAllTime = 0; // TODO: Track separately in future
+
+    // Guesses per round histogram (last 10 rounds for this user)
+    const guessHistogram = await db
+      .select({
+        roundId: guesses.roundId,
+        guessCount: count(),
+      })
+      .from(guesses)
+      .where(eq(guesses.fid, fid))
+      .groupBy(guesses.roundId)
+      .orderBy(sql`${guesses.roundId} DESC`)
+      .limit(10);
+
+    const guessesPerRoundHistogram = guessHistogram.map((h) => ({
+      round: h.roundId,
+      guesses: Number(h.guessCount),
+    }));
+
+    // Median guesses to solve (for rounds this user won)
+    let medianGuessesToSolve: number | null = null;
+    if (jackpotsWon > 0) {
+      // Get guess counts for rounds this user won
+      const wonRoundGuesses = await db
+        .select({
+          roundId: rounds.id,
+          guessCount: sql<number>`(
+            SELECT count(*)
+            FROM ${guesses}
+            WHERE ${guesses.roundId} = ${rounds.id}
+            AND ${guesses.fid} = ${fid}
+          )`,
+        })
+        .from(rounds)
+        .where(eq(rounds.winnerFid, fid))
+        .orderBy(sql`(
+          SELECT count(*)
+          FROM ${guesses}
+          WHERE ${guesses.roundId} = ${rounds.id}
+          AND ${guesses.fid} = ${fid}
+        ) ASC`);
+
+      if (wonRoundGuesses.length > 0) {
+        const counts = wonRoundGuesses.map((r) => Number(r.guessCount));
+        const mid = Math.floor(counts.length / 2);
+        medianGuessesToSolve =
+          counts.length % 2 !== 0
+            ? counts[mid]
+            : Math.floor((counts[mid - 1] + counts[mid]) / 2);
+      }
+    }
+
+    // Referrals generated this round
+    let referralsGeneratedThisRound = 0;
+    if (currentRoundId) {
+      const referrals = await db
+        .select({ count: count() })
+        .from(users)
+        .where(eq(users.referrerFid, fid));
+      referralsGeneratedThisRound = Number(referrals[0]?.count || 0);
+    }
+
     const response: UserStatsResponse = {
       guessesThisRound,
       guessesAllTime,
@@ -138,6 +210,12 @@ export default async function handler(
       topGuesserEthWon,
       referralWins,
       referralEthWon,
+      // Milestone 6.3: New stats
+      freeGuessesAllTime,
+      bonusGuessesAllTime,
+      guessesPerRoundHistogram,
+      medianGuessesToSolve,
+      referralsGeneratedThisRound,
     };
 
     console.log(`[user/stats] Stats for FID ${fid}:`, response);

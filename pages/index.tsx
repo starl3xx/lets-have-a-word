@@ -12,6 +12,9 @@ import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
 import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
+// Milestone 6.3: New components
+import GuessPurchaseModal from '../components/GuessPurchaseModal';
+import AnotherGuessModal from '../components/AnotherGuessModal';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
@@ -74,6 +77,13 @@ function GameContent() {
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
+
+  // Milestone 6.3: Guess purchase and "another guess" modal state
+  const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
+  const [showAnotherGuessModal, setShowAnotherGuessModal] = useState(false);
+  const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
+  const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
+  const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
 
   /**
    * Get Farcaster context on mount and signal ready
@@ -162,6 +172,7 @@ function GameContent() {
 
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
+   * Milestone 6.3: Also check share bonus eligibility and CLANKTON holder status
    */
   useEffect(() => {
     const fetchUserGuessCount = async () => {
@@ -172,11 +183,16 @@ function GameContent() {
         if (response.ok) {
           const data: UserStateResponse = await response.json();
           setHasGuessesLeft(data.totalGuessesRemaining > 0);
+          // Milestone 6.3: Check if user can still claim share bonus
+          setCanClaimShareBonus(!data.hasSharedToday);
+          // Milestone 6.3: Check if user is CLANKTON holder
+          setIsClanktonHolder(data.isClanktonHolder || false);
         }
       } catch (error) {
         console.error('Error fetching user guess count:', error);
         // Default to true to avoid blocking the user
         setHasGuessesLeft(true);
+        setCanClaimShareBonus(true);
       }
     };
 
@@ -604,10 +620,18 @@ function GameContent() {
 
   /**
    * Handle share modal close
+   * Milestone 6.3: Show "another guess" modal if user closed without sharing
    */
   const handleShareModalClose = () => {
     setShowShareModal(false);
     setPendingShareResult(null);
+
+    // Milestone 6.3: If user didn't share and has no guesses left, show "another guess" modal
+    if (!hasGuessesLeft) {
+      setTimeout(() => {
+        setShowAnotherGuessModal(true);
+      }, 300);
+    }
   };
 
   /**
@@ -616,6 +640,31 @@ function GameContent() {
    */
   const handleShareSuccess = () => {
     setUserStateKey(prev => prev + 1);
+    setCanClaimShareBonus(false);
+  };
+
+  /**
+   * Milestone 6.3: Handle pack purchase success
+   */
+  const handlePackPurchaseSuccess = (packCount: number) => {
+    console.log(`[GameContent] Pack purchase success: ${packCount} packs`);
+    // Refetch user state to update guess counts
+    setUserStateKey(prev => prev + 1);
+    void haptics.packPurchased();
+  };
+
+  /**
+   * Milestone 6.3: Handle "another guess" modal actions
+   */
+  const handleAnotherGuessShare = () => {
+    setShowAnotherGuessModal(false);
+    // Open the share modal directly
+    setShowShareModal(true);
+  };
+
+  const handleAnotherGuessBuyPacks = () => {
+    setShowAnotherGuessModal(false);
+    setShowGuessPurchaseModal(true);
   };
 
   return (
@@ -887,12 +936,34 @@ function GameContent() {
         />
       )}
 
-      {/* Winner Share Card (Milestone 4.14) */}
+      {/* Winner Share Card (Milestone 4.14, 6.3 enhancements) */}
       {showWinnerShareCard && winnerData && (
         <WinnerShareCard
           winnerWord={winnerData.word}
           roundId={winnerData.roundId}
+          jackpotEth={currentJackpotEth}
+          isClanktonHolder={isClanktonHolder}
           onClose={() => setShowWinnerShareCard(false)}
+        />
+      )}
+
+      {/* Milestone 6.3: Guess Purchase Modal */}
+      {showGuessPurchaseModal && (
+        <GuessPurchaseModal
+          fid={fid}
+          onClose={() => setShowGuessPurchaseModal(false)}
+          onPurchaseSuccess={handlePackPurchaseSuccess}
+        />
+      )}
+
+      {/* Milestone 6.3: Another Guess Modal */}
+      {showAnotherGuessModal && (
+        <AnotherGuessModal
+          fid={fid}
+          canClaimShareBonus={canClaimShareBonus}
+          onClose={() => setShowAnotherGuessModal(false)}
+          onShareForGuess={handleAnotherGuessShare}
+          onBuyPacks={handleAnotherGuessBuyPacks}
         />
       )}
 

@@ -1,0 +1,166 @@
+{
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "copy": "Copy",
+    "share": "Share",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "success": "Success!",
+    "copied": "Copied!"
+  },
+  "game": {
+    "guess": "GUESS",
+    "submitting": "SUBMITTING...",
+    "stats": "Stats",
+    "refer": "Refer",
+    "faq": "FAQ"
+  },
+  "guessPack": {
+    "title": "Buy guess packs",
+    "subtitle": "Each pack contains 3 guesses",
+    "packOption": {
+      "one": "1 pack",
+      "oneGuesses": "3 guesses",
+      "two": "2 packs",
+      "twoGuesses": "6 guesses",
+      "three": "3 packs",
+      "threeGuesses": "9 guesses"
+    },
+    "limitIndicator": "You have purchased {{count}} of 3 packs today",
+    "buyButton": "Buy pack(s)",
+    "buyButtonLoading": "Processing...",
+    "maxPacksReached": "Maximum packs purchased today",
+    "connectWallet": "Connect wallet first",
+    "purchaseSuccess": "Pack purchased successfully!",
+    "purchaseFailed": "Purchase failed. Please try again."
+  },
+  "shareForGuess": {
+    "title": "Share for a free guess!",
+    "description": "Share to Farcaster to unlock 1 bonus guess",
+    "ctaButton": "Share to Farcaster for a free guess",
+    "sharing": "Sharing...",
+    "alreadyClaimed": "You've already claimed your share bonus today",
+    "shareText": "I'm playing Let's Have A Word!\nDaily jackpot-based word puzzle on Base.\nhttps://lets-have-a-word.vercel.app"
+  },
+  "anotherGuess": {
+    "title": "Want another guess?",
+    "shareOption": "Share for a free guess",
+    "buyOption": "Buy guess packs",
+    "notNow": "Not now"
+  },
+  "interjections": [
+    "Shucks!",
+    "Darn!",
+    "Shoot!",
+    "Ugh!",
+    "Aw man!",
+    "Dang!",
+    "Uff da!",
+    "Blast!",
+    "Zut!",
+    "Cavolo!",
+    "Mist!",
+    "Kurcze!",
+    "Blin!",
+    "Sakra!",
+    "Ya salam!",
+    "Oy vey!",
+    "Oui!",
+    "Bummer!",
+    "Oof!",
+    "Crud!",
+    "Rats!",
+    "Ach!",
+    "Aigoo!",
+    "Phooey!",
+    "Attans!"
+  ],
+  "referral": {
+    "title": "Referrals",
+    "yourLink": "Your referral link",
+    "copyLink": "Copy",
+    "shareLink": "Share",
+    "stats": {
+      "title": "Your referral stats",
+      "referrals": "Referrals",
+      "ethEarned": "ETH earned"
+    },
+    "howItWorks": {
+      "title": "How referrals work",
+      "step1": "Share your link with friends",
+      "step2": "When they sign up and win a jackpot, you earn 10% of their winnings",
+      "step3": "You can track your referrals and earnings here"
+    },
+    "autoCopy": {
+      "enabled": "Auto-copy enabled",
+      "disabled": "Auto-copy disabled"
+    }
+  },
+  "stats": {
+    "title": "Your stats",
+    "thisRound": "This round",
+    "allTime": "All time",
+    "totalGuesses": "Total guesses",
+    "paidGuesses": "Paid guesses",
+    "freeGuesses": "Free guesses",
+    "bonusGuesses": "Bonus guesses",
+    "jackpots": {
+      "title": "Jackpots",
+      "won": "Jackpots won",
+      "topPlacements": "Top 10 placements",
+      "ethFromTop": "ETH from top 10",
+      "referralWins": "Referral wins",
+      "ethFromReferrals": "ETH from referrals",
+      "allTimeEth": "All-time ETH won"
+    },
+    "guessDistribution": {
+      "title": "Guesses per round",
+      "median": "Median guesses to solve"
+    },
+    "guessBreakdown": {
+      "title": "Guess breakdown",
+      "free": "Free guesses",
+      "bonus": "Bonus guesses",
+      "paid": "Paid guesses"
+    },
+    "referralsThisRound": "Referrals generated this round",
+    "xp": {
+      "title": "Your XP",
+      "comingSoon": "Coming soon",
+      "description": "XP is currently being tracked but doesn't unlock any features yet.",
+      "futureUpdates": "Future updates may include:",
+      "features": [
+        "XP-based progression system",
+        "Leaderboards and rankings",
+        "Unlockable rewards and bonuses",
+        "Achievement badges",
+        "Special perks for high-XP players"
+      ],
+      "howToEarn": "How to earn XP",
+      "earnMethods": [
+        "Making guesses (free or paid)",
+        "Winning jackpots",
+        "Referring new players",
+        "Daily participation"
+      ],
+      "keepPlaying": "Keep playing to build up your XP before the progression system launches!"
+    },
+    "shareMyStats": "SHARE MY STATS"
+  },
+  "winner": {
+    "congratulations": "Congratulations!",
+    "foundWord": "You found the winning word",
+    "wonJackpot": "and won the ETH jackpot!",
+    "shareVictory": "Share your victory:",
+    "shareOnFarcaster": "Share on Farcaster",
+    "shareOnX": "Share on X"
+  },
+  "errors": {
+    "wordTooShort": "Word must be exactly 5 letters",
+    "invalidWord": "Not a valid word",
+    "alreadyGuessed": "Already guessed this round",
+    "noGuessesLeft": "No guesses left today",
+    "notAuthenticated": "Not authenticated"
+  }
+}
