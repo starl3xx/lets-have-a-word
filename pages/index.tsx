@@ -20,6 +20,7 @@ import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
+import { useGuessInput } from '../src/hooks/useGuessInput';
 import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider } from 'wagmi';
@@ -228,33 +229,45 @@ function GameContent() {
   }, [wheelWords]);
 
   /**
+   * Milestone 6.4: Compute current input state and create centralized input control
+   * These need to be defined early so handler functions can use them
+   */
+  const currentWord = useMemo(() => letters.join(''), [letters]);
+  const isWordAlreadyGuessed = useMemo(() => {
+    return currentWord.length === 5
+      ? wrongGuessesSet.has(currentWord.toLowerCase())
+      : false;
+  }, [currentWord, wrongGuessesSet]);
+
+  const currentInputState: InputState = useMemo(() => getInputState({
+    letters,
+    isInGuessList: currentWord.length === 5 ? isValidGuess(currentWord) : true,
+    isAlreadyGuessed: isWordAlreadyGuessed,
+    isSubmitting: isLoading,
+    hasGuessesLeft,
+    resultState: boxResultState,
+  }), [letters, currentWord, isWordAlreadyGuessed, isLoading, hasGuessesLeft, boxResultState]);
+
+  // Centralized input handling for consistent tap/input behavior
+  const guessInputControl = useGuessInput({
+    letters,
+    inputState: currentInputState,
+    disabled: isLoading,
+  });
+
+  /**
    * Trigger shake when typing invalid words (Milestone 4.6, updated Milestone 4.10)
    * Provides immediate visual feedback for invalid state
    * Note: Haptics for invalid states are now handled by useInputStateHaptics hook (Milestone 4.7)
+   * Milestone 6.4: Uses memoized currentInputState instead of recomputing
    */
   useEffect(() => {
-    const currentWord = letters.join('');
-    // Only trigger shake when user has typed 5 letters and it's invalid
-    if (currentWord.length === 5) {
-      // Check if word has been guessed (wrong status) using memoized Set
-      const isAlreadyGuessed = wrongGuessesSet.has(currentWord.toLowerCase());
-
-      // Get current state
-      const state = getInputState({
-        letters,
-        isInGuessList: isValidGuess(currentWord),
-        isAlreadyGuessed,
-        isSubmitting: isLoading,
-        hasGuessesLeft,
-        resultState: boxResultState,
-      });
-
-      if (state === 'TYPING_FULL_INVALID_NONSENSE' ||
-          state === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
-        triggerShake();
-      }
+    // Only trigger shake when in an invalid 5-letter state
+    if (currentInputState === 'TYPING_FULL_INVALID_NONSENSE' ||
+        currentInputState === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
+      triggerShake();
     }
-  }, [letters, wrongGuessesSet, isLoading, hasGuessesLeft, boxResultState]); // Trigger when any dependency changes
+  }, [currentInputState]); // Trigger when input state changes to invalid
 
   /**
    * Hardware keyboard support for desktop (Milestone 4.4)
@@ -280,9 +293,13 @@ function GameContent() {
         return;
       }
 
-      // Handle enter - submit guess
+      // Handle enter - submit guess (only if guess button would be enabled)
       if (e.key === 'Enter') {
         e.preventDefault();
+        // Milestone 6.4: Respect same validation as GUESS button
+        if (!isGuessButtonEnabled(currentInputState) || isLoading) {
+          return;
+        }
         handleSubmit();
         return;
       }
@@ -290,31 +307,18 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
+   * Milestone 6.4: Uses memoized currentInputState instead of recomputing
    */
   useEffect(() => {
     // Reset hide flag when letters change (show error again for new invalid input)
     setHideStateError(false);
 
-    // Get current state to check if there's an error
-    const word = letters.join('');
-    const isAlreadyGuessed = word.length === 5
-      ? wrongGuessesSet.has(word.toLowerCase())
-      : false;
-
-    const currentState = getInputState({
-      letters,
-      isInGuessList: word.length === 5 ? isValidGuess(word) : true,
-      isAlreadyGuessed,
-      isSubmitting: isLoading,
-      hasGuessesLeft,
-      resultState: boxResultState,
-    });
-
-    const errorMsg = getErrorMessage(currentState);
+    // Check if there's an error based on current input state
+    const errorMsg = getErrorMessage(currentInputState);
     if (errorMsg) {
       // Show error for 2 seconds then hide it
       const timer = setTimeout(() => {
@@ -323,7 +327,7 @@ function GameContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [letters, wrongGuessesSet, isLoading, hasGuessesLeft, boxResultState]);
+  }, [currentInputState]); // Only depend on the memoized input state
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
@@ -351,15 +355,17 @@ function GameContent() {
 
   /**
    * Handle letter input from GameKeyboard (Milestone 4.4)
+   * Milestone 6.4: Uses centralized input control for consistent behavior
    */
   const handleLetter = (letter: string) => {
-    // Find first empty slot
-    const idx = letters.findIndex((ch) => ch === '');
-    if (idx === -1) return; // Already full
+    // Milestone 6.4: Use centralized input control to check if input is allowed
+    const newLetters = guessInputControl.handleLetter(letter);
+    if (!newLetters) {
+      // Input blocked (error state, locked state, or row full)
+      return;
+    }
 
-    const next = [...letters];
-    next[idx] = letter.toUpperCase();
-    setLetters(next);
+    setLetters(newLetters);
 
     // Reset to typing state when user starts typing
     setBoxResultState('typing');
@@ -375,16 +381,17 @@ function GameContent() {
 
   /**
    * Handle backspace from GameKeyboard (Milestone 4.4)
+   * Milestone 6.4: Uses centralized input control for consistent behavior
    */
   const handleBackspace = () => {
-    // Find last non-empty slot
-    let idx = letters.length - 1;
-    while (idx >= 0 && letters[idx] === '') idx--;
-    if (idx < 0) return; // All empty
+    // Milestone 6.4: Use centralized input control to check if backspace is allowed
+    const newLetters = guessInputControl.handleBackspace();
+    if (!newLetters) {
+      // Backspace blocked (error state, locked state, or row empty)
+      return;
+    }
 
-    const next = [...letters];
-    next[idx] = '';
-    setLetters(next);
+    setLetters(newLetters);
 
     // Reset to typing state
     setBoxResultState('typing');
@@ -643,22 +650,8 @@ function GameContent() {
 
   const feedback = getFeedbackMessage();
 
-  // Compute current input state using state machine (Milestone 4.6, updated Milestone 4.10)
-  const word = letters.join('');
-  const isAlreadyGuessed = word.length === 5
-    ? wrongGuessesSet.has(word.toLowerCase())
-    : false;
-
-  const currentInputState: InputState = getInputState({
-    letters,
-    isInGuessList: word.length === 5 ? isValidGuess(word) : true, // Only check if 5 letters
-    isAlreadyGuessed,
-    isSubmitting: isLoading,
-    hasGuessesLeft,
-    resultState: boxResultState,
-  });
-
   // Trigger haptics on input state transitions (Milestone 4.7)
+  // Note: currentInputState is now computed earlier (Milestone 6.4) for use by input control
   useInputStateHaptics(currentInputState);
 
   // Get state-based error message (Milestone 4.6)
@@ -775,7 +768,7 @@ function GameContent() {
               ) : (
                 <Wheel
                   words={wheelWords}
-                  currentGuess={word}
+                  currentGuess={currentWord}
                   inputState={currentInputState}
                 />
               )}

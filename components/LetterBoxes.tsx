@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState, KeyboardEvent, ChangeEvent } from 'react';
-import { getBoxBorderColor, getBoxBackgroundColor, getBoxTextColor, shouldShowReadyGlow, type InputState } from '../src/lib/input-state';
+import { useRef, useEffect, useState, KeyboardEvent, ChangeEvent, useCallback } from 'react';
+import { getBoxBorderColor, getBoxBackgroundColor, getBoxTextColor, shouldShowReadyGlow, isInvalidState, type InputState } from '../src/lib/input-state';
+import { useGuessInput } from '../src/hooks/useGuessInput';
 
 interface LetterBoxesProps {
   letters: string[];
@@ -13,7 +14,7 @@ interface LetterBoxesProps {
 
 /**
  * LetterBoxes Component
- * Milestone 4.3 + 4.6
+ * Milestone 4.3 + 4.6 + 6.4
  *
  * Displays 5 letter boxes for word input with smooth typing behavior
  * Supports mobile keyboard, backspace, and visual feedback
@@ -22,6 +23,11 @@ interface LetterBoxesProps {
  * - State-based border colors (gray, blue, red, green)
  * - State-based error feedback
  * - "Ready to guess" glow for valid words
+ *
+ * Milestone 6.4: Centralized tap/focus behavior
+ * - Empty row: tapping focuses first box
+ * - Partial/full row: tapping does nothing
+ * - Error/locked states: all interaction blocked
  */
 export default function LetterBoxes({
   letters,
@@ -34,6 +40,17 @@ export default function LetterBoxes({
 }: LetterBoxesProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+
+  // Milestone 6.4: Use centralized input hook for tap/focus behavior
+  const {
+    canHandleTap,
+    isErrorState,
+    isLockedState,
+  } = useGuessInput({
+    letters,
+    inputState: inputState || 'IDLE_EMPTY',
+    disabled,
+  });
 
   /**
    * Focus input for hardware keyboard support on desktop (Milestone 4.4)
@@ -86,10 +103,21 @@ export default function LetterBoxes({
 
   /**
    * Handle box click - focus the hidden input
+   * Milestone 6.4: Only focus when row is empty; ignore taps otherwise
+   *
+   * Behavior:
+   * - Empty row: Focus input for keyboard typing
+   * - Partial/full row: Do nothing (no cursor repositioning)
+   * - Error state: Do nothing (input blocked)
+   * - Locked state: Do nothing (input disabled)
    */
-  const handleBoxClick = () => {
+  const handleBoxClick = useCallback(() => {
+    // Milestone 6.4: Only allow focus when row is empty
+    if (!canHandleTap) {
+      return; // Ignore tap - row has letters, is in error state, or is locked
+    }
     inputRef.current?.focus();
-  };
+  }, [canHandleTap]);
 
   /**
    * Get box styling based on state (Milestone 4.6)
@@ -154,25 +182,40 @@ export default function LetterBoxes({
         className={`flex gap-2 justify-center ${isShaking ? 'animate-shake' : ''}`}
         onClick={handleBoxClick}
       >
-        {letters.map((letter, index) => (
-          <div
-            key={index}
-            className={`
-              w-16 h-16
-              flex items-center justify-center
-              text-3xl font-bold uppercase
-              border-4 rounded-lg
-              transition-all duration-150
-              ${getBoxStyle(letter, index)}
-              ${!disabled && resultState === 'typing' && 'cursor-text hover:border-blue-400'}
-              ${showReadyGlow ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}
-              ${resultState === 'correct' ? 'animate-pulse-glow' : ''}
-              shadow-md
-            `}
-          >
-            {letter || '_'}
-          </div>
-        ))}
+        {letters.map((letter, index) => {
+          // Milestone 6.4: Determine cursor style based on state
+          // - Locked/disabled: not-allowed cursor
+          // - Error state: default cursor (no interaction)
+          // - Empty row: text cursor (can type)
+          // - Partial/full row: default cursor (no tap action)
+          const getCursorStyle = () => {
+            if (isLockedState) return 'cursor-not-allowed';
+            if (isErrorState) return 'cursor-default';
+            if (canHandleTap) return 'cursor-text hover:border-blue-400';
+            return 'cursor-default';
+          };
+
+          return (
+            <div
+              key={index}
+              className={`
+                w-16 h-16
+                flex items-center justify-center
+                text-3xl font-bold uppercase
+                border-4 rounded-lg
+                transition-all duration-150
+                ${getBoxStyle(letter, index)}
+                ${getCursorStyle()}
+                ${showReadyGlow ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}
+                ${resultState === 'correct' ? 'animate-pulse-glow' : ''}
+                ${isLockedState ? 'opacity-60' : ''}
+                shadow-md
+              `}
+            >
+              {letter || '_'}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

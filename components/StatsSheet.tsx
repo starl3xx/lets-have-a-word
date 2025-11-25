@@ -262,7 +262,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
             >
               <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
-              SHARE MY STATS
+              {t('stats.shareButton')}
             </button>
 
             {/* XP Section */}
