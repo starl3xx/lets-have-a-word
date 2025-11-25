@@ -126,7 +126,7 @@ export default function RoundDetailPage() {
             <Link
               href="/archive"
               style={{
-                color: 'rgba(255,255,255,0.8)',
+                color: '#3A2E8A',
                 textDecoration: 'none',
                 fontSize: '14px',
                 display: 'inline-block',
@@ -188,7 +188,7 @@ export default function RoundDetailPage() {
                   fontSize: '48px',
                   fontWeight: 700,
                   letterSpacing: '8px',
-                  color: '#a78bfa',
+                  color: '#3A2E8A',
                   marginBottom: '8px',
                 }}>
                   {round.targetWord}
@@ -406,7 +406,7 @@ function StatCard({ label, value, highlight }: { label: string; value: string; h
       <div style={{
         fontSize: '20px',
         fontWeight: 600,
-        color: highlight ? '#34d399' : '#7436c9',
+        color: highlight ? '#34d399' : '#3A2E8A',
       }}>
         {value}
       </div>
