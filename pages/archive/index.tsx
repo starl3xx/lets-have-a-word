@@ -92,7 +92,7 @@ export default function ArchiveListPage() {
             <Link
               href="/"
               style={{
-                color: 'rgba(255,255,255,0.8)',
+                color: '#3A2E8A',
                 textDecoration: 'none',
                 fontSize: '14px',
                 display: 'inline-block',
@@ -197,7 +197,7 @@ export default function ArchiveListPage() {
                           <span style={{
                             fontFamily: 'monospace',
                             fontSize: '14px',
-                            color: '#a78bfa',
+                            color: '#3A2E8A',
                             letterSpacing: '2px',
                           }}>
                             {round.targetWord}
@@ -287,7 +287,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
       padding: '16px',
       textAlign: 'center',
     }}>
-      <div style={{ fontSize: '20px', fontWeight: 600, color: '#7436c9' }}>
+      <div style={{ fontSize: '20px', fontWeight: 600, color: '#3A2E8A' }}>
         {value}
       </div>
       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
