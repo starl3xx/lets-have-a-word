@@ -46,12 +46,17 @@ export const AnalyticsEventTypes = {
   SHARE_CLICKED: 'share_clicked',
   SHARE_SUCCESS: 'share_success',
 
-  // Referrals (existing)
+  // Referrals (existing + Milestone 6.3)
   REFERRAL_SHARE: 'referral_share',
   REFERRAL_JOIN: 'referral_join',
   REFERRAL_WIN: 'referral_win',
   REFERRAL_GUESS: 'referral_guess',
   SHARE_BONUS_UNLOCKED: 'share_bonus_unlocked',
+
+  // Milestone 6.3: New Referral Events
+  REFERRAL_MODAL_OPENED: 'referral_modal_opened',
+  REFERRAL_LINK_COPIED: 'referral_link_copied',
+  REFERRAL_SHARE_CLICKED: 'referral_share_clicked',
 
   // Rounds
   ROUND_STARTED: 'round_started',

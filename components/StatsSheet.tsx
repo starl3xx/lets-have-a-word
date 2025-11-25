@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { UserStatsResponse } from '../pages/api/user/stats';
-import { triggerHaptic } from '../src/lib/haptics';
+import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
+import { useTranslation } from '../src/hooks/useTranslation';
 
 interface StatsSheetProps {
   fid: number | null;
@@ -10,11 +11,18 @@ interface StatsSheetProps {
 
 /**
  * StatsSheet Component
- * Milestone 4.3
+ * Milestone 4.3, Updated Milestone 6.3
  *
  * Displays per-user gameplay statistics and XP in a bottom sheet
+ *
+ * Milestone 6.3 additions:
+ * - Guesses per round histogram
+ * - Median guesses to solve
+ * - Free vs bonus vs paid guesses breakdown
+ * - Referrals generated this round
  */
 export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
   const [xp, setXp] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -136,18 +144,77 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
             {/* All Time */}
             <div className="bg-purple-50 rounded-lg p-4 space-y-3">
-              <h3 className="text-lg font-bold text-purple-900">All time</h3>
+              <h3 className="text-lg font-bold text-purple-900">{t('stats.allTime')}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm text-purple-700">Total guesses</p>
+                  <p className="text-sm text-purple-700">{t('stats.totalGuesses')}</p>
                   <p className="text-2xl font-bold text-purple-900">{stats.guessesAllTime}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-purple-700">Paid guesses</p>
+                  <p className="text-sm text-purple-700">{t('stats.paidGuesses')}</p>
                   <p className="text-2xl font-bold text-purple-900">{stats.paidGuessesAllTime}</p>
                 </div>
               </div>
             </div>
+
+            {/* Milestone 6.3: Guess Breakdown */}
+            <div className="bg-indigo-50 rounded-lg p-4 space-y-3">
+              <h3 className="text-lg font-bold text-indigo-900">{t('stats.guessBreakdown.title')}</h3>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white rounded-lg p-3 text-center">
+                  <p className="text-xs text-indigo-600">{t('stats.guessBreakdown.free')}</p>
+                  <p className="text-xl font-bold text-indigo-900">{stats.freeGuessesAllTime}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 text-center">
+                  <p className="text-xs text-indigo-600">{t('stats.guessBreakdown.bonus')}</p>
+                  <p className="text-xl font-bold text-indigo-900">{stats.bonusGuessesAllTime}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 text-center">
+                  <p className="text-xs text-indigo-600">{t('stats.guessBreakdown.paid')}</p>
+                  <p className="text-xl font-bold text-indigo-900">{stats.paidGuessesAllTime}</p>
+                </div>
+              </div>
+              {stats.medianGuessesToSolve !== null && (
+                <div className="bg-white rounded-lg p-3 text-center mt-2">
+                  <p className="text-xs text-indigo-600">{t('stats.guessDistribution.median')}</p>
+                  <p className="text-xl font-bold text-indigo-900">{stats.medianGuessesToSolve}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Milestone 6.3: Guesses per Round Histogram */}
+            {stats.guessesPerRoundHistogram.length > 0 && (
+              <div className="bg-teal-50 rounded-lg p-4 space-y-3">
+                <h3 className="text-lg font-bold text-teal-900">{t('stats.guessDistribution.title')}</h3>
+                <div className="flex items-end gap-1 h-24">
+                  {stats.guessesPerRoundHistogram.slice().reverse().map((item, idx) => {
+                    const maxGuesses = Math.max(...stats.guessesPerRoundHistogram.map(h => h.guesses));
+                    const height = maxGuesses > 0 ? (item.guesses / maxGuesses) * 100 : 0;
+                    return (
+                      <div
+                        key={idx}
+                        className="flex-1 bg-teal-400 rounded-t relative group cursor-pointer transition-colors hover:bg-teal-500"
+                        style={{ height: `${Math.max(height, 5)}%` }}
+                        title={`Round ${item.round}: ${item.guesses} guesses`}
+                      >
+                        <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs text-teal-700 font-medium opacity-0 group-hover:opacity-100">
+                          {item.guesses}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-teal-600 text-center">Last {stats.guessesPerRoundHistogram.length} rounds</p>
+              </div>
+            )}
+
+            {/* Milestone 6.3: Referrals This Round */}
+            {stats.referralsGeneratedThisRound > 0 && (
+              <div className="bg-amber-50 rounded-lg p-4 flex items-center justify-between">
+                <span className="text-sm font-medium text-amber-900">{t('stats.referralsThisRound')}</span>
+                <span className="text-2xl font-bold text-amber-900">{stats.referralsGeneratedThisRound}</span>
+              </div>
+            )}
 
             {/* Wins */}
             <div className="bg-green-50 rounded-lg p-4 space-y-3">

@@ -12,10 +12,14 @@ import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
 import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
+// Milestone 6.3: New components
+import GuessPurchaseModal from '../components/GuessPurchaseModal';
+import AnotherGuessModal from '../components/AnotherGuessModal';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
+import { useModalDecision } from '../src/hooks/useModalDecision';
 import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider } from 'wagmi';
@@ -74,6 +78,22 @@ function GameContent() {
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
+
+  // Milestone 6.3: Guess purchase and "another guess" modal state
+  const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
+  const [showAnotherGuessModal, setShowAnotherGuessModal] = useState(false);
+  const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
+  const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
+  const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
+  const [paidPacksPurchased, setPaidPacksPurchased] = useState(0); // Packs purchased today
+  const [maxPaidPacksPerDay, setMaxPaidPacksPerDay] = useState(3); // Max packs allowed per day
+
+  // Milestone 6.3: Modal decision hook for daily guess flow
+  const {
+    decideModal,
+    markShareModalSeen,
+    markPackModalSeen,
+  } = useModalDecision();
 
   /**
    * Get Farcaster context on mount and signal ready
@@ -162,6 +182,7 @@ function GameContent() {
 
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
+   * Milestone 6.3: Also check share bonus eligibility, CLANKTON holder status, and pack purchase status
    */
   useEffect(() => {
     const fetchUserGuessCount = async () => {
@@ -172,11 +193,19 @@ function GameContent() {
         if (response.ok) {
           const data: UserStateResponse = await response.json();
           setHasGuessesLeft(data.totalGuessesRemaining > 0);
+          // Milestone 6.3: Check if user can still claim share bonus
+          setCanClaimShareBonus(!data.hasSharedToday);
+          // Milestone 6.3: Check if user is CLANKTON holder
+          setIsClanktonHolder(data.isClanktonHolder || false);
+          // Milestone 6.3: Track pack purchases for modal decision logic
+          setPaidPacksPurchased(data.paidPacksPurchased || 0);
+          setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
         }
       } catch (error) {
         console.error('Error fetching user guess count:', error);
         // Default to true to avoid blocking the user
         setHasGuessesLeft(true);
+        setCanClaimShareBonus(true);
       }
     };
 
@@ -493,15 +522,51 @@ function GameContent() {
       // This updates the guess counts in real-time
       setUserStateKey(prev => prev + 1);
 
-      // Show share modal ONLY for incorrect guesses (Milestone 4.2, updated 4.14)
+      // Milestone 6.3: Use modal decision logic for incorrect guesses
       // Winners get the WinnerShareCard instead
-      // Milestone 4.8: Add 2-second delay to allow user to see feedback message
       if (data.status === 'incorrect') {
         setPendingShareResult(data);
 
         // Delay showing the modal so user can see the guess result message
-        setTimeout(() => {
-          setShowShareModal(true);
+        setTimeout(async () => {
+          // Refetch user state to get updated guesses remaining
+          try {
+            const stateResponse = await fetch(`/api/user-state?devFid=${fid}`);
+            if (stateResponse.ok) {
+              const stateData: UserStateResponse = await stateResponse.json();
+
+              // Use modal decision logic
+              const decision = decideModal({
+                guessesRemaining: stateData.totalGuessesRemaining,
+                hasUsedShareBonusToday: stateData.hasSharedToday,
+                packsPurchasedToday: stateData.paidPacksPurchased,
+                maxPacksPerDay: stateData.maxPaidPacksPerDay,
+              });
+
+              // Show appropriate modal based on decision
+              switch (decision) {
+                case 'share':
+                  setShowShareModal(true);
+                  break;
+                case 'pack':
+                  setShowGuessPurchaseModal(true);
+                  break;
+                case 'out_of_guesses':
+                  setShowAnotherGuessModal(true);
+                  break;
+                case 'none':
+                default:
+                  // No modal needed, user still has guesses
+                  break;
+              }
+            }
+          } catch (error) {
+            console.error('Error in modal decision:', error);
+            // Fallback: show share modal if eligible
+            if (canClaimShareBonus) {
+              setShowShareModal(true);
+            }
+          }
         }, 2000); // 2 second delay
       }
 
@@ -604,10 +669,26 @@ function GameContent() {
 
   /**
    * Handle share modal close
+   * Milestone 6.3: Use modal decision logic to determine next modal
    */
   const handleShareModalClose = () => {
     setShowShareModal(false);
     setPendingShareResult(null);
+
+    // Mark share modal as seen this session
+    markShareModalSeen();
+
+    // Milestone 6.3: If user didn't share and has no guesses left, determine next modal
+    if (!hasGuessesLeft) {
+      setTimeout(() => {
+        // User closed share modal without sharing - now offer packs or show out-of-guesses
+        if (paidPacksPurchased < maxPaidPacksPerDay) {
+          setShowGuessPurchaseModal(true);
+        } else {
+          setShowAnotherGuessModal(true);
+        }
+      }, 300);
+    }
   };
 
   /**
@@ -616,6 +697,31 @@ function GameContent() {
    */
   const handleShareSuccess = () => {
     setUserStateKey(prev => prev + 1);
+    setCanClaimShareBonus(false);
+  };
+
+  /**
+   * Milestone 6.3: Handle pack purchase success
+   */
+  const handlePackPurchaseSuccess = (packCount: number) => {
+    console.log(`[GameContent] Pack purchase success: ${packCount} packs`);
+    // Refetch user state to update guess counts
+    setUserStateKey(prev => prev + 1);
+    void haptics.packPurchased();
+  };
+
+  /**
+   * Milestone 6.3: Handle "another guess" modal actions
+   */
+  const handleAnotherGuessShare = () => {
+    setShowAnotherGuessModal(false);
+    // Open the share modal directly
+    setShowShareModal(true);
+  };
+
+  const handleAnotherGuessBuyPacks = () => {
+    setShowAnotherGuessModal(false);
+    setShowGuessPurchaseModal(true);
   };
 
   return (
@@ -887,12 +993,43 @@ function GameContent() {
         />
       )}
 
-      {/* Winner Share Card (Milestone 4.14) */}
+      {/* Winner Share Card (Milestone 4.14, 6.3 enhancements) */}
       {showWinnerShareCard && winnerData && (
         <WinnerShareCard
           winnerWord={winnerData.word}
           roundId={winnerData.roundId}
+          jackpotEth={currentJackpotEth}
+          isClanktonHolder={isClanktonHolder}
           onClose={() => setShowWinnerShareCard(false)}
+        />
+      )}
+
+      {/* Milestone 6.3: Guess Purchase Modal */}
+      {showGuessPurchaseModal && (
+        <GuessPurchaseModal
+          fid={fid}
+          onClose={() => {
+            setShowGuessPurchaseModal(false);
+            markPackModalSeen();
+            // If user closed without purchasing and out of guesses, show out-of-guesses modal
+            if (!hasGuessesLeft) {
+              setTimeout(() => {
+                setShowAnotherGuessModal(true);
+              }, 300);
+            }
+          }}
+          onPurchaseSuccess={handlePackPurchaseSuccess}
+        />
+      )}
+
+      {/* Milestone 6.3: Another Guess Modal */}
+      {showAnotherGuessModal && (
+        <AnotherGuessModal
+          fid={fid}
+          canClaimShareBonus={canClaimShareBonus}
+          onClose={() => setShowAnotherGuessModal(false)}
+          onShareForGuess={handleAnotherGuessShare}
+          onBuyPacks={handleAnotherGuessBuyPacks}
         />
       )}
 

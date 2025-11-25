@@ -1,5 +1,6 @@
 // pages/archive/[roundNumber].tsx
-// Milestone 5.4: Public Round Detail Page
+// Milestone 5.4, Updated Milestone 6.3: Public Round Detail Page
+// Restyled to match blue theme with three-zone structure
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -35,6 +36,21 @@ interface Distribution {
   distribution: Array<{ hour: number; count: number }>;
   byPlayer: Array<{ fid: number; count: number }>;
 }
+
+// Color palette - Blue theme (matching RoundArchiveModal)
+const COLORS = {
+  blueMain: '#2D68C7',
+  blueDark: '#1F4DA0',
+  blueLight: '#EEF3FF',
+  purpleAccent: '#5C3ED6',
+  textPrimary: '#0F172A',
+  textMuted: '#6B7280',
+  borderSoft: '#D2D7E5',
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  warning: '#f59e0b',
+  white: '#FFFFFF',
+};
 
 export default function RoundDetailPage() {
   const router = useRouter();
@@ -113,25 +129,30 @@ export default function RoundDetailPage() {
 
       <main style={{
         minHeight: '100vh',
-        background: '#2D68C7',
-        color: 'white',
+        background: COLORS.blueLight,
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}>
-        {/* Header */}
+        {/* Header - Solid Blue Band */}
         <header style={{
+          background: COLORS.blueMain,
           padding: '24px',
-          borderBottom: '1px solid rgba(255,255,255,0.2)',
         }}>
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <Link
               href="/archive"
               style={{
-                color: '#3A2E8A',
+                color: 'rgba(255,255,255,0.7)',
                 textDecoration: 'none',
                 fontSize: '14px',
-                display: 'inline-block',
-                marginBottom: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                marginBottom: '12px',
+                fontWeight: 500,
+                transition: 'color 0.15s ease',
               }}
+              onMouseEnter={(e) => e.currentTarget.style.color = COLORS.white}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
             >
               ← Back to archive
             </Link>
@@ -139,256 +160,315 @@ export default function RoundDetailPage() {
               margin: 0,
               fontSize: '28px',
               fontWeight: 700,
+              color: COLORS.white,
+              letterSpacing: '-0.02em',
             }}>
               {loading ? 'Loading...' : round ? `Round #${round.roundNumber}` : 'Round not found'}
             </h1>
           </div>
         </header>
 
-        {/* Content */}
-        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px' }}>
-          {/* Error */}
-          {error && (
+        {/* Word Display Zone - Light Blue Background */}
+        {!loading && round && (
+          <div style={{
+            background: COLORS.blueLight,
+            padding: '32px 24px',
+            textAlign: 'center',
+            borderBottom: `1px solid ${COLORS.borderSoft}`,
+          }}>
             <div style={{
-              background: 'rgba(239, 68, 68, 0.2)',
-              border: '1px solid rgba(239, 68, 68, 0.5)',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '24px',
-              color: '#fca5a5',
-              textAlign: 'center',
+              fontFamily: 'monospace',
+              fontSize: '48px',
+              fontWeight: 800,
+              letterSpacing: '10px',
+              color: COLORS.blueMain,
+              marginBottom: '8px',
+              textTransform: 'uppercase',
             }}>
-              {error}
-              <Link
-                href="/archive"
-                style={{
-                  display: 'block',
-                  marginTop: '12px',
-                  color: 'rgba(255,255,255,0.8)',
-                }}
-              >
-                ← Browse all rounds
-              </Link>
+              {round.targetWord}
             </div>
-          )}
+            <div style={{
+              color: COLORS.textMuted,
+              fontSize: '13px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              fontWeight: 500,
+            }}>
+              The secret word
+            </div>
+          </div>
+        )}
 
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '48px', color: 'rgba(255,255,255,0.5)' }}>
-              Loading...
+        {/* Stats Zone */}
+        {!loading && round && (
+          <div style={{
+            background: COLORS.blueLight,
+            padding: '0 24px 24px',
+          }}>
+            <div style={{
+              maxWidth: '800px',
+              margin: '0 auto',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '12px',
+            }}>
+              <StatCard label="Jackpot" value={`${formatEth(round.finalJackpotEth)} ETH`} highlight />
+              <StatCard label="Total guesses" value={round.totalGuesses.toLocaleString()} />
+              <StatCard label="Players" value={round.uniquePlayers.toLocaleString()} />
+              <StatCard label="Duration" value={formatDuration(round.startTime, round.endTime)} />
             </div>
-          ) : round && (
-            <>
-              {/* Word Display */}
+          </div>
+        )}
+
+        {/* Content Zone - White Background */}
+        <div style={{
+          background: COLORS.white,
+          minHeight: 'calc(100vh - 400px)',
+        }}>
+          <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px' }}>
+            {/* Error */}
+            {error && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '24px',
+                color: '#dc2626',
+                textAlign: 'center',
+              }}>
+                {error}
+                <Link
+                  href="/archive"
+                  style={{
+                    display: 'block',
+                    marginTop: '12px',
+                    color: COLORS.blueMain,
+                    fontWeight: 500,
+                  }}
+                >
+                  ← Browse all rounds
+                </Link>
+              </div>
+            )}
+
+            {loading ? (
               <div style={{
                 textAlign: 'center',
-                marginBottom: '32px',
+                padding: '48px',
+                color: COLORS.textMuted,
               }}>
                 <div style={{
-                  fontFamily: 'monospace',
-                  fontSize: '48px',
-                  fontWeight: 700,
-                  letterSpacing: '8px',
-                  color: '#3A2E8A',
-                  marginBottom: '8px',
-                }}>
-                  {round.targetWord}
-                </div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>
-                  The secret word
-                </div>
+                  width: '32px',
+                  height: '32px',
+                  border: `3px solid ${COLORS.blueLight}`,
+                  borderTopColor: COLORS.blueMain,
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  margin: '0 auto 12px',
+                }} />
+                Loading round details...
+                <style>{`
+                  @keyframes spin {
+                    to { transform: rotate(360deg); }
+                  }
+                `}</style>
               </div>
-
-              {/* Stats Grid */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '12px',
-                marginBottom: '24px',
-              }}>
-                <StatCard label="Jackpot" value={`${formatEth(round.finalJackpotEth)} ETH`} highlight />
-                <StatCard label="Total guesses" value={round.totalGuesses.toLocaleString()} />
-                <StatCard label="Players" value={round.uniquePlayers.toLocaleString()} />
-                <StatCard label="Duration" value={formatDuration(round.startTime, round.endTime)} />
-              </div>
-
-              {/* Winner section */}
-              <Section title="Winner">
-                {round.winnerFid ? (
-                  <div style={{
-                    background: 'rgba(52, 211, 153, 0.1)',
-                    borderRadius: '8px',
-                    padding: '16px',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: '18px', fontWeight: 600 }}>
-                          FID {round.winnerFid}
+            ) : round && (
+              <>
+                {/* Winner section */}
+                <Section title="Winner">
+                  {round.winnerFid ? (
+                    <div style={{
+                      background: COLORS.successBg,
+                      border: `1px solid ${COLORS.success}20`,
+                      borderRadius: '12px',
+                      padding: '16px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '18px', fontWeight: 600, color: COLORS.textPrimary }}>
+                            FID {round.winnerFid}
+                          </div>
+                          {round.winnerGuessNumber && (
+                            <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '4px' }}>
+                              Won on guess #{round.winnerGuessNumber}
+                            </div>
+                          )}
                         </div>
-                        {round.winnerGuessNumber && (
-                          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
-                            Won on guess #{round.winnerGuessNumber}
+                        {round.payoutsJson.winner && (
+                          <div style={{
+                            fontSize: '20px',
+                            fontWeight: 700,
+                            color: COLORS.success,
+                          }}>
+                            {formatEth(round.payoutsJson.winner.amountEth)} ETH
                           </div>
                         )}
                       </div>
-                      {round.payoutsJson.winner && (
+                      {round.referrerFid && (
                         <div style={{
-                          fontSize: '20px',
-                          fontWeight: 700,
-                          color: '#34d399',
+                          marginTop: '12px',
+                          paddingTop: '12px',
+                          borderTop: `1px solid ${COLORS.success}20`,
+                          fontSize: '13px',
+                          color: COLORS.textMuted,
                         }}>
-                          {formatEth(round.payoutsJson.winner.amountEth)} ETH
+                          Referred by FID {round.referrerFid}
+                          {round.payoutsJson.referrer && (
+                            <span style={{ color: COLORS.success }}> (earned {formatEth(round.payoutsJson.referrer.amountEth)} ETH)</span>
+                          )}
                         </div>
                       )}
                     </div>
-                    {round.referrerFid && (
-                      <div style={{
-                        marginTop: '12px',
-                        paddingTop: '12px',
-                        borderTop: '1px solid rgba(255,255,255,0.1)',
-                        fontSize: '13px',
-                        color: 'rgba(255,255,255,0.6)',
-                      }}>
-                        Referred by FID {round.referrerFid}
-                        {round.payoutsJson.referrer && (
-                          <span> (earned {formatEth(round.payoutsJson.referrer.amountEth)} ETH)</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    textAlign: 'center',
-                    color: 'rgba(255,255,255,0.5)',
-                  }}>
-                    No winner recorded
-                  </div>
+                  ) : (
+                    <div style={{
+                      background: COLORS.blueLight,
+                      border: `2px dashed ${COLORS.borderSoft}`,
+                      borderRadius: '12px',
+                      padding: '24px',
+                      textAlign: 'center',
+                      color: COLORS.textMuted,
+                    }}>
+                      No winner recorded
+                    </div>
+                  )}
+                </Section>
+
+                {/* Top guessers */}
+                {round.payoutsJson.topGuessers.length > 0 && (
+                  <Section title="Top guessers">
+                    <div style={{
+                      background: COLORS.white,
+                      border: `1px solid ${COLORS.borderSoft}`,
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                    }}>
+                      {round.payoutsJson.topGuessers.map((guesser, index) => (
+                        <div
+                          key={guesser.fid}
+                          style={{
+                            padding: '12px 16px',
+                            borderBottom: index < round.payoutsJson.topGuessers.length - 1 ? `1px solid ${COLORS.borderSoft}` : 'none',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: COLORS.white,
+                          }}
+                        >
+                          <div style={{ color: COLORS.textPrimary }}>
+                            <span style={{ color: COLORS.textMuted, marginRight: '8px', fontWeight: 500 }}>
+                              #{guesser.rank}
+                            </span>
+                            FID {guesser.fid}
+                          </div>
+                          <div style={{ color: COLORS.warning, fontWeight: 600 }}>
+                            {formatEth(guesser.amountEth)} ETH
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
                 )}
-              </Section>
 
-              {/* Top guessers */}
-              {round.payoutsJson.topGuessers.length > 0 && (
-                <Section title="Top guessers">
-                  <div style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                  }}>
-                    {round.payoutsJson.topGuessers.map((guesser) => (
-                      <div
-                        key={guesser.fid}
-                        style={{
-                          padding: '12px 16px',
-                          borderBottom: '1px solid rgba(255,255,255,0.05)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div>
-                          <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: '8px' }}>
-                            #{guesser.rank}
-                          </span>
-                          FID {guesser.fid}
-                        </div>
-                        <div style={{ color: '#f59e0b' }}>
-                          {formatEth(guesser.amountEth)} ETH
-                        </div>
+                {/* Guess distribution histogram */}
+                {distribution && distribution.distribution.length > 0 && (
+                  <Section title="Guess distribution by hour">
+                    <div style={{
+                      background: COLORS.white,
+                      border: `1px solid ${COLORS.borderSoft}`,
+                      borderRadius: '12px',
+                      padding: '20px',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '120px' }}>
+                        {Array.from({ length: 24 }, (_, hour) => {
+                          const data = distribution.distribution.find(d => d.hour === hour);
+                          const count = data?.count || 0;
+                          const height = maxGuesses > 0 ? (count / maxGuesses) * 100 : 0;
+                          return (
+                            <div
+                              key={hour}
+                              style={{
+                                flex: 1,
+                                background: count > 0 ? COLORS.blueMain : COLORS.blueLight,
+                                height: `${Math.max(height, 2)}%`,
+                                borderRadius: '2px 2px 0 0',
+                                position: 'relative',
+                                transition: 'background 0.15s ease',
+                              }}
+                              title={`${hour}:00 - ${count} guesses`}
+                            />
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                </Section>
-              )}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginTop: '8px',
+                        fontSize: '11px',
+                        color: COLORS.textMuted,
+                      }}>
+                        <span>0:00</span>
+                        <span>6:00</span>
+                        <span>12:00</span>
+                        <span>18:00</span>
+                        <span>23:00</span>
+                      </div>
+                    </div>
+                  </Section>
+                )}
 
-              {/* Guess distribution histogram */}
-              {distribution && distribution.distribution.length > 0 && (
-                <Section title="Guess distribution by hour">
+                {/* Round info */}
+                <Section title="Round details">
                   <div style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '16px',
+                    background: COLORS.white,
+                    border: `1px solid ${COLORS.borderSoft}`,
+                    borderRadius: '12px',
+                    padding: '4px 16px',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '120px' }}>
-                      {Array.from({ length: 24 }, (_, hour) => {
-                        const data = distribution.distribution.find(d => d.hour === hour);
-                        const count = data?.count || 0;
-                        const height = maxGuesses > 0 ? (count / maxGuesses) * 100 : 0;
-                        return (
-                          <div
-                            key={hour}
-                            style={{
-                              flex: 1,
-                              background: count > 0 ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
-                              height: `${Math.max(height, 2)}%`,
-                              borderRadius: '2px 2px 0 0',
-                              position: 'relative',
-                            }}
-                            title={`${hour}:00 - ${count} guesses`}
-                          />
-                        );
-                      })}
+                    <InfoRow label="Started" value={formatDate(round.startTime)} />
+                    <InfoRow label="Ended" value={formatDate(round.endTime)} />
+                    <InfoRow label="Seed ETH" value={`${formatEth(round.seedEth)} ETH`} />
+                    <InfoRow label="CLANKTON bonuses" value={round.clanktonBonusCount.toString()} />
+                    <InfoRow label="Referral signups" value={round.referralBonusCount.toString()} isLast />
+                  </div>
+                </Section>
+
+                {/* Commit-reveal verification */}
+                <Section title="Verification (commit-reveal)">
+                  <div style={{
+                    background: COLORS.blueLight,
+                    border: `1px solid ${COLORS.borderSoft}`,
+                    borderRadius: '12px',
+                    padding: '16px',
+                    fontSize: '13px',
+                  }}>
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ color: COLORS.textMuted, marginBottom: '6px', fontWeight: 500 }}>Salt</div>
+                      <div style={{
+                        fontFamily: 'monospace',
+                        wordBreak: 'break-all',
+                        background: COLORS.white,
+                        border: `1px solid ${COLORS.borderSoft}`,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        color: COLORS.textPrimary,
+                        fontSize: '12px',
+                      }}>
+                        {round.salt}
+                      </div>
                     </div>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginTop: '8px',
-                      fontSize: '11px',
-                      color: 'rgba(255,255,255,0.4)',
-                    }}>
-                      <span>0:00</span>
-                      <span>6:00</span>
-                      <span>12:00</span>
-                      <span>18:00</span>
-                      <span>23:00</span>
+                    <div style={{ color: COLORS.textMuted, fontSize: '12px' }}>
+                      Verify: SHA256(salt + word) should match the commit hash published at round start
                     </div>
                   </div>
                 </Section>
-              )}
-
-              {/* Round info */}
-              <Section title="Round details">
-                <div style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  padding: '16px',
-                }}>
-                  <InfoRow label="Started" value={formatDate(round.startTime)} />
-                  <InfoRow label="Ended" value={formatDate(round.endTime)} />
-                  <InfoRow label="Seed ETH" value={`${formatEth(round.seedEth)} ETH`} />
-                  <InfoRow label="CLANKTON Bonuses" value={round.clanktonBonusCount.toString()} />
-                  <InfoRow label="Referral Signups" value={round.referralBonusCount.toString()} />
-                </div>
-              </Section>
-
-              {/* Commit-reveal verification */}
-              <Section title="Verification (commit-reveal)">
-                <div style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  fontSize: '13px',
-                }}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>Salt</div>
-                    <div style={{
-                      fontFamily: 'monospace',
-                      wordBreak: 'break-all',
-                      background: 'rgba(0,0,0,0.3)',
-                      padding: '8px',
-                      borderRadius: '4px',
-                    }}>
-                      {round.salt}
-                    </div>
-                  </div>
-                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
-                    Verify: SHA256(salt + word) should match the commit hash published at round start
-                  </div>
-                </div>
-              </Section>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </main>
     </>
@@ -398,19 +478,26 @@ export default function RoundDetailPage() {
 function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div style={{
-      background: highlight ? 'rgba(52, 211, 153, 0.1)' : 'rgba(255,255,255,0.1)',
-      borderRadius: '8px',
+      background: COLORS.white,
+      borderRadius: '12px',
       padding: '16px',
       textAlign: 'center',
+      border: `1px solid ${COLORS.borderSoft}`,
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
     }}>
       <div style={{
         fontSize: '20px',
-        fontWeight: 600,
-        color: highlight ? '#34d399' : '#3A2E8A',
+        fontWeight: 700,
+        color: highlight ? COLORS.success : COLORS.textPrimary,
+        marginBottom: '4px',
       }}>
         {value}
       </div>
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+      <div style={{
+        fontSize: '12px',
+        color: COLORS.textMuted,
+        fontWeight: 500,
+      }}>
         {label}
       </div>
     </div>
@@ -421,10 +508,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div style={{ marginBottom: '24px' }}>
       <h2 style={{
-        fontSize: '16px',
+        fontSize: '11px',
         fontWeight: 600,
         marginBottom: '12px',
-        color: 'rgba(255,255,255,0.8)',
+        color: COLORS.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
       }}>
         {title}
       </h2>
@@ -433,16 +522,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, isLast }: { label: string; value: string; isLast?: boolean }) {
   return (
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
-      padding: '8px 0',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
+      padding: '12px 0',
+      borderBottom: isLast ? 'none' : `1px solid ${COLORS.borderSoft}`,
     }}>
-      <span style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</span>
-      <span>{value}</span>
+      <span style={{ color: COLORS.textMuted }}>{label}</span>
+      <span style={{ color: COLORS.textPrimary, fontWeight: 500 }}>{value}</span>
     </div>
   );
 }
