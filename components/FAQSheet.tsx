@@ -74,7 +74,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do I get more guesses?",
       answer: (
         <>
-          You can earn bonus free guesses by: (1) Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens (+3 guesses/day), and (2) Sharing your daily guess on Farcaster (+1 guess/day). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
+          You can earn bonus free guesses by: (1) Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens (+2-3 guesses/day depending on market cap), and (2) Sharing your daily guess on Farcaster (+1 guess/day). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
         </>
       ),
     },
@@ -82,7 +82,13 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What's the CLANKTON bonus?",
       answer: (
         <>
-          If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens in your connected wallet, you get 3 additional free guesses per day. This bonus is automatically detected when you connect.
+          If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens in your connected wallet, you get additional free guesses per day:
+          <br /><br />
+          • <strong>+2 guesses/day</strong> while CLANKTON market cap is below $250k
+          <br />
+          • <strong>+3 guesses/day</strong> once market cap reaches $250k
+          <br /><br />
+          This bonus is automatically detected when you connect. Market cap is currently supplied via configuration and will be replaced with a live oracle in a future update.
         </>
       ),
     },

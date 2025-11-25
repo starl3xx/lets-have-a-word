@@ -237,3 +237,70 @@ export const analyticsEvents = pgTable('analytics_events', {
 
 export type AnalyticsEventRow = typeof analyticsEvents.$inferSelect;
 export type AnalyticsEventInsert = typeof analyticsEvents.$inferInsert;
+
+/**
+ * Round Archive Table
+ * Stores historical round data for the archive feature
+ * Milestone 5.4: Round archive
+ */
+export const roundArchive = pgTable('round_archive', {
+  id: serial('id').primaryKey(),
+  roundNumber: integer('round_number').notNull().unique(), // Maps to rounds.id
+  targetWord: varchar('target_word', { length: 5 }).notNull(),
+  seedEth: decimal('seed_eth', { precision: 20, scale: 18 }).notNull(), // Starting prize pool (seed from previous round)
+  finalJackpotEth: decimal('final_jackpot_eth', { precision: 20, scale: 18 }).notNull(),
+  totalGuesses: integer('total_guesses').notNull(),
+  uniquePlayers: integer('unique_players').notNull(),
+  winnerFid: integer('winner_fid'), // FK to users.fid - nullable if round has no winner
+  winnerCastHash: varchar('winner_cast_hash', { length: 100 }), // Farcaster announcement cast hash
+  winnerGuessNumber: integer('winner_guess_number'), // Which guess # won the round
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time').notNull(),
+  referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
+  payoutsJson: jsonb('payouts_json').$type<RoundArchivePayouts>().notNull(),
+  salt: varchar('salt', { length: 64 }).notNull(), // For verification
+  clanktonBonusCount: integer('clankton_bonus_count').notNull().default(0), // Users who got CLANKTON bonus this round
+  referralBonusCount: integer('referral_bonus_count').notNull().default(0), // Referral signups this round
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundNumberIdx: index('index_round_archive_on_round_number').on(table.roundNumber),
+  winnerFidIdx: index('round_archive_winner_fid_idx').on(table.winnerFid),
+  startTimeIdx: index('round_archive_start_time_idx').on(table.startTime),
+}));
+
+/**
+ * Payout structure for round archive
+ */
+export interface RoundArchivePayouts {
+  winner?: { fid: number; amountEth: string };
+  referrer?: { fid: number; amountEth: string };
+  topGuessers: Array<{ fid: number; amountEth: string; rank: number }>;
+  seed?: { amountEth: string };
+  creator?: { amountEth: string };
+}
+
+export type RoundArchiveRow = typeof roundArchive.$inferSelect;
+export type RoundArchiveInsert = typeof roundArchive.$inferInsert;
+
+/**
+ * Round Archive Errors Table
+ * Stores anomalies and errors encountered during archiving
+ * Milestone 5.4: Error handling
+ */
+export const roundArchiveErrors = pgTable('round_archive_errors', {
+  id: serial('id').primaryKey(),
+  roundNumber: integer('round_number').notNull(), // The round that had an error
+  errorType: varchar('error_type', { length: 100 }).notNull(), // 'missing_winner', 'payout_mismatch', 'data_inconsistency', etc.
+  errorMessage: varchar('error_message', { length: 1000 }).notNull(),
+  errorData: jsonb('error_data'), // Additional context about the error
+  resolved: boolean('resolved').default(false).notNull(),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedBy: integer('resolved_by'), // Admin FID who resolved it
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundNumberIdx: index('round_archive_errors_round_number_idx').on(table.roundNumber),
+  unresolvedIdx: index('round_archive_errors_unresolved_idx').on(table.resolved),
+}));
+
+export type RoundArchiveErrorRow = typeof roundArchiveErrors.$inferSelect;
+export type RoundArchiveErrorInsert = typeof roundArchiveErrors.$inferInsert;

@@ -11,11 +11,59 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 5.3 Complete
+## 🎯 Current Status: Milestone 5.4 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, and anti-abuse systems are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, and round archive are fully implemented and production-ready:
 
-### ✅ Milestone 5.3 - Advanced Analytics & Fairness Systems (Latest)
+### ✅ Milestone 5.4 - Round Archive (Latest)
+
+Comprehensive round archive system for storing and browsing historical round data:
+
+- **Database Schema**
+  - New `round_archive` table for archived round data
+  - Fields: roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount, referralBonusCount
+  - Index on `round_number` for fast lookups
+  - New `round_archive_errors` table for tracking archive anomalies
+  - Migration: `drizzle/0002_round_archive.sql`
+
+- **Backend Logic**
+  - `archiveRound()` function computes and stores round statistics
+  - Idempotent - safe to call multiple times
+  - Computes: totalGuesses, uniquePlayers, CLANKTON bonus count, referral signups
+  - Attaches payout JSON with winner, referrer, top guessers, seed, creator
+  - Module: `src/lib/archive.ts`
+
+- **Public API Endpoints**
+  - `GET /api/archive/latest` - Most recently archived round
+  - `GET /api/archive/:roundNumber` - Specific round with optional distribution histogram
+  - `GET /api/archive/list` - Paginated list with optional aggregate stats
+
+- **Admin API Endpoints**
+  - `POST /api/admin/archive/sync` - Archive all unarchived resolved rounds
+  - `GET /api/admin/archive/debug/:roundNumber` - Compare archived vs raw data
+  - `GET /api/admin/archive/errors` - View archiving errors
+
+- **Admin Dashboard**
+  - New `/admin/archive` page with full archive management
+  - Statistics overview: total rounds, guesses, unique winners, jackpot distributed
+  - Paginated round table with click-to-detail
+  - Detail view: winner info, payouts breakdown, guess distribution histogram
+  - Sync controls and error monitoring
+
+- **Player UI**
+  - `/archive` - Browse all archived rounds with pagination
+  - `/archive/:roundNumber` - Individual round detail page
+  - Displays: word, jackpot, winner, guesses, players, duration
+  - Guess distribution histogram by hour
+  - Commit-reveal verification info (salt)
+  - Responsive dark theme matching game UI
+
+- **Error Handling**
+  - Archive errors stored in `round_archive_errors` table
+  - Debug endpoint compares archived vs raw data
+  - Discrepancy detection and reporting
+
+### ✅ Milestone 5.3 - Advanced Analytics & Fairness Systems
 
 Comprehensive game integrity protections, adversarial simulations, and provable-fairness monitoring:
 
@@ -28,7 +76,7 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
 - **Transaction-Level Prize Audit**
   - Cross-checks prize amounts vs expected economic rules (80/10/10 split)
   - Detects underpayment, overpayment, or anomalies
-  - Tracks seed cap compliance (0.1 ETH max)
+  - Tracks seed cap compliance (0.03 ETH max)
   - Module: `src/services/fairness-monitor/prize-audit.ts`
 
 - **User Quality Gating (Anti-Bot)**
@@ -385,7 +433,7 @@ Updated jackpot settlement to prevent players from gaming the referral system:
 - **Non-Referral Prize Logic**
   - When a winner has no referrer, the 10% referrer share is NOT given to the winner
   - Instead, it flows through the seed + creator pipeline:
-    1. First fills next-round seed (up to 0.1 ETH cap)
+    1. First fills next-round seed (up to 0.03 ETH cap)
     2. Any overflow goes to creator wallet
   - Prevents incentive to avoid using referral links
   - Keeps the growth loop healthy
@@ -692,8 +740,10 @@ Onchain token bonus system:
   - Uses ethers.js and Base RPC
   - Checks user's Farcaster signer wallet
 
-- **Bonus System**
-  - Holding ≥ 100M CLANKTON → +3 free guesses per day
+- **Bonus System (Milestone 5.4c: Market Cap Tiers)**
+  - Holding ≥ 100M CLANKTON → +2-3 free guesses per day (tiered by market cap)
+    - +2 guesses/day when market cap < $250k
+    - +3 guesses/day when market cap >= $250k
   - Verified onchain at daily reset
   - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
 
@@ -748,7 +798,7 @@ Complete economic system for prize distribution:
 
 - **Per-Guess Economics (80/20 Split)**
   - 80% → Prize pool
-  - 20% → Seed for next round (up to 0.1 ETH cap)
+  - 20% → Seed for next round (up to 0.03 ETH cap)
   - Overflow → Creator balance
 
 - **Jackpot Resolution (80/10/10 Split)**
@@ -791,7 +841,7 @@ Complete daily guess allocation system:
 
 - **Free Guesses**
   - 1 base free guess per day
-  - +3 for CLANKTON holders (≥100M tokens)
+  - +2-3 for CLANKTON holders (≥100M tokens, tiered by market cap)
   - +1 for sharing to Farcaster
 
 - **Paid Guesses**
@@ -1365,7 +1415,7 @@ This creates a global, real-time elimination board shared by every player. As mo
 
 **Free Guesses (per day)**
 - 1 base free guess
-- +3 for CLANKTON holders (≥100M tokens)
+- +2-3 for CLANKTON holders (≥100M tokens, tiered by market cap)
 - +1 for sharing to Farcaster
 
 **Paid Guesses (per day)**
@@ -1383,14 +1433,14 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
 - Share bonus can only be earned once per day.
 - Maximum free guesses per day:
   - 1 (base)
-  - +3 if holding ≥100M CLANKTON
+  - +2-3 if holding ≥100M CLANKTON (tiered by market cap)
   - +1 share bonus
 
 ### Economics (Milestone 3.1, Updated in 4.9)
 
 **Per Paid Guess (80/20 Split)**
 - 80% → Prize pool
-- 20% → Seed for next round (capped at 0.1 ETH)
+- 20% → Seed for next round (capped at 0.03 ETH)
   - Overflow → Creator balance
 
 **Jackpot Resolution (80/10/10 Split)**
@@ -1409,7 +1459,7 @@ When a winner **does NOT have a referrer**:
 - Winner gets 80%
 - Top 10 get 10%
 - The unused 10% referrer share goes to:
-  1. Next-round seed (up to 0.1 ETH cap)
+  1. Next-round seed (up to 0.03 ETH cap)
   2. Creator wallet (any remaining overflow)
 
 This prevents players from avoiding referral links to maximize their payout and keeps the growth loop healthy.

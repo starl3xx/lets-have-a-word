@@ -6,6 +6,11 @@ import { AdminStatsCard } from "../../components/admin/AdminStatsCard"
 import { AdminSection } from "../../components/admin/AdminSection"
 import { AnalyticsChart } from "../../components/admin/AnalyticsChart"
 import { AnalyticsControls, TimeRange } from "../../components/admin/AnalyticsControls"
+import {
+  getClanktonBonusTierInfo,
+  formatMarketCap,
+  CLANKTON_BONUS_MCAP_THRESHOLD_USD,
+} from "../../config/economy"
 
 // Dynamically import the auth wrapper (client-only)
 const AdminAuthWrapper = dynamic(
@@ -573,6 +578,20 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 alignItems: "center",
                 gap: "12px",
               }}>
+                <a
+                  href="/admin/archive"
+                  style={{
+                    padding: "8px 16px",
+                    background: "#8b5cf6",
+                    color: "white",
+                    borderRadius: "6px",
+                    textDecoration: "none",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                  }}
+                >
+                  Round Archive
+                </a>
                 {user.pfp_url && (
                   <img
                     src={user.pfp_url}
@@ -937,6 +956,26 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
         {/* CLANKTON Analytics */}
         <AdminSection title="CLANKTON analytics">
+          {/* Milestone 5.4c: CLANKTON Bonus Tier Info */}
+          {(() => {
+            const tierInfo = getClanktonBonusTierInfo();
+            return (
+              <div style={{
+                padding: "12px 16px",
+                marginBottom: "16px",
+                backgroundColor: tierInfo.isAboveThreshold ? "#dcfce7" : "#fef3c7",
+                borderRadius: "8px",
+                border: `1px solid ${tierInfo.isAboveThreshold ? "#86efac" : "#fcd34d"}`,
+              }}>
+                <span style={{ fontWeight: 600 }}>
+                  Current Bonus: +{tierInfo.bonusGuesses} guesses/day
+                </span>
+                <span style={{ marginLeft: "12px", color: "#6b7280", fontSize: "14px" }}>
+                  (mcap: {formatMarketCap(tierInfo.marketCapUsd)}, {tierInfo.isAboveThreshold ? `above ${formatMarketCap(tierInfo.thresholdUsd)} threshold` : `below ${formatMarketCap(tierInfo.thresholdUsd)} threshold`})
+                </span>
+              </div>
+            );
+          })()}
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",

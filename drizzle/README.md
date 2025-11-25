@@ -100,3 +100,35 @@ If you need to modify a view definition:
 - Main README: See "Analytics System" section
 - Game Documentation: See "Milestone 5.2: Analytics System"
 - Admin Dashboard: `/admin/analytics`
+
+---
+
+## Migration 0002: Round Archive Tables
+
+**File:** `0002_round_archive.sql`
+
+### Tables Added
+
+| Table | Description |
+|-------|-------------|
+| `round_archive` | Stores historical round data with statistics |
+| `round_archive_errors` | Stores archiving anomalies and errors |
+
+### Views Added
+
+| View Name | Description | Columns |
+|-----------|-------------|---------|
+| `view_archive_stats` | Archive aggregate statistics | `total_rounds`, `total_guesses_all_time`, `unique_winners`, `total_jackpot_distributed`, `avg_guesses_per_round`, `avg_players_per_round`, `avg_round_length_minutes` |
+
+### Setup
+
+```bash
+# Apply the migration
+psql $DATABASE_URL < drizzle/0002_round_archive.sql
+```
+
+### Related Documentation
+
+- Game Documentation: See "Milestone 5.4: Round Archive"
+- Admin Dashboard: `/admin/analytics` (Archive tab)
+- Player UI: `/archive`
