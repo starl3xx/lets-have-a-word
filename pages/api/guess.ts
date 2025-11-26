@@ -7,11 +7,10 @@ import type { SubmitGuessResult } from '../../src/types';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import {
   isDevModeEnabled,
-  getDevFixedSolution,
   isForceStateEnabled,
   isValidDevBackendState,
+  ensureDevRound,
 } from '../../src/lib/devGameState';
-import { isValidGuess } from '../../src/lib/word-lists';
 import {
   checkUserQuality,
   logBlockedAttempt,
@@ -27,6 +26,7 @@ import {
  * Milestone 2.1: Now uses Farcaster authentication
  * Milestone 2.2: Now enforces daily limits (free + paid guesses)
  * Milestone 4.8: Now supports dev mode with fixed solution and preview states
+ * Milestone 6.5.1: Dev mode now uses real daily limits (same as production)
  *
  * Request body:
  * {
@@ -51,6 +51,13 @@ import {
  *
  * Response: SubmitGuessResult
  *   May return { status: 'no_guesses_left_today' } if user has no guesses remaining
+ *
+ * Dev Mode Behavior (Milestone 6.5.1):
+ *   - Uses the same daily limits logic as production
+ *   - Guesses consume from the same sources (free, CLANKTON, share, paid)
+ *   - Share bonus only awarded after actual share via modal
+ *   - Pack purchases work the same as production
+ *   - Only difference: round uses a fixed solution (LHAW_DEV_FIXED_SOLUTION env var)
  */
 export default async function handler(
   req: NextApiRequest,
@@ -124,68 +131,24 @@ export default async function handler(
       }
     }
 
-    // For interactive dev mode, handle immediately (no database ops)
-    if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Processing guess interactively');
-
-      // Get FID
-      fid = isDevelopment && devFid ? (typeof devFid === 'number' ? devFid : parseInt(devFid, 10)) : 12345;
-
-      // Validate word format
-      if (normalizedWord.length !== 5) {
-        return res.status(200).json({
-          status: 'invalid_word',
-          reason: 'not_5_letters',
-        });
-      }
-
-      if (!/^[A-Z]+$/.test(normalizedWord)) {
-        return res.status(200).json({
-          status: 'invalid_word',
-          reason: 'non_alpha',
-        });
-      }
-
-      // Check if word is in valid guess list
-      if (!isValidGuess(normalizedWord)) {
-        return res.status(200).json({
-          status: 'invalid_word',
-          reason: 'not_in_dictionary',
-        });
-      }
-
-      // Compare against fixed solution
-      const solution = getDevFixedSolution();
-
-      if (normalizedWord === solution) {
-        // Correct guess!
-        console.log(`✅ Dev mode: Correct guess! ${normalizedWord} === ${solution}`);
-        return res.status(200).json({
-          status: 'correct',
-          word: normalizedWord,
-          roundId: 999999,
-          winnerFid: fid,
-        });
-      } else {
-        // Incorrect guess
-        console.log(`❌ Dev mode: Incorrect guess. ${normalizedWord} !== ${solution}`);
-        return res.status(200).json({
-          status: 'incorrect',
-          word: normalizedWord,
-          totalGuessesForUserThisRound: 1,
-        });
-      }
-    }
-
     // ========================================
-    // Production Mode: Continue with normal flow
+    // Milestone 6.5.1: Dev Mode Guess Economy Parity
     // ========================================
+    // Dev mode now uses the same daily limits logic as production.
+    // The only difference is that dev mode uses a round with a known fixed solution.
 
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 
-    // Ensure there's an active round (create one if needed)
-    await ensureActiveRound();
+    // Ensure there's an active round
+    if (isDevModeEnabled()) {
+      // In dev mode, ensure a round exists with the fixed solution
+      console.log('🎮 Dev mode: Using real daily limits with fixed solution round');
+      await ensureDevRound();
+    } else {
+      // Production: create a normal round if needed
+      await ensureActiveRound();
+    }
 
     let signerWallet: string | null = null;
     let spamScore: number | null = null;
