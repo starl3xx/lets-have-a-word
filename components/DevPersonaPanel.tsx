@@ -51,6 +51,7 @@ export function DevPersonaPanel() {
     currentPersonaId,
     selectPersona,
     resetToReal,
+    triggerModalTest,
   } = useDevPersona();
 
   if (!isDevMode || !isPanelOpen) return null;
@@ -94,8 +95,26 @@ export function DevPersonaPanel() {
           ))}
         </div>
 
-        {/* Reset Button */}
-        <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-4">
+        {/* Action Buttons */}
+        <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-4 space-y-2">
+          {/* Test Modal Flow button */}
+          <button
+            onClick={() => {
+              closePanel();
+              // Small delay to let panel close before showing modal
+              setTimeout(() => triggerModalTest(), 150);
+            }}
+            disabled={currentPersonaId === 'real'}
+            className={`w-full py-2 px-4 font-semibold rounded-lg transition-colors ${
+              currentPersonaId === 'real'
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-orange-600 hover:bg-orange-700 text-white'
+            }`}
+          >
+            Test Modal Flow
+          </button>
+
+          {/* Reset Button */}
           <button
             onClick={() => {
               resetToReal();
