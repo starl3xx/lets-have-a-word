@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds } from '../../../src/db/schema';
 import { eq, and, desc, isNull } from 'drizzle-orm';
-import { isDevModeEnabled } from '../../../src/lib/devGameState';
+import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../../src/lib/devGameState';
+import { getGuessWords } from '../../../src/lib/word-lists';
 
 /**
  * Wrong Guesses Response
@@ -49,11 +50,25 @@ export default async function handler(
       .orderBy(desc(rounds.startedAt))
       .limit(1);
 
-    if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Fetching real wrong guesses from DB');
+    const devMode = isDevModeEnabled();
+    if (devMode) {
+      console.log('🎮 Dev mode: Fetching real wrong guesses from DB + seeded wrong words');
     }
 
     if (!activeRound) {
+      // In dev mode with no active round, still return seeded wrong words
+      if (devMode) {
+        const solution = getDevFixedSolution().toUpperCase();
+        const allGuessWords = getGuessWords();
+        const seededWrongWords = getDevModeSeededWrongWords(allGuessWords, solution);
+        const seededArray = Array.from(seededWrongWords);
+        console.log(`🎮 Dev mode: No active round, returning ${seededArray.length} seeded wrong words`);
+        return res.status(200).json({
+          roundId: 0,
+          count: seededArray.length,
+          wrongGuesses: seededArray,
+        });
+      }
       return res.status(200).json({
         roundId: 0,
         count: 0,
@@ -72,12 +87,32 @@ export default async function handler(
         )
       );
 
-    const wrongGuesses = wrongGuessRows.map(row => row.word.toUpperCase());
+    const realWrongGuesses = wrongGuessRows.map(row => row.word.toUpperCase());
+
+    // In dev mode, merge seeded wrong words with real DB wrong guesses
+    if (devMode) {
+      const solution = getDevFixedSolution().toUpperCase();
+      const allGuessWords = getGuessWords();
+      const seededWrongWords = getDevModeSeededWrongWords(allGuessWords, solution);
+
+      // Merge: use Set to avoid duplicates
+      const mergedSet = new Set<string>(realWrongGuesses);
+      seededWrongWords.forEach(word => mergedSet.add(word));
+      const mergedArray = Array.from(mergedSet);
+
+      console.log(`🎮 Dev mode: Merged ${realWrongGuesses.length} real + ${seededWrongWords.size} seeded = ${mergedArray.length} total wrong guesses`);
+
+      return res.status(200).json({
+        roundId: activeRound.id,
+        count: mergedArray.length,
+        wrongGuesses: mergedArray,
+      });
+    }
 
     return res.status(200).json({
       roundId: activeRound.id,
-      count: wrongGuesses.length,
-      wrongGuesses,
+      count: realWrongGuesses.length,
+      wrongGuesses: realWrongGuesses,
     });
   } catch (error: any) {
     console.error('Error in /api/wheel/wrong-guesses:', error);
