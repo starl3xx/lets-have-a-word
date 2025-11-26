@@ -61,6 +61,11 @@ import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '.
  * - Spring-like easing with subtle overshoot for "weight" sensation
  * - Keeps total animation under 180ms for speed
  *
+ * Milestone 6.4.9: Polish Animation Feel
+ * ======================================
+ * - Reduced spring overshoot (c1: 1.70158 → 0.9) for gentler bounce
+ * - Added subtle blur for distance 5+ words (0.3-0.8px) for depth perception
+ *
  * Reduced Motion: If prefers-reduced-motion is enabled, all animations snap instantly.
  */
 interface WheelProps {
@@ -346,9 +351,9 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     // Easing functions
     // easeOutCubic: Natural deceleration for main animation
     const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
-    // easeOutBack: Slight overshoot for spring-like physical feel (6.4.8)
+    // easeOutBack: Subtle overshoot for spring-like physical feel (6.4.8, tuned 6.4.9)
     const easeOutBack = (t: number): number => {
-      const c1 = 1.70158;
+      const c1 = 0.9; // Reduced from 1.70158 for gentler overshoot
       const c3 = c1 + 1;
       return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
     };
@@ -708,8 +713,23 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
           color = '#bbb';
         }
         break;
+      case 5:
+        // FAR EDGE: Subtle blur begins
+        scale = 0.9;
+        opacity = status === 'wrong' ? 0.25 : 0.2;
+        fontWeight = '300';
+        letterSpacing = '0.03em';
+        if (status === 'winner') {
+          color = statusStyle.color;
+          textShadow = statusStyle.textShadow;
+        } else if (status === 'wrong') {
+          color = statusStyle.color;
+        } else {
+          color = '#ccc';
+        }
+        break;
       default:
-        // EDGE: Far background
+        // EDGE: Far background with subtle blur for depth
         scale = 0.9; // Even smaller for carousel curve effect
         opacity = status === 'wrong' ? 0.25 : 0.2;
         fontWeight = '300';
@@ -724,6 +744,14 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
         }
     }
 
+    // Calculate subtle blur for depth effect (6.4.9)
+    // Blur starts at distance 5 and increases slightly for further words
+    let filter: string | undefined = undefined;
+    if (centerIndex !== -1 && distance >= 5) {
+      const blurAmount = Math.min(0.8, (distance - 4) * 0.3); // 0.3px at 5, 0.6px at 6, capped at 0.8px
+      filter = `blur(${blurAmount}px)`;
+    }
+
     return {
       scale,
       opacity,
@@ -732,6 +760,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
       letterSpacing,
       textShadow,
       translateY,
+      filter,
     };
   }, [centerIndex, getStatusStyle]);
 
@@ -785,10 +814,11 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
               textTransform: 'uppercase',
               letterSpacing: style.letterSpacing,
               textShadow: style.textShadow,
+              filter: style.filter,
               pointerEvents: 'none',
               // Milestone 6.4: Optimized animation settings
               transitionDuration: `${DEBUG_SLOW_MODE ? CSS_TRANSITION_DURATION * DEBUG_DURATION_MULTIPLIER : CSS_TRANSITION_DURATION}ms`,
-              willChange: 'transform, opacity',
+              willChange: 'transform, opacity, filter',
             }}
           >
             {wheelWord.word}
