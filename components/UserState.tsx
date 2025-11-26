@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import type { UserStateResponse } from '../pages/api/user-state';
 import { useDevPersona } from '../src/contexts/DevPersonaContext';
+import GuessBar from './GuessBar';
 
 interface UserStateProps {
   fid: number | null;
@@ -11,12 +12,11 @@ interface UserStateProps {
  * UserState Component
  * Milestone 4.1: Displays user's daily guess allocations and CLANKTON bonus status
  * Milestone 6.4.7: Supports dev persona overrides for QA testing
+ * Milestone 6.5: Uses unified GuessBar component for source-level display
  *
  * Shows:
- * - Free guesses remaining (with breakdown: base + CLANKTON + share)
- * - Paid guesses remaining
- * - CLANKTON bonus status (active/inactive)
- * - Option to buy more guess packs
+ * - Total guesses remaining
+ * - Source breakdown with depletion status
  */
 export default function UserState({ fid }: UserStateProps) {
   const [userState, setUserState] = useState<UserStateResponse | null>(null);
@@ -81,11 +81,12 @@ export default function UserState({ fid }: UserStateProps) {
       console.log('[UserState] Success! User state:', data);
       setUserState(data);
       setError(null);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[UserState] Error fetching user state:', err);
 
       // Retry logic for network errors (max 2 retries)
-      if (retryCount < 2 && (err instanceof TypeError || err.name === 'AbortError')) {
+      const isNetworkError = err instanceof TypeError || (err instanceof Error && err.name === 'AbortError');
+      if (retryCount < 2 && isNetworkError) {
         console.log(`[UserState] Retrying... (attempt ${retryCount + 1}/2)`);
         setTimeout(() => fetchUserState(retryCount + 1), 1000 * (retryCount + 1));
         return;
@@ -153,36 +154,14 @@ export default function UserState({ fid }: UserStateProps) {
   const displayState = applyOverrides(userState);
 
   /**
-   * Display user state - minimal plain text
+   * Display user state - Milestone 6.5: Unified GuessBar component
    * IMPORTANT: Use py-2 and min-height to prevent layout shifts when remounting (Milestone 4.14)
    */
   return (
-    <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
-      <p className="text-sm text-gray-700">
-        <span className="font-semibold text-gray-900">{displayState.totalGuessesRemaining}</span> {displayState.totalGuessesRemaining === 1 ? 'guess' : 'guesses'} left today
-        {displayState.freeAllocations.base > 0 && (
-          <span className="text-gray-600"> ({displayState.freeAllocations.base} free</span>
-        )}
-        {displayState.freeAllocations.clankton > 0 && (
-          <>
-            <span className="font-semibold text-purple-700"> +{displayState.freeAllocations.clankton}</span>
-            <span className="text-gray-600"> CLANKTON</span>
-          </>
-        )}
-        {displayState.freeAllocations.shareBonus > 0 && (
-          <span className="text-blue-600"> +{displayState.freeAllocations.shareBonus} share</span>
-        )}
-        {displayState.freeGuessesRemaining > 0 && (
-          <span className="text-gray-600">)</span>
-        )}
-        {displayState.paidGuessesRemaining > 0 && (
-          <span className="text-blue-600 font-medium"> +{displayState.paidGuessesRemaining} paid</span>
-        )}
-        {/* Milestone 6.4.7: Show persona indicator in dev mode */}
-        {isDevMode && currentPersonaId !== 'real' && (
-          <span className="ml-2 text-xs text-orange-500 font-medium">[PERSONA]</span>
-        )}
-      </p>
-    </div>
+    <GuessBar
+      sourceState={displayState.sourceState}
+      isDevMode={isDevMode}
+      personaActive={currentPersonaId !== 'real'}
+    />
   );
 }

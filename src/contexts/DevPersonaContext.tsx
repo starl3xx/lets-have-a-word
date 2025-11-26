@@ -13,6 +13,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { UserStateResponse } from '../../pages/api/user-state';
+import type { GuessSourceState } from '../types';
 
 /**
  * Persona definitions for QA testing
@@ -34,7 +35,64 @@ export interface PersonaDefinition {
 }
 
 /**
+ * Helper function to create sourceState for personas
+ */
+function createSourceState(params: {
+  freeTotal?: number;
+  freeUsed?: number;
+  clanktonTotal?: number;
+  clanktonUsed?: number;
+  isHolder?: boolean;
+  shareTotal?: number;
+  shareUsed?: number;
+  hasSharedToday?: boolean;
+  paidTotal?: number;
+  paidUsed?: number;
+  packsPurchased?: number;
+}): GuessSourceState {
+  const freeTotal = params.freeTotal ?? 1;
+  const freeUsed = params.freeUsed ?? 0;
+  const clanktonTotal = params.clanktonTotal ?? 0;
+  const clanktonUsed = params.clanktonUsed ?? 0;
+  const shareTotal = params.shareTotal ?? 0;
+  const shareUsed = params.shareUsed ?? 0;
+  const paidTotal = params.paidTotal ?? 0;
+  const paidUsed = params.paidUsed ?? 0;
+
+  return {
+    totalRemaining: (freeTotal - freeUsed) + (clanktonTotal - clanktonUsed) + (shareTotal - shareUsed) + (paidTotal - paidUsed),
+    free: {
+      total: freeTotal,
+      used: freeUsed,
+      remaining: freeTotal - freeUsed,
+    },
+    clankton: {
+      total: clanktonTotal,
+      used: clanktonUsed,
+      remaining: clanktonTotal - clanktonUsed,
+      isHolder: params.isHolder ?? (clanktonTotal > 0),
+    },
+    share: {
+      total: shareTotal,
+      used: shareUsed,
+      remaining: shareTotal - shareUsed,
+      hasSharedToday: params.hasSharedToday ?? (shareTotal > 0),
+      canClaimBonus: !(params.hasSharedToday ?? (shareTotal > 0)),
+    },
+    paid: {
+      total: paidTotal,
+      used: paidUsed,
+      remaining: paidTotal - paidUsed,
+      packsPurchased: params.packsPurchased ?? Math.ceil(paidTotal / 3),
+      maxPacksPerDay: 3,
+      canBuyMore: (params.packsPurchased ?? Math.ceil(paidTotal / 3)) < 3,
+    },
+  };
+}
+
+/**
  * Predefined personas for testing different user states
+ * Milestone 6.5: Added sourceState for unified guess bar testing
  */
 export const PERSONAS: PersonaDefinition[] = [
   {
@@ -60,6 +118,10 @@ export const PERSONAS: PersonaDefinition[] = [
         clankton: 0,
         shareBonus: 0,
       },
+      sourceState: createSourceState({
+        freeTotal: 1,
+        freeUsed: 0,
+      }),
     },
   },
   {
@@ -79,6 +141,11 @@ export const PERSONAS: PersonaDefinition[] = [
         clankton: 0,
         shareBonus: 0,
       },
+      sourceState: createSourceState({
+        freeTotal: 1,
+        freeUsed: 1,
+        hasSharedToday: false,
+      }),
     },
   },
   {
@@ -98,6 +165,13 @@ export const PERSONAS: PersonaDefinition[] = [
         clankton: 0,
         shareBonus: 1,
       },
+      sourceState: createSourceState({
+        freeTotal: 1,
+        freeUsed: 1,
+        shareTotal: 1,
+        shareUsed: 1,
+        hasSharedToday: true,
+      }),
     },
   },
   {
@@ -117,6 +191,13 @@ export const PERSONAS: PersonaDefinition[] = [
         clankton: 2,
         shareBonus: 0,
       },
+      sourceState: createSourceState({
+        freeTotal: 1,
+        freeUsed: 0,
+        clanktonTotal: 2,
+        clanktonUsed: 0,
+        isHolder: true,
+      }),
     },
   },
   {
@@ -136,6 +217,13 @@ export const PERSONAS: PersonaDefinition[] = [
         clankton: 3,
         shareBonus: 0,
       },
+      sourceState: createSourceState({
+        freeTotal: 1,
+        freeUsed: 0,
+        clanktonTotal: 3,
+        clanktonUsed: 0,
+        isHolder: true,
+      }),
     },
   },
   {
@@ -156,6 +244,16 @@ export const PERSONAS: PersonaDefinition[] = [
         clankton: 0,
         shareBonus: 1,
       },
+      sourceState: createSourceState({
+        freeTotal: 1,
+        freeUsed: 1,
+        shareTotal: 1,
+        shareUsed: 1,
+        hasSharedToday: true,
+        paidTotal: 9,
+        paidUsed: 9,
+        packsPurchased: 3,
+      }),
     },
   },
 ];
@@ -251,6 +349,10 @@ export function DevPersonaProvider({ children }: { children: React.ReactNode }) 
       freeAllocations: overrides.freeAllocations
         ? { ...realState.freeAllocations, ...overrides.freeAllocations }
         : realState.freeAllocations,
+      // Milestone 6.5: Deep merge sourceState if present
+      sourceState: overrides.sourceState
+        ? overrides.sourceState
+        : realState.sourceState,
     };
   }, [isDevMode, currentPersonaId, currentPersona]);
 

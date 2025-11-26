@@ -6,7 +6,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex } from '../../src/lib/daily-limits';
+import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
+import type { GuessSourceState } from '../../src/types';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
 import { hasClanktonBonus } from '../../src/lib/clankton';
 import { getGuessWords } from '../../src/lib/word-lists';
@@ -33,11 +34,21 @@ export interface UserStateResponse {
   // Milestone 6.3: New fields
   hasSharedToday: boolean; // Whether user has already claimed share bonus today
   isClanktonHolder: boolean; // Whether user holds CLANKTON tokens
+  // Milestone 6.5: Source-level tracking for unified guess bar
+  sourceState: GuessSourceState;
+}
+
+interface ErrorResponse {
+  error: string;
+  details?: string;
+  hasNeynarKey?: boolean;
+  hasDatabaseUrl?: boolean;
+  stack?: string;
 }
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<UserStateResponse | { error: string }>
+  res: NextApiResponse<UserStateResponse | ErrorResponse>
 ) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -85,6 +96,13 @@ export default async function handler(
     const isDevMode = isDevModeEnabled();
     if (isDevMode) {
       console.log('🎮 Dev mode: Using real wallet and CLANKTON balance');
+
+      // Milestone 6.5.1: Reset daily state for dev FID on each page load
+      // This ensures a fresh start for testing the guess economy
+      if (fid === DEV_MODE_FID) {
+        console.log(`🔄 Dev mode: Resetting daily state for dev FID ${fid}`);
+        await resetDevDailyStateForUser(fid);
+      }
     }
 
     // Production mode: Ensure user exists in database
@@ -203,6 +221,9 @@ export default async function handler(
     const totalGuessWords = getGuessWords().length;
     const wheelStartIndex = await getOrGenerateWheelStartIndex(fid, undefined, totalGuessWords);
 
+    // Milestone 6.5: Get source-level state for unified guess bar
+    const sourceState = await getGuessSourceState(fid);
+
     const response: UserStateResponse = {
       fid,
       freeGuessesRemaining: freeRemaining,
@@ -221,6 +242,8 @@ export default async function handler(
       // Milestone 6.3: New fields
       hasSharedToday,
       isClanktonHolder: clanktonBonusActive,
+      // Milestone 6.5: Source-level tracking for unified guess bar
+      sourceState,
     };
 
     return res.status(200).json(response);
