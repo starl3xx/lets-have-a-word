@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState } from '../../src/lib/daily-limits';
+import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
 import type { GuessSourceState } from '../../src/types';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
 import { hasClanktonBonus } from '../../src/lib/clankton';
@@ -96,6 +96,13 @@ export default async function handler(
     const isDevMode = isDevModeEnabled();
     if (isDevMode) {
       console.log('🎮 Dev mode: Using real wallet and CLANKTON balance');
+
+      // Milestone 6.5.1: Reset daily state for dev FID on each page load
+      // This ensures a fresh start for testing the guess economy
+      if (fid === DEV_MODE_FID) {
+        console.log(`🔄 Dev mode: Resetting daily state for dev FID ${fid}`);
+        await resetDevDailyStateForUser(fid);
+      }
     }
 
     // Production mode: Ensure user exists in database

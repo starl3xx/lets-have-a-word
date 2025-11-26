@@ -43,6 +43,43 @@ export const DAILY_LIMITS_RULES = {
 } as const;
 
 /**
+ * Dev mode FID for special handling
+ * This FID gets daily state reset on each page load in dev mode
+ */
+export const DEV_MODE_FID = 6500;
+
+/**
+ * Reset daily state for a user in dev mode
+ * Milestone 6.5.1: Allows dev mode to start fresh on each page load
+ *
+ * This deletes today's daily state row for the user, forcing
+ * getOrCreateDailyState to create a fresh one with:
+ * - 1 base free guess
+ * - CLANKTON bonus (if holder)
+ * - 0 share guesses (until they share)
+ * - 0 paid guesses
+ *
+ * @param fid - Farcaster ID to reset
+ * @returns true if a row was deleted, false otherwise
+ */
+export async function resetDevDailyStateForUser(fid: number): Promise<boolean> {
+  const dateStr = getTodayUTC();
+
+  const result = await db
+    .delete(dailyGuessState)
+    .where(and(eq(dailyGuessState.fid, fid), eq(dailyGuessState.date, dateStr)))
+    .returning();
+
+  if (result.length > 0) {
+    console.log(`🔄 [DEV MODE] Reset daily state for FID ${fid} on ${dateStr}`);
+    return true;
+  }
+
+  console.log(`🔄 [DEV MODE] No existing daily state to reset for FID ${fid} on ${dateStr}`);
+  return false;
+}
+
+/**
  * Get today's date in UTC as YYYY-MM-DD string
  * Daily reset happens at 11:00 UTC
  * - If current time is before 11:00 UTC, returns yesterday's date
