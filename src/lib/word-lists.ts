@@ -1,39 +1,53 @@
-import { GUESS_WORDS_CLEAN } from '../data/guess_words_clean';
-import { ANSWER_WORDS_EXPANDED } from '../data/answer_words_expanded';
+/**
+ * Word Lists Module
+ *
+ * Milestone 7.1: Single Master Wordlist Architecture
+ *
+ * This module provides access to the unified word list used for:
+ * - Secret word selection
+ * - Guess validation
+ * - Wheel display
+ *
+ * Performance: Uses Set for O(1) lookup instead of O(n) includes()
+ */
+
+import { WORDS } from '../data/guess_words_clean';
 import type { WordLists } from '../types';
 
 /**
- * Pre-compute Sets for O(1) lookup instead of O(n) includes()
- * CRITICAL: Using includes() on 5,865 words blocks input rendering!
+ * Pre-compute Set for O(1) lookup instead of O(n) includes()
+ * CRITICAL: Using includes() on ~4000 words blocks input rendering!
+ *
+ * This Set is created once at module load time for optimal performance.
  */
-const GUESS_WORDS_SET = new Set(GUESS_WORDS_CLEAN);
-const ANSWER_WORDS_SET = new Set(ANSWER_WORDS_EXPANDED);
+const WORDS_SET = new Set(WORDS);
 
 /**
- * Get all answer words (valid answer candidates)
- * Milestone 4.13: Returns clean, modern English words (7,520 words, UPPERCASE)
- * - No Scrabble/crossword garbage
- * - No obvious plurals
- * - Everyday vocabulary suitable for casual players
+ * Get all valid words (unified list)
+ * Milestone 7.1: Returns the single master word list
+ *
+ * This list is used for:
+ * - Secret word selection (answer candidates)
+ * - Guess validation
+ * - Wheel display
  */
-export function getAnswerWords(): string[] {
-  return [...ANSWER_WORDS_EXPANDED];
+export function getGuessWords(): string[] {
+  return [...WORDS];
 }
 
 /**
- * Get all guess words (valid guessable words)
- * Milestone 4.13: Returns clean dictionary (5,865 words, UPPERCASE)
- * - Filtered from Wordle lists with strict criteria
- * - No offensive words, proper nouns, archaic terms, or organizational acronyms
- * - Real, modern English vocabulary
+ * Get answer words (same as guess words in unified architecture)
+ * Milestone 7.1: Secret words come from the same master list
+ *
+ * @deprecated Use getGuessWords() - both are now identical
  */
-export function getGuessWords(): string[] {
-  return [...GUESS_WORDS_CLEAN];
+export function getAnswerWords(): string[] {
+  return [...WORDS];
 }
 
 /**
  * Get all word lists
- * Milestone 4.13: Clean dictionaries based on filtered word lists
+ * Milestone 7.1: Both lists are now the same unified list
  */
 export function getWordLists(): WordLists {
   return {
@@ -44,56 +58,51 @@ export function getWordLists(): WordLists {
 
 /**
  * Check if a word is a valid guess
- * Canonical lists are UPPERCASE, so we normalize input to UPPERCASE
+ * Canonical list is UPPERCASE, so we normalize input to UPPERCASE
  * Uses Set for O(1) lookup instead of O(n) includes()
  */
 export function isValidGuess(word: string): boolean {
   const normalized = word.toUpperCase().trim();
-  return GUESS_WORDS_SET.has(normalized);
+  return WORDS_SET.has(normalized);
 }
 
 /**
  * Check if a word is a valid answer candidate
- * Canonical lists are UPPERCASE, so we normalize input to UPPERCASE
+ * Milestone 7.1: Same as isValidGuess (unified list)
  * Uses Set for O(1) lookup instead of O(n) includes()
  */
 export function isValidAnswer(word: string): boolean {
-  const normalized = word.toUpperCase().trim();
-  return ANSWER_WORDS_SET.has(normalized);
+  return isValidGuess(word);
 }
 
 /**
  * Validate word list constraints
- * Milestone 4.13: Updated for clean dictionaries
+ * Milestone 7.1: Simplified validation for unified list
  *
  * Requirements:
- * 1. All ANSWER_WORDS_EXPANDED must be in GUESS_WORDS_CLEAN
+ * 1. No duplicates in WORDS
+ * 2. All words are exactly 5 letters
+ * 3. All words are UPPERCASE
  *
  * @throws Error if constraints are violated
  */
 export function validateWordLists(): void {
   const errors: string[] = [];
 
-  // Convert to sets for efficient lookup
-  const answerSet = new Set(ANSWER_WORDS_EXPANDED);
-  const guessSet = new Set(GUESS_WORDS_CLEAN);
+  // Check for duplicates
+  const wordsSet = new Set(WORDS);
+  if (wordsSet.size !== WORDS.length) {
+    errors.push(`WORDS contains ${WORDS.length - wordsSet.size} duplicate(s)`);
+  }
 
-  // Check constraint 1: ANSWER_WORDS_EXPANDED ⊆ GUESS_WORDS_CLEAN
-  const answersNotInGuess = ANSWER_WORDS_EXPANDED.filter(word => !guessSet.has(word));
-  if (answersNotInGuess.length > 0) {
+  // Check word format
+  const invalidWords = WORDS.filter(word => !/^[A-Z]{5}$/.test(word));
+  if (invalidWords.length > 0) {
     errors.push(
-      `CONSTRAINT VIOLATION: ${answersNotInGuess.length} answer words are not in GUESS_WORDS_CLEAN: ` +
-      answersNotInGuess.slice(0, 10).join(', ') +
-      (answersNotInGuess.length > 10 ? '...' : '')
+      `${invalidWords.length} words have invalid format: ` +
+      invalidWords.slice(0, 5).join(', ') +
+      (invalidWords.length > 5 ? '...' : '')
     );
-  }
-
-  // Check for duplicates within each list
-  if (answerSet.size !== ANSWER_WORDS_EXPANDED.length) {
-    errors.push(`ANSWER_WORDS_EXPANDED contains ${ANSWER_WORDS_EXPANDED.length - answerSet.size} duplicate(s)`);
-  }
-  if (guessSet.size !== GUESS_WORDS_CLEAN.length) {
-    errors.push(`GUESS_WORDS_CLEAN contains ${GUESS_WORDS_CLEAN.length - guessSet.size} duplicate(s)`);
   }
 
   // Throw if any errors found
@@ -104,19 +113,17 @@ export function validateWordLists(): void {
   }
 
   // Log success
-  console.log('✅ Word list validation passed (Milestone 4.13):');
-  console.log(`   - ANSWER_WORDS_EXPANDED: ${ANSWER_WORDS_EXPANDED.length} words`);
-  console.log(`   - GUESS_WORDS_CLEAN: ${GUESS_WORDS_CLEAN.length} words`);
-  console.log(`   - All constraints satisfied`);
-  console.log(`   - No garbage/Scrabble words`);
-  console.log(`   - Clean, modern English vocabulary`);
+  console.log('✅ Word list validation passed (Milestone 7.1):');
+  console.log(`   - WORDS: ${WORDS.length} words`);
+  console.log(`   - Single unified list for all game operations`);
+  console.log(`   - No duplicates, all valid format`);
 }
 
 /**
  * Get a random answer word
- * Milestone 4.13: Uses clean, curated answer words
+ * Milestone 7.1: Uses unified WORDS list
  */
 export function getRandomAnswerWord(): string {
-  const index = Math.floor(Math.random() * ANSWER_WORDS_EXPANDED.length);
-  return ANSWER_WORDS_EXPANDED[index];
+  const index = Math.floor(Math.random() * WORDS.length);
+  return WORDS[index];
 }
