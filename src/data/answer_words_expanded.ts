@@ -3121,7 +3121,6 @@ export const ANSWER_WORDS_EXPANDED: string[] = [
   "THETA",
   "THICK",
   "THIEF",
-  "THIER",
   "THIGH",
   "THINE",
   "THING",
