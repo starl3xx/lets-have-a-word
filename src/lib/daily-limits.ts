@@ -388,7 +388,12 @@ export async function awardShareBonus(
 /**
  * Submit a guess with daily limits enforcement
  *
- * Order of consumption:
+ * IMPORTANT: This function now validates the guess BEFORE consuming any credits.
+ * Only actual processed guesses (correct or incorrect) consume credits.
+ * Rejected guesses (already_guessed_word, invalid_word, round_closed) do NOT
+ * consume credits.
+ *
+ * Order of consumption (when guess is valid):
  * 1. Free guesses (base + CLANKTON + share bonus)
  * 2. Paid guess credits
  * 3. If neither available, reject with "no_guesses_left_today"
@@ -407,69 +412,79 @@ export async function submitGuessWithDailyLimits(params: {
   const freeRemaining = getFreeGuessesRemaining(state);
   const paidRemaining = state.paidGuessCredits;
 
-  let isPaidGuess: boolean;
-
-  // Determine guess type and consume credit
-  if (freeRemaining > 0) {
-    // Use a free guess
-    isPaidGuess = false;
-
-    // Increment free_used
-    await db
-      .update(dailyGuessState)
-      .set({
-        freeUsed: state.freeUsed + 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(dailyGuessState.id, state.id));
-
-    console.log(
-      `🎮 FID ${fid} using free guess (${freeRemaining - 1} remaining after this)`
-    );
-  } else if (paidRemaining > 0) {
-    // Use a paid guess
-    isPaidGuess = true;
-
-    // Decrement paid_guess_credits
-    await db
-      .update(dailyGuessState)
-      .set({
-        paidGuessCredits: state.paidGuessCredits - 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(dailyGuessState.id, state.id));
-
-    console.log(
-      `💰 FID ${fid} using paid guess (${paidRemaining - 1} credits remaining after this)`
-    );
-
-    // Milestone 5.3: Log GUESS_PACK_USED event (non-blocking)
-    // Get active round for round_id
-    const activeRound = await getActiveRound();
-    logAnalyticsEvent(AnalyticsEventTypes.GUESS_PACK_USED, {
-      userId: fid.toString(),
-      roundId: activeRound?.id.toString(),
-      data: {
-        credits_remaining: paidRemaining - 1,
-        fid,
-        round_id: activeRound?.id,
-      },
-    });
-  } else {
+  // Check if user has any guesses left BEFORE validating the word
+  if (freeRemaining <= 0 && paidRemaining <= 0) {
     // No guesses left today
     console.log(`❌ FID ${fid} has no guesses left today`);
-
     return {
       status: 'no_guesses_left_today',
     };
   }
 
-  // Submit the actual guess
+  // Determine which type of guess would be used (free or paid)
+  const isPaidGuess = freeRemaining <= 0;
+
+  // Submit the guess FIRST to validate it
+  // This checks: word format, dictionary validity, round status, and duplicate guesses
   const result = await submitGuess({
     fid,
     word,
     isPaidGuess,
   });
+
+  // Only consume a guess credit if the guess was actually processed
+  // (i.e., it was a valid, non-duplicate guess that got recorded)
+  // Statuses that consume credits: 'correct', 'incorrect'
+  // Statuses that do NOT consume credits: 'already_guessed_word', 'invalid_word', 'round_closed'
+  const shouldConsumeCredit = result.status === 'correct' || result.status === 'incorrect';
+
+  if (shouldConsumeCredit) {
+    if (!isPaidGuess) {
+      // Consume a free guess
+      await db
+        .update(dailyGuessState)
+        .set({
+          freeUsed: state.freeUsed + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyGuessState.id, state.id));
+
+      console.log(
+        `🎮 FID ${fid} used free guess (${freeRemaining - 1} remaining)`
+      );
+    } else {
+      // Consume a paid guess
+      await db
+        .update(dailyGuessState)
+        .set({
+          paidGuessCredits: state.paidGuessCredits - 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyGuessState.id, state.id));
+
+      console.log(
+        `💰 FID ${fid} used paid guess (${paidRemaining - 1} credits remaining)`
+      );
+
+      // Milestone 5.3: Log GUESS_PACK_USED event (non-blocking)
+      // Get active round for round_id
+      const activeRound = await getActiveRound();
+      logAnalyticsEvent(AnalyticsEventTypes.GUESS_PACK_USED, {
+        userId: fid.toString(),
+        roundId: activeRound?.id.toString(),
+        data: {
+          credits_remaining: paidRemaining - 1,
+          fid,
+          round_id: activeRound?.id,
+        },
+      });
+    }
+  } else {
+    // Log that no credit was consumed due to validation failure
+    console.log(
+      `⚠️ FID ${fid} guess rejected (${result.status}) - no credit consumed`
+    );
+  }
 
   return result;
 }

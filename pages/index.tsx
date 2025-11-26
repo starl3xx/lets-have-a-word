@@ -592,6 +592,19 @@ function GameContent() {
       return;
     }
 
+    // Defense-in-depth: Check input state before submitting
+    // This catches race conditions where the button/enter key handler might
+    // allow submission before React has fully processed state updates
+    if (!isGuessButtonEnabled(currentInputState)) {
+      console.warn(`[handleSubmit] Blocked submission in state: ${currentInputState}`);
+      // If it's a duplicate guess, show the error state
+      if (currentInputState === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
+        triggerShake();
+        triggerHaptic('error');
+      }
+      return;
+    }
+
     // Clear previous state
     setIsLoading(true);
     setResult(null);
@@ -783,9 +796,11 @@ function GameContent() {
         };
 
       case 'already_guessed_word':
+        // Treat duplicate guesses as errors, not warnings
+        // This matches the client-side validation behavior
         return {
-          variant: 'warning',
-          message: `The word "${result.word}" has already been guessed this round.`,
+          variant: 'error',
+          message: 'Already guessed this round',
         };
 
       case 'invalid_word':
