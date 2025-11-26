@@ -94,8 +94,11 @@ export default async function handler(
     // Check dev mode BEFORE any database operations
 
     // Determine FID early for dev mode
+    // Accept devFid if either:
+    // 1. NEYNAR_API_KEY is not set (local development)
+    // 2. LHAW_DEV_MODE is enabled (Farcaster preview with dev mode)
     let fid: number;
-    const isDevelopment = !process.env.NEYNAR_API_KEY;
+    const isDevelopment = !process.env.NEYNAR_API_KEY || isDevModeEnabled();
 
     // For forced-state preview mode, handle immediately
     if (devState) {
