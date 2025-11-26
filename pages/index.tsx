@@ -100,6 +100,20 @@ function GameContent() {
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
   const [hideStateError, setHideStateError] = useState(false);
 
+  /**
+   * Milestone 6.7.1: Incorrect banner state machine
+   * - 'none': No incorrect banner visible
+   * - 'active': Bright red error, input locked visually
+   * - 'faded': Softer gray banner showing context, input ready again
+   */
+  type IncorrectState = 'none' | 'active' | 'faded';
+  const [incorrectState, setIncorrectState] = useState<IncorrectState>('none');
+  const [lastSubmittedGuess, setLastSubmittedGuess] = useState<string | null>(null);
+  const incorrectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Milestone 6.7.1: Duration for active incorrect state before fading
+  const INCORRECT_ACTIVE_DURATION_MS = 2000;
+
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
@@ -126,6 +140,17 @@ function GameContent() {
     currentPersona,
     isDevMode,
   } = useDevPersona();
+
+  /**
+   * Milestone 6.7.1: Cleanup incorrect timer on unmount or round change
+   */
+  useEffect(() => {
+    return () => {
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Milestone 6.4.7: Register callback for dev panel "Test Modal Flow" button
@@ -473,12 +498,24 @@ function GameContent() {
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
+   * Milestone 6.7.1: Also clears incorrect state and timer when typing starts
    */
   const handleLettersChange = (newLetters: string[]) => {
     setLetters(newLetters);
 
     // Reset to typing state when user starts typing
     setBoxResultState('typing');
+
+    // Milestone 6.7.1: Clear incorrect state when user starts typing
+    if (incorrectState !== 'none') {
+      // Cancel any pending timer
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      setIncorrectState('none');
+      setLastSubmittedGuess(null);
+    }
 
     // Clear previous result and errors when user starts typing
     if (result || errorMessage) {
@@ -528,6 +565,16 @@ function GameContent() {
       setBoxResultState('typing');
     }
 
+    // Milestone 6.7.1: Clear incorrect state when user starts typing
+    if (incorrectState !== 'none') {
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      setIncorrectState('none');
+      setLastSubmittedGuess(null);
+    }
+
     // Only clear result/error if they exist
     if (result) setResult(null);
     if (errorMessage) setErrorMessage(null);
@@ -539,6 +586,7 @@ function GameContent() {
    * Handle backspace from GameKeyboard (Milestone 4.4)
    * Milestone 6.4: Uses centralized input control for consistent behavior
    * Milestone 6.4.6: Optimized to avoid redundant state updates
+   * Milestone 6.7.1: Also clears incorrect state
    */
   const handleBackspace = () => {
     // Fast path: check if locked (don't allow backspace during submission or after winning)
@@ -567,6 +615,16 @@ function GameContent() {
     // Only update boxResultState if it's not already 'typing'
     if (boxResultState !== 'typing') {
       setBoxResultState('typing');
+    }
+
+    // Milestone 6.7.1: Clear incorrect state when user starts typing
+    if (incorrectState !== 'none') {
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      setIncorrectState('none');
+      setLastSubmittedGuess(null);
     }
 
     // Only clear result/error if they exist
@@ -679,6 +737,21 @@ function GameContent() {
         if (data.status === 'already_guessed_word') {
           triggerShake();
         }
+
+        // Milestone 6.7.1: Start incorrect state machine for incorrect guesses
+        if (data.status === 'incorrect') {
+          // Clear any previous timer
+          if (incorrectTimerRef.current) {
+            clearTimeout(incorrectTimerRef.current);
+          }
+
+          // Store the guessed word and enter active state
+          setLastSubmittedGuess(word);
+          setIncorrectState('active');
+
+          // Timer will be started after we know if user has guesses remaining
+          // (see modal decision logic below)
+        }
       } else if (data.status === 'invalid_word') {
         setBoxResultState('wrong');
         triggerHaptic('error');
@@ -721,10 +794,24 @@ function GameContent() {
             const stateResponse = await fetch(`/api/user-state?devFid=${effectiveFid}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
+              const guessesRemaining = stateData.totalGuessesRemaining;
+
+              // Milestone 6.7.1: Start timer for faded transition if user has guesses remaining
+              if (guessesRemaining > 0) {
+                // Start timer to transition from active to faded
+                incorrectTimerRef.current = setTimeout(() => {
+                  setIncorrectState('faded');
+                  setBoxResultState('typing'); // Reset box state to normal
+                }, INCORRECT_ACTIVE_DURATION_MS);
+              } else {
+                // No guesses remaining - stay in 'none' state (out-of-guesses banner will show)
+                // Clear the active state since we'll show out-of-guesses instead
+                setIncorrectState('none');
+              }
 
               // Use modal decision logic
               const decision = decideModal({
-                guessesRemaining: stateData.totalGuessesRemaining,
+                guessesRemaining: guessesRemaining,
                 hasUsedShareBonusToday: stateData.hasSharedToday,
                 packsPurchasedToday: stateData.paidPacksPurchased,
                 maxPacksPerDay: stateData.maxPaidPacksPerDay,
@@ -778,8 +865,26 @@ function GameContent() {
   /**
    * Get feedback message based on result
    * Returns variant and message for unified ResultBanner component
+   * Milestone 6.7.1: Added faded property for incorrect state transitions
    */
-  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode; faded?: boolean } | null => {
+    // Milestone 6.7.1: Handle faded incorrect state
+    // Show faded banner with last submitted guess even if result is cleared
+    if (incorrectState === 'faded' && lastSubmittedGuess) {
+      return {
+        variant: 'error',
+        faded: true,
+        icon: null,
+        message: (
+          <>
+            <span>Incorrect! </span>
+            <span className="font-bold">{lastSubmittedGuess.toUpperCase()}</span>
+            <span> is not the secret word.</span>
+          </>
+        ),
+      };
+    }
+
     if (!result) return null;
 
     switch (result.status) {
@@ -793,10 +898,11 @@ function GameContent() {
         return {
           variant: 'error',
           icon: null,
+          // Milestone 6.7.1: Use lastSubmittedGuess if available for consistency
           message: (
             <>
               <span>Incorrect! </span>
-              <span className="font-bold">{result.word}</span>
+              <span className="font-bold">{(lastSubmittedGuess || result.word).toUpperCase()}</span>
               <span> is not the secret word.</span>
             </>
           ),
@@ -1025,11 +1131,13 @@ function GameContent() {
                 )}
 
                 {/* Show feedback from last submission - using unified ResultBanner */}
+                {/* Milestone 6.7.1: Pass faded prop for incorrect state transitions */}
                 {feedback && !errorMessage && !stateErrorMessage && (
                   <ResultBanner
                     variant={feedback.variant}
                     message={feedback.message}
                     icon={feedback.icon}
+                    faded={feedback.faded}
                   />
                 )}
               </div>
