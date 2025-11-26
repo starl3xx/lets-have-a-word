@@ -108,7 +108,61 @@ function GameContent() {
   } = useModalDecision();
 
   // Milestone 6.4.7: Dev persona overrides for QA testing
-  const { applyOverrides: applyDevPersonaOverrides } = useDevPersona();
+  const {
+    applyOverrides: applyDevPersonaOverrides,
+    registerModalTestCallback,
+    currentPersona,
+    isDevMode,
+  } = useDevPersona();
+
+  /**
+   * Milestone 6.4.7: Register callback for dev panel "Test Modal Flow" button
+   * This allows the dev panel to trigger the modal flow based on the current persona
+   */
+  useEffect(() => {
+    if (!isDevMode) return;
+
+    const handleModalTest = () => {
+      // Get the current persona's overrides
+      const overrides = currentPersona.overrides;
+
+      // Use the modal decision logic with persona state
+      const decision = decideModal({
+        guessesRemaining: overrides.totalGuessesRemaining ?? 0,
+        hasUsedShareBonusToday: overrides.hasSharedToday ?? false,
+        packsPurchasedToday: overrides.paidPacksPurchased ?? 0,
+        maxPacksPerDay: maxPaidPacksPerDay,
+      });
+
+      console.log('[DevPersona] Modal test decision:', decision);
+
+      // Show appropriate modal based on decision
+      switch (decision) {
+        case 'share':
+          // Create a mock result for the share modal
+          setPendingShareResult({
+            status: 'incorrect',
+            word: 'TEST',
+            totalGuessesForUserThisRound: 1,
+          });
+          setShowShareModal(true);
+          break;
+        case 'pack':
+          setShowGuessPurchaseModal(true);
+          break;
+        case 'out_of_guesses':
+          setShowAnotherGuessModal(true);
+          break;
+        case 'none':
+        default:
+          // For 'none' - user has guesses, show a note
+          console.log('[DevPersona] User has guesses remaining, no modal to show');
+          break;
+      }
+    };
+
+    registerModalTestCallback(handleModalTest);
+  }, [isDevMode, currentPersona, decideModal, maxPaidPacksPerDay, registerModalTestCallback]);
 
   /**
    * Get Farcaster context on mount and signal ready

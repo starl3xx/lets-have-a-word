@@ -161,6 +161,11 @@ export const PERSONAS: PersonaDefinition[] = [
 ];
 
 /**
+ * Callback for triggering modal test from the panel
+ */
+export type TriggerModalTestCallback = () => void;
+
+/**
  * Context value type
  */
 interface DevPersonaContextValue {
@@ -190,6 +195,12 @@ interface DevPersonaContextValue {
 
   /** Close the panel */
   closePanel: () => void;
+
+  /** Register a callback for triggering modal test */
+  registerModalTestCallback: (callback: TriggerModalTestCallback) => void;
+
+  /** Trigger modal test (calls the registered callback) */
+  triggerModalTest: () => void;
 }
 
 const DevPersonaContext = createContext<DevPersonaContextValue | null>(null);
@@ -209,6 +220,7 @@ export function DevPersonaProvider({ children }: { children: React.ReactNode }) 
   const isDevMode = isClientDevMode();
   const [currentPersonaId, setCurrentPersonaId] = useState<PersonaId>('real');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [modalTestCallback, setModalTestCallback] = useState<TriggerModalTestCallback | null>(null);
 
   const currentPersona = useMemo(() => {
     return PERSONAS.find(p => p.id === currentPersonaId) || PERSONAS[0];
@@ -250,6 +262,21 @@ export function DevPersonaProvider({ children }: { children: React.ReactNode }) 
     setIsPanelOpen(false);
   }, []);
 
+  // Register a callback for triggering modal test
+  const registerModalTestCallback = useCallback((callback: TriggerModalTestCallback) => {
+    setModalTestCallback(() => callback);
+  }, []);
+
+  // Trigger modal test
+  const triggerModalTest = useCallback(() => {
+    if (modalTestCallback) {
+      console.log('[DevPersona] Triggering modal test');
+      modalTestCallback();
+    } else {
+      console.warn('[DevPersona] No modal test callback registered');
+    }
+  }, [modalTestCallback]);
+
   const value: DevPersonaContextValue = {
     isDevMode,
     currentPersonaId,
@@ -260,6 +287,8 @@ export function DevPersonaProvider({ children }: { children: React.ReactNode }) 
     isPanelOpen,
     togglePanel,
     closePanel,
+    registerModalTestCallback,
+    triggerModalTest,
   };
 
   return (
@@ -286,6 +315,8 @@ export function useDevPersona(): DevPersonaContextValue {
       isPanelOpen: false,
       togglePanel: () => {},
       closePanel: () => {},
+      registerModalTestCallback: () => {},
+      triggerModalTest: () => {},
     };
   }
   return context;
