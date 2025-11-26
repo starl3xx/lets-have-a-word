@@ -9,6 +9,9 @@
 
 import type { GameStateResponse, DevBackendState } from '../types';
 import { getEthUsdPrice } from './prices';
+import { db, rounds } from '../db';
+import { isNull, desc } from 'drizzle-orm';
+import { createCommitment } from './commit-reveal';
 
 /**
  * Parameters for synthesizing dev game state
@@ -262,4 +265,74 @@ export function getDevModeSeededWrongWords(
 
   console.log(`🎮 Dev mode: Generated ${picked.size} seeded wrong words (20% of ${total})`);
   return picked;
+}
+
+/**
+ * Ensure a dev round exists with the fixed solution
+ * Milestone 6.5.1 — Dev Mode Guess Economy Parity
+ *
+ * This function ensures there's an active round in dev mode with the fixed solution.
+ * If no active round exists, or if the active round has a different answer,
+ * it creates a new round with the fixed solution.
+ *
+ * This allows dev mode to use the exact same daily limits logic as production,
+ * while still having a known answer for testing.
+ *
+ * @returns The active round's ID
+ */
+export async function ensureDevRound(): Promise<number> {
+  if (!isDevModeEnabled()) {
+    throw new Error('ensureDevRound should only be called in dev mode');
+  }
+
+  const fixedSolution = getDevFixedSolution();
+
+  // Check if there's an active round with the correct answer
+  const existingRound = await db
+    .select()
+    .from(rounds)
+    .where(isNull(rounds.resolvedAt))
+    .orderBy(desc(rounds.startedAt))
+    .limit(1);
+
+  if (existingRound.length > 0) {
+    const round = existingRound[0];
+
+    // If the existing round has the correct answer, use it
+    if (round.answer === fixedSolution) {
+      console.log(`🎮 Dev mode: Using existing round ${round.id} with answer ${fixedSolution}`);
+      return round.id;
+    }
+
+    // Otherwise, resolve the old round and create a new one
+    console.log(`🎮 Dev mode: Resolving round ${round.id} (answer mismatch: ${round.answer} != ${fixedSolution})`);
+    await db
+      .update(rounds)
+      .set({ resolvedAt: new Date() })
+      .where(isNull(rounds.resolvedAt));
+  }
+
+  // Create a new round with the fixed solution
+  console.log(`🎮 Dev mode: Creating new round with answer ${fixedSolution}`);
+  const { salt, commitHash } = createCommitment(fixedSolution);
+
+  const [newRound] = await db
+    .insert(rounds)
+    .values({
+      rulesetId: 1,
+      answer: fixedSolution,
+      salt,
+      commitHash,
+      prizePoolEth: '0.42', // Dev mode jackpot
+      seedNextRoundEth: '0',
+      winnerFid: null,
+      referrerFid: null,
+      isDevTestRound: true,
+      startedAt: new Date(),
+      resolvedAt: null,
+    })
+    .returning();
+
+  console.log(`🎮 Dev mode: Created round ${newRound.id} with answer ${fixedSolution}`);
+  return newRound.id;
 }
