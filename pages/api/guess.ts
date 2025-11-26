@@ -141,10 +141,18 @@ export default async function handler(
     await ensureDevMidRound();
 
     // Ensure there's an active round
+    let roundId: number | undefined;
     if (isDevModeEnabled()) {
       // In dev mode, ensure a round exists with the fixed solution
       console.log('🎮 Dev mode: Using real daily limits with fixed solution round');
-      await ensureDevRound();
+      try {
+        roundId = await ensureDevRound();
+        console.log(`🎮 Dev mode: ensureDevRound succeeded, roundId=${roundId}`);
+      } catch (devRoundError: any) {
+        console.error('🎮 Dev mode: ensureDevRound FAILED:', devRoundError);
+        console.error('🎮 Dev mode: Stack trace:', devRoundError.stack);
+        throw devRoundError;
+      }
     } else {
       // Production: create a normal round if needed
       await ensureActiveRound();
@@ -221,16 +229,35 @@ export default async function handler(
     }
 
     // Submit the guess with daily limits enforcement (Milestone 2.2)
-    const result = await submitGuessWithDailyLimits({
-      fid,
-      word,
-    });
+    console.log(`📝 Submitting guess: FID=${fid}, word=${normalizedWord}`);
+    try {
+      const result = await submitGuessWithDailyLimits({
+        fid,
+        word,
+      });
+      console.log(`📝 Guess result:`, result);
 
-    // Return the result
-    return res.status(200).json(result);
+      // Return the result
+      return res.status(200).json(result);
+    } catch (submitError: any) {
+      console.error('📝 submitGuessWithDailyLimits FAILED:', submitError);
+      console.error('📝 Stack trace:', submitError.stack);
+      throw submitError;
+    }
 
   } catch (error: any) {
     console.error('Error in /api/guess:', error);
+    console.error('Error stack:', error.stack);
+
+    // In dev mode, return more detailed error info
+    if (isDevModeEnabled()) {
+      return res.status(500).json({
+        error: 'Internal server error',
+        devDetails: error.message,
+        devStack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      } as any);
+    }
+
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
