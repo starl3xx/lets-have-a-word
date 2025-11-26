@@ -21,7 +21,8 @@ import AnotherGuessModal from '../components/AnotherGuessModal';
 import { DevPersonaProvider, useDevPersona, isClientDevMode } from '../src/contexts/DevPersonaContext';
 
 // Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
-const DEV_FALLBACK_FID = 12345;
+// Uses 6500 which is the dev mode FID defined in daily-limits.ts
+const DEV_FALLBACK_FID = 6500;
 import DevPersonaSwitcher from '../components/DevPersonaPanel';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
@@ -262,6 +263,9 @@ function GameContent() {
     fetchWheelWords();
   }, []); // Fetch once on mount - API handles all state derivation
 
+  // Track whether this is the first user state fetch (for dev mode reset)
+  const isFirstUserStateFetchRef = useRef(true);
+
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
    * Milestone 6.3: Also check share bonus eligibility, CLANKTON holder status, and pack purchase status
@@ -273,7 +277,15 @@ function GameContent() {
       if (!effectiveFid) return;
 
       try {
-        const response = await fetch(`/api/user-state?devFid=${effectiveFid}`);
+        // Only pass initialLoad=true on first fetch to trigger dev mode reset
+        const isInitialLoad = isFirstUserStateFetchRef.current;
+        isFirstUserStateFetchRef.current = false;
+
+        const url = isInitialLoad
+          ? `/api/user-state?devFid=${effectiveFid}&initialLoad=true`
+          : `/api/user-state?devFid=${effectiveFid}`;
+
+        const response = await fetch(url);
         if (response.ok) {
           const rawData: UserStateResponse = await response.json();
           // Milestone 6.4.7: Apply dev persona overrides if active
