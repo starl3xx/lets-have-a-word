@@ -97,10 +97,12 @@ export default async function handler(
     if (isDevMode) {
       console.log('🎮 Dev mode: Using real wallet and CLANKTON balance');
 
-      // Milestone 6.5.1: Reset daily state for dev FID on each page load
-      // This ensures a fresh start for testing the guess economy
-      if (fid === DEV_MODE_FID) {
-        console.log(`🔄 Dev mode: Resetting daily state for dev FID ${fid}`);
+      // Milestone 6.5.1: Reset daily state for dev FID on initial page load only
+      // IMPORTANT: Only reset when initialLoad=true query param is passed
+      // This prevents resetting on every API call which would wipe share bonuses
+      const isInitialLoad = req.query.initialLoad === 'true';
+      if (fid === DEV_MODE_FID && isInitialLoad) {
+        console.log(`🔄 Dev mode: Resetting daily state for dev FID ${fid} (initial page load)`);
         await resetDevDailyStateForUser(fid);
       }
     }

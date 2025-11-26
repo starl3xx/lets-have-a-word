@@ -6,10 +6,11 @@
  * Determines which modal to show (if any) after a guess is resolved.
  *
  * Decision Tree:
- * 1. If guesses remain → only show share modal once per session if unused
- * 2. If out of guesses → show share modal first (if unused and not seen)
- * 3. If share exhausted or declined → show pack modal (if packs available)
- * 4. Otherwise → show out-of-guesses state
+ * 1. If 2+ guesses remain → no modals, let user keep playing
+ * 2. If exactly 1 guess remains → show share modal once per session (if unused)
+ * 3. If out of guesses → show share modal first (if unused and not seen)
+ * 4. If share exhausted or declined → show pack modal (if packs available)
+ * 5. Otherwise → show out-of-guesses state
  */
 
 import { useState, useCallback } from 'react';
@@ -74,6 +75,9 @@ export function useModalDecision(): UseModalDecisionReturn {
 
   /**
    * Core decision logic based on the daily guess flow spec
+   *
+   * Updated: Only prompt for share/pack when low on guesses (0-1 remaining),
+   * not after every guess when user still has plenty of guesses.
    */
   const decideModal = useCallback((params: ModalDecisionParams): ModalDecision => {
     const {
@@ -85,27 +89,32 @@ export function useModalDecision(): UseModalDecisionReturn {
 
     const { hasSeenShareModalThisSession, hasSeenPackModalThisSession } = sessionState;
 
-    // 1. Still have guesses → no paywall, maybe show share once
-    if (guessesRemaining > 0) {
+    // 1. Have 2+ guesses remaining → no modals needed, let user keep playing
+    if (guessesRemaining >= 2) {
+      return 'none';
+    }
+
+    // 2. Exactly 1 guess remaining → offer share to get another guess (non-blocking)
+    if (guessesRemaining === 1) {
       // Show share modal once per session if share bonus unused
       if (!hasUsedShareBonusToday && !hasSeenShareModalThisSession) {
         return 'share';
       }
-      // User has guesses, no need for modals
+      // User still has 1 guess, don't block them
       return 'none';
     }
 
-    // 2. Out of guesses: prioritize free share
+    // 3. Out of guesses (0 remaining): prioritize free share
     if (!hasUsedShareBonusToday && !hasSeenShareModalThisSession) {
       return 'share';
     }
 
-    // 3. Share exhausted or declined: offer packs if available
+    // 4. Share exhausted or declined: offer packs if available
     if (packsPurchasedToday < maxPacksPerDay && !hasSeenPackModalThisSession) {
       return 'pack';
     }
 
-    // 4. Hard stop - no more options
+    // 5. Hard stop - no more options
     return 'out_of_guesses';
   }, [sessionState]);
 
