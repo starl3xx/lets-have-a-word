@@ -15,7 +15,7 @@ import { eq, and } from 'drizzle-orm';
 import { submitGuess } from './guesses';
 import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
-import type { SubmitGuessResult } from '../types';
+import type { SubmitGuessResult, GuessSourceState } from '../types';
 import { hasClanktonBonus } from './clankton';
 import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
@@ -142,8 +142,11 @@ export async function getOrCreateDailyState(
 
   const [created] = await db.insert(dailyGuessState).values(newState).returning();
 
+  // Use defined values for logging (TypeScript Insert type allows undefined due to DB defaults)
+  const baseGuesses = DAILY_LIMITS_RULES.freeGuessesPerDayBase;
+  const clanktonGuesses = hasClankton ? clanktonBonusGuesses : 0;
   console.log(
-    `✅ Created daily state for FID ${fid} on ${dateStr}: ${newState.freeAllocatedBase} base + ${newState.freeAllocatedClankton} CLANKTON = ${newState.freeAllocatedBase + newState.freeAllocatedClankton} free guesses, wheelStartIndex: ${wheelStartIndex}`
+    `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${clanktonGuesses} CLANKTON = ${baseGuesses + clanktonGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
   );
 
   // Analytics v2: Log game session start (non-blocking)
@@ -151,8 +154,8 @@ export async function getOrCreateDailyState(
     userId: fid.toString(),
     data: {
       date: dateStr,
-      free_base: newState.freeAllocatedBase,
-      free_clankton: newState.freeAllocatedClankton,
+      free_base: baseGuesses,
+      free_clankton: clanktonGuesses,
       has_clankton: hasClankton,
     },
   });
@@ -410,4 +413,104 @@ export async function submitGuessWithDailyLimits(params: {
   });
 
   return result;
+}
+
+/**
+ * Get guess source state for unified guess bar
+ * Milestone 6.5: Returns per-source tracking information
+ *
+ * This function calculates how many guesses have been used from each source
+ * based on the consumption order: Free -> CLANKTON -> Share -> Paid
+ *
+ * @param fid - Farcaster ID of the user
+ * @returns GuessSourceState with detailed per-source tracking
+ */
+export async function getGuessSourceState(fid: number): Promise<GuessSourceState> {
+  const dateStr = getTodayUTC();
+  const state = await getOrCreateDailyState(fid, dateStr);
+
+  // Total allocations for each source
+  const freeTotal = state.freeAllocatedBase;
+  const clanktonTotal = state.freeAllocatedClankton;
+  const shareTotal = state.freeAllocatedShareBonus;
+  const paidTotal = state.paidGuessCredits + getPaidGuessesUsedFromState(state);
+
+  // Calculate used guesses per source based on consumption order:
+  // Free (base) -> CLANKTON -> Share
+  // Paid guesses are tracked separately in paidGuessCredits
+  let freeUsedRemaining = state.freeUsed;
+
+  // Free (base) is consumed first
+  const freeUsed = Math.min(freeUsedRemaining, freeTotal);
+  freeUsedRemaining -= freeUsed;
+
+  // CLANKTON is consumed second
+  const clanktonUsed = Math.min(freeUsedRemaining, clanktonTotal);
+  freeUsedRemaining -= clanktonUsed;
+
+  // Share bonus is consumed third
+  const shareUsed = Math.min(freeUsedRemaining, shareTotal);
+
+  // Paid guesses used: total purchased minus remaining credits
+  const paidUsed = getPaidGuessesUsedFromState(state);
+
+  // Calculate remaining for each source
+  const freeRemaining = Math.max(0, freeTotal - freeUsed);
+  const clanktonRemaining = Math.max(0, clanktonTotal - clanktonUsed);
+  const shareRemaining = Math.max(0, shareTotal - shareUsed);
+  const paidRemaining = state.paidGuessCredits;
+
+  // Total remaining across all sources
+  const totalRemaining = freeRemaining + clanktonRemaining + shareRemaining + paidRemaining;
+
+  // CLANKTON holder check
+  const isClanktonHolder = state.freeAllocatedClankton > 0;
+
+  // Share bonus eligibility
+  const hasSharedToday = state.hasSharedToday;
+  const canClaimBonus = !hasSharedToday;
+
+  // Paid pack eligibility
+  const maxPacksPerDay = DAILY_LIMITS_RULES.maxPaidPacksPerDay;
+  const canBuyMore = state.paidPacksPurchased < maxPacksPerDay;
+
+  return {
+    totalRemaining,
+    free: {
+      total: freeTotal,
+      used: freeUsed,
+      remaining: freeRemaining,
+    },
+    clankton: {
+      total: clanktonTotal,
+      used: clanktonUsed,
+      remaining: clanktonRemaining,
+      isHolder: isClanktonHolder,
+    },
+    share: {
+      total: shareTotal,
+      used: shareUsed,
+      remaining: shareRemaining,
+      hasSharedToday,
+      canClaimBonus,
+    },
+    paid: {
+      total: paidTotal,
+      used: paidUsed,
+      remaining: paidRemaining,
+      packsPurchased: state.paidPacksPurchased,
+      maxPacksPerDay,
+      canBuyMore,
+    },
+  };
+}
+
+/**
+ * Calculate paid guesses used from daily state
+ * Total purchased = paidPacksPurchased * packSize
+ * Used = total purchased - remaining credits
+ */
+function getPaidGuessesUsedFromState(state: DailyGuessStateRow): number {
+  const totalPurchased = state.paidPacksPurchased * DAILY_LIMITS_RULES.paidGuessPackSize;
+  return Math.max(0, totalPurchased - state.paidGuessCredits);
 }

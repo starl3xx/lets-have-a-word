@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition } from 'react';
-import type { SubmitGuessResult, UserStateResponse, WheelWord, WheelResponse } from '../src/types';
+import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
+import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';

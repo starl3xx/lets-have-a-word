@@ -171,3 +171,52 @@ export interface GameStateResponse {
   devState?: DevBackendState; // Only present in forced preview mode
   devInput?: string; // Only present in forced preview mode
 }
+
+/**
+ * Guess Source State
+ * Milestone 6.5: Per-source tracking for unified guess bar
+ *
+ * Tracks allocations and usage for each guess source:
+ * - free: Base daily free guess (always 1)
+ * - clankton: CLANKTON holder bonus (0, 2, or 3 depending on mcap)
+ * - share: Share bonus (0 or 1, earned by sharing)
+ * - paid: Purchased guess packs (0-9, in increments of 3)
+ */
+export interface GuessSourceState {
+  /** Total guesses remaining across all sources */
+  totalRemaining: number;
+
+  /** Free guess source (base daily allocation) */
+  free: {
+    total: number;      // Always 1
+    used: number;       // 0 or 1
+    remaining: number;  // 0 or 1
+  };
+
+  /** CLANKTON holder bonus source */
+  clankton: {
+    total: number;      // 0, 2, or 3 (0 if not a holder)
+    used: number;       // 0 to total
+    remaining: number;  // 0 to total
+    isHolder: boolean;  // Whether user holds CLANKTON
+  };
+
+  /** Share bonus source */
+  share: {
+    total: number;      // 0 or 1
+    used: number;       // 0 or 1
+    remaining: number;  // 0 or 1
+    hasSharedToday: boolean;  // Whether user has shared today
+    canClaimBonus: boolean;   // Whether user can still claim share bonus
+  };
+
+  /** Paid guess packs source */
+  paid: {
+    total: number;      // 0-9 (purchased credits for today)
+    used: number;       // 0 to total
+    remaining: number;  // 0 to total
+    packsPurchased: number;   // 0-3 packs bought today
+    maxPacksPerDay: number;   // Usually 3
+    canBuyMore: boolean;      // Whether more packs can be purchased
+  };
+}
