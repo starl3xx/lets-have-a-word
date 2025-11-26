@@ -11,11 +11,42 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.7 Complete
+## 🎯 Current Status: Milestone 6.7.1 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, and XP tracking are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, and improved incorrect guess UX are fully implemented and production-ready:
 
-### ✅ Milestone 6.7 - XP System (Tracking-First Implementation) (Latest)
+### ✅ Milestone 6.7.1 - Incorrect Guess Banner Flow + Input Reset (Latest)
+
+Improved UX after incorrect guesses with a timed state machine that transitions from active error to faded context:
+
+- **Incorrect State Machine** (`pages/index.tsx`)
+  - Three states: `none` | `active` | `faded`
+  - `active`: Bright red error banner, input boxes red and locked
+  - `faded`: Gray semi-transparent banner showing last guess, input ready for new guess
+  - Configurable duration: `INCORRECT_ACTIVE_DURATION_MS = 2000` (2 seconds)
+
+- **Banner Transitions** (`components/ResultBanner.tsx`)
+  - Added `faded` prop for gray/semi-transparent state
+  - Faded banner shows context: "Incorrect! WORD is not the secret word."
+  - Smooth opacity transition (0.7 opacity in faded state)
+  - Gray icon replaces red X in faded state
+
+- **Input Box Behavior**
+  - During `active`: Red borders, empty, visually locked
+  - During `faded`: Normal neutral state, ready for new input
+  - Typing clears incorrect state and cancels timer
+
+- **Out of Guesses Handling**
+  - If no guesses remain, skip faded state entirely
+  - Show "No guesses left today" banner instead
+  - Input boxes remain locked/disabled
+
+- **Timer Management**
+  - Automatic cleanup on unmount
+  - Cancel timer when user starts typing
+  - Multiple incorrect guesses in a row work correctly (no overlapping timers)
+
+### ✅ Milestone 6.7 - XP System (Tracking-First Implementation)
 
 Introduced a comprehensive XP tracking system with event-sourced backend and Total XP display in Stats sheet:
 

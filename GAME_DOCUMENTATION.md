@@ -1346,11 +1346,43 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
     - Warning: Amber warning triangle icon (no emoji)
     - Success: 🎉 emoji allowed
   - Accessibility: Uses `role="status"` and `aria-live="polite"`
+  - **Milestone 6.7.1**: Added `faded` prop for gray/semi-transparent state
 - **Banner Messages**:
-  - Incorrect: "Incorrect. You've made N guess(es) this round."
+  - Incorrect: "Incorrect! WORD is not the secret word."
   - Already guessed: "Already guessed this round." (warning)
   - Not a valid word: "Not a valid word" (warning)
   - Winner: "Correct! You found the word \"[WORD]\" and won this round!"
+
+#### 6.7.1: Incorrect Guess Banner Flow + Input Reset
+- **Goal**: Improve UX after incorrect guesses with timed state transitions
+- **Incorrect State Machine** (`pages/index.tsx`):
+  - `type IncorrectState = 'none' | 'active' | 'faded'`
+  - `none`: No incorrect banner visible
+  - `active`: Bright red error, input locked visually (2 seconds)
+  - `faded`: Softer gray banner showing context, input ready again
+- **Timing**:
+  - On incorrect guess → enter `active` for `INCORRECT_ACTIVE_DURATION_MS` (2000ms)
+  - After timeout → transition to `faded` only if user still has guesses remaining
+  - If user submits new guess before timeout → cancel timer, go back through `active`
+- **Banner Behavior**:
+  - `active`: Red banner with "Incorrect! WORD is not the secret word."
+  - `faded`: Gray banner (opacity 0.7) with same message, gray X icon
+  - Message uses `lastSubmittedGuess` to persist word context
+- **Input Box Behavior**:
+  - `active`: Red borders, empty, visually locked (`boxResultState = 'wrong'`)
+  - `faded`: Normal neutral state (`boxResultState = 'typing'`), ready for input
+- **Out of Guesses Handling**:
+  - If no guesses remain after incorrect guess, skip `faded` entirely
+  - Clear `incorrectState` to `'none'` and show "No guesses left today" banner
+  - Input boxes remain locked/disabled
+- **Timer Management**:
+  - `incorrectTimerRef` tracks the fade timeout
+  - Cleanup on component unmount (`useEffect` with cleanup function)
+  - Cancel timer when user starts typing (`handleLettersChange`, `handleLetter`, `handleBackspace`)
+  - Multiple incorrect guesses in a row work correctly (timer reset on each)
+- **Files Changed**:
+  - `components/ResultBanner.tsx`: Added `faded` prop, `FadedIcon`, updated styling
+  - `pages/index.tsx`: Added state machine, timer logic, updated handlers
 
 #### 6.4.5: Wheel Jump UX - Uniform Perceived Speed
 - **Problem**: Large letter jumps (e.g., D→R) felt slower than small jumps (D→E) even with capped duration, because the wheel visibly scrolled through many rows.

@@ -7,6 +7,10 @@
  * - Warning states (already guessed this round)
  * - Success states (winner)
  *
+ * Milestone 6.7.1 additions:
+ * - Faded state for incorrect banners (gray, semi-transparent)
+ * - Shows context of last guess while allowing new input
+ *
  * Design principles:
  * - Consistent layout across all variants
  * - Theme-appropriate colors
@@ -25,6 +29,12 @@ export interface ResultBannerProps {
   icon?: React.ReactNode;
   /** Optional: control visibility with opacity transition */
   visible?: boolean;
+  /**
+   * Milestone 6.7.1: Faded state for incorrect banners
+   * When true, displays as gray/semi-transparent instead of red
+   * Used to show context of last guess while allowing new input
+   */
+  faded?: boolean;
 }
 
 /**
@@ -68,12 +78,37 @@ const SuccessIcon = () => (
 );
 
 /**
- * Get variant-specific styling classes
+ * Milestone 6.7.1: Faded icon for gray state
+ * Used when banner transitions from active to faded
  */
-function getVariantStyles(variant: ResultBannerVariant): {
+const FadedIcon = () => (
+  <svg
+    className="w-5 h-5 text-gray-400 flex-shrink-0"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+/**
+ * Get variant-specific styling classes
+ * Milestone 6.7.1: Added faded parameter for gray state
+ */
+function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false): {
   container: string;
   text: string;
 } {
+  // Milestone 6.7.1: Faded state overrides normal error styling
+  if (faded) {
+    return {
+      container: 'bg-gray-50 border-gray-200',
+      text: 'text-gray-500',
+    };
+  }
+
   switch (variant) {
     case 'error':
       return {
@@ -122,25 +157,36 @@ function getDefaultIcon(variant: ResultBannerVariant): React.ReactNode {
  * - Left-aligned icon with centered text
  * - Smooth opacity transitions
  * - Responsive design (wraps gracefully on mobile)
+ *
+ * Milestone 6.7.1:
+ * - Added faded prop for gray/semi-transparent state
+ * - Used for incorrect banners after active period ends
  */
 const ResultBanner = memo(function ResultBanner({
   variant,
   message,
   icon,
   visible = true,
+  faded = false,
 }: ResultBannerProps) {
-  const styles = getVariantStyles(variant);
-  const displayIcon = icon !== undefined ? icon : getDefaultIcon(variant);
+  const styles = getVariantStyles(variant, faded);
+
+  // Milestone 6.7.1: Use faded icon when in faded state, otherwise use provided or default
+  const displayIcon = faded
+    ? <FadedIcon />
+    : (icon !== undefined ? icon : getDefaultIcon(variant));
 
   return (
     <div
       className={`
         ${styles.container}
         border-2 rounded-lg p-3 shadow-sm
-        transition-opacity duration-300
+        transition-all duration-300
         flex items-center justify-center gap-2
       `}
-      style={{ opacity: visible ? 1 : 0 }}
+      style={{
+        opacity: visible ? (faded ? 0.7 : 1) : 0,
+      }}
       role="status"
       aria-live="polite"
     >
