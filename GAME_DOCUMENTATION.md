@@ -874,6 +874,39 @@ if (wheelWords.includes(normalized)) return false;
 
 ## Farcaster Integration
 
+### Mini App Manifest
+The app is configured as a Farcaster mini app via `public/.well-known/farcaster.json`:
+```json
+{
+  "frame": {
+    "version": "1",
+    "name": "Let's Have A Word!",
+    "iconUrl": "https://lets-have-a-word.vercel.app/FC-arch-icon.png",
+    "homeUrl": "https://lets-have-a-word.vercel.app",
+    "splashImageUrl": "https://lets-have-a-word.vercel.app/FC-arch-icon.png",
+    "splashBackgroundColor": "#1e3a5f",
+    "webhookUrl": "https://api.neynar.com/f/app/{client_id}/event"
+  }
+}
+```
+
+### Push Notifications
+Notification tokens are managed via Neynar webhook:
+1. User adds mini app via `sdk.actions.addFrame()`
+2. Farcaster sends token events to Neynar webhook URL
+3. Neynar stores and manages notification tokens
+4. Use Neynar API to send notifications:
+```typescript
+client.publishFrameNotifications({
+  targetFids: [],  // empty = all users
+  notification: {
+    title: "New Round Started!",
+    body: "A new word is waiting...",
+    target_url: "https://lets-have-a-word.vercel.app",
+  }
+});
+```
+
 ### SDK Setup
 ```typescript
 import sdk from '@farcaster/miniapp-sdk';
@@ -881,6 +914,12 @@ import sdk from '@farcaster/miniapp-sdk';
 // Get user context
 const context = await sdk.context;
 const fid = context?.user?.fid;
+
+// Add mini app (for notifications)
+const result = await sdk.actions.addFrame();
+if (result.added && result.notificationDetails) {
+  // Token managed by Neynar webhook
+}
 ```
 
 ### Authentication Flow
@@ -1384,6 +1423,59 @@ The dev persona switcher now includes sourceState overrides for testing:
 - **Non-Holder Out of Guesses**: All sources depleted
 - **CLANKTON Holder (Low/High Tier)**: With holder bonuses
 - **Maxed-Out Buyer**: All sources used including 9 paid guesses
+
+### Milestone 6.6: Push Notifications & Bug Fixes
+- **Status**: ✅ Complete
+- **Goal**: Enable push notifications and fix critical duplicate guess bug
+
+#### Farcaster Manifest
+Created `public/.well-known/farcaster.json` for mini app configuration:
+- Frame metadata (name, icon, splash screen)
+- Neynar webhook URL for notification token management
+- Enables discovery and installation from Warpcast
+
+#### Mini App Add Prompt
+Updated `components/FirstTimeOverlay.tsx` to prompt users to add the mini app:
+- Uses `sdk.actions.addFrame()` from `@farcaster/miniapp-sdk`
+- Primary CTA: "Add to Warpcast & Play"
+- Secondary option: "Skip for now"
+- Auto-dismisses on success with haptic feedback
+- Footer note: "Adding enables notifications for new rounds"
+
+#### Duplicate Guess Bug Fix
+**Critical bug in `src/lib/daily-limits.ts`:**
+- **Problem**: `submitGuessWithDailyLimits()` decremented credits BEFORE calling `submitGuess()`
+- **Impact**: Duplicate guesses (`already_guessed_word`) incorrectly consumed free/paid credits
+- **Solution**: Restructured to validate FIRST, only consume credit if result is `correct` or `incorrect`
+- **Protected statuses**: `already_guessed_word`, `invalid_word`, `round_closed` no longer consume credits
+
+**Test coverage added** (`src/__tests__/daily-limits.test.ts`):
+- Free guess credit protection for duplicates
+- Paid guess credit protection for duplicates
+- Invalid word credit protection
+- Cross-user duplicate handling
+- Mixed valid/invalid/duplicate sequence testing
+
+#### Banner UI Updates
+**Incorrect Guess Banner** (`pages/index.tsx`):
+- New copy: "Incorrect! **WORD** is not the secret word."
+- Word displayed in bold red (inherits banner text color)
+- Removed X icon (clean text-only design)
+- No guess count shown
+
+**Already Guessed Banner**:
+- Changed from yellow `warning` variant to red `error` variant
+- Simplified message: "Already guessed this round"
+- Matches client-side validation error styling
+
+#### Files Modified
+- `public/.well-known/farcaster.json` - New Farcaster manifest
+- `components/FirstTimeOverlay.tsx` - Mini app add prompt
+- `src/lib/daily-limits.ts` - Credit consumption bug fix
+- `pages/index.tsx` - Banner copy and styling updates
+- `components/ResultBanner.tsx` - Message prop now accepts `React.ReactNode`
+- `src/__tests__/daily-limits.test.ts` - Duplicate guess protection tests
+- `src/__tests__/input-state.test.ts` - New input state machine tests
 
 ### Planned / Future Enhancements
 - **Status**: Wishlist

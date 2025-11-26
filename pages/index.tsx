@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition } from 'react';
+import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
 import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
@@ -592,6 +592,19 @@ function GameContent() {
       return;
     }
 
+    // Defense-in-depth: Check input state before submitting
+    // This catches race conditions where the button/enter key handler might
+    // allow submission before React has fully processed state updates
+    if (!isGuessButtonEnabled(currentInputState)) {
+      console.warn(`[handleSubmit] Blocked submission in state: ${currentInputState}`);
+      // If it's a duplicate guess, show the error state
+      if (currentInputState === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
+        triggerShake();
+        triggerHaptic('error');
+      }
+      return;
+    }
+
     // Clear previous state
     setIsLoading(true);
     setResult(null);
@@ -766,7 +779,7 @@ function GameContent() {
    * Get feedback message based on result
    * Returns variant and message for unified ResultBanner component
    */
-  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: string } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode } | null => {
     if (!result) return null;
 
     switch (result.status) {
@@ -779,13 +792,22 @@ function GameContent() {
       case 'incorrect':
         return {
           variant: 'error',
-          message: `Incorrect. You've made ${result.totalGuessesForUserThisRound} guess${result.totalGuessesForUserThisRound === 1 ? '' : 'es'} this round.`,
+          icon: null,
+          message: (
+            <>
+              <span>Incorrect! </span>
+              <span className="font-bold">{result.word}</span>
+              <span> is not the secret word.</span>
+            </>
+          ),
         };
 
       case 'already_guessed_word':
+        // Treat duplicate guesses as errors, not warnings
+        // This matches the client-side validation behavior
         return {
-          variant: 'warning',
-          message: `The word "${result.word}" has already been guessed this round.`,
+          variant: 'error',
+          message: 'Already guessed this round',
         };
 
       case 'invalid_word':
@@ -1025,6 +1047,7 @@ function GameContent() {
                   <ResultBanner
                     variant={feedback.variant}
                     message={feedback.message}
+                    icon={feedback.icon}
                   />
                 )}
               </div>
