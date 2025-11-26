@@ -16,7 +16,7 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
-import AnotherGuessModal from '../components/AnotherGuessModal';
+// AnotherGuessModal removed - when out of options, user just can't play anymore
 // Milestone 6.4.7: Dev mode persona switcher
 import { DevPersonaProvider, useDevPersona, isClientDevMode } from '../src/contexts/DevPersonaContext';
 
@@ -104,9 +104,8 @@ function GameContent() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
 
-  // Milestone 6.3: Guess purchase and "another guess" modal state
+  // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
-  const [showAnotherGuessModal, setShowAnotherGuessModal] = useState(false);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -164,7 +163,8 @@ function GameContent() {
           setShowGuessPurchaseModal(true);
           break;
         case 'out_of_guesses':
-          setShowAnotherGuessModal(true);
+          // No modal - user is out of options, just can't play anymore
+          console.log('[DevPersona] User is out of guesses with no options remaining');
           break;
         case 'none':
         default:
@@ -739,7 +739,7 @@ function GameContent() {
                   setShowGuessPurchaseModal(true);
                   break;
                 case 'out_of_guesses':
-                  setShowAnotherGuessModal(true);
+                  // No modal - user is out of options
                   break;
                 case 'none':
                 default:
@@ -862,17 +862,13 @@ function GameContent() {
     // Mark share modal as seen this session
     markShareModalSeen();
 
-    // Milestone 6.3: If user didn't share and has no guesses left, determine next modal
-    if (!hasGuessesLeft) {
+    // Milestone 6.3: If user didn't share and has no guesses left, offer packs if available
+    if (!hasGuessesLeft && paidPacksPurchased < maxPaidPacksPerDay) {
       setTimeout(() => {
-        // User closed share modal without sharing - now offer packs or show out-of-guesses
-        if (paidPacksPurchased < maxPaidPacksPerDay) {
-          setShowGuessPurchaseModal(true);
-        } else {
-          setShowAnotherGuessModal(true);
-        }
+        setShowGuessPurchaseModal(true);
       }, 300);
     }
+    // If out of packs too, no modal - user just can't play anymore
   };
 
   /**
@@ -892,20 +888,6 @@ function GameContent() {
     // Refetch user state to update guess counts
     setUserStateKey(prev => prev + 1);
     void haptics.packPurchased();
-  };
-
-  /**
-   * Milestone 6.3: Handle "another guess" modal actions
-   */
-  const handleAnotherGuessShare = () => {
-    setShowAnotherGuessModal(false);
-    // Open the share modal directly
-    setShowShareModal(true);
-  };
-
-  const handleAnotherGuessBuyPacks = () => {
-    setShowAnotherGuessModal(false);
-    setShowGuessPurchaseModal(true);
   };
 
   return (
@@ -1194,25 +1176,9 @@ function GameContent() {
           onClose={() => {
             setShowGuessPurchaseModal(false);
             markPackModalSeen();
-            // If user closed without purchasing and out of guesses, show out-of-guesses modal
-            if (!hasGuessesLeft) {
-              setTimeout(() => {
-                setShowAnotherGuessModal(true);
-              }, 300);
-            }
+            // If user closed without purchasing and out of guesses, no modal - just can't play
           }}
           onPurchaseSuccess={handlePackPurchaseSuccess}
-        />
-      )}
-
-      {/* Milestone 6.3: Another Guess Modal */}
-      {showAnotherGuessModal && (
-        <AnotherGuessModal
-          fid={effectiveFid}
-          canClaimShareBonus={canClaimShareBonus}
-          onClose={() => setShowAnotherGuessModal(false)}
-          onShareForGuess={handleAnotherGuessShare}
-          onBuyPacks={handleAnotherGuessBuyPacks}
         />
       )}
 
