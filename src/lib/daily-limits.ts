@@ -135,6 +135,9 @@ export async function hasCLANKTONBonus(fid: number): Promise<boolean> {
  * Get or create daily guess state for a user
  * If no state exists for today, creates it with appropriate allocations
  * Milestone 4.14: Now also initializes wheelStartIndex
+ *
+ * Note: Uses try/catch to handle race conditions where multiple requests
+ * try to create the same row simultaneously (unique constraint on fid+date).
  */
 export async function getOrCreateDailyState(
   fid: number,
@@ -177,27 +180,46 @@ export async function getOrCreateDailyState(
     wheelRoundId: roundId || null, // Milestone 4.14
   };
 
-  const [created] = await db.insert(dailyGuessState).values(newState).returning();
+  try {
+    const [created] = await db.insert(dailyGuessState).values(newState).returning();
 
-  // Use defined values for logging (TypeScript Insert type allows undefined due to DB defaults)
-  const baseGuesses = DAILY_LIMITS_RULES.freeGuessesPerDayBase;
-  const clanktonGuesses = hasClankton ? clanktonBonusGuesses : 0;
-  console.log(
-    `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${clanktonGuesses} CLANKTON = ${baseGuesses + clanktonGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
-  );
+    // Use defined values for logging (TypeScript Insert type allows undefined due to DB defaults)
+    const baseGuesses = DAILY_LIMITS_RULES.freeGuessesPerDayBase;
+    const clanktonGuesses = hasClankton ? clanktonBonusGuesses : 0;
+    console.log(
+      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${clanktonGuesses} CLANKTON = ${baseGuesses + clanktonGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
+    );
 
-  // Analytics v2: Log game session start (non-blocking)
-  logAnalyticsEvent(AnalyticsEventTypes.GAME_SESSION_START, {
-    userId: fid.toString(),
-    data: {
-      date: dateStr,
-      free_base: baseGuesses,
-      free_clankton: clanktonGuesses,
-      has_clankton: hasClankton,
-    },
-  });
+    // Analytics v2: Log game session start (non-blocking)
+    logAnalyticsEvent(AnalyticsEventTypes.GAME_SESSION_START, {
+      userId: fid.toString(),
+      data: {
+        date: dateStr,
+        free_base: baseGuesses,
+        free_clankton: clanktonGuesses,
+        has_clankton: hasClankton,
+      },
+    });
 
-  return created;
+    return created;
+  } catch (error: any) {
+    // Handle race condition: if another request created the row first,
+    // fetch and return the existing row
+    if (error.code === '23505' || error.message?.includes('unique constraint')) {
+      console.log(`🔄 Race condition in getOrCreateDailyState for FID ${fid}, fetching existing row`);
+      const [existingRow] = await db
+        .select()
+        .from(dailyGuessState)
+        .where(and(eq(dailyGuessState.fid, fid), eq(dailyGuessState.date, dateStr)))
+        .limit(1);
+
+      if (existingRow) {
+        return existingRow;
+      }
+    }
+    // Re-throw unexpected errors
+    throw error;
+  }
 }
 
 /**
