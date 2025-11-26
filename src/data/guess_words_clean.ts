@@ -4047,9 +4047,27 @@ export const SLANG_ALLOWLIST: string[] = [
 
 /**
  * Blacklisted words - never valid as guesses
- * Total: 0 words
+ * These are offensive slurs, highly inappropriate terms, and words
+ * that should never appear in the game.
+ * All entries must be exactly 5 letters, uppercase.
+ * Total: 13 words
  */
 export const BANNED_GUESSES: string[] = [
+  // Racial/ethnic slurs
+  "CHINK",
+  "GOOKS",
+  "KIKES",
+  "NIGGA",
+  "SPICS",
+  // Highly offensive/vulgar terms
+  "COONS",
+  "CUNTS",
+  "DYKES",
+  "FUCKS",
+  "SLUTS",
+  "TITTY",
+  "TWATS",
+  "WHORE",
 ];
 
 /**
