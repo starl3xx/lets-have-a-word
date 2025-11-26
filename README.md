@@ -11,11 +11,43 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.4.7 Complete
+## 🎯 Current Status: Milestone 6.6 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, and UI polish are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, and push notifications are fully implemented and production-ready:
 
-### ✅ Milestone 6.4.7 - Dev Mode Persona Switcher (Latest)
+### ✅ Milestone 6.6 - Push Notifications & Bug Fixes (Latest)
+
+Added Farcaster mini app notifications support and fixed critical duplicate guess bug:
+
+- **Farcaster Manifest** (`public/.well-known/farcaster.json`)
+  - Frame metadata for mini app discovery
+  - Neynar webhook URL for notification token management
+  - Icon and splash screen configuration
+
+- **Mini App Add Prompt** (`components/FirstTimeOverlay.tsx`)
+  - First-time users prompted to add app to Warpcast
+  - Uses `sdk.actions.addFrame()` from `@farcaster/miniapp-sdk`
+  - Primary CTA: "Add to Warpcast & Play" with "Skip for now" option
+  - Enables push notifications for new rounds
+  - Auto-dismisses on success with haptic feedback
+
+- **Duplicate Guess Bug Fix** (`src/lib/daily-limits.ts`)
+  - **Bug**: Credits were consumed BEFORE validation, causing duplicate guesses to incorrectly decrement free/paid guess counter
+  - **Fix**: Validate guess FIRST, only consume credit if result is `correct` or `incorrect`
+  - Rejected guesses (`already_guessed_word`, `invalid_word`, `round_closed`) no longer consume credits
+  - Added comprehensive test suite for credit protection
+
+- **Incorrect Guess Banner Update** (`pages/index.tsx`)
+  - New copy: "Incorrect! **WORD** is not the secret word."
+  - Word displayed in bold red (same color as banner text)
+  - Removed X icon from incorrect banner
+  - No guess count shown in banner
+
+- **Already Guessed Banner Update**
+  - Changed from yellow warning to red error variant
+  - Simplified message: "Already guessed this round"
+
+### ✅ Milestone 6.4.7 - Dev Mode Persona Switcher
 
 Added a client-side persona switcher for QA testing different user states without modifying the database:
 
