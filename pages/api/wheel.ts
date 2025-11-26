@@ -52,13 +52,26 @@ export default async function handler(
   try {
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning synthetic wheel words with statuses');
+      console.log('🎮 Dev mode: Returning wheel words with real DB statuses');
 
       const solution = getDevFixedSolution().toUpperCase();
       console.log(`🎮 Dev mode solution: ${solution}`);
 
       // Get all guess words to build the full wheel
       const allGuessWords = getGuessWords();
+
+      // IMPORTANT: In dev mode, we still need to fetch REAL wrong guesses from the database
+      // This ensures the wheel reflects actual guesses made during the session
+      const wheelData = await getActiveWheelData();
+
+      // If we got real data, use it (this has actual wrong guesses from DB)
+      if (wheelData.words && wheelData.words.length > 0) {
+        console.log(`🎮 Dev mode: Using real wheel data with ${wheelData.words.filter(w => w.status === 'wrong').length} wrong guesses`);
+        return res.status(200).json(wheelData);
+      }
+
+      // Fallback: Build synthetic wheel if no DB data available
+      console.log('🎮 Dev mode: Falling back to synthetic wheel data');
 
       // Parse wrong guesses from query param
       const wrongGuessesParam = req.query.wrongGuesses as string | undefined;

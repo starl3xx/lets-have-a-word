@@ -1,9 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds } from '../../../src/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
-import { isDevModeEnabled, getDevFixedSolution } from '../../../src/lib/devGameState';
-import { getGuessWords } from '../../../src/lib/word-lists';
+import { eq, and, desc, isNull } from 'drizzle-orm';
+import { isDevModeEnabled } from '../../../src/lib/devGameState';
 
 /**
  * Wrong Guesses Response
@@ -39,39 +38,20 @@ export default async function handler(
   }
 
   try {
-    // Dev mode: return synthetic wrong guesses
-    if (isDevModeEnabled()) {
-      const solution = getDevFixedSolution().toUpperCase();
-      const allGuessWords = getGuessWords();
+    // Both dev mode and production use real database queries
+    // Dev mode needs real wrong guesses to stay in sync with actual submissions
 
-      // In dev mode, simulate ~20% wrong guesses (same as wheel.ts seeding)
-      const seededCount = Math.floor(allGuessWords.length * 0.2);
-      const wrongGuesses: string[] = [];
-
-      // Use deterministic selection based on solution hash
-      const hash = solution.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-      for (let i = 0; i < seededCount && i < allGuessWords.length; i++) {
-        const word = allGuessWords[(hash + i * 7) % allGuessWords.length].toUpperCase();
-        if (word !== solution && !wrongGuesses.includes(word)) {
-          wrongGuesses.push(word);
-        }
-      }
-
-      return res.status(200).json({
-        roundId: 5,
-        count: wrongGuesses.length,
-        wrongGuesses,
-      });
-    }
-
-    // Production: fetch from database
-    // Get active round
+    // Get active round (newest unresolved round)
     const [activeRound] = await db
       .select({ id: rounds.id })
       .from(rounds)
-      .where(eq(rounds.status, 'active'))
-      .orderBy(desc(rounds.id))
+      .where(isNull(rounds.resolvedAt))
+      .orderBy(desc(rounds.startedAt))
       .limit(1);
+
+    if (isDevModeEnabled()) {
+      console.log('🎮 Dev mode: Fetching real wrong guesses from DB');
+    }
 
     if (!activeRound) {
       return res.status(200).json({
