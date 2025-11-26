@@ -18,7 +18,10 @@ import RoundArchiveModal from '../components/RoundArchiveModal';
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
 import AnotherGuessModal from '../components/AnotherGuessModal';
 // Milestone 6.4.7: Dev mode persona switcher
-import { DevPersonaProvider, useDevPersona } from '../src/contexts/DevPersonaContext';
+import { DevPersonaProvider, useDevPersona, isClientDevMode } from '../src/contexts/DevPersonaContext';
+
+// Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
+const DEV_FALLBACK_FID = 12345;
 import DevPersonaSwitcher from '../components/DevPersonaPanel';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
@@ -59,6 +62,14 @@ function GameContent() {
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
+
+  // Effective FID: use real Farcaster FID, or dev fallback in dev mode
+  // This ensures consistent FID usage across guess submission, user state fetch, and share callbacks
+  const effectiveFid = useMemo(() => {
+    if (fid) return fid;
+    if (isClientDevMode()) return DEV_FALLBACK_FID;
+    return null;
+  }, [fid]);
 
   // Wheel state (Milestone 2.3, updated Milestone 4.10)
   const [wheelWords, setWheelWords] = useState<WheelWord[]>([]);
@@ -200,13 +211,14 @@ function GameContent() {
 
   /**
    * Check if user has seen intro overlay (Milestone 4.3)
+   * Uses effectiveFid for consistent dev mode FID handling
    */
   useEffect(() => {
     const checkFirstTimeUser = async () => {
-      if (!fid) return;
+      if (!effectiveFid) return;
 
       try {
-        const response = await fetch(`/api/user/state?devFid=${fid}`);
+        const response = await fetch(`/api/user/state?devFid=${effectiveFid}`);
         if (response.ok) {
           const data = await response.json();
           if (!data.hasSeenIntro) {
@@ -219,7 +231,7 @@ function GameContent() {
     };
 
     checkFirstTimeUser();
-  }, [fid]);
+  }, [effectiveFid]);
 
   /**
    * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
@@ -254,13 +266,14 @@ function GameContent() {
    * Fetch user state to check if user has guesses left (Milestone 4.6)
    * Milestone 6.3: Also check share bonus eligibility, CLANKTON holder status, and pack purchase status
    * Milestone 6.4.7: Apply dev persona overrides for QA testing
+   * Uses effectiveFid (real FID or dev fallback) for consistent FID handling
    */
   useEffect(() => {
     const fetchUserGuessCount = async () => {
-      if (!fid) return;
+      if (!effectiveFid) return;
 
       try {
-        const response = await fetch(`/api/user-state?devFid=${fid}`);
+        const response = await fetch(`/api/user-state?devFid=${effectiveFid}`);
         if (response.ok) {
           const rawData: UserStateResponse = await response.json();
           // Milestone 6.4.7: Apply dev persona overrides if active
@@ -291,7 +304,7 @@ function GameContent() {
     };
 
     fetchUserGuessCount();
-  }, [fid, userStateKey, applyDevPersonaOverrides]); // Re-fetch when userStateKey changes or persona changes
+  }, [effectiveFid, userStateKey, applyDevPersonaOverrides]); // Re-fetch when effectiveFid or userStateKey changes
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
@@ -576,15 +589,11 @@ function GameContent() {
     void haptics.guessSubmitting();
 
     try {
-      // Use Farcaster FID if available, otherwise use dev FID
+      // Use effectiveFid (real Farcaster FID or dev fallback)
       const requestBody: any = { word };
 
-      if (fid) {
-        // Use Farcaster context FID
-        requestBody.devFid = fid;
-      } else {
-        // Fallback to dev FID when not in Farcaster context
-        requestBody.devFid = 12345;
+      if (effectiveFid) {
+        requestBody.devFid = effectiveFid;
       }
 
       // Call API
@@ -684,7 +693,7 @@ function GameContent() {
         setTimeout(async () => {
           // Refetch user state to get updated guesses remaining
           try {
-            const stateResponse = await fetch(`/api/user-state?devFid=${fid}`);
+            const stateResponse = await fetch(`/api/user-state?devFid=${effectiveFid}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
 
@@ -881,7 +890,7 @@ function GameContent() {
       {/* User State (Milestone 4.1) - Minimal */}
       <div className="px-4 pt-1">
         <div className="max-w-md mx-auto">
-          <UserState key={userStateKey} fid={fid} />
+          <UserState key={userStateKey} fid={effectiveFid} />
         </div>
       </div>
 
@@ -1095,7 +1104,7 @@ function GameContent() {
       {/* Share Prompt Modal (Milestone 4.2) */}
       {showShareModal && pendingShareResult && (
         <SharePromptModal
-          fid={fid}
+          fid={effectiveFid}
           guessResult={pendingShareResult}
           onClose={handleShareModalClose}
           onShareSuccess={handleShareSuccess}
@@ -1105,15 +1114,14 @@ function GameContent() {
       {/* First Time Overlay (Milestone 4.3) */}
       {showFirstTimeOverlay && (
         <FirstTimeOverlay
-          fid={fid}
-          onClose={() => setShowFirstTimeOverlay(false)}
+          onDismiss={() => setShowFirstTimeOverlay(false)}
         />
       )}
 
       {/* Stats Sheet (Milestone 4.3) */}
       {showStatsSheet && (
         <StatsSheet
-          fid={fid}
+          fid={effectiveFid}
           onClose={() => setShowStatsSheet(false)}
         />
       )}
@@ -1121,7 +1129,7 @@ function GameContent() {
       {/* Referral Sheet (Milestone 4.3) */}
       {showReferralSheet && (
         <ReferralSheet
-          fid={fid}
+          fid={effectiveFid}
           onClose={() => setShowReferralSheet(false)}
         />
       )}
@@ -1147,7 +1155,7 @@ function GameContent() {
       {/* Milestone 6.3: Guess Purchase Modal */}
       {showGuessPurchaseModal && (
         <GuessPurchaseModal
-          fid={fid}
+          fid={effectiveFid}
           onClose={() => {
             setShowGuessPurchaseModal(false);
             markPackModalSeen();
@@ -1165,7 +1173,7 @@ function GameContent() {
       {/* Milestone 6.3: Another Guess Modal */}
       {showAnotherGuessModal && (
         <AnotherGuessModal
-          fid={fid}
+          fid={effectiveFid}
           canClaimShareBonus={canClaimShareBonus}
           onClose={() => setShowAnotherGuessModal(false)}
           onShareForGuess={handleAnotherGuessShare}
