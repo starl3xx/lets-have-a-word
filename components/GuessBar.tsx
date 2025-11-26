@@ -9,7 +9,7 @@
  * - Works for all user types
  *
  * Layout:
- * Left: "X guesses left today"
+ * Left: "X guesses left"
  * Right: "1 free · +2 CLANKTON · +1 share · +3 paid"
  *
  * Rules:
@@ -77,8 +77,11 @@ export default function GuessBar({ sourceState, isDevMode, personaActive }: Gues
       <span className="text-sm text-gray-700 whitespace-nowrap">
         <span className="font-semibold text-gray-900">{totalRemaining}</span>
         {' '}
-        {totalRemaining === 1 ? 'guess' : 'guesses'} left today
+        {totalRemaining === 1 ? 'guess' : 'guesses'} left
       </span>
+
+      {/* Separator */}
+      <span className="text-gray-400">|</span>
 
       {/* Right side: Source breakdown */}
       <span className="text-sm text-gray-600 whitespace-nowrap">
