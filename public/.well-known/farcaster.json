@@ -1,0 +1,16 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjEyMzQ1LCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9",
+    "payload": "eyJkb21haW4iOiJsZXRzLWhhdmUtYS13b3JkLnZlcmNlbC5hcHAifQ",
+    "signature": "placeholder_signature"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Let's Have A Word!",
+    "iconUrl": "https://lets-have-a-word.vercel.app/FC-arch-icon.png",
+    "homeUrl": "https://lets-have-a-word.vercel.app",
+    "splashImageUrl": "https://lets-have-a-word.vercel.app/FC-arch-icon.png",
+    "splashBackgroundColor": "#1e3a5f",
+    "webhookUrl": "https://api.neynar.com/f/app/64ddc4ee-b993-4a64-bc76-b96af4a1ec32/event"
+  }
+}

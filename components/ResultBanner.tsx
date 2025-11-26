@@ -20,7 +20,7 @@ export type ResultBannerVariant = 'error' | 'warning' | 'success';
 
 export interface ResultBannerProps {
   variant: ResultBannerVariant;
-  message: string;
+  message: React.ReactNode;
   /** Optional: override the default icon */
   icon?: React.ReactNode;
   /** Optional: control visibility with opacity transition */

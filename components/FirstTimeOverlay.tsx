@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { triggerHaptic } from '../src/lib/haptics';
+import sdk from '@farcaster/miniapp-sdk';
 
 interface FirstTimeOverlayProps {
   onDismiss: () => void;
@@ -10,9 +12,44 @@ interface FirstTimeOverlayProps {
  *
  * Full-screen tutorial overlay shown on first visit
  * Explains core game mechanics and rules
+ * Prompts user to add mini app for notifications
  */
 export default function FirstTimeOverlay({ onDismiss }: FirstTimeOverlayProps) {
-  const handleDismiss = () => {
+  const [isAddingApp, setIsAddingApp] = useState(false);
+  const [addAppStatus, setAddAppStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handleAddMiniApp = async () => {
+    setIsAddingApp(true);
+    try {
+      const result = await sdk.actions.addFrame();
+      if (result.added) {
+        setAddAppStatus('success');
+        triggerHaptic('success');
+        // Store notification details if provided
+        if (result.notificationDetails) {
+          console.log('Mini app added with notifications enabled');
+          console.log('Notification URL:', result.notificationDetails.url);
+          // Token is managed by Neynar webhook, no need to store client-side
+        }
+        // Auto-dismiss after successful add
+        setTimeout(() => {
+          onDismiss();
+        }, 1200);
+      } else {
+        // User rejected or invalid domain - just dismiss
+        console.log('Mini app add declined:', result.reason);
+        onDismiss();
+      }
+    } catch (error) {
+      console.error('Error adding mini app:', error);
+      // On error, just dismiss and let them play
+      onDismiss();
+    } finally {
+      setIsAddingApp(false);
+    }
+  };
+
+  const handleSkip = () => {
     triggerHaptic('light');
     onDismiss();
   };
@@ -123,17 +160,35 @@ export default function FirstTimeOverlay({ onDismiss }: FirstTimeOverlayProps) {
         {/* Divider */}
         <div className="border-t border-gray-200"></div>
 
-        {/* Action Button */}
-        <button
-          onClick={handleDismiss}
-          className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-bold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
-        >
-          Okay, let me guess! 🎯
-        </button>
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          {addAppStatus === 'success' ? (
+            <div className="w-full py-4 px-6 bg-green-500 text-white text-lg font-bold rounded-xl text-center">
+              Added! Let's play!
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handleAddMiniApp}
+                disabled={isAddingApp}
+                className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-bold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg disabled:opacity-50"
+              >
+                {isAddingApp ? 'Adding...' : 'Add to Warpcast & Play'}
+              </button>
+              <button
+                onClick={handleSkip}
+                disabled={isAddingApp}
+                className="w-full py-2 px-6 text-gray-500 text-sm hover:text-gray-700 transition-colors disabled:opacity-50"
+              >
+                Skip for now
+              </button>
+            </>
+          )}
+        </div>
 
         {/* Footer note */}
         <p className="text-center text-xs text-gray-500">
-          You can access help anytime via the FAQ button
+          Adding enables notifications for new rounds
         </p>
       </div>
     </div>

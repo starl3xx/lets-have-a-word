@@ -312,4 +312,152 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       await resolveRound(testRoundId, 99999);
     });
   });
+
+  /**
+   * Duplicate Guess Credit Consumption Tests
+   * These tests verify that rejected guesses (duplicates, invalid words, etc.)
+   * do NOT consume guess credits.
+   *
+   * Bug fix: Previously, credits were consumed BEFORE validation, causing
+   * duplicate guesses to incorrectly decrement the free/paid guess counter.
+   */
+  describe('Duplicate Guess Credit Protection', () => {
+    it('should NOT consume free guess credit for duplicate guesses', async () => {
+      // User A has 1 free guess
+      const stateBefore = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(stateBefore)).toBe(1);
+
+      // User A guesses 'house' (first time - should succeed and consume credit)
+      const result1 = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(result1.status).toBe('incorrect');
+
+      // Verify credit was consumed
+      const stateAfterFirst = await getOrCreateDailyState(testFid, testDate);
+      expect(stateAfterFirst.freeUsed).toBe(1);
+      expect(getFreeGuessesRemaining(stateAfterFirst)).toBe(0);
+
+      // Award share bonus so user has another guess
+      await awardShareBonus(testFid, testDate);
+      const stateWithBonus = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(stateWithBonus)).toBe(1); // 1 share bonus guess
+
+      // User A tries to guess 'house' again (duplicate - should be rejected)
+      const result2 = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(result2.status).toBe('already_guessed_word');
+
+      // Verify NO additional credit was consumed
+      const stateAfterDupe = await getOrCreateDailyState(testFid, testDate);
+      expect(stateAfterDupe.freeUsed).toBe(1); // Still 1, not 2!
+      expect(getFreeGuessesRemaining(stateAfterDupe)).toBe(1); // Still have share bonus
+
+      // Verify user can still make a valid guess with their remaining credit
+      const result3 = await submitGuessWithDailyLimits({ fid: testFid, word: 'table' });
+      expect(result3.status).toBe('incorrect');
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+
+    it('should NOT consume paid guess credit for duplicate guesses', async () => {
+      // Use free guess first
+      await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+
+      // Award a paid pack (3 credits)
+      await awardPaidPack(testFid, testDate);
+      const stateWithPack = await getOrCreateDailyState(testFid, testDate);
+      expect(stateWithPack.paidGuessCredits).toBe(3);
+
+      // Try to guess 'house' again with paid guess (duplicate - should be rejected)
+      const result = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(result.status).toBe('already_guessed_word');
+
+      // Verify NO paid credit was consumed
+      const stateAfterDupe = await getOrCreateDailyState(testFid, testDate);
+      expect(stateAfterDupe.paidGuessCredits).toBe(3); // Still 3, not 2!
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+
+    it('should NOT consume credit for invalid word submissions', async () => {
+      const stateBefore = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(stateBefore)).toBe(1);
+
+      // Try to guess an invalid word (not in dictionary)
+      const result = await submitGuessWithDailyLimits({ fid: testFid, word: 'zzzzz' });
+      expect(result.status).toBe('invalid_word');
+
+      // Verify NO credit was consumed
+      const stateAfterInvalid = await getOrCreateDailyState(testFid, testDate);
+      expect(stateAfterInvalid.freeUsed).toBe(0); // No guess consumed
+      expect(getFreeGuessesRemaining(stateAfterInvalid)).toBe(1);
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+
+    it('should handle cross-user duplicate guesses correctly', async () => {
+      const otherFid = testFid + 1;
+
+      // User A guesses 'house' (first guess in round)
+      const result1 = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(result1.status).toBe('incorrect');
+
+      // User A's credit consumed
+      const stateA = await getOrCreateDailyState(testFid, testDate);
+      expect(stateA.freeUsed).toBe(1);
+
+      // User B tries to guess 'house' (already guessed globally)
+      const result2 = await submitGuessWithDailyLimits({ fid: otherFid, word: 'house' });
+      expect(result2.status).toBe('already_guessed_word');
+
+      // User B's credit should NOT be consumed
+      const stateB = await getOrCreateDailyState(otherFid, testDate);
+      expect(stateB.freeUsed).toBe(0); // No credit consumed!
+      expect(getFreeGuessesRemaining(stateB)).toBe(1); // Still have their free guess
+
+      // User B can still make a valid guess
+      const result3 = await submitGuessWithDailyLimits({ fid: otherFid, word: 'phone' });
+      expect(result3.status).toBe('incorrect');
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+
+    it('should correctly consume credit only for valid, non-duplicate guesses', async () => {
+      // Start with share bonus for 2 total free guesses
+      await awardShareBonus(testFid, testDate);
+      const initialState = await getOrCreateDailyState(testFid, testDate);
+      expect(getFreeGuessesRemaining(initialState)).toBe(2); // 1 base + 1 share
+
+      // Guess 1: valid word -> should consume
+      const r1 = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(r1.status).toBe('incorrect');
+
+      // Attempt 2: duplicate -> should NOT consume
+      const r2 = await submitGuessWithDailyLimits({ fid: testFid, word: 'house' });
+      expect(r2.status).toBe('already_guessed_word');
+
+      // Attempt 3: invalid word -> should NOT consume
+      const r3 = await submitGuessWithDailyLimits({ fid: testFid, word: 'zzzzz' });
+      expect(r3.status).toBe('invalid_word');
+
+      // Check: should still have 1 guess remaining (only 1 consumed)
+      const midState = await getOrCreateDailyState(testFid, testDate);
+      expect(midState.freeUsed).toBe(1);
+      expect(getFreeGuessesRemaining(midState)).toBe(1);
+
+      // Guess 2: valid word -> should consume
+      const r4 = await submitGuessWithDailyLimits({ fid: testFid, word: 'phone' });
+      expect(r4.status).toBe('incorrect');
+
+      // Now out of guesses
+      const finalState = await getOrCreateDailyState(testFid, testDate);
+      expect(finalState.freeUsed).toBe(2);
+      expect(getFreeGuessesRemaining(finalState)).toBe(0);
+
+      // Clean up
+      await resolveRound(testRoundId, 99999);
+    });
+  });
 });
