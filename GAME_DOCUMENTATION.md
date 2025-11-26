@@ -1327,6 +1327,64 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
 - **Reduced Motion Support**: If `prefers-reduced-motion: reduce` is set, all animations snap instantly
 - **Result**: Typing "ABOUT" (small jump) and "READY" (large jump) now feel equally fast and snappy
 
+### Milestone 6.5: Unified Guess Bar UX
+- **Status**: ✅ Complete
+- **Goal**: Create a single-line, intuitive, fully transparent guess-status bar
+
+#### Overview
+The unified guess bar shows total guesses left and all sources at a glance:
+- **Left side**: "X guesses left today" (total remaining)
+- **Right side**: Source breakdown (e.g., "1 free · +2 CLANKTON · +1 share · +3 paid")
+
+#### Source Order (Consistent)
+1. **Free** - Base daily allocation (always 1)
+2. **CLANKTON** - Holder bonus (2-3 depending on market cap, only if holder)
+3. **Share** - Share bonus (1, only after sharing)
+4. **Paid** - Purchased packs (only if user has bought packs)
+
+#### Depletion Visualization
+- **Active sources**: Normal text with source-specific colors
+  - Free: Default text color
+  - CLANKTON: Purple (#7c3aed)
+  - Share: Blue (#2563eb)
+  - Paid: Blue (#2563eb)
+- **Consumed sources**: Faded opacity (40%) with strikethrough
+
+#### Source-Level State Tracking
+The system now tracks usage per source:
+```typescript
+interface GuessSourceState {
+  totalRemaining: number;
+  free: { total: number; used: number; remaining: number; };
+  clankton: { total: number; used: number; remaining: number; isHolder: boolean; };
+  share: { total: number; used: number; remaining: number; hasSharedToday: boolean; canClaimBonus: boolean; };
+  paid: { total: number; used: number; remaining: number; packsPurchased: number; maxPacksPerDay: number; canBuyMore: boolean; };
+}
+```
+
+#### Consumption Order
+When guesses are used, they are consumed in this order:
+1. Free (base) guesses first
+2. CLANKTON bonus guesses second
+3. Share bonus guesses third
+4. Paid guesses last
+
+#### Files Modified
+- `src/types/index.ts` - Added `GuessSourceState` interface
+- `src/lib/daily-limits.ts` - Added `getGuessSourceState()` function
+- `pages/api/user-state.ts` - Added `sourceState` to API response
+- `components/GuessBar.tsx` - New unified guess bar component
+- `components/UserState.tsx` - Updated to use GuessBar
+- `src/contexts/DevPersonaContext.tsx` - Added sourceState to personas
+
+#### Dev Mode Testing
+The dev persona switcher now includes sourceState overrides for testing:
+- **New Non-Holder**: 1 free, nothing used
+- **Engaged Non-Holder**: Free used, share available
+- **Non-Holder Out of Guesses**: All sources depleted
+- **CLANKTON Holder (Low/High Tier)**: With holder bonuses
+- **Maxed-Out Buyer**: All sources used including 9 paid guesses
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)
