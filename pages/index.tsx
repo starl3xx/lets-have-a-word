@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition } from 'react';
+import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
 import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
@@ -779,7 +779,7 @@ function GameContent() {
    * Get feedback message based on result
    * Returns variant and message for unified ResultBanner component
    */
-  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: string } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode } | null => {
     if (!result) return null;
 
     switch (result.status) {
@@ -792,7 +792,13 @@ function GameContent() {
       case 'incorrect':
         return {
           variant: 'error',
-          message: `Incorrect. You've made ${result.totalGuessesForUserThisRound} guess${result.totalGuessesForUserThisRound === 1 ? '' : 'es'} this round.`,
+          message: (
+            <>
+              <span>Incorrect! </span>
+              <span className="text-gray-600 font-semibold">{result.word}</span>
+              <span> is not the secret word.</span>
+            </>
+          ),
         };
 
       case 'already_guessed_word':
