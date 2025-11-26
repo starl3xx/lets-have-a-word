@@ -779,7 +779,7 @@ function GameContent() {
    * Get feedback message based on result
    * Returns variant and message for unified ResultBanner component
    */
-  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode } | null => {
     if (!result) return null;
 
     switch (result.status) {
@@ -792,10 +792,11 @@ function GameContent() {
       case 'incorrect':
         return {
           variant: 'error',
+          icon: null,
           message: (
             <>
               <span>Incorrect! </span>
-              <span className="text-gray-600 font-semibold">{result.word}</span>
+              <span className="font-bold">{result.word}</span>
               <span> is not the secret word.</span>
             </>
           ),
@@ -1046,6 +1047,7 @@ function GameContent() {
                   <ResultBanner
                     variant={feedback.variant}
                     message={feedback.message}
+                    icon={feedback.icon}
                   />
                 )}
               </div>
