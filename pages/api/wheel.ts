@@ -52,7 +52,7 @@ export default async function handler(
   try {
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning wheel words with real DB statuses');
+      console.log('🎮 Dev mode: Returning wheel words with real DB statuses + seeded wrong words');
 
       const solution = getDevFixedSolution().toUpperCase();
       console.log(`🎮 Dev mode solution: ${solution}`);
@@ -60,14 +60,32 @@ export default async function handler(
       // Get all guess words to build the full wheel
       const allGuessWords = getGuessWords();
 
-      // IMPORTANT: In dev mode, we still need to fetch REAL wrong guesses from the database
+      // IMPORTANT: In dev mode, fetch REAL wrong guesses from the database
       // This ensures the wheel reflects actual guesses made during the session
       const wheelData = await getActiveWheelData();
 
-      // If we got real data, use it (this has actual wrong guesses from DB)
+      // Generate seeded wrong words (20% of wheel for visual testing)
+      const seededWrongWords = getDevModeSeededWrongWords(allGuessWords, solution);
+
+      // If we got real data, MERGE seeded wrong words into it
       if (wheelData.words && wheelData.words.length > 0) {
-        console.log(`🎮 Dev mode: Using real wheel data with ${wheelData.words.filter(w => w.status === 'wrong').length} wrong guesses`);
-        return res.status(200).json(wheelData);
+        const realWrongCount = wheelData.words.filter(w => w.status === 'wrong').length;
+
+        // Merge seeded wrong words: mark seeded words as 'wrong' if currently 'unguessed'
+        const mergedWords = wheelData.words.map(w => {
+          if (w.status === 'unguessed' && seededWrongWords.has(w.word)) {
+            return { ...w, status: 'wrong' as WheelWordStatus };
+          }
+          return w;
+        });
+
+        const totalWrongCount = mergedWords.filter(w => w.status === 'wrong').length;
+        console.log(`🎮 Dev mode: Merged ${realWrongCount} real + ${seededWrongWords.size} seeded = ${totalWrongCount} total wrong guesses`);
+
+        return res.status(200).json({
+          ...wheelData,
+          words: mergedWords,
+        });
       }
 
       // Fallback: Build synthetic wheel if no DB data available
@@ -88,7 +106,6 @@ export default async function handler(
       }
 
       // Milestone 4.14: Add seeded wrong words for dev mode (20% pre-population)
-      const seededWrongWords = getDevModeSeededWrongWords(allGuessWords, solution);
       seededWrongWords.forEach(word => wrongGuessSet.add(word));
 
       // Check if we should show the winner (for testing post-win state)
