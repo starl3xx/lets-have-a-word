@@ -77,6 +77,10 @@ function GameContent() {
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
   const [wheelStartIndex, setWheelStartIndex] = useState<number | null>(null);
 
+  // Milestone 6.7.1: Track wrong guess count to skip unnecessary updates
+  const lastWrongGuessCountRef = useRef<number>(0);
+  const WRONG_GUESS_POLL_INTERVAL_MS = 60000; // 60 seconds
+
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
 
@@ -287,6 +291,58 @@ function GameContent() {
 
     fetchWheelWords();
   }, []); // Fetch once on mount - API handles all state derivation
+
+  /**
+   * Milestone 6.7.1: Poll for wrong guess updates every 60 seconds
+   * This allows users to see other players' wrong guesses in near-real-time
+   * without the bandwidth cost of fetching the full wheel
+   */
+  useEffect(() => {
+    const pollWrongGuesses = async () => {
+      try {
+        const response = await fetch('/api/wheel/wrong-guesses');
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        // Skip processing if count hasn't changed
+        if (data.count === lastWrongGuessCountRef.current) {
+          return;
+        }
+
+        lastWrongGuessCountRef.current = data.count;
+
+        // Build a Set for O(1) lookup
+        const wrongGuessSet = new Set<string>(data.wrongGuesses);
+
+        // Update wheel words with new wrong statuses
+        setWheelWords(prevWords => {
+          if (prevWords.length === 0) return prevWords;
+
+          let hasChanges = false;
+          const updatedWords = prevWords.map(word => {
+            // Only update unguessed words to wrong (don't override winner)
+            if (word.status === 'unguessed' && wrongGuessSet.has(word.word)) {
+              hasChanges = true;
+              return { ...word, status: 'wrong' as const };
+            }
+            return word;
+          });
+
+          return hasChanges ? updatedWords : prevWords;
+        });
+      } catch (error) {
+        // Silently fail - polling is best-effort
+        console.debug('Wrong guess poll failed:', error);
+      }
+    };
+
+    // Start polling after a short delay (don't poll immediately on mount)
+    const intervalId = setInterval(pollWrongGuesses, WRONG_GUESS_POLL_INTERVAL_MS);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Track whether this is the first user state fetch (for dev mode reset)
   const isFirstUserStateFetchRef = useRef(true);
