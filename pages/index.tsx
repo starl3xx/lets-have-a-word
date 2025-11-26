@@ -792,6 +792,17 @@ function GameContent() {
         setBoxResultState('wrong');
         if (data.status === 'already_guessed_word') {
           triggerShake();
+
+          // Milestone 6.7.1: Immediately update wheel to show this word as wrong
+          // This fixes the sync issue where another user guessed it before our poll updated
+          setWheelWords(prevWords => {
+            const wordUpper = word.toUpperCase();
+            return prevWords.map(w =>
+              w.word === wordUpper && w.status === 'unguessed'
+                ? { ...w, status: 'wrong' as const }
+                : w
+            );
+          });
         }
 
         // Milestone 6.7.1: Start incorrect state machine for incorrect guesses

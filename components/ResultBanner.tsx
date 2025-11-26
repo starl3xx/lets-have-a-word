@@ -178,23 +178,34 @@ const ResultBanner = memo(function ResultBanner({
 
   return (
     <div
-      className={`
-        ${styles.container}
-        border-2 rounded-lg p-3 shadow-sm
-        transition-all duration-300
-        flex items-center justify-center gap-2
-      `}
+      className="relative rounded-lg overflow-hidden"
       style={{
-        opacity: visible ? (faded ? 0.7 : 1) : 0,
-        filter: faded ? 'blur(4px)' : 'none',
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 300ms',
       }}
       role="status"
       aria-live="polite"
     >
-      {displayIcon && <span className="flex-shrink-0">{displayIcon}</span>}
-      <p className={`${styles.text} text-center text-sm font-medium`}>
-        {message}
-      </p>
+      {/* Background layer - blur and opacity apply here only */}
+      <div
+        className={`
+          absolute inset-0
+          ${styles.container}
+          border-2 rounded-lg
+        `}
+        style={{
+          opacity: faded ? 0.7 : 1,
+          filter: faded ? 'blur(4px)' : 'none',
+          transition: 'opacity 300ms, filter 300ms',
+        }}
+      />
+      {/* Content layer - always sharp */}
+      <div className="relative p-3 flex items-center justify-center gap-2">
+        {displayIcon && <span className="flex-shrink-0">{displayIcon}</span>}
+        <p className={`${styles.text} text-center text-sm font-medium`}>
+          {message}
+        </p>
+      </div>
     </div>
   );
 });
