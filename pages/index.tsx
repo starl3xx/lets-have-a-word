@@ -909,10 +909,10 @@ function GameContent() {
         };
 
       case 'already_guessed_word':
-        // Treat duplicate guesses as errors, not warnings
-        // This matches the client-side validation behavior
+        // Duplicate guesses show as warning (yellow) to match client-side validation
+        // Red is reserved for incorrect guesses (words that were wrong)
         return {
-          variant: 'error',
+          variant: 'warning',
           message: 'Already guessed this round',
         };
 

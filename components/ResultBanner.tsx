@@ -104,7 +104,7 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
   // Milestone 6.7.1: Faded state overrides normal error styling
   if (faded) {
     return {
-      container: 'bg-gray-50 border-gray-200',
+      container: 'bg-gray-50 border-gray-400',
       text: 'text-gray-500',
     };
   }
@@ -171,9 +171,9 @@ const ResultBanner = memo(function ResultBanner({
 }: ResultBannerProps) {
   const styles = getVariantStyles(variant, faded);
 
-  // Milestone 6.7.1: Use faded icon when in faded state, otherwise use provided or default
+  // Milestone 6.7.1: No icon when in faded state, otherwise use provided or default
   const displayIcon = faded
-    ? <FadedIcon />
+    ? null
     : (icon !== undefined ? icon : getDefaultIcon(variant));
 
   return (
@@ -186,6 +186,7 @@ const ResultBanner = memo(function ResultBanner({
       `}
       style={{
         opacity: visible ? (faded ? 0.7 : 1) : 0,
+        filter: faded ? 'blur(4px)' : 'none',
       }}
       role="status"
       aria-live="polite"
