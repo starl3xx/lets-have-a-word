@@ -173,6 +173,66 @@ export interface GameStateResponse {
 }
 
 /**
+ * XP Event Types
+ * Milestone 6.7: Event-sourced XP tracking system
+ *
+ * All possible XP event types that can be recorded.
+ * Some events are tracked but don't award XP (xpAmount = 0) for future use.
+ */
+export type XpEventType =
+  | 'DAILY_PARTICIPATION'   // +10 XP for first valid guess of the day
+  | 'GUESS'                 // +2 XP per valid guess
+  | 'WIN'                   // +2500 XP for winning the round
+  | 'TOP_TEN_GUESSER'       // +50 XP for being in top 10 at round resolution
+  | 'REFERRAL_FIRST_GUESS'  // +20 XP when referred user makes first guess
+  | 'STREAK_DAY'            // +15 XP for consecutive day playing
+  | 'NEAR_MISS'             // 0 XP (tracked for future use)
+  | 'CLANKTON_BONUS_DAY'    // +10 XP per day for CLANKTON holders
+  | 'SHARE_CAST'            // +15 XP for sharing to Farcaster
+  | 'PACK_PURCHASE';        // +20 XP per pack purchase
+
+/**
+ * XP Event
+ * Milestone 6.7: Represents a single XP-earning event
+ */
+export interface XpEvent {
+  id: number;
+  fid: number;
+  roundId?: number | null;
+  eventType: XpEventType;
+  xpAmount: number;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+/**
+ * XP Configuration
+ * Milestone 6.7: XP values for each event type (v1 defaults)
+ */
+export const XP_VALUES: Record<XpEventType, number> = {
+  DAILY_PARTICIPATION: 10,
+  GUESS: 2,
+  WIN: 2500,
+  TOP_TEN_GUESSER: 50,
+  REFERRAL_FIRST_GUESS: 20,
+  STREAK_DAY: 15,
+  NEAR_MISS: 0,           // Tracked only, no XP in v1
+  CLANKTON_BONUS_DAY: 10,
+  SHARE_CAST: 15,
+  PACK_PURCHASE: 20,
+};
+
+/**
+ * XP Summary Response
+ * Milestone 6.7: Response type for XP API endpoint
+ */
+export interface XpSummaryResponse {
+  fid: number;
+  totalXp: number;
+  recentEvents?: XpEvent[];  // Only in dev mode
+}
+
+/**
  * Guess Source State
  * Milestone 6.5: Per-source tracking for unified guess bar
  *

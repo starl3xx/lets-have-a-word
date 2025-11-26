@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { awardPaidPack, getOrCreateDailyState, getTodayUTC, DAILY_LIMITS_RULES } from '../../src/lib/daily-limits';
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 import { getActiveRound } from '../../src/lib/rounds';
+import { logXpEvent } from '../../src/lib/xp';
 
 /**
  * POST /api/purchase-guess-pack
@@ -77,6 +78,17 @@ export default async function handler(
         total_credits: updatedState.paidGuessCredits,
       },
     });
+
+    // Milestone 6.7: Award PACK_PURCHASE XP (+20 XP per pack, fire-and-forget)
+    for (let i = 0; i < packCount; i++) {
+      logXpEvent(fid, 'PACK_PURCHASE', {
+        roundId: activeRound?.id,
+        metadata: {
+          pack_number: currentState.paidPacksPurchased + i + 1,
+          total_packs_today: updatedState.paidPacksPurchased,
+        },
+      });
+    }
 
     console.log(
       `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s). ` +

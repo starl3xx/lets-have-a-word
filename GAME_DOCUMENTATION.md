@@ -17,7 +17,8 @@
 14. [Share-for-Free-Guess](#share-for-free-guess)
 15. [CLANKTON Holder Bonus](#clankton-holder-bonus)
 16. [Referral System](#referral-system)
-17. [UX Design Guidelines](#ux-design-guidelines)
+17. [XP & Progression (v1)](#xp--progression-v1)
+18. [UX Design Guidelines](#ux-design-guidelines)
 
 ---
 
@@ -2872,6 +2873,161 @@ Get referral statistics.
   ]
 }
 ```
+
+---
+
+## XP & Progression (v1)
+
+### Overview
+
+The XP system tracks player engagement and progression using an **event-sourced model**. Each XP-earning action creates a row in the `xp_events` table, allowing for flexible future features like breakdowns, streaks, and leaderboards.
+
+**v1 Scope:**
+- Backend tracks all XP events
+- UI shows **Total XP only** in the Stats sheet
+- Future milestones will add detailed XP views
+
+### XP Event Types & Values
+
+| Event Type | XP | Description |
+|------------|-----|-------------|
+| `DAILY_PARTICIPATION` | +10 | First valid guess of the day |
+| `GUESS` | +2 | Each valid guess (free or paid) |
+| `WIN` | +2,500 | Correctly guessing the secret word |
+| `TOP_TEN_GUESSER` | +50 | Top 10 placement at round resolution |
+| `REFERRAL_FIRST_GUESS` | +20 | Referrer earns when referred user makes first guess |
+| `STREAK_DAY` | +15 | Each consecutive day playing (after day 1) |
+| `CLANKTON_BONUS_DAY` | +10 | CLANKTON holder (100M+) daily participation |
+| `SHARE_CAST` | +15 | Sharing to Farcaster (once per day) |
+| `PACK_PURCHASE` | +20 | Each guess pack purchased |
+| `NEAR_MISS` | 0 | Tracked for future use (Hamming distance 1-2) |
+
+### Database Schema
+
+```sql
+CREATE TABLE xp_events (
+  id SERIAL PRIMARY KEY,
+  fid INTEGER NOT NULL,
+  round_id INTEGER,
+  event_type VARCHAR(50) NOT NULL,
+  xp_amount INTEGER NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+**Indexes:**
+- `(fid, created_at DESC)` — Fast per-user XP queries
+- `(round_id)` — Round-specific XP lookups
+- `(event_type)` — Event type analytics
+
+### Integration Points
+
+XP events are logged at these code locations:
+
+1. **Guess Submission** (`src/lib/daily-limits.ts`)
+   - GUESS: On every valid guess
+   - DAILY_PARTICIPATION: First guess of the day
+   - CLANKTON_BONUS_DAY: First participation for CLANKTON holders
+   - STREAK_DAY: If played yesterday
+   - WIN: On correct guess
+
+2. **Round Resolution** (`src/lib/economics.ts`)
+   - TOP_TEN_GUESSER: For each top 10 guesser
+
+3. **Referral Activation** (`src/lib/xp.ts`)
+   - REFERRAL_FIRST_GUESS: When referred user makes first-ever guess
+
+4. **Share Bonus** (`src/lib/daily-limits.ts`)
+   - SHARE_CAST: When share bonus is awarded
+
+5. **Pack Purchase** (`pages/api/purchase-guess-pack.ts`)
+   - PACK_PURCHASE: For each pack purchased
+
+### API Endpoints
+
+#### `GET /api/user/xp?fid={fid}`
+
+Get total XP for a user.
+
+**Response:**
+```json
+{
+  "fid": 12345,
+  "totalXp": 1250
+}
+```
+
+**Dev Mode Response** (when `LHAW_DEV_MODE=true`):
+```json
+{
+  "fid": 12345,
+  "totalXp": 1250,
+  "breakdown": {
+    "DAILY_PARTICIPATION": 100,
+    "GUESS": 500,
+    "WIN": 0,
+    "TOP_TEN_GUESSER": 150,
+    ...
+  },
+  "recentEvents": [
+    { "id": 1, "eventType": "GUESS", "xpAmount": 2, "createdAt": "..." }
+  ]
+}
+```
+
+#### `GET /api/admin/xp-debug?fid={fid}` (Dev Mode Only)
+
+Comprehensive XP debugging information.
+
+**Response:**
+```json
+{
+  "devMode": true,
+  "userXp": { ... },
+  "globalStats": {
+    "totalXpAwarded": 125000,
+    "totalEvents": 5000,
+    "eventsByType": { ... },
+    "topEarners": [ ... ],
+    "recentGlobalEvents": [ ... ]
+  }
+}
+```
+
+### UI Display
+
+**Stats Sheet** (`components/StatsSheet.tsx`):
+- Total XP displayed with thousands separator
+- "How to earn XP" section with all XP values
+- Loading placeholder (`—`) until data loads
+
+### Development & Debugging
+
+**Environment Variables:**
+- `XP_DEBUG=true` — Enable verbose XP console logging
+- `LHAW_DEV_MODE=true` — Enable dev-only XP endpoints and extended responses
+
+**Verification Queries:**
+```sql
+-- Get total XP for a user
+SELECT COALESCE(SUM(xp_amount), 0) FROM xp_events WHERE fid = 12345;
+
+-- Get XP breakdown by type
+SELECT event_type, SUM(xp_amount) FROM xp_events WHERE fid = 12345 GROUP BY event_type;
+
+-- Get recent events
+SELECT * FROM xp_events WHERE fid = 12345 ORDER BY created_at DESC LIMIT 20;
+```
+
+### Future Milestones
+
+The event-sourced design supports:
+- XP breakdown views (per-source, per-round)
+- Streak callouts and badges
+- XP leaderboards (daily, weekly, all-time)
+- XP-based cosmetics or game modes
+- Achievement system based on XP milestones
 
 ---
 
