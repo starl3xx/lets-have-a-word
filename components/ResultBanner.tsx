@@ -100,35 +100,41 @@ const FadedIcon = () => (
 function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false): {
   container: string;
   text: string;
+  bgColor: string; // Semi-transparent background for backdrop blur effect
 } {
   // Milestone 6.7.1: Faded state overrides normal error styling
   if (faded) {
     return {
-      container: 'bg-gray-50 border-gray-400',
+      container: 'border-gray-400',
       text: 'text-gray-500',
+      bgColor: 'rgba(249, 250, 251, 0.85)', // gray-50 with transparency
     };
   }
 
   switch (variant) {
     case 'error':
       return {
-        container: 'bg-red-50 border-red-300',
+        container: 'border-red-300',
         text: 'text-red-700',
+        bgColor: 'rgba(254, 242, 242, 0.85)', // red-50 with transparency
       };
     case 'warning':
       return {
-        container: 'bg-amber-50 border-amber-300',
+        container: 'border-amber-300',
         text: 'text-amber-700',
+        bgColor: 'rgba(255, 251, 235, 0.85)', // amber-50 with transparency
       };
     case 'success':
       return {
-        container: 'bg-green-50 border-green-300',
+        container: 'border-green-300',
         text: 'text-green-700',
+        bgColor: 'rgba(240, 253, 244, 0.85)', // green-50 with transparency
       };
     default:
       return {
-        container: 'bg-gray-50 border-gray-300',
+        container: 'border-gray-300',
         text: 'text-gray-700',
+        bgColor: 'rgba(249, 250, 251, 0.85)', // gray-50 with transparency
       };
   }
 }
@@ -178,34 +184,24 @@ const ResultBanner = memo(function ResultBanner({
 
   return (
     <div
-      className="relative rounded-lg overflow-hidden"
+      className={`
+        ${styles.container}
+        border-2 rounded-lg p-3
+        flex items-center justify-center gap-2
+        backdrop-blur-sm
+      `}
       style={{
-        opacity: visible ? 1 : 0,
+        opacity: visible ? (faded ? 0.7 : 1) : 0,
         transition: 'opacity 300ms',
+        backgroundColor: styles.bgColor,
       }}
       role="status"
       aria-live="polite"
     >
-      {/* Background layer - blur and opacity apply here only */}
-      <div
-        className={`
-          absolute inset-0
-          ${styles.container}
-          border-2 rounded-lg
-        `}
-        style={{
-          opacity: faded ? 0.7 : 1,
-          filter: faded ? 'blur(4px)' : 'none',
-          transition: 'opacity 300ms, filter 300ms',
-        }}
-      />
-      {/* Content layer - always sharp */}
-      <div className="relative p-3 flex items-center justify-center gap-2">
-        {displayIcon && <span className="flex-shrink-0">{displayIcon}</span>}
-        <p className={`${styles.text} text-center text-sm font-medium`}>
-          {message}
-        </p>
-      </div>
+      {displayIcon && <span className="flex-shrink-0">{displayIcon}</span>}
+      <p className={`${styles.text} text-center text-sm font-medium`}>
+        {message}
+      </p>
     </div>
   );
 });
