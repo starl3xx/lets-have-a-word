@@ -11,11 +11,114 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.4 Complete
+## 🎯 Current Status: Milestone 6.4.7 Complete
 
 All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, and UI polish are fully implemented and production-ready:
 
-### ✅ Milestone 6.4 - UI Polish & Interaction Refinements (Latest)
+### ✅ Milestone 6.4.7 - Dev Mode Persona Switcher (Latest)
+
+Added a client-side persona switcher for QA testing different user states without modifying the database:
+
+- **Dev Persona Panel**: Slide-out drawer for selecting test personas
+- **Persona Button**: "DEV" pill in top-right (pulsing "DEV*" when override active)
+- **7 Predefined Personas**:
+  - Real State (no overrides)
+  - New Non-Holder (1 free guess, share available)
+  - Engaged Non-Holder (share bonus available, no guesses)
+  - Non-Holder Out of Guesses (share used, no guesses)
+  - CLANKTON Holder Low Tier (+2 bonus guesses)
+  - CLANKTON Holder High Tier (+3 bonus guesses)
+  - Maxed-Out Buyer (max packs, share used, no guesses)
+- **Reset Button**: Clear overrides and return to real API state
+- **Environment**: Only visible when `NEXT_PUBLIC_LHAW_DEV_MODE=true`
+
+### ✅ Milestone 6.4.6 - First Input Lag Optimization
+
+Optimized first keystroke response for instant feedback:
+
+- **Fast Path Handling**: Bypass hook overhead for common input cases
+- **Skip Redundant State Updates**: Only call setters when values change
+- **Targeted CSS Transitions**: Only animate border-color and box-shadow
+- **Deferred Wheel Updates**: Use `requestIdleCallback` for wheel positioning
+
+### ✅ Milestone 6.4.5 - Wheel Jump UX: Uniform Perceived Speed
+
+Fixed the "big jump feels slower" issue where large letter jumps (D→R) felt heavier than small jumps (D→E):
+
+- **Two-Mode Animation** based on row distance:
+  - **Small Jumps** (≤10 rows): Smooth scroll with fixed 150ms duration
+  - **Large Jumps** (>10 rows): "Teleport + Settle" - instant snap near target, then animate final 3 rows
+
+- **Teleport + Settle Approach**:
+  - Instantly snap to 3 rows before target (no visible long scroll)
+  - Animate the final 3 rows with same 150ms duration
+  - User never sees "train ride" scroll - just quick snap + small settle
+
+- **Uniform Perceived Speed**:
+  - Typing "ABOUT" (A-words, small jump) feels same as "READY" (R-words, large jump)
+  - All visible animations use fixed 150ms duration
+  - No more distance-based duration scaling
+
+- **Accessibility**: Respects `prefers-reduced-motion` - snaps instantly if enabled
+
+- **Configuration** (`components/Wheel.tsx`):
+  - `JUMP_THRESHOLD = 10` rows
+  - `SETTLE_ROWS = 3` rows
+  - `ANIMATION_DURATION_UNIFORM = 150` ms
+
+### ✅ Milestone 6.4.4 - Unified Result Banner System
+
+Replaced ad-hoc result banners with a unified, consistent ResultBanner component:
+
+- **ResultBanner Component** (`components/ResultBanner.tsx`)
+  - Three variants: `error`, `warning`, `success`
+  - Consistent layout across all banner types
+  - Theme-appropriate colors (red/amber/green)
+  - SVG icons for error/warning, emoji (🎉) for success
+  - Accessibility: `role="status"` and `aria-live="polite"`
+
+- **Banner Messages Updated**
+  - Incorrect: "Incorrect. You've made N guess(es) this round." (error)
+  - Already guessed: "Already guessed this round." (warning)
+  - Not a valid word: "Not a valid word" (warning)
+  - Winner: "Correct! You found the word \"[WORD]\" and won this round!" (success)
+
+- **No Emojis for Error/Warning**
+  - Error uses red X icon
+  - Warning uses amber triangle icon
+  - Only success banner keeps 🎉 emoji
+
+### ✅ Milestone 6.4.3 - Input & Word Wheel Performance Audit
+
+Comprehensive performance audit and optimization pass to make the guessing experience feel instant and "buttery smooth" on every device:
+
+- **Memoized Input Boxes**
+  - Individual letter boxes wrapped in `React.memo` (`GuessSlot` component)
+  - Each slot only re-renders when its own props change
+  - Eliminates "gray then black" flicker on first input box
+  - Visual state computed once per render, not per-slot
+  - Component: `LetterBoxes.tsx` (updated)
+
+- **Performance Debugging Tools**
+  - New utility: `src/lib/perf-debug.ts`
+  - Enable via `NEXT_PUBLIC_PERF_DEBUG=true`
+  - Measures keydown-to-paint timing for input boxes
+  - Measures keydown-to-wheel-animation timing
+  - `ExtremeJumpTests` constants for A↔Z rotation testing
+  - `devLog()` / `perfLog()` utilities for gated console output
+
+- **Wheel Component Optimizations**
+  - Console.log statements gated behind dev mode checks
+  - Performance logs only appear when PERF_DEBUG enabled
+  - Animation timing logged for debugging wheel responsiveness
+  - Component: `Wheel.tsx` (updated)
+
+- **Verified Behaviors**
+  - Tap/focus rules preserved: empty row focuses first box, partial/full rows ignore taps
+  - Dev mode wheel start index changes on every refresh (for testing)
+  - Production wheel start index stable per-day-per-user
+
+### ✅ Milestone 6.4 - UI Polish & Interaction Refinements
 
 Improved core game feel and responsiveness with focus on input behavior and animation performance:
 

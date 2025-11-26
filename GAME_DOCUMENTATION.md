@@ -705,6 +705,45 @@ Located in `/src/data/test-word-lists.ts`:
 - All lowercase, 5 letters
 - No overlap between answer/seed
 
+### Dev Mode Persona Switcher (Milestone 6.4.7)
+
+A client-side tool for QA testing different user states without modifying the database.
+
+**Enabling:**
+```bash
+# Add to .env.local
+NEXT_PUBLIC_LHAW_DEV_MODE=true
+```
+
+**Usage:**
+1. Look for the "DEV" pill button in the top-right corner
+2. Click to open the persona panel
+3. Select a persona to override user state
+4. Button shows "DEV*" (pulsing) when override is active
+5. Click "Reset to Real State" to clear overrides
+
+**Available Personas:**
+
+| Persona | Description |
+|---------|-------------|
+| Real State | Use actual API data (no overrides) |
+| New Non-Holder | 1 free guess, share available, no CLANKTON |
+| Engaged Non-Holder | Share bonus available, no guesses left |
+| Non-Holder Out of Guesses | Share used, no guesses, no packs bought |
+| CLANKTON Holder (Low Tier) | +2 bonus guesses, share available |
+| CLANKTON Holder (High Tier) | +3 bonus guesses, share available |
+| Maxed-Out Buyer | Max packs bought, share used, no guesses |
+
+**Key Files:**
+- `src/contexts/DevPersonaContext.tsx` - State management and personas
+- `components/DevPersonaPanel.tsx` - UI component
+- Integration in `pages/index.tsx`
+
+**Notes:**
+- Overrides are client-side only; they don't affect the database
+- Overrides persist during the session until manually reset
+- When a persona is active, the user state is re-fetched with overrides applied
+
 ---
 
 ## UI/UX Patterns
@@ -1197,6 +1236,96 @@ await sdk.actions.openUrl({
 - CLANKTON Oracle integration for real-time holder verification
 - Multi-wallet support for CLANKTON balance checking
 - Enhanced round management with on-chain verification
+
+### Milestone 6.4: Input & Word Wheel Performance Audit
+- **Status**: ✅ Complete
+- **Goal**: Make the main guessing experience feel instant and "buttery smooth" on every device
+
+#### 6.4.1 - 6.4.2: Responsive Input (Previously Completed)
+- **useTransition Integration**: Separates urgent input updates from low-priority wheel updates
+- **Split State Architecture**:
+  - `currentWord` → Used by input boxes (urgent, high priority)
+  - `wheelCurrentGuess` → Used by wheel (deferred, low priority)
+- **Execution Flow**:
+  1. User types
+  2. Input boxes render immediately (high priority)
+  3. Browser paints input
+  4. Wheel updates as transition (low priority)
+
+#### 6.4.3: Performance Audit & Optimization
+- **Memoized GuessSlot Component** (`components/LetterBoxes.tsx`):
+  - Individual letter boxes wrapped in `React.memo`
+  - Each slot only re-renders when its own props change
+  - Eliminates "gray then black" flicker on first input box
+  - Minimal prop surface: `letter`, `index`, `visualState`, `showReadyGlow`, `isLockedState`, `cursorType`
+  - Visual state computed once per render, not per-slot
+- **Performance Debugging Tools** (`src/lib/perf-debug.ts`):
+  - Enable via `NEXT_PUBLIC_PERF_DEBUG=true`
+  - `markKeydown()` / `markInputPainted()` for input timing
+  - `logWheelAnimationStart()` / `logWheelAnimationEnd()` for wheel timing
+  - Measures keydown-to-paint and keydown-to-wheel-animation times
+  - `ExtremeJumpTests` for testing A↔Z wheel rotations
+- **Wheel Component Optimizations** (`components/Wheel.tsx`):
+  - Console.log statements gated behind `devLog()` utility
+  - Performance logs use `perfLog()` (only when PERF_DEBUG enabled)
+  - Animation timing logged for debugging
+- **Tap/Focus Behavior Rules** (Preserved):
+  - Empty row: Tapping any box focuses first box
+  - Partial/full row: Tapping does nothing
+  - Error/red state: Tapping does nothing
+  - Locked states (SUBMITTING, OUT_OF_GUESSES, RESULT_CORRECT): All interaction blocked
+- **Dev Mode Wheel Start Index** (Verified):
+  - Production: Stable per-day-per-user from database
+  - Dev mode: Fresh random on every page load for testing
+
+#### Performance Metrics
+- Input boxes re-render only affected slot (not all 5)
+- Wheel animation capped at 100-250ms regardless of distance
+- Virtual scrolling renders ~100 words instead of 10,516
+- Binary search O(log n) for alphabetical positioning
+
+#### Environment Variables
+```bash
+# Enable performance debugging logs
+NEXT_PUBLIC_PERF_DEBUG=true
+
+# Slow down wheel animations 3x for debugging
+NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
+```
+
+#### 6.4.4: Unified Result Banner System
+- **ResultBanner Component** (`components/ResultBanner.tsx`):
+  - Three variants: `error`, `warning`, `success`
+  - Consistent layout: All banners share identical padding, border radius, typography
+  - Theme-appropriate colors:
+    - Error (red): Incorrect guesses, validation failures
+    - Warning (amber): Already guessed words, "Not a valid word"
+    - Success (green): Winner announcements
+  - Icon handling:
+    - Error: Red X icon (no emoji)
+    - Warning: Amber warning triangle icon (no emoji)
+    - Success: 🎉 emoji allowed
+  - Accessibility: Uses `role="status"` and `aria-live="polite"`
+- **Banner Messages**:
+  - Incorrect: "Incorrect. You've made N guess(es) this round."
+  - Already guessed: "Already guessed this round." (warning)
+  - Not a valid word: "Not a valid word" (warning)
+  - Winner: "Correct! You found the word \"[WORD]\" and won this round!"
+
+#### 6.4.5: Wheel Jump UX - Uniform Perceived Speed
+- **Problem**: Large letter jumps (e.g., D→R) felt slower than small jumps (D→E) even with capped duration, because the wheel visibly scrolled through many rows.
+- **Solution**: Two-mode animation based on row distance:
+  - **Small Jumps** (≤10 rows): Smooth scroll animation with fixed 150ms duration
+  - **Large Jumps** (>10 rows): "Teleport + Settle" approach:
+    1. Instantly snap to 3 rows before target (no visible scroll)
+    2. Animate the final 3 rows with same 150ms duration
+    3. User never sees long "train ride" scroll - just quick snap + small settle
+- **Configuration** (`components/Wheel.tsx`):
+  - `JUMP_THRESHOLD = 10` - rows threshold for large jump detection
+  - `SETTLE_ROWS = 3` - rows to animate after teleport
+  - `ANIMATION_DURATION_UNIFORM = 150` - fixed duration for all visible animations
+- **Reduced Motion Support**: If `prefers-reduced-motion: reduce` is set, all animations snap instantly
+- **Result**: Typing "ABOUT" (small jump) and "READY" (large jump) now feel equally fast and snappy
 
 ### Planned / Future Enhancements
 - **Status**: Wishlist
