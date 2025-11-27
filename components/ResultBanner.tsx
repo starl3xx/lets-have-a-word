@@ -119,21 +119,21 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
       return {
         container: 'border-red-300',
         text: 'text-red-700',
-        bgColor: 'rgba(254, 242, 242, 0.6)', // red-50 frosted glass
+        bgColor: 'rgba(254, 242, 242, 0.3)', // red-50 frosted glass
         blurClass: 'backdrop-blur-md',
       };
     case 'warning':
       return {
         container: 'border-amber-300',
         text: 'text-amber-700',
-        bgColor: 'rgba(255, 251, 235, 0.6)', // amber-50 frosted glass
+        bgColor: 'rgba(255, 251, 235, 0.3)', // amber-50 frosted glass
         blurClass: 'backdrop-blur-md',
       };
     case 'success':
       return {
         container: 'border-green-300',
         text: 'text-green-700',
-        bgColor: 'rgba(240, 253, 244, 0.6)', // green-50 frosted glass
+        bgColor: 'rgba(240, 253, 244, 0.3)', // green-50 frosted glass
         blurClass: 'backdrop-blur-md',
       };
     default:
