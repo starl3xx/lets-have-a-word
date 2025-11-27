@@ -16,6 +16,9 @@ import { createCommitment } from './commit-reveal';
 /**
  * Ensure a game rule exists for dev mode rounds
  * Creates one if it doesn't exist, returns the ID
+ *
+ * Note: Uses try/catch to handle race conditions where multiple requests
+ * try to create the same row simultaneously (unique constraint on name).
  */
 async function ensureDevGameRule(): Promise<number> {
   // Check if any game rule exists
@@ -30,29 +33,47 @@ async function ensureDevGameRule(): Promise<number> {
 
   // Create a default game rule for dev mode
   console.log('🎮 Dev mode: Creating default game rule');
-  const [newRule] = await db
-    .insert(gameRules)
-    .values({
-      name: 'dev_default',
-      config: {
-        freeGuessesPerDay: 1,
-        paidGuessPackSize: 3,
-        paidGuessPackPriceEth: '0.0003',
-        maxPaidPacksPerDay: 3,
-        clanktonBonusGuesses: 2,
-        clanktonBonusThreshold: 100000000,
-        shareBonusGuesses: 1,
-        prizePoolSplit: {
-          winner: 0.8,
-          referrer: 0.1,
-          topGuessers: 0.1,
+  try {
+    const [newRule] = await db
+      .insert(gameRules)
+      .values({
+        name: 'dev_default',
+        config: {
+          freeGuessesPerDay: 1,
+          paidGuessPackSize: 3,
+          paidGuessPackPriceEth: '0.0003',
+          maxPaidPacksPerDay: 3,
+          clanktonBonusGuesses: 2,
+          clanktonBonusThreshold: 100000000,
+          shareBonusGuesses: 1,
+          prizePoolSplit: {
+            winner: 0.8,
+            referrer: 0.1,
+            topGuessers: 0.1,
+          },
         },
-      },
-    })
-    .returning();
+      })
+      .returning();
 
-  console.log(`🎮 Dev mode: Created game rule with id=${newRule.id}`);
-  return newRule.id;
+    console.log(`🎮 Dev mode: Created game rule with id=${newRule.id}`);
+    return newRule.id;
+  } catch (error: any) {
+    // Handle race condition: if another request created the row first,
+    // fetch and return the existing row
+    if (error.code === '23505' || error.message?.includes('unique constraint')) {
+      console.log('🔄 Race condition in ensureDevGameRule, fetching existing row');
+      const [existingRow] = await db
+        .select({ id: gameRules.id })
+        .from(gameRules)
+        .limit(1);
+
+      if (existingRow) {
+        return existingRow.id;
+      }
+    }
+    // Re-throw unexpected errors
+    throw error;
+  }
 }
 
 /**
