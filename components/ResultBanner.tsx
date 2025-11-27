@@ -101,13 +101,16 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
   container: string;
   text: string;
   bgColor: string; // Semi-transparent background for backdrop blur effect
+  blurClass: string; // Blur class for backdrop effect
 } {
   // Milestone 6.7.1: Faded state overrides normal error styling
+  // Uses more transparent background and stronger blur to make wheel words visible behind
   if (faded) {
     return {
       container: 'border-gray-400',
       text: 'text-gray-500',
-      bgColor: 'rgba(249, 250, 251, 0.85)', // gray-50 with transparency
+      bgColor: 'rgba(249, 250, 251, 0.6)', // More transparent for visible blur effect
+      blurClass: 'backdrop-blur-md', // Stronger blur (12px) for faded state
     };
   }
 
@@ -117,24 +120,28 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
         container: 'border-red-300',
         text: 'text-red-700',
         bgColor: 'rgba(254, 242, 242, 0.85)', // red-50 with transparency
+        blurClass: 'backdrop-blur-sm',
       };
     case 'warning':
       return {
         container: 'border-amber-300',
         text: 'text-amber-700',
         bgColor: 'rgba(255, 251, 235, 0.85)', // amber-50 with transparency
+        blurClass: 'backdrop-blur-sm',
       };
     case 'success':
       return {
         container: 'border-green-300',
         text: 'text-green-700',
         bgColor: 'rgba(240, 253, 244, 0.85)', // green-50 with transparency
+        blurClass: 'backdrop-blur-sm',
       };
     default:
       return {
         container: 'border-gray-300',
         text: 'text-gray-700',
         bgColor: 'rgba(249, 250, 251, 0.85)', // gray-50 with transparency
+        blurClass: 'backdrop-blur-sm',
       };
   }
 }
@@ -188,10 +195,10 @@ const ResultBanner = memo(function ResultBanner({
         ${styles.container}
         border-2 rounded-lg p-3
         flex items-center justify-center gap-2
-        backdrop-blur-sm
+        ${styles.blurClass}
       `}
       style={{
-        opacity: visible ? (faded ? 0.7 : 1) : 0,
+        opacity: visible ? (faded ? 0.8 : 1) : 0,
         transition: 'opacity 300ms',
         backgroundColor: styles.bgColor,
       }}
