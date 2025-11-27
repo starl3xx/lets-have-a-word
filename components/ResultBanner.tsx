@@ -133,7 +133,7 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
         container: 'border-gray-400',
         text: 'text-gray-500',
         bgColor: 'rgba(249, 250, 251, 0.3)', // gray-50 frosted glass (same opacity as others)
-        blurClass: 'backdrop-blur-sm', // 4px blur (same as others)
+        blurClass: 'backdrop-blur', // 8px blur for faded
       };
     default:
       return {
