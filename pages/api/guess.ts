@@ -135,6 +135,22 @@ export default async function handler(
     }
 
     // ========================================
+    // DEV MODE CRANE BYPASS - Guaranteed win for CRANE
+    // ========================================
+    // If dev mode is enabled and the word is CRANE, return success immediately
+    // This bypasses ALL database operations to guarantee CRANE always wins
+    if (isDevModeEnabled() && normalizedWord === 'CRANE') {
+      const devFidValue = devFid ? (typeof devFid === 'number' ? devFid : parseInt(devFid, 10)) : 6500;
+      console.log(`🎮 Dev mode CRANE bypass: Returning instant win for FID ${devFidValue}`);
+      return res.status(200).json({
+        status: 'correct',
+        word: 'CRANE',
+        roundId: 999999, // Fake round ID for dev mode
+        winnerFid: devFidValue,
+      });
+    }
+
+    // ========================================
     // Milestone 6.5.1: Dev Mode Guess Economy Parity
     // ========================================
     // Dev mode now uses the same daily limits logic as production.
