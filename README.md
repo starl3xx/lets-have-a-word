@@ -11,11 +11,90 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.6 Complete
+## 🎯 Current Status: Milestone 6.7.1 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, and push notifications are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, and improved incorrect guess UX are fully implemented and production-ready:
 
-### ✅ Milestone 6.6 - Push Notifications & Bug Fixes (Latest)
+### ✅ Milestone 6.7.1 - Incorrect Guess Banner Flow + Input Reset (Latest)
+
+Improved UX after incorrect guesses with a timed state machine that transitions from active error to faded context:
+
+- **Incorrect State Machine** (`pages/index.tsx`)
+  - Three states: `none` | `active` | `faded`
+  - `active`: Bright red error banner, input boxes red and locked
+  - `faded`: Gray semi-transparent banner showing last guess, input ready for new guess
+  - Configurable duration: `INCORRECT_ACTIVE_DURATION_MS = 2000` (2 seconds)
+
+- **Banner Transitions** (`components/ResultBanner.tsx`)
+  - Added `faded` prop for gray/semi-transparent state
+  - Faded banner shows context: "Incorrect! WORD is not the secret word."
+  - Smooth opacity transition (0.7 opacity in faded state)
+  - Gray icon replaces red X in faded state
+
+- **Input Box Behavior**
+  - During `active`: Red borders, empty, visually locked
+  - During `faded`: Normal neutral state, ready for new input
+  - Typing clears incorrect state and cancels timer
+
+- **Out of Guesses Handling**
+  - If no guesses remain, skip faded state entirely
+  - Show "No guesses left today" banner instead
+  - Input boxes remain locked/disabled
+
+- **Timer Management**
+  - Automatic cleanup on unmount
+  - Cancel timer when user starts typing
+  - Multiple incorrect guesses in a row work correctly (no overlapping timers)
+
+### ✅ Milestone 6.7 - XP System (Tracking-First Implementation)
+
+Introduced a comprehensive XP tracking system with event-sourced backend and Total XP display in Stats sheet:
+
+- **Event-Sourced XP Model** (`src/db/schema.ts`, `drizzle/0003_xp_events.sql`)
+  - New `xp_events` table stores all XP-earning actions
+  - Future-proof design: breakdown by source, streaks, leaderboards can be added without schema changes
+  - Indexes on fid, round_id, and event_type for fast queries
+
+- **XP Event Types** (`src/types/index.ts`)
+  - `DAILY_PARTICIPATION` (+10 XP) — First guess of the day
+  - `GUESS` (+2 XP) — Each valid guess
+  - `WIN` (+2,500 XP) — Winning the jackpot
+  - `TOP_TEN_GUESSER` (+50 XP) — Top 10 placement at round resolution
+  - `REFERRAL_FIRST_GUESS` (+20 XP) — Referred user makes first guess
+  - `STREAK_DAY` (+15 XP) — Consecutive day playing
+  - `CLANKTON_BONUS_DAY` (+10 XP) — CLANKTON holder daily bonus
+  - `SHARE_CAST` (+15 XP) — Sharing to Farcaster
+  - `PACK_PURCHASE` (+20 XP) — Buying a guess pack
+  - `NEAR_MISS` (0 XP) — Tracked for future use
+
+- **XP Helper Functions** (`src/lib/xp.ts`)
+  - Fire-and-forget XP logging (never blocks user flows)
+  - `getTotalXpForFid()` — Sum of all XP for a user
+  - `getRecentXpEventsForFid()` — Last N events for debugging
+  - `getXpBreakdownForFid()` — XP by event type
+  - Streak detection, referral attribution, near-miss tracking
+
+- **Integration Points**
+  - Guess submission (`src/lib/daily-limits.ts`)
+  - Round resolution (`src/lib/economics.ts`)
+  - Pack purchase (`pages/api/purchase-guess-pack.ts`)
+  - Share bonus (`src/lib/daily-limits.ts`)
+
+- **API Endpoints**
+  - `GET /api/user/xp` — Returns total XP (+ breakdown in dev mode)
+  - `GET /api/admin/xp-debug` — Dev-only comprehensive XP debugging
+
+- **UI Changes** (`components/StatsSheet.tsx`)
+  - Total XP displayed prominently in Stats sheet
+  - Updated "How to earn XP" section with actual XP values
+  - XP fetched from new event-sourced endpoint
+
+- **Dev Mode Support**
+  - `XP_DEBUG=true` enables verbose XP logging
+  - Dev-only `/api/admin/xp-debug` endpoint
+  - XP breakdown and recent events in `/api/user/xp` response
+
+### ✅ Milestone 6.6 - Push Notifications & Bug Fixes
 
 Added Farcaster mini app notifications support and fixed critical duplicate guess bug:
 

@@ -3,6 +3,7 @@ import { rounds, systemState, roundPayouts, guesses, users } from '../db/schema'
 import { eq, and, desc, count } from 'drizzle-orm';
 import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
+import { awardTopTenGuesserXp } from './xp';
 
 /**
  * Economics Module - Milestone 3.1
@@ -298,6 +299,11 @@ export async function resolveRoundAndCreatePayouts(
 
   // Insert all payouts
   await db.insert(roundPayouts).values(payouts);
+
+  // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
+  if (topGuessers.length > 0) {
+    awardTopTenGuesserXp(roundId, topGuessers);
+  }
 
   // Milestone 4.9: If no referrer, allocate referrer share to seed + creator
   if (!referrerFid) {

@@ -16,7 +16,7 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
-import AnotherGuessModal from '../components/AnotherGuessModal';
+// AnotherGuessModal removed - when out of options, user just can't play anymore
 // Milestone 6.4.7: Dev mode persona switcher
 import { DevPersonaProvider, useDevPersona, isClientDevMode } from '../src/contexts/DevPersonaContext';
 
@@ -77,6 +77,10 @@ function GameContent() {
   const [isLoadingWheel, setIsLoadingWheel] = useState(true);
   const [wheelStartIndex, setWheelStartIndex] = useState<number | null>(null);
 
+  // Milestone 6.7.1: Track wrong guess count to skip unnecessary updates
+  const lastWrongGuessCountRef = useRef<number>(0);
+  const WRONG_GUESS_POLL_INTERVAL_MS = 60000; // 60 seconds
+
   // User state refetch trigger (Milestone 4.1)
   const [userStateKey, setUserStateKey] = useState(0);
 
@@ -100,13 +104,26 @@ function GameContent() {
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
   const [hideStateError, setHideStateError] = useState(false);
 
+  /**
+   * Milestone 6.7.1: Incorrect banner state machine
+   * - 'none': No incorrect banner visible
+   * - 'active': Bright red error, input locked visually
+   * - 'faded': Softer gray banner showing context, input ready again
+   */
+  type IncorrectState = 'none' | 'active' | 'faded';
+  const [incorrectState, setIncorrectState] = useState<IncorrectState>('none');
+  const [lastSubmittedGuess, setLastSubmittedGuess] = useState<string | null>(null);
+  const incorrectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Milestone 6.7.1: Duration for active incorrect state before fading
+  const INCORRECT_ACTIVE_DURATION_MS = 2000;
+
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
 
-  // Milestone 6.3: Guess purchase and "another guess" modal state
+  // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
-  const [showAnotherGuessModal, setShowAnotherGuessModal] = useState(false);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -127,6 +144,17 @@ function GameContent() {
     currentPersona,
     isDevMode,
   } = useDevPersona();
+
+  /**
+   * Milestone 6.7.1: Cleanup incorrect timer on unmount or round change
+   */
+  useEffect(() => {
+    return () => {
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Milestone 6.4.7: Register callback for dev panel "Test Modal Flow" button
@@ -164,7 +192,8 @@ function GameContent() {
           setShowGuessPurchaseModal(true);
           break;
         case 'out_of_guesses':
-          setShowAnotherGuessModal(true);
+          // No modal - user is out of options, just can't play anymore
+          console.log('[DevPersona] User is out of guesses with no options remaining');
           break;
         case 'none':
         default:
@@ -262,6 +291,58 @@ function GameContent() {
 
     fetchWheelWords();
   }, []); // Fetch once on mount - API handles all state derivation
+
+  /**
+   * Milestone 6.7.1: Poll for wrong guess updates every 60 seconds
+   * This allows users to see other players' wrong guesses in near-real-time
+   * without the bandwidth cost of fetching the full wheel
+   */
+  useEffect(() => {
+    const pollWrongGuesses = async () => {
+      try {
+        const response = await fetch('/api/wheel/wrong-guesses');
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        // Skip processing if count hasn't changed
+        if (data.count === lastWrongGuessCountRef.current) {
+          return;
+        }
+
+        lastWrongGuessCountRef.current = data.count;
+
+        // Build a Set for O(1) lookup
+        const wrongGuessSet = new Set<string>(data.wrongGuesses);
+
+        // Update wheel words with new wrong statuses
+        setWheelWords(prevWords => {
+          if (prevWords.length === 0) return prevWords;
+
+          let hasChanges = false;
+          const updatedWords = prevWords.map(word => {
+            // Only update unguessed words to wrong (don't override winner)
+            if (word.status === 'unguessed' && wrongGuessSet.has(word.word)) {
+              hasChanges = true;
+              return { ...word, status: 'wrong' as const };
+            }
+            return word;
+          });
+
+          return hasChanges ? updatedWords : prevWords;
+        });
+      } catch (error) {
+        // Silently fail - polling is best-effort
+        console.debug('Wrong guess poll failed:', error);
+      }
+    };
+
+    // Start polling after a short delay (don't poll immediately on mount)
+    const intervalId = setInterval(pollWrongGuesses, WRONG_GUESS_POLL_INTERVAL_MS);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Track whether this is the first user state fetch (for dev mode reset)
   const isFirstUserStateFetchRef = useRef(true);
@@ -473,12 +554,24 @@ function GameContent() {
 
   /**
    * Handle letter changes from LetterBoxes component (Milestone 4.3)
+   * Milestone 6.7.1: Also clears incorrect state and timer when typing starts
    */
   const handleLettersChange = (newLetters: string[]) => {
     setLetters(newLetters);
 
     // Reset to typing state when user starts typing
     setBoxResultState('typing');
+
+    // Milestone 6.7.1: Clear incorrect state when user starts typing
+    if (incorrectState !== 'none') {
+      // Cancel any pending timer
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      setIncorrectState('none');
+      setLastSubmittedGuess(null);
+    }
 
     // Clear previous result and errors when user starts typing
     if (result || errorMessage) {
@@ -528,6 +621,16 @@ function GameContent() {
       setBoxResultState('typing');
     }
 
+    // Milestone 6.7.1: Clear incorrect state when user starts typing
+    if (incorrectState !== 'none') {
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      setIncorrectState('none');
+      setLastSubmittedGuess(null);
+    }
+
     // Only clear result/error if they exist
     if (result) setResult(null);
     if (errorMessage) setErrorMessage(null);
@@ -539,6 +642,7 @@ function GameContent() {
    * Handle backspace from GameKeyboard (Milestone 4.4)
    * Milestone 6.4: Uses centralized input control for consistent behavior
    * Milestone 6.4.6: Optimized to avoid redundant state updates
+   * Milestone 6.7.1: Also clears incorrect state
    */
   const handleBackspace = () => {
     // Fast path: check if locked (don't allow backspace during submission or after winning)
@@ -567,6 +671,16 @@ function GameContent() {
     // Only update boxResultState if it's not already 'typing'
     if (boxResultState !== 'typing') {
       setBoxResultState('typing');
+    }
+
+    // Milestone 6.7.1: Clear incorrect state when user starts typing
+    if (incorrectState !== 'none') {
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      setIncorrectState('none');
+      setLastSubmittedGuess(null);
     }
 
     // Only clear result/error if they exist
@@ -678,6 +792,32 @@ function GameContent() {
         setBoxResultState('wrong');
         if (data.status === 'already_guessed_word') {
           triggerShake();
+
+          // Milestone 6.7.1: Immediately update wheel to show this word as wrong
+          // This fixes the sync issue where another user guessed it before our poll updated
+          setWheelWords(prevWords => {
+            const wordUpper = word.toUpperCase();
+            return prevWords.map(w =>
+              w.word === wordUpper && w.status === 'unguessed'
+                ? { ...w, status: 'wrong' as const }
+                : w
+            );
+          });
+        }
+
+        // Milestone 6.7.1: Start incorrect state machine for incorrect guesses
+        if (data.status === 'incorrect') {
+          // Clear any previous timer
+          if (incorrectTimerRef.current) {
+            clearTimeout(incorrectTimerRef.current);
+          }
+
+          // Store the guessed word and enter active state
+          setLastSubmittedGuess(word);
+          setIncorrectState('active');
+
+          // Timer will be started after we know if user has guesses remaining
+          // (see modal decision logic below)
         }
       } else if (data.status === 'invalid_word') {
         setBoxResultState('wrong');
@@ -721,10 +861,24 @@ function GameContent() {
             const stateResponse = await fetch(`/api/user-state?devFid=${effectiveFid}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
+              const guessesRemaining = stateData.totalGuessesRemaining;
+
+              // Milestone 6.7.1: Start timer for faded transition if user has guesses remaining
+              if (guessesRemaining > 0) {
+                // Start timer to transition from active to faded
+                incorrectTimerRef.current = setTimeout(() => {
+                  setIncorrectState('faded');
+                  setBoxResultState('typing'); // Reset box state to normal
+                }, INCORRECT_ACTIVE_DURATION_MS);
+              } else {
+                // No guesses remaining - stay in 'none' state (out-of-guesses banner will show)
+                // Clear the active state since we'll show out-of-guesses instead
+                setIncorrectState('none');
+              }
 
               // Use modal decision logic
               const decision = decideModal({
-                guessesRemaining: stateData.totalGuessesRemaining,
+                guessesRemaining: guessesRemaining,
                 hasUsedShareBonusToday: stateData.hasSharedToday,
                 packsPurchasedToday: stateData.paidPacksPurchased,
                 maxPacksPerDay: stateData.maxPaidPacksPerDay,
@@ -739,7 +893,7 @@ function GameContent() {
                   setShowGuessPurchaseModal(true);
                   break;
                 case 'out_of_guesses':
-                  setShowAnotherGuessModal(true);
+                  // No modal - user is out of options
                   break;
                 case 'none':
                 default:
@@ -778,8 +932,26 @@ function GameContent() {
   /**
    * Get feedback message based on result
    * Returns variant and message for unified ResultBanner component
+   * Milestone 6.7.1: Added faded property for incorrect state transitions
    */
-  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode; faded?: boolean } | null => {
+    // Milestone 6.7.1: Handle faded incorrect state
+    // Show faded banner with last submitted guess even if result is cleared
+    if (incorrectState === 'faded' && lastSubmittedGuess) {
+      return {
+        variant: 'error',
+        faded: true,
+        icon: null,
+        message: (
+          <>
+            <span>Incorrect! </span>
+            <span className="font-bold">{lastSubmittedGuess.toUpperCase()}</span>
+            <span> is not the secret word.</span>
+          </>
+        ),
+      };
+    }
+
     if (!result) return null;
 
     switch (result.status) {
@@ -793,20 +965,21 @@ function GameContent() {
         return {
           variant: 'error',
           icon: null,
+          // Milestone 6.7.1: Use lastSubmittedGuess if available for consistency
           message: (
             <>
               <span>Incorrect! </span>
-              <span className="font-bold">{result.word}</span>
+              <span className="font-bold">{(lastSubmittedGuess || result.word).toUpperCase()}</span>
               <span> is not the secret word.</span>
             </>
           ),
         };
 
       case 'already_guessed_word':
-        // Treat duplicate guesses as errors, not warnings
-        // This matches the client-side validation behavior
+        // Duplicate guesses show as warning (yellow) to match client-side validation
+        // Red is reserved for incorrect guesses (words that were wrong)
         return {
-          variant: 'error',
+          variant: 'warning',
           message: 'Already guessed this round',
         };
 
@@ -862,17 +1035,13 @@ function GameContent() {
     // Mark share modal as seen this session
     markShareModalSeen();
 
-    // Milestone 6.3: If user didn't share and has no guesses left, determine next modal
-    if (!hasGuessesLeft) {
+    // Milestone 6.3: If user didn't share and has no guesses left, offer packs if available
+    if (!hasGuessesLeft && paidPacksPurchased < maxPaidPacksPerDay) {
       setTimeout(() => {
-        // User closed share modal without sharing - now offer packs or show out-of-guesses
-        if (paidPacksPurchased < maxPaidPacksPerDay) {
-          setShowGuessPurchaseModal(true);
-        } else {
-          setShowAnotherGuessModal(true);
-        }
+        setShowGuessPurchaseModal(true);
       }, 300);
     }
+    // If out of packs too, no modal - user just can't play anymore
   };
 
   /**
@@ -892,20 +1061,6 @@ function GameContent() {
     // Refetch user state to update guess counts
     setUserStateKey(prev => prev + 1);
     void haptics.packPurchased();
-  };
-
-  /**
-   * Milestone 6.3: Handle "another guess" modal actions
-   */
-  const handleAnotherGuessShare = () => {
-    setShowAnotherGuessModal(false);
-    // Open the share modal directly
-    setShowShareModal(true);
-  };
-
-  const handleAnotherGuessBuyPacks = () => {
-    setShowAnotherGuessModal(false);
-    setShowGuessPurchaseModal(true);
   };
 
   return (
@@ -1043,11 +1198,13 @@ function GameContent() {
                 )}
 
                 {/* Show feedback from last submission - using unified ResultBanner */}
+                {/* Milestone 6.7.1: Pass faded prop for incorrect state transitions */}
                 {feedback && !errorMessage && !stateErrorMessage && (
                   <ResultBanner
                     variant={feedback.variant}
                     message={feedback.message}
                     icon={feedback.icon}
+                    faded={feedback.faded}
                   />
                 )}
               </div>
@@ -1194,25 +1351,9 @@ function GameContent() {
           onClose={() => {
             setShowGuessPurchaseModal(false);
             markPackModalSeen();
-            // If user closed without purchasing and out of guesses, show out-of-guesses modal
-            if (!hasGuessesLeft) {
-              setTimeout(() => {
-                setShowAnotherGuessModal(true);
-              }, 300);
-            }
+            // If user closed without purchasing and out of guesses, no modal - just can't play
           }}
           onPurchaseSuccess={handlePackPurchaseSuccess}
-        />
-      )}
-
-      {/* Milestone 6.3: Another Guess Modal */}
-      {showAnotherGuessModal && (
-        <AnotherGuessModal
-          fid={effectiveFid}
-          canClaimShareBonus={canClaimShareBonus}
-          onClose={() => setShowAnotherGuessModal(false)}
-          onShareForGuess={handleAnotherGuessShare}
-          onBuyPacks={handleAnotherGuessBuyPacks}
         />
       )}
 

@@ -2072,6 +2072,7 @@ export const CORE_COMMON: string[] = [
   "NAVEL",
   "NEARS",
   "NEATH",
+  "NEATO",
   "NECKS",
   "NEEDS",
   "NEEDY",

@@ -9,9 +9,51 @@
 
 import type { GameStateResponse, DevBackendState } from '../types';
 import { getEthUsdPrice } from './prices';
-import { db, rounds } from '../db';
-import { isNull, desc } from 'drizzle-orm';
+import { db, rounds, gameRules } from '../db';
+import { isNull, desc, eq } from 'drizzle-orm';
 import { createCommitment } from './commit-reveal';
+
+/**
+ * Ensure a game rule exists for dev mode rounds
+ * Creates one if it doesn't exist, returns the ID
+ */
+async function ensureDevGameRule(): Promise<number> {
+  // Check if any game rule exists
+  const existingRule = await db
+    .select({ id: gameRules.id })
+    .from(gameRules)
+    .limit(1);
+
+  if (existingRule.length > 0) {
+    return existingRule[0].id;
+  }
+
+  // Create a default game rule for dev mode
+  console.log('🎮 Dev mode: Creating default game rule');
+  const [newRule] = await db
+    .insert(gameRules)
+    .values({
+      name: 'dev_default',
+      config: {
+        freeGuessesPerDay: 1,
+        paidGuessPackSize: 3,
+        paidGuessPackPriceEth: '0.0003',
+        maxPaidPacksPerDay: 3,
+        clanktonBonusGuesses: 2,
+        clanktonBonusThreshold: 100000000,
+        shareBonusGuesses: 1,
+        prizePoolSplit: {
+          winner: 0.8,
+          referrer: 0.1,
+          topGuessers: 0.1,
+        },
+      },
+    })
+    .returning();
+
+  console.log(`🎮 Dev mode: Created game rule with id=${newRule.id}`);
+  return newRule.id;
+}
 
 /**
  * Parameters for synthesizing dev game state
@@ -316,10 +358,13 @@ export async function ensureDevRound(): Promise<number> {
   console.log(`🎮 Dev mode: Creating new round with answer ${fixedSolution}`);
   const { salt, commitHash } = createCommitment(fixedSolution);
 
+  // Ensure a game rule exists (creates one if needed)
+  const rulesetId = await ensureDevGameRule();
+
   const [newRound] = await db
     .insert(rounds)
     .values({
-      rulesetId: 1,
+      rulesetId,
       answer: fixedSolution,
       salt,
       commitHash,
