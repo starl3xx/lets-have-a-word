@@ -7,6 +7,7 @@ import { applyPaidGuessEconomicEffects } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
 import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
+import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
 
 /**
  * Normalize a guess word
@@ -176,7 +177,15 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
   }
 
   // Step 7: Compare with answer (case-insensitive, normalized)
-  const normalizedAnswer = normalizeWord(round.answer);
+  // DEV MODE OVERRIDE: In dev mode, always use the fixed solution (CRANE) as the answer
+  // This ensures CRANE is always the winning word regardless of what's in the database
+  let normalizedAnswer: string;
+  if (isDevModeEnabled()) {
+    normalizedAnswer = getDevFixedSolution(); // Returns 'CRANE' (already uppercase)
+    console.log(`🎮 Dev mode: Using fixed solution "${normalizedAnswer}" for answer comparison (DB answer: "${round.answer}")`);
+  } else {
+    normalizedAnswer = normalizeWord(round.answer);
+  }
   const isCorrect = word === normalizedAnswer;
 
   if (isCorrect) {

@@ -1106,8 +1106,7 @@ function GameContent() {
               className="absolute inset-0"
               style={{
                 zIndex: 1,
-                contain: 'strict', // Strict containment: layout, style, paint, and size
-                contentVisibility: 'auto', // Optimize rendering
+                contain: 'layout style', // Avoid paint containment to allow backdrop-filter
               }}
             >
               {isLoadingWheel ? (
@@ -1167,47 +1166,48 @@ function GameContent() {
                   inputState={currentInputState}
                 />
               </div>
+            </div>
 
-              {/* Error/feedback area - FIXED HEIGHT to prevent layout shifts (Milestone 4.14) */}
-              <div
-                className="absolute left-0 right-0 px-8"
-                style={{
-                  top: '100%',
-                  marginTop: '1rem',
-                  pointerEvents: 'auto',
-                  height: '3.5rem', // Fixed height - content toggles opacity only
-                }}
-              >
-                {/* Show explicit error messages first - using unified ResultBanner */}
-                {errorMessage && (
-                  <ResultBanner
-                    variant="error"
-                    message={errorMessage}
-                  />
-                )}
+            {/* Error/feedback area - positioned to overlap wheel for backdrop blur effect */}
+            {/* Milestone 6.7.1: Moved outside input container for proper backdrop-filter */}
+            <div
+              className="absolute left-0 right-0 px-8"
+              style={{
+                top: 'calc(50% + 3rem)', // Below input boxes (50% + half input height + gap)
+                zIndex: 8, // Above wheel (1) but below input boxes (10)
+                pointerEvents: 'auto',
+                height: '3.5rem', // Fixed height - content toggles opacity only
+              }}
+            >
+              {/* Show explicit error messages first - using unified ResultBanner */}
+              {errorMessage && (
+                <ResultBanner
+                  variant="error"
+                  message={errorMessage}
+                />
+              )}
 
-                {/* Show state-based error messages (Milestone 4.6) - using unified ResultBanner */}
-                {/* "Not a valid word" and "Already guessed this round" use warning variant per spec */}
-                {/* "No guesses left today" uses error variant */}
-                {!errorMessage && stateErrorMessage && (
-                  <ResultBanner
-                    variant={stateErrorMessage === 'No guesses left today' ? 'error' : 'warning'}
-                    message={stateErrorMessage}
-                    visible={!hideStateError}
-                  />
-                )}
+              {/* Show state-based error messages (Milestone 4.6) - using unified ResultBanner */}
+              {/* "Not a valid word" and "Already guessed this round" use warning variant per spec */}
+              {/* "No guesses left today" uses error variant */}
+              {!errorMessage && stateErrorMessage && (
+                <ResultBanner
+                  variant={stateErrorMessage === 'No guesses left today' ? 'error' : 'warning'}
+                  message={stateErrorMessage}
+                  visible={!hideStateError}
+                />
+              )}
 
-                {/* Show feedback from last submission - using unified ResultBanner */}
-                {/* Milestone 6.7.1: Pass faded prop for incorrect state transitions */}
-                {feedback && !errorMessage && !stateErrorMessage && (
-                  <ResultBanner
-                    variant={feedback.variant}
-                    message={feedback.message}
-                    icon={feedback.icon}
-                    faded={feedback.faded}
-                  />
-                )}
-              </div>
+              {/* Show feedback from last submission - using unified ResultBanner */}
+              {/* Milestone 6.7.1: Pass faded prop for incorrect state transitions */}
+              {feedback && !errorMessage && !stateErrorMessage && (
+                <ResultBanner
+                  variant={feedback.variant}
+                  message={feedback.message}
+                  icon={feedback.icon}
+                  faded={feedback.faded}
+                />
+              )}
             </div>
           </div>
 
