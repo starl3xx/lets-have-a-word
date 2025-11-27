@@ -103,18 +103,10 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
   bgColor: string; // Semi-transparent background for backdrop blur effect
   blurClass: string; // Blur class for backdrop effect
 } {
-  // Milestone 6.7.1: Faded state overrides normal error styling
-  // Uses more transparent background and stronger blur to make wheel words visible behind
-  if (faded) {
-    return {
-      container: 'border-gray-400',
-      text: 'text-gray-500',
-      bgColor: 'rgba(249, 250, 251, 0.6)', // More transparent for visible blur effect
-      blurClass: 'backdrop-blur-md', // Stronger blur (12px) for faded state
-    };
-  }
+  // Use 'faded' as effective variant when faded prop is true
+  const effectiveVariant = faded ? 'faded' : variant;
 
-  switch (variant) {
+  switch (effectiveVariant) {
     case 'error':
       return {
         container: 'border-red-300',
@@ -136,12 +128,19 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
         bgColor: 'rgba(240, 253, 244, 0.3)', // green-50 frosted glass
         blurClass: 'backdrop-blur-sm', // 4px blur
       };
+    case 'faded':
+      return {
+        container: 'border-gray-400',
+        text: 'text-gray-500',
+        bgColor: 'rgba(249, 250, 251, 0.3)', // gray-50 frosted glass (same opacity as others)
+        blurClass: 'backdrop-blur-sm', // 4px blur (same as others)
+      };
     default:
       return {
         container: 'border-gray-300',
         text: 'text-gray-700',
-        bgColor: 'rgba(249, 250, 251, 0.6)', // gray-50 frosted glass
-        blurClass: 'backdrop-blur-md',
+        bgColor: 'rgba(249, 250, 251, 0.3)', // gray-50 frosted glass
+        blurClass: 'backdrop-blur-sm',
       };
   }
 }
