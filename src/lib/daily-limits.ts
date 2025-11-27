@@ -23,6 +23,16 @@ import {
   getClanktonHolderBonusGuesses,
   CLANKTON_MARKET_CAP_USD,
 } from '../../config/economy';
+import {
+  logXpEvent,
+  hasReceivedDailyParticipationToday,
+  hasReceivedClanktonBonusToday,
+  hasReceivedShareXpToday,
+  checkAndAwardStreakXp,
+  isFirstGuessEver,
+  awardReferralFirstGuessXp,
+  checkAndLogNearMiss,
+} from './xp';
 
 /**
  * Game rules for daily limits
@@ -382,6 +392,14 @@ export async function awardShareBonus(
     bonusGuesses: DAILY_LIMITS_RULES.shareBonusGuesses,
   });
 
+  // Milestone 6.7: Award SHARE_CAST XP (+15 XP, once per day, fire-and-forget)
+  const hasShareXp = await hasReceivedShareXpToday(fid);
+  if (!hasShareXp) {
+    logXpEvent(fid, 'SHARE_CAST', {
+      metadata: { date: dateStr },
+    });
+  }
+
   return updated;
 }
 
@@ -477,6 +495,61 @@ export async function submitGuessWithDailyLimits(params: {
           fid,
           round_id: activeRound?.id,
         },
+      });
+    }
+    // Milestone 6.7: Award XP for valid guess (fire-and-forget)
+    // All XP operations are fire-and-forget and never block the user flow
+    const xpRoundId = result.status === 'correct' ? result.roundId : (await getActiveRound())?.id;
+
+    // Check conditions BEFORE logging any XP events
+    const [alreadyReceivedDaily, isFirstGuess] = await Promise.all([
+      hasReceivedDailyParticipationToday(fid),
+      isFirstGuessEver(fid),
+    ]);
+
+    // 1. Award GUESS XP (+2 XP per valid guess)
+    logXpEvent(fid, 'GUESS', {
+      roundId: xpRoundId,
+      metadata: {
+        word,
+        isPaid: isPaidGuess,
+        isCorrect: result.status === 'correct',
+      },
+    });
+
+    // 2. Award DAILY_PARTICIPATION XP (+10 XP, once per day)
+    if (!alreadyReceivedDaily) {
+      logXpEvent(fid, 'DAILY_PARTICIPATION', {
+        roundId: xpRoundId,
+        metadata: { date: dateStr },
+      });
+
+      // 3. Award CLANKTON_BONUS_DAY XP (+10 XP, once per day for CLANKTON holders)
+      const isClanktonHolder = state.freeAllocatedClankton > 0;
+      if (isClanktonHolder) {
+        const alreadyReceivedClankton = await hasReceivedClanktonBonusToday(fid);
+        if (!alreadyReceivedClankton) {
+          logXpEvent(fid, 'CLANKTON_BONUS_DAY', {
+            roundId: xpRoundId,
+            metadata: { clankton_bonus: state.freeAllocatedClankton },
+          });
+        }
+      }
+
+      // 4. Check and award STREAK_DAY XP (+15 XP for consecutive days)
+      checkAndAwardStreakXp(fid, xpRoundId);
+    }
+
+    // 5. Award referral XP to referrer if this is user's first guess ever
+    if (isFirstGuess) {
+      awardReferralFirstGuessXp(fid, xpRoundId);
+    }
+
+    // 6. Award WIN XP if this was a winning guess (+2500 XP)
+    if (result.status === 'correct') {
+      logXpEvent(fid, 'WIN', {
+        roundId: result.roundId,
+        metadata: { word },
       });
     }
   } else {

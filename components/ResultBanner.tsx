@@ -7,6 +7,10 @@
  * - Warning states (already guessed this round)
  * - Success states (winner)
  *
+ * Milestone 6.7.1 additions:
+ * - Faded state for incorrect banners (gray, semi-transparent)
+ * - Shows context of last guess while allowing new input
+ *
  * Design principles:
  * - Consistent layout across all variants
  * - Theme-appropriate colors
@@ -25,6 +29,12 @@ export interface ResultBannerProps {
   icon?: React.ReactNode;
   /** Optional: control visibility with opacity transition */
   visible?: boolean;
+  /**
+   * Milestone 6.7.1: Faded state for incorrect banners
+   * When true, displays as gray/semi-transparent instead of red
+   * Used to show context of last guess while allowing new input
+   */
+  faded?: boolean;
 }
 
 /**
@@ -68,32 +78,63 @@ const SuccessIcon = () => (
 );
 
 /**
- * Get variant-specific styling classes
+ * Milestone 6.7.1: Faded icon for gray state
+ * Used when banner transitions from active to faded
  */
-function getVariantStyles(variant: ResultBannerVariant): {
+const FadedIcon = () => (
+  <svg
+    className="w-5 h-5 text-gray-400 flex-shrink-0"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+/**
+ * Get variant-specific styling classes
+ * Milestone 6.7.1: Added faded parameter for gray state
+ */
+function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false): {
   container: string;
   text: string;
+  bgColor: string; // Semi-transparent background for backdrop blur effect
 } {
+  // Milestone 6.7.1: Faded state overrides normal error styling
+  if (faded) {
+    return {
+      container: 'border-gray-400',
+      text: 'text-gray-500',
+      bgColor: 'rgba(249, 250, 251, 0.85)', // gray-50 with transparency
+    };
+  }
+
   switch (variant) {
     case 'error':
       return {
-        container: 'bg-red-50 border-red-300',
+        container: 'border-red-300',
         text: 'text-red-700',
+        bgColor: 'rgba(254, 242, 242, 0.85)', // red-50 with transparency
       };
     case 'warning':
       return {
-        container: 'bg-amber-50 border-amber-300',
+        container: 'border-amber-300',
         text: 'text-amber-700',
+        bgColor: 'rgba(255, 251, 235, 0.85)', // amber-50 with transparency
       };
     case 'success':
       return {
-        container: 'bg-green-50 border-green-300',
+        container: 'border-green-300',
         text: 'text-green-700',
+        bgColor: 'rgba(240, 253, 244, 0.85)', // green-50 with transparency
       };
     default:
       return {
-        container: 'bg-gray-50 border-gray-300',
+        container: 'border-gray-300',
         text: 'text-gray-700',
+        bgColor: 'rgba(249, 250, 251, 0.85)', // gray-50 with transparency
       };
   }
 }
@@ -122,25 +163,38 @@ function getDefaultIcon(variant: ResultBannerVariant): React.ReactNode {
  * - Left-aligned icon with centered text
  * - Smooth opacity transitions
  * - Responsive design (wraps gracefully on mobile)
+ *
+ * Milestone 6.7.1:
+ * - Added faded prop for gray/semi-transparent state
+ * - Used for incorrect banners after active period ends
  */
 const ResultBanner = memo(function ResultBanner({
   variant,
   message,
   icon,
   visible = true,
+  faded = false,
 }: ResultBannerProps) {
-  const styles = getVariantStyles(variant);
-  const displayIcon = icon !== undefined ? icon : getDefaultIcon(variant);
+  const styles = getVariantStyles(variant, faded);
+
+  // Milestone 6.7.1: No icon when in faded state, otherwise use provided or default
+  const displayIcon = faded
+    ? null
+    : (icon !== undefined ? icon : getDefaultIcon(variant));
 
   return (
     <div
       className={`
         ${styles.container}
-        border-2 rounded-lg p-3 shadow-sm
-        transition-opacity duration-300
+        border-2 rounded-lg p-3
         flex items-center justify-center gap-2
+        backdrop-blur-sm
       `}
-      style={{ opacity: visible ? 1 : 0 }}
+      style={{
+        opacity: visible ? (faded ? 0.7 : 1) : 0,
+        transition: 'opacity 300ms',
+        backgroundColor: styles.bgColor,
+      }}
       role="status"
       aria-live="polite"
     >

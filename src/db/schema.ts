@@ -304,3 +304,27 @@ export const roundArchiveErrors = pgTable('round_archive_errors', {
 
 export type RoundArchiveErrorRow = typeof roundArchiveErrors.$inferSelect;
 export type RoundArchiveErrorInsert = typeof roundArchiveErrors.$inferInsert;
+
+/**
+ * XP Events Table
+ * Milestone 6.7: Event-sourced XP tracking system
+ *
+ * Stores all XP-earning events for future-proof progression tracking.
+ * Total XP is computed by summing xp_amount for a given FID.
+ */
+export const xpEvents = pgTable('xp_events', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull(), // FK to users.fid
+  roundId: integer('round_id'), // Nullable - some XP events aren't round-specific
+  eventType: varchar('event_type', { length: 50 }).notNull(), // XP event type
+  xpAmount: integer('xp_amount').notNull(), // Positive integer, can be 0 for tracked-only events
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // Optional context data
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  fidCreatedAtIdx: index('xp_events_fid_created_at_idx').on(table.fid, table.createdAt),
+  roundIdIdx: index('xp_events_round_id_idx').on(table.roundId),
+  eventTypeIdx: index('xp_events_event_type_idx').on(table.eventType),
+}));
+
+export type XpEventRow = typeof xpEvents.$inferSelect;
+export type XpEventInsert = typeof xpEvents.$inferInsert;

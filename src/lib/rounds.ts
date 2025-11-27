@@ -1,5 +1,5 @@
 import { db, rounds } from '../db';
-import { eq, isNull } from 'drizzle-orm';
+import { eq, isNull, desc } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
@@ -105,7 +105,7 @@ export async function getActiveRound(): Promise<Round | null> {
     .select()
     .from(rounds)
     .where(isNull(rounds.resolvedAt))
-    .orderBy(rounds.startedAt)
+    .orderBy(desc(rounds.startedAt))
     .limit(1);
 
   if (result.length === 0) {

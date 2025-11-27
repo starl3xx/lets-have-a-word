@@ -17,7 +17,8 @@
 14. [Share-for-Free-Guess](#share-for-free-guess)
 15. [CLANKTON Holder Bonus](#clankton-holder-bonus)
 16. [Referral System](#referral-system)
-17. [UX Design Guidelines](#ux-design-guidelines)
+17. [XP & Progression (v1)](#xp--progression-v1)
+18. [UX Design Guidelines](#ux-design-guidelines)
 
 ---
 
@@ -1345,11 +1346,43 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
     - Warning: Amber warning triangle icon (no emoji)
     - Success: 🎉 emoji allowed
   - Accessibility: Uses `role="status"` and `aria-live="polite"`
+  - **Milestone 6.7.1**: Added `faded` prop for gray/semi-transparent state
 - **Banner Messages**:
-  - Incorrect: "Incorrect. You've made N guess(es) this round."
+  - Incorrect: "Incorrect! WORD is not the secret word."
   - Already guessed: "Already guessed this round." (warning)
   - Not a valid word: "Not a valid word" (warning)
   - Winner: "Correct! You found the word \"[WORD]\" and won this round!"
+
+#### 6.7.1: Incorrect Guess Banner Flow + Input Reset
+- **Goal**: Improve UX after incorrect guesses with timed state transitions
+- **Incorrect State Machine** (`pages/index.tsx`):
+  - `type IncorrectState = 'none' | 'active' | 'faded'`
+  - `none`: No incorrect banner visible
+  - `active`: Bright red error, input locked visually (2 seconds)
+  - `faded`: Softer gray banner showing context, input ready again
+- **Timing**:
+  - On incorrect guess → enter `active` for `INCORRECT_ACTIVE_DURATION_MS` (2000ms)
+  - After timeout → transition to `faded` only if user still has guesses remaining
+  - If user submits new guess before timeout → cancel timer, go back through `active`
+- **Banner Behavior**:
+  - `active`: Red banner with "Incorrect! WORD is not the secret word."
+  - `faded`: Gray banner (opacity 0.7) with same message, gray X icon
+  - Message uses `lastSubmittedGuess` to persist word context
+- **Input Box Behavior**:
+  - `active`: Red borders, empty, visually locked (`boxResultState = 'wrong'`)
+  - `faded`: Normal neutral state (`boxResultState = 'typing'`), ready for input
+- **Out of Guesses Handling**:
+  - If no guesses remain after incorrect guess, skip `faded` entirely
+  - Clear `incorrectState` to `'none'` and show "No guesses left today" banner
+  - Input boxes remain locked/disabled
+- **Timer Management**:
+  - `incorrectTimerRef` tracks the fade timeout
+  - Cleanup on component unmount (`useEffect` with cleanup function)
+  - Cancel timer when user starts typing (`handleLettersChange`, `handleLetter`, `handleBackspace`)
+  - Multiple incorrect guesses in a row work correctly (timer reset on each)
+- **Files Changed**:
+  - `components/ResultBanner.tsx`: Added `faded` prop, `FadedIcon`, updated styling
+  - `pages/index.tsx`: Added state machine, timer logic, updated handlers
 
 #### 6.4.5: Wheel Jump UX - Uniform Perceived Speed
 - **Problem**: Large letter jumps (e.g., D→R) felt slower than small jumps (D→E) even with capped duration, because the wheel visibly scrolled through many rows.
@@ -2872,6 +2905,161 @@ Get referral statistics.
   ]
 }
 ```
+
+---
+
+## XP & Progression (v1)
+
+### Overview
+
+The XP system tracks player engagement and progression using an **event-sourced model**. Each XP-earning action creates a row in the `xp_events` table, allowing for flexible future features like breakdowns, streaks, and leaderboards.
+
+**v1 Scope:**
+- Backend tracks all XP events
+- UI shows **Total XP only** in the Stats sheet
+- Future milestones will add detailed XP views
+
+### XP Event Types & Values
+
+| Event Type | XP | Description |
+|------------|-----|-------------|
+| `DAILY_PARTICIPATION` | +10 | First valid guess of the day |
+| `GUESS` | +2 | Each valid guess (free or paid) |
+| `WIN` | +2,500 | Correctly guessing the secret word |
+| `TOP_TEN_GUESSER` | +50 | Top 10 placement at round resolution |
+| `REFERRAL_FIRST_GUESS` | +20 | Referrer earns when referred user makes first guess |
+| `STREAK_DAY` | +15 | Each consecutive day playing (after day 1) |
+| `CLANKTON_BONUS_DAY` | +10 | CLANKTON holder (100M+) daily participation |
+| `SHARE_CAST` | +15 | Sharing to Farcaster (once per day) |
+| `PACK_PURCHASE` | +20 | Each guess pack purchased |
+| `NEAR_MISS` | 0 | Tracked for future use (Hamming distance 1-2) |
+
+### Database Schema
+
+```sql
+CREATE TABLE xp_events (
+  id SERIAL PRIMARY KEY,
+  fid INTEGER NOT NULL,
+  round_id INTEGER,
+  event_type VARCHAR(50) NOT NULL,
+  xp_amount INTEGER NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+**Indexes:**
+- `(fid, created_at DESC)` — Fast per-user XP queries
+- `(round_id)` — Round-specific XP lookups
+- `(event_type)` — Event type analytics
+
+### Integration Points
+
+XP events are logged at these code locations:
+
+1. **Guess Submission** (`src/lib/daily-limits.ts`)
+   - GUESS: On every valid guess
+   - DAILY_PARTICIPATION: First guess of the day
+   - CLANKTON_BONUS_DAY: First participation for CLANKTON holders
+   - STREAK_DAY: If played yesterday
+   - WIN: On correct guess
+
+2. **Round Resolution** (`src/lib/economics.ts`)
+   - TOP_TEN_GUESSER: For each top 10 guesser
+
+3. **Referral Activation** (`src/lib/xp.ts`)
+   - REFERRAL_FIRST_GUESS: When referred user makes first-ever guess
+
+4. **Share Bonus** (`src/lib/daily-limits.ts`)
+   - SHARE_CAST: When share bonus is awarded
+
+5. **Pack Purchase** (`pages/api/purchase-guess-pack.ts`)
+   - PACK_PURCHASE: For each pack purchased
+
+### API Endpoints
+
+#### `GET /api/user/xp?fid={fid}`
+
+Get total XP for a user.
+
+**Response:**
+```json
+{
+  "fid": 12345,
+  "totalXp": 1250
+}
+```
+
+**Dev Mode Response** (when `LHAW_DEV_MODE=true`):
+```json
+{
+  "fid": 12345,
+  "totalXp": 1250,
+  "breakdown": {
+    "DAILY_PARTICIPATION": 100,
+    "GUESS": 500,
+    "WIN": 0,
+    "TOP_TEN_GUESSER": 150,
+    ...
+  },
+  "recentEvents": [
+    { "id": 1, "eventType": "GUESS", "xpAmount": 2, "createdAt": "..." }
+  ]
+}
+```
+
+#### `GET /api/admin/xp-debug?fid={fid}` (Dev Mode Only)
+
+Comprehensive XP debugging information.
+
+**Response:**
+```json
+{
+  "devMode": true,
+  "userXp": { ... },
+  "globalStats": {
+    "totalXpAwarded": 125000,
+    "totalEvents": 5000,
+    "eventsByType": { ... },
+    "topEarners": [ ... ],
+    "recentGlobalEvents": [ ... ]
+  }
+}
+```
+
+### UI Display
+
+**Stats Sheet** (`components/StatsSheet.tsx`):
+- Total XP displayed with thousands separator
+- "How to earn XP" section with all XP values
+- Loading placeholder (`—`) until data loads
+
+### Development & Debugging
+
+**Environment Variables:**
+- `XP_DEBUG=true` — Enable verbose XP console logging
+- `LHAW_DEV_MODE=true` — Enable dev-only XP endpoints and extended responses
+
+**Verification Queries:**
+```sql
+-- Get total XP for a user
+SELECT COALESCE(SUM(xp_amount), 0) FROM xp_events WHERE fid = 12345;
+
+-- Get XP breakdown by type
+SELECT event_type, SUM(xp_amount) FROM xp_events WHERE fid = 12345 GROUP BY event_type;
+
+-- Get recent events
+SELECT * FROM xp_events WHERE fid = 12345 ORDER BY created_at DESC LIMIT 20;
+```
+
+### Future Milestones
+
+The event-sourced design supports:
+- XP breakdown views (per-source, per-round)
+- Streak callouts and badges
+- XP leaderboards (daily, weekly, all-time)
+- XP-based cosmetics or game modes
+- Achievement system based on XP milestones
 
 ---
 
