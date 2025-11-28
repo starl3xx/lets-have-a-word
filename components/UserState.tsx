@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import type { UserStateResponse } from '../pages/api/user-state';
 import type { GuessSourceState } from '../src/types';
@@ -44,6 +44,13 @@ const INITIAL_FALLBACK_SOURCE_STATE: GuessSourceState = {
 };
 
 /**
+ * Module-level cache for stale-while-revalidate
+ * Persists across component remounts (e.g., when key={userStateKey} changes)
+ * This ensures the GuessBar never shrinks or flickers during refetches
+ */
+let cachedSourceState: GuessSourceState | null = null;
+
+/**
  * UserState Component
  * Milestone 4.1: Displays user's daily guess allocations and CLANKTON bonus status
  * Milestone 6.5: Uses unified GuessBar component for source-level display
@@ -58,21 +65,19 @@ const INITIAL_FALLBACK_SOURCE_STATE: GuessSourceState = {
  * - First load: shows fallback state until data arrives
  * - Refreshes: keeps showing last known state until new data ready
  * - Never collapses to "Loading..." text
+ * - Uses module-level cache to persist state across remounts
  */
 export default function UserState({ fid }: UserStateProps) {
   const [userState, setUserState] = useState<UserStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Track last known state for stale-while-revalidate
-  const lastKnownStateRef = useRef<GuessSourceState | null>(null);
-
   // Get connected wallet from Wagmi
   const { address: walletAddress } = useAccount();
 
-  // Update lastKnownState whenever we get new data
+  // Update module-level cache whenever we get new data
   useEffect(() => {
     if (userState?.sourceState) {
-      lastKnownStateRef.current = userState.sourceState;
+      cachedSourceState = userState.sourceState;
     }
   }, [userState]);
 
@@ -153,19 +158,19 @@ export default function UserState({ fid }: UserStateProps) {
   /**
    * Determine which source state to display:
    * 1. Current data (if available)
-   * 2. Last known state (stale-while-revalidate)
-   * 3. Initial fallback (first load)
+   * 2. Cached state from previous fetch (stale-while-revalidate)
+   * 3. Initial fallback (first load ever)
    */
   const displaySourceState =
     userState?.sourceState ??
-    lastKnownStateRef.current ??
+    cachedSourceState ??
     INITIAL_FALLBACK_SOURCE_STATE;
 
   /**
    * Error state - show error but keep showing the bar
-   * Only show error text if we have no data to display
+   * Only show error text if we have no data to display at all
    */
-  if (error && !userState && !lastKnownStateRef.current) {
+  if (error && !userState && !cachedSourceState) {
     return (
       <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
         <p className="text-sm text-red-600">{error}</p>
