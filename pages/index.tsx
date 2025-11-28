@@ -121,7 +121,7 @@ function GameContent() {
   const incorrectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Milestone 6.7.1: Duration for active incorrect state before fading
-  const INCORRECT_ACTIVE_DURATION_MS = 2000;
+  const INCORRECT_ACTIVE_DURATION_MS = 1200;
 
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
