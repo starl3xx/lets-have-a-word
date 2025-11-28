@@ -17,13 +17,18 @@ import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
-// Milestone 6.4.7: Dev mode persona switcher
-import { DevPersonaProvider, useDevPersona, isClientDevMode } from '../src/contexts/DevPersonaContext';
-
 // Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
 // Uses 6500 which is the dev mode FID defined in daily-limits.ts
 const DEV_FALLBACK_FID = 6500;
-import DevPersonaSwitcher from '../components/DevPersonaPanel';
+
+/**
+ * Check if dev mode is enabled on the client
+ * Used to determine if we should use DEV_FALLBACK_FID
+ */
+function isClientDevMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  return process.env.NEXT_PUBLIC_LHAW_DEV_MODE === 'true';
+}
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
@@ -137,13 +142,6 @@ function GameContent() {
     markPackModalSeen,
   } = useModalDecision();
 
-  // Milestone 6.4.7: Dev persona overrides for QA testing
-  const {
-    applyOverrides: applyDevPersonaOverrides,
-    registerModalTestCallback,
-    currentPersona,
-    isDevMode,
-  } = useDevPersona();
 
   /**
    * Milestone 6.7.1: Cleanup incorrect timer on unmount or round change
@@ -155,56 +153,6 @@ function GameContent() {
       }
     };
   }, []);
-
-  /**
-   * Milestone 6.4.7: Register callback for dev panel "Test Modal Flow" button
-   * This allows the dev panel to trigger the modal flow based on the current persona
-   */
-  useEffect(() => {
-    if (!isDevMode) return;
-
-    const handleModalTest = () => {
-      // Get the current persona's overrides
-      const overrides = currentPersona.overrides;
-
-      // Use the modal decision logic with persona state
-      const decision = decideModal({
-        guessesRemaining: overrides.totalGuessesRemaining ?? 0,
-        hasUsedShareBonusToday: overrides.hasSharedToday ?? false,
-        packsPurchasedToday: overrides.paidPacksPurchased ?? 0,
-        maxPacksPerDay: maxPaidPacksPerDay,
-      });
-
-      console.log('[DevPersona] Modal test decision:', decision);
-
-      // Show appropriate modal based on decision
-      switch (decision) {
-        case 'share':
-          // Create a mock result for the share modal
-          setPendingShareResult({
-            status: 'incorrect',
-            word: 'TEST',
-            totalGuessesForUserThisRound: 1,
-          });
-          setShowShareModal(true);
-          break;
-        case 'pack':
-          setShowGuessPurchaseModal(true);
-          break;
-        case 'out_of_guesses':
-          // No modal - user is out of options, just can't play anymore
-          console.log('[DevPersona] User is out of guesses with no options remaining');
-          break;
-        case 'none':
-        default:
-          // For 'none' - user has guesses, show a note
-          console.log('[DevPersona] User has guesses remaining, no modal to show');
-          break;
-      }
-    };
-
-    registerModalTestCallback(handleModalTest);
-  }, [isDevMode, currentPersona, decideModal, maxPaidPacksPerDay, registerModalTestCallback]);
 
   /**
    * Get Farcaster context on mount and signal ready
@@ -368,9 +316,7 @@ function GameContent() {
 
         const response = await fetch(url);
         if (response.ok) {
-          const rawData: UserStateResponse = await response.json();
-          // Milestone 6.4.7: Apply dev persona overrides if active
-          const data = applyDevPersonaOverrides(rawData);
+          const data: UserStateResponse = await response.json();
 
           setHasGuessesLeft(data.totalGuessesRemaining > 0);
           // Milestone 6.3: Check if user can still claim share bonus
@@ -397,7 +343,7 @@ function GameContent() {
     };
 
     fetchUserGuessCount();
-  }, [effectiveFid, userStateKey, applyDevPersonaOverrides]); // Re-fetch when effectiveFid or userStateKey changes
+  }, [effectiveFid, userStateKey]); // Re-fetch when effectiveFid or userStateKey changes
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
@@ -1065,9 +1011,6 @@ function GameContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Milestone 6.4.7: Dev Persona Switcher (only visible in dev mode) */}
-      <DevPersonaSwitcher />
-
       {/* Top Ticker (Milestone 2.3, 5.4: clickable round number) */}
       <TopTicker
         onRoundClick={(roundId) => {
@@ -1378,16 +1321,12 @@ function GameContent() {
  * - _app.tsx: Minimal, no providers
  * - pages/index.tsx (this file): Game page with WagmiProvider
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
- *
- * Milestone 6.4.7: DevPersonaProvider wraps GameContent for QA testing
  */
 export default function Home() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <DevPersonaProvider>
-          <GameContent />
-        </DevPersonaProvider>
+        <GameContent />
       </QueryClientProvider>
     </WagmiProvider>
   );
