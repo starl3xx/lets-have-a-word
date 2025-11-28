@@ -1276,13 +1276,12 @@ function GameContent() {
         />
       )}
 
-      {/* Winner Share Card (Milestone 4.14, 6.3 enhancements) */}
+      {/* Winner Share Card (Milestone 4.14, 6.3, 6.8) */}
       {showWinnerShareCard && winnerData && (
         <WinnerShareCard
           winnerWord={winnerData.word}
           roundId={winnerData.roundId}
           jackpotEth={currentJackpotEth}
-          isClanktonHolder={isClanktonHolder}
           onClose={() => setShowWinnerShareCard(false)}
         />
       )}
