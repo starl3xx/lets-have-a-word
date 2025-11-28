@@ -904,7 +904,14 @@ function GameContent() {
       case 'correct':
         return {
           variant: 'success',
-          message: `Correct! You found the word "${result.word}" and won this round!`,
+          icon: null,
+          message: (
+            <>
+              <span>Correct! You found the word </span>
+              <span className="font-bold">{result.word.toUpperCase()}</span>
+              <span> and won this round!</span>
+            </>
+          ),
         };
 
       case 'incorrect':
