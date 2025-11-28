@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import type { UserStateResponse } from '../pages/api/user-state';
-import { useDevPersona } from '../src/contexts/DevPersonaContext';
 import GuessBar from './GuessBar';
 
 interface UserStateProps {
@@ -11,8 +10,8 @@ interface UserStateProps {
 /**
  * UserState Component
  * Milestone 4.1: Displays user's daily guess allocations and CLANKTON bonus status
- * Milestone 6.4.7: Supports dev persona overrides for QA testing
  * Milestone 6.5: Uses unified GuessBar component for source-level display
+ * Milestone 6.8: Dev mode uses real Farcaster wallet and CLANKTON balance
  *
  * Shows:
  * - Total guesses remaining
@@ -24,10 +23,7 @@ export default function UserState({ fid }: UserStateProps) {
   const [error, setError] = useState<string | null>(null);
 
   // Get connected wallet from Wagmi
-  const { address: walletAddress, isConnected } = useAccount();
-
-  // Milestone 6.4.7: Get dev persona overrides
-  const { applyOverrides, currentPersonaId, isDevMode } = useDevPersona();
+  const { address: walletAddress } = useAccount();
 
   /**
    * Fetch user state from API with retry logic
@@ -150,18 +146,13 @@ export default function UserState({ fid }: UserStateProps) {
     );
   }
 
-  // Milestone 6.4.7: Apply dev persona overrides if active
-  const displayState = applyOverrides(userState);
-
   /**
    * Display user state - Milestone 6.5: Unified GuessBar component
    * IMPORTANT: Use py-2 and min-height to prevent layout shifts when remounting (Milestone 4.14)
    */
   return (
     <GuessBar
-      sourceState={displayState.sourceState}
-      isDevMode={isDevMode}
-      personaActive={currentPersonaId !== 'real'}
+      sourceState={userState.sourceState}
     />
   );
 }

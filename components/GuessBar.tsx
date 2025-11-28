@@ -23,8 +23,6 @@ import type { GuessSourceState } from '../src/types';
 
 interface GuessBarProps {
   sourceState: GuessSourceState;
-  isDevMode?: boolean;
-  personaActive?: boolean;
 }
 
 /**
@@ -55,7 +53,7 @@ function SourceSegment({ label, value, isConsumed, isFirst, color }: SourceSegme
   );
 }
 
-export default function GuessBar({ sourceState, isDevMode, personaActive }: GuessBarProps) {
+export default function GuessBar({ sourceState }: GuessBarProps) {
   const { totalRemaining, free, clankton, share, paid } = sourceState;
 
   // Determine which segments to show
@@ -123,11 +121,6 @@ export default function GuessBar({ sourceState, isDevMode, personaActive }: Gues
           />
         )}
       </span>
-
-      {/* Dev mode indicator */}
-      {isDevMode && personaActive && (
-        <span className="text-xs text-orange-500 font-medium">[PERSONA]</span>
-      )}
     </div>
   );
 }
