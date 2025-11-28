@@ -131,8 +131,8 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
         style={{
           padding: '2px 8px 3px 6px',
           backgroundColor: justDecremented
-            ? 'rgba(15, 23, 42, 0.08)'
-            : 'rgba(15, 23, 42, 0.04)',
+            ? 'rgba(45, 104, 199, 0.15)'
+            : 'rgba(45, 104, 199, 0.08)',
           color: '#111827',
           fontWeight: 400,
           lineHeight: 1.2,
