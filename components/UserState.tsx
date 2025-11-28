@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import type { UserStateResponse } from '../pages/api/user-state';
+import type { GuessSourceState } from '../src/types';
 import GuessBar from './GuessBar';
 
 interface UserStateProps {
@@ -8,22 +9,72 @@ interface UserStateProps {
 }
 
 /**
+ * Initial fallback state for GuessBar
+ * Shown on first load before data arrives
+ * Uses neutral/minimal values (0 guesses, all sources empty)
+ */
+const INITIAL_FALLBACK_SOURCE_STATE: GuessSourceState = {
+  totalRemaining: 0,
+  free: {
+    total: 1,
+    used: 1,
+    remaining: 0,
+  },
+  clankton: {
+    total: 0,
+    used: 0,
+    remaining: 0,
+    isHolder: false,
+  },
+  share: {
+    total: 0,
+    used: 0,
+    remaining: 0,
+    hasSharedToday: false,
+    canClaimBonus: true,
+  },
+  paid: {
+    total: 0,
+    used: 0,
+    remaining: 0,
+    packsPurchased: 0,
+    maxPacksPerDay: 3,
+    canBuyMore: true,
+  },
+};
+
+/**
  * UserState Component
  * Milestone 4.1: Displays user's daily guess allocations and CLANKTON bonus status
  * Milestone 6.5: Uses unified GuessBar component for source-level display
  * Milestone 6.8: Dev mode uses real Farcaster wallet and CLANKTON balance
+ * Milestone 6.8: Stale-while-revalidate - never shows "Loading..." text
  *
  * Shows:
- * - Total guesses remaining
+ * - Total guesses remaining (in pill)
  * - Source breakdown with depletion status
+ *
+ * Behavior:
+ * - First load: shows fallback state until data arrives
+ * - Refreshes: keeps showing last known state until new data ready
+ * - Never collapses to "Loading..." text
  */
 export default function UserState({ fid }: UserStateProps) {
   const [userState, setUserState] = useState<UserStateResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Track last known state for stale-while-revalidate
+  const lastKnownStateRef = useRef<GuessSourceState | null>(null);
 
   // Get connected wallet from Wagmi
   const { address: walletAddress } = useAccount();
+
+  // Update lastKnownState whenever we get new data
+  useEffect(() => {
+    if (userState?.sourceState) {
+      lastKnownStateRef.current = userState.sourceState;
+    }
+  }, [userState]);
 
   /**
    * Fetch user state from API with retry logic
@@ -31,7 +82,6 @@ export default function UserState({ fid }: UserStateProps) {
   const fetchUserState = async (retryCount = 0) => {
     if (!fid) {
       console.log('[UserState] No FID available yet');
-      setIsLoading(false);
       return;
     }
 
@@ -90,8 +140,6 @@ export default function UserState({ fid }: UserStateProps) {
 
       const errorMessage = err instanceof Error ? err.message : 'Failed to load';
       setError(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -103,22 +151,21 @@ export default function UserState({ fid }: UserStateProps) {
   }, [fid, walletAddress]);
 
   /**
-   * Loading state - minimal
-   * IMPORTANT: Use py-2 and min-height to match actual state and prevent layout shifts (Milestone 4.14)
+   * Determine which source state to display:
+   * 1. Current data (if available)
+   * 2. Last known state (stale-while-revalidate)
+   * 3. Initial fallback (first load)
    */
-  if (isLoading) {
-    return (
-      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
-        <p className="text-sm text-gray-500">Loading...</p>
-      </div>
-    );
-  }
+  const displaySourceState =
+    userState?.sourceState ??
+    lastKnownStateRef.current ??
+    INITIAL_FALLBACK_SOURCE_STATE;
 
   /**
-   * Error state - minimal, floating on top
-   * IMPORTANT: Use py-2 and min-height to match actual state and prevent layout shifts (Milestone 4.14)
+   * Error state - show error but keep showing the bar
+   * Only show error text if we have no data to display
    */
-  if (error) {
+  if (error && !userState && !lastKnownStateRef.current) {
     return (
       <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
         <p className="text-sm text-red-600">{error}</p>
@@ -127,32 +174,13 @@ export default function UserState({ fid }: UserStateProps) {
   }
 
   /**
-   * Not authenticated - minimal
-   * IMPORTANT: Use py-2 and min-height to match actual state and prevent layout shifts (Milestone 4.14)
-   */
-  if (!fid) {
-    return (
-      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
-        <p className="text-sm text-gray-500">Connecting...</p>
-      </div>
-    );
-  }
-
-  if (!userState) {
-    return (
-      <div className="text-center py-2" style={{ minHeight: '2.5rem' }}>
-        <p className="text-sm text-gray-500">Loading...</p>
-      </div>
-    );
-  }
-
-  /**
    * Display user state - Milestone 6.5: Unified GuessBar component
+   * Milestone 6.8: Always render GuessBar, never show "Loading..."
    * IMPORTANT: Use py-2 and min-height to prevent layout shifts when remounting (Milestone 4.14)
    */
   return (
     <GuessBar
-      sourceState={userState.sourceState}
+      sourceState={displaySourceState}
     />
   );
 }
