@@ -134,15 +134,15 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
             ? 'rgba(15, 23, 42, 0.08)'
             : 'rgba(15, 23, 42, 0.04)',
           color: '#111827',
-          fontWeight: 600,
+          fontWeight: 400,
           lineHeight: 1.2,
           transition: 'background-color 150ms ease-out, transform 150ms ease-out',
           transform: justDecremented && !prefersReducedMotion ? 'scale(1.03)' : 'scale(1)',
         }}
       >
         <span style={{ fontWeight: 700 }}>{totalRemaining}</span>
-        {' '}
-        <span style={{ fontWeight: 500 }}>
+        <span>&nbsp;</span>
+        <span style={{ fontWeight: 400 }}>
           {totalRemaining === 1 ? 'guess' : 'guesses'} left
         </span>
       </span>
@@ -153,7 +153,7 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
       {/* Right side: Source breakdown */}
       <span
         className="text-sm whitespace-nowrap"
-        style={{ color: '#4b5563', fontWeight: 500 }}
+        style={{ color: '#4b5563', fontWeight: 400 }}
       >
         {/* Free guess (always shown) */}
         <SourceSegment
