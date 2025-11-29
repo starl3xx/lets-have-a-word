@@ -13,7 +13,7 @@
 import { neynarClient } from './farcaster';
 import { db } from '../db';
 import { announcerEvents, rounds, roundPayouts, users } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
 
 // Configuration from environment variables
@@ -245,10 +245,72 @@ Play in the Farcaster mini app to join the round.`;
 }
 
 /**
+ * Fetch username from database by FID
+ *
+ * @param fid - Farcaster ID
+ * @returns Username string (with @ prefix) or null if not found
+ */
+async function getUsernameByFid(fid: number | null | undefined): Promise<string | null> {
+  if (!fid) return null;
+
+  try {
+    const [user] = await db
+      .select({ username: users.username })
+      .from(users)
+      .where(eq(users.fid, fid))
+      .limit(1);
+
+    if (user?.username) {
+      return `@${user.username}`;
+    }
+    return null;
+  } catch (error) {
+    console.error('[announcer] Error fetching username for FID:', fid, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch usernames for multiple FIDs from database
+ *
+ * @param fids - Array of Farcaster IDs
+ * @returns Array of username strings (with @ prefix)
+ */
+async function getUsernamesByFids(fids: number[]): Promise<string[]> {
+  if (fids.length === 0) return [];
+
+  try {
+    const userRows = await db
+      .select({ fid: users.fid, username: users.username })
+      .from(users)
+      .where(
+        fids.length === 1
+          ? eq(users.fid, fids[0])
+          : sql`${users.fid} IN (${sql.join(fids.map(f => sql`${f}`), sql`, `)})`
+      );
+
+    // Create a map for quick lookup, preserving order of input FIDs
+    const usernameMap = new Map<number, string>();
+    for (const row of userRows) {
+      if (row.username) {
+        usernameMap.set(row.fid, `@${row.username}`);
+      }
+    }
+
+    // Return usernames in the same order as input FIDs
+    return fids.map(fid => usernameMap.get(fid) || `@fid:${fid}`);
+  } catch (error) {
+    console.error('[announcer] Error fetching usernames for FIDs:', fids, error);
+    return fids.map(fid => `@fid:${fid}`);
+  }
+}
+
+/**
  * Announce that a round has been resolved
  *
  * @param round - The resolved round
  * @param payouts - Array of payout records for this round
+ * @param totalGuesses - Total number of guesses in the round
  */
 export async function announceRoundResolved(
   round: RoundRow,
@@ -256,48 +318,54 @@ export async function announceRoundResolved(
   totalGuesses: number
 ) {
   const roundNumber = getRoundNumber(round);
-  const answer = round.answer;
+  const answer = round.answer.toUpperCase(); // Always ALL CAPS
   const answerHash = round.commitHash;
   const salt = round.salt;
   const jackpotEth = formatEth(round.prizePoolEth);
-  const jackpotUsd = estimateUsd(round.prizePoolEth);
 
-  // Find winner payout
+  // Find winner payout and fetch username
   const winnerPayout = payouts.find(p => p.role === 'winner');
-  const winnerPayoutEth = winnerPayout ? formatEth(winnerPayout.amountEth) : '0';
+  const winnerUsername = await getUsernameByFid(winnerPayout?.fid);
+  const winnerMention = winnerUsername || '@winner';
 
-  // Find top 10 total
+  // Find top 10 guessers payouts and fetch usernames
   const topTenPayouts = payouts.filter(p => p.role === 'top_guesser');
   const topTenTotal = topTenPayouts.reduce((sum, p) => sum + parseFloat(p.amountEth), 0);
   const topTenPayoutEth = formatEth(topTenTotal);
 
+  // Get top 10 FIDs in order (sorted by payout amount desc as a proxy for volume ranking)
+  const topTenFids = topTenPayouts
+    .sort((a, b) => parseFloat(b.amountEth) - parseFloat(a.amountEth))
+    .map(p => p.fid)
+    .filter((fid): fid is number => fid !== null);
+
+  const topTenUsernames = await getUsernamesByFids(topTenFids);
+  const topTenMentions = topTenUsernames.join(' ');
+
   // Find referrer payout if exists
   const referrerPayout = payouts.find(p => p.role === 'referrer');
   const referrerPayoutEth = referrerPayout ? formatEth(referrerPayout.amountEth) : null;
+  const referrerUsername = await getUsernameByFid(referrerPayout?.fid);
 
-  // Build referrer line
+  // Build referrer line (only if referrer exists and was paid)
   let referrerLine = '';
-  if (referrerPayoutEth) {
-    referrerLine = `\nThe winner's referrer also earned ${referrerPayoutEth} ETH for bringing them into the game.`;
+  if (referrerPayoutEth && referrerUsername) {
+    referrerLine = `\n\n${winnerMention}'s referrer ${referrerUsername} earned ${referrerPayoutEth} ETH for bringing them into the game. 🫂`;
   }
 
   const text = `🎉 Round #${roundNumber} is over on Let's Have A Word!
 
-The secret word was: ${answer}
+After ${totalGuesses.toLocaleString()} global guesses, ${winnerMention} found the secret word ${answer} and won the ${jackpotEth} ETH jackpot! 🏆 Congrats!${referrerLine}
 
-The jackpot was ${jackpotEth} ETH (${jackpotUsd} USD est).
-- Winner: ${winnerPayoutEth} ETH
-- Top 10 guessers (by volume): ${topTenPayoutEth} ETH split${referrerLine}
+This round's top 10 guessers by volume also take home a share of ${topTenPayoutEth} ETH: ${topTenMentions} 🙌
 
-Global guesses this round: ${totalGuesses}.
-
-Commit–reveal:
-- Hash: ${answerHash}
-- Salt: ${salt}
+Secret word commit–reveal:
+→ Hash: ${answerHash}
+→ Salt: ${salt}
 
 Anyone can recompute hash(answer + salt) and confirm it matches the onchain commitment.
 
-New round starts soon in the mini app. One word, one jackpot. 🔐`;
+New round starts soon! One word, one jackpot. 💰`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
