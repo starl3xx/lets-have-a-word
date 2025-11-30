@@ -7,29 +7,28 @@ interface WinnerShareCardProps {
   winnerWord: string;
   roundId: number;
   jackpotEth?: string; // Milestone 6.3: Jackpot amount
-  isClanktonHolder?: boolean; // Milestone 6.3: Show mascot for holders
   onClose: () => void;
 }
 
 /**
  * WinnerShareCard
- * Milestone 4.14, Updated Milestone 6.3
+ * Milestone 4.14, Updated Milestone 6.3, 6.8
  *
  * Shows a celebration card when user wins the round
  * Includes Farcaster + X (Twitter) share options
  *
  * Milestone 6.3 enhancements:
  * - Brand color palette
- * - CLANKTON mascot for holders
  * - Jackpot amount display
  * - Round number display
  * - Haptics on save/download
+ *
+ * Milestone 6.8: Removed CLANKTON references from modal
  */
 export default function WinnerShareCard({
   winnerWord,
   roundId,
   jackpotEth = '0.00',
-  isClanktonHolder = false,
   onClose,
 }: WinnerShareCardProps) {
   const { t } = useTranslation();
@@ -137,15 +136,8 @@ export default function WinnerShareCard({
 
           {/* Winner Celebration */}
           <div className="text-center mb-6 relative z-10">
-            {/* CLANKTON mascot for holders */}
-            {isClanktonHolder ? (
-              <div className="relative inline-block mb-4">
-                <div className="text-7xl">🐟</div>
-                <div className="absolute -right-2 -top-2 text-3xl">🎉</div>
-              </div>
-            ) : (
-              <div className="text-7xl mb-4">🎉</div>
-            )}
+            {/* Celebration emoji */}
+            <div className="text-7xl mb-4">🎉</div>
 
             <h2 className="text-3xl font-bold text-white mb-2" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
               {t('winner.congratulations')}
@@ -166,14 +158,6 @@ export default function WinnerShareCard({
                 {jackpotDisplay} ETH
               </p>
             </div>
-
-            {/* CLANKTON holder badge */}
-            {isClanktonHolder && (
-              <div className="mt-3 inline-flex items-center gap-2 bg-blue-500/30 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                <span className="text-sm">🐟</span>
-                <span className="text-xs text-white font-medium">CLANKTON Holder Bonus Active</span>
-              </div>
-            )}
           </div>
 
           {/* Share Section */}
