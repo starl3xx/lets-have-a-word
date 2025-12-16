@@ -18,7 +18,7 @@ import { getTodayUTC } from './daily-limits';
  * Check if XP debug logging is enabled
  */
 function isXpDebugEnabled(): boolean {
-  return process.env.XP_DEBUG === 'true' || process.env.LHAW_DEV_MODE === 'true';
+  return process.env.XP_DEBUG === 'true' || process.env.NEXT_PUBLIC_LHAW_DEV_MODE === 'true';
 }
 
 /**
