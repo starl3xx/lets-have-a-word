@@ -243,9 +243,10 @@ export async function synthesizeDevGameStateAsync(
 
 /**
  * Check if dev mode is enabled
+ * Uses NEXT_PUBLIC_ prefix so it works on both client and server
  */
 export function isDevModeEnabled(): boolean {
-  return process.env.LHAW_DEV_MODE === 'true';
+  return process.env.NEXT_PUBLIC_LHAW_DEV_MODE === 'true';
 }
 
 /**
