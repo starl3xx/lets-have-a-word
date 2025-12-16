@@ -383,6 +383,9 @@ export async function ensureDevRound(): Promise<number> {
   // Ensure a game rule exists (creates one if needed)
   const rulesetId = await ensureDevGameRule();
 
+  // Random initial prize pool between 0.1 and 0.4 ETH
+  const initialPrizePool = (0.1 + Math.random() * 0.3).toFixed(4);
+
   const [newRound] = await db
     .insert(rounds)
     .values({
@@ -390,7 +393,7 @@ export async function ensureDevRound(): Promise<number> {
       answer: fixedSolution,
       salt,
       commitHash,
-      prizePoolEth: '0.42', // Dev mode jackpot
+      prizePoolEth: initialPrizePool,
       seedNextRoundEth: '0',
       winnerFid: null,
       referrerFid: null,
@@ -400,6 +403,35 @@ export async function ensureDevRound(): Promise<number> {
     })
     .returning();
 
-  console.log(`🎮 Dev mode: Created round ${newRound.id} with answer ${fixedSolution}`);
+  console.log(`🎮 Dev mode: Created round ${newRound.id} with answer ${fixedSolution}, prize pool ${initialPrizePool} ETH`);
   return newRound.id;
+}
+
+/**
+ * Get the current dev round's status from the database
+ * Returns the actual prize pool (affected by pack purchases) with random display values
+ */
+export async function getDevRoundStatus(): Promise<{
+  roundId: number;
+  prizePoolEth: string;
+  globalGuessCount: number;
+}> {
+  const roundId = await ensureDevRound();
+
+  const [round] = await db
+    .select()
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
+
+  if (!round) {
+    throw new Error('Dev round not found after ensureDevRound');
+  }
+
+  // Use actual prize pool from database, but random display values for round # and guesses
+  return {
+    roundId: Math.floor(5 + Math.random() * 296), // Random 5-300 for display
+    prizePoolEth: round.prizePoolEth, // Actual value from database
+    globalGuessCount: Math.floor(100 + Math.random() * 5900), // Random 100-6000 for display
+  };
 }
