@@ -364,6 +364,18 @@ export async function ensureDevRound(): Promise<number> {
 
     // If the existing round has the correct answer, use it
     if (round.answer === fixedSolution) {
+      // Check if prize pool is outside valid dev range (0.03-0.4 ETH)
+      // If so, reset it to a random value in range
+      const currentPrizePool = parseFloat(round.prizePoolEth);
+      if (currentPrizePool < 0.03 || currentPrizePool > 0.4) {
+        const newPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
+        console.log(`🎮 Dev mode: Resetting prize pool from ${round.prizePoolEth} to ${newPrizePool} ETH (outside valid range)`);
+        await db
+          .update(rounds)
+          .set({ prizePoolEth: newPrizePool })
+          .where(eq(rounds.id, round.id));
+      }
+
       console.log(`🎮 Dev mode: Using existing round ${round.id} with answer ${fixedSolution}`);
       return round.id;
     }
