@@ -62,8 +62,8 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
       className="absolute inset-0 z-40 flex items-start justify-center pt-4"
       style={{
         backgroundColor: 'rgba(249, 250, 251, 0.7)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
       }}
     >
       <div className="w-full max-w-sm mx-4">
@@ -72,9 +72,9 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
           <div
             className="rounded-2xl p-6 space-y-5"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
               border: '1px solid rgba(0, 0, 0, 0.1)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
             }}
@@ -111,9 +111,9 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
           <div
             className="rounded-2xl p-6 space-y-5"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
               border: '1px solid rgba(0, 0, 0, 0.1)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
             }}
