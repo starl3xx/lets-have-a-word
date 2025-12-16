@@ -3,42 +3,37 @@ import type { RoundStatus } from '../src/lib/wheel';
 
 /**
  * Format ETH value for display
- * Milestone 3.2: Show 2-4 decimal places, trim trailing zeros
+ * Always show exactly 4 decimal places
  *
  * @param value - ETH value as string or number
- * @returns Formatted ETH string (e.g. "0.42" or "1.2345")
+ * @returns Formatted ETH string (e.g. "0.4219")
  */
 function formatEth(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
 
-  if (isNaN(num)) return '0';
+  if (isNaN(num)) return '0.0000';
 
-  // Show up to 4 decimal places, but trim trailing zeros
-  const formatted = num.toFixed(4);
-
-  // Remove trailing zeros after decimal point
-  return formatted.replace(/\.?0+$/, '');
+  return num.toFixed(4);
 }
 
 /**
  * Format USD value for display
- * Milestone 3.2: Show with $ prefix and commas
- * Milestone 4.12: Always show 2 decimal places for cents
+ * Round to nearest dollar (no cents)
  *
  * @param value - USD value as string or number
- * @returns Formatted USD string (e.g. "$1,260.00" or "$1,260.50")
+ * @returns Formatted USD string (e.g. "$1,260")
  */
 function formatUsd(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
 
-  if (isNaN(num)) return '$0.00';
+  if (isNaN(num)) return '$0';
 
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(num));
 }
 
 interface TopTickerProps {
@@ -142,7 +137,7 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
    */
   return (
     <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#2D68C7' }}>
-      <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-4">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-hidden">
         {/* Prize Pool */}
         <div>
           <p className="text-xs uppercase font-light tracking-wide opacity-90">
