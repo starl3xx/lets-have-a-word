@@ -37,21 +37,25 @@ export default async function handler(
   try {
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning synthetic round status with live ETH/USD price');
+      console.log('🎮 Dev mode: Returning randomized synthetic round status');
+
+      // Generate random values for dev mode
+      const prizePoolEthNum = 0.1 + Math.random() * 0.3; // 0.1 - 0.4 ETH
+      const globalGuessCount = Math.floor(100 + Math.random() * 5900); // 100 - 6000
+      const roundId = Math.floor(5 + Math.random() * 296); // 5 - 300
 
       // Fetch live ETH/USD price even in dev mode (Milestone 4.12)
       const ethUsdRate = await getEthUsdPrice();
-      const prizePoolEthNum = 0.36;
       const prizePoolUsd = ethUsdRate != null
         ? (prizePoolEthNum * ethUsdRate).toFixed(2)
-        : '1080.00'; // Fallback to hardcoded value
+        : (prizePoolEthNum * 3000).toFixed(2); // Fallback estimate
 
       // Return synthetic round status for dev mode
       const syntheticStatus: RoundStatus = {
-        roundId: 5,
-        prizePoolEth: '0.36',
+        roundId,
+        prizePoolEth: prizePoolEthNum.toFixed(4),
         prizePoolUsd,
-        globalGuessCount: 8516,
+        globalGuessCount,
         lastUpdatedAt: new Date().toISOString(),
       };
 
