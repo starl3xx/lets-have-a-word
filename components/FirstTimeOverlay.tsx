@@ -14,7 +14,7 @@ type OverlayPhase = 'add-app' | 'tutorial';
  * FirstTimeOverlay Component
  *
  * Two-phase first-time user experience:
- * 1. Prompt to add mini app to Warpcast (enables notifications)
+ * 1. Prompt to add mini app to Farcaster (enables notifications)
  * 2. Simple "How the game works" tutorial
  *
  * Can also be shown in tutorial-only mode via the info icon.
@@ -68,7 +68,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
     >
       <div className="w-full max-w-sm mx-4">
         {phase === 'add-app' ? (
-          // Phase 1: Add to Warpcast
+          // Phase 1: Add to Farcaster
           <div
             className="rounded-2xl p-6 space-y-5"
             style={{

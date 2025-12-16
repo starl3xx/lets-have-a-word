@@ -1465,12 +1465,12 @@ The dev persona switcher now includes sourceState overrides for testing:
 Created `public/.well-known/farcaster.json` for mini app configuration:
 - Frame metadata (name, icon, splash screen)
 - Neynar webhook URL for notification token management
-- Enables discovery and installation from Warpcast
+- Enables discovery and installation from Farcaster
 
 #### Mini App Add Prompt
 Updated `components/FirstTimeOverlay.tsx` to prompt users to add the mini app:
 - Uses `sdk.actions.addFrame()` from `@farcaster/miniapp-sdk`
-- Primary CTA: "Add to Warpcast & Play"
+- Primary CTA: "Add to Farcaster"
 - Secondary option: "Skip for now"
 - Auto-dismisses on success with haptic feedback
 - Footer note: "Adding enables notifications for new rounds"
