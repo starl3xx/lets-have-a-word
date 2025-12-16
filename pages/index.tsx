@@ -196,6 +196,12 @@ function GameContent() {
     const checkFirstTimeUser = async () => {
       if (!effectiveFid) return;
 
+      // In dev mode, always show the tutorial overlay for testing
+      if (isClientDevMode()) {
+        setShowFirstTimeOverlay(true);
+        return;
+      }
+
       try {
         const response = await fetch(`/api/user/state?devFid=${effectiveFid}`);
         if (response.ok) {
