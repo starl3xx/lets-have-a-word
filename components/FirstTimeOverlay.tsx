@@ -1,195 +1,142 @@
 import { useState } from 'react';
+import { useMiniApp } from '@neynar/react';
 import { triggerHaptic } from '../src/lib/haptics';
-import sdk from '@farcaster/miniapp-sdk';
 
 interface FirstTimeOverlayProps {
   onDismiss: () => void;
+  /** Start directly at tutorial phase (skip add-app prompt) */
+  tutorialOnly?: boolean;
 }
+
+type OverlayPhase = 'add-app' | 'tutorial';
 
 /**
  * FirstTimeOverlay Component
- * Milestone 4.3
  *
- * Full-screen tutorial overlay shown on first visit
- * Explains core game mechanics and rules
- * Prompts user to add mini app for notifications
+ * Two-phase first-time user experience:
+ * 1. Prompt to add mini app to Warpcast (enables notifications)
+ * 2. Simple "How the game works" tutorial
+ *
+ * Can also be shown in tutorial-only mode via the info icon.
+ *
+ * Positioned as an overlay within the game container,
+ * covering the area from guess bar to guess button.
  */
-export default function FirstTimeOverlay({ onDismiss }: FirstTimeOverlayProps) {
+export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: FirstTimeOverlayProps) {
+  const { isSDKLoaded, actions } = useMiniApp();
+  const [phase, setPhase] = useState<OverlayPhase>(tutorialOnly ? 'tutorial' : 'add-app');
   const [isAddingApp, setIsAddingApp] = useState(false);
-  const [addAppStatus, setAddAppStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const handleAddMiniApp = async () => {
+    if (!isSDKLoaded) {
+      // SDK not loaded, skip to tutorial
+      setPhase('tutorial');
+      return;
+    }
+
     setIsAddingApp(true);
     try {
-      const result = await sdk.actions.addFrame();
-      if (result.added) {
-        setAddAppStatus('success');
-        triggerHaptic('success');
-        // Store notification details if provided
-        if (result.notificationDetails) {
-          console.log('Mini app added with notifications enabled');
-          console.log('Notification URL:', result.notificationDetails.url);
-          // Token is managed by Neynar webhook, no need to store client-side
-        }
-        // Auto-dismiss after successful add
-        setTimeout(() => {
-          onDismiss();
-        }, 1200);
-      } else {
-        // User rejected or invalid domain - just dismiss
-        console.log('Mini app add declined:', result.reason);
-        onDismiss();
+      const result = await actions.addMiniApp();
+      // Success - notificationDetails may be present if notifications were enabled
+      if (result.notificationDetails) {
+        console.log('Mini app added with notifications enabled');
       }
+      triggerHaptic('success');
+      // Move to tutorial
+      setPhase('tutorial');
     } catch (error) {
-      console.error('Error adding mini app:', error);
-      // On error, just dismiss and let them play
-      onDismiss();
+      // User rejected or invalid domain - move to tutorial anyway
+      // Errors are AddMiniApp.RejectedByUser or AddMiniApp.InvalidDomainManifest
+      console.log('Mini app add declined:', error);
+      setPhase('tutorial');
     } finally {
       setIsAddingApp(false);
     }
   };
 
-  const handleSkip = () => {
+  const handleSkipAdd = () => {
+    triggerHaptic('light');
+    setPhase('tutorial');
+  };
+
+  const handleReady = () => {
     triggerHaptic('light');
     onDismiss();
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8 space-y-6 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-gray-900">
-            Let's Have A Word! 💬
-          </h1>
-          <p className="text-lg text-gray-600">
-            Massively multiplayer word hunt
-          </p>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-200"></div>
-
-        {/* Content */}
-        <div className="space-y-5">
-          {/* How it works */}
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              🎯 How it works
-            </h2>
-            <ul className="space-y-2 text-gray-700">
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span>There's <strong>one hidden 5-letter word</strong> shared by everyone in the world</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span>Every wrong guess appears on the <strong>global spinning wheel</strong></span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span>The word only changes when someone <strong>guesses it correctly</strong></span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span>First correct guesser <strong>wins the ETH jackpot!</strong> 🏆</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Guesses */}
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              🎲 Your Guesses
-            </h2>
-            <ul className="space-y-2 text-gray-700">
-              <li className="flex items-start">
-                <span className="text-blue-600 mr-2">•</span>
-                <span><strong>1 free guess per day</strong> (base)</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-purple-600 mr-2">•</span>
-                <span><strong>+3 free guesses</strong> if you hold ≥100M CLANKTON tokens</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-600 mr-2">•</span>
-                <span><strong>+1 free guess</strong> when you share to Farcaster</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-gray-600 mr-2">•</span>
-                <span>Buy <strong>paid guess packs</strong> (3 guesses for 0.0003 ETH)</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Jackpot */}
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              💰 The Jackpot
-            </h2>
-            <p className="text-gray-700">
-              The jackpot grows from paid guesses. When someone wins:
-            </p>
-            <ul className="space-y-2 text-gray-700 mt-2">
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span><strong>80%</strong> goes to the winner</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span><strong>10%</strong> goes to their referrer</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-600 mr-2">•</span>
-                <span><strong>10%</strong> split among top 10 guessers</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Fairness */}
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              ✅ Provably Fair
-            </h2>
-            <p className="text-gray-700 text-sm">
-              Each round's word is <strong>pre-committed</strong> with a cryptographic hash before the round starts. This proves the word wasn't changed after anyone guessed.
-            </p>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-200"></div>
-
-        {/* Action Buttons */}
-        <div className="space-y-3">
-          {addAppStatus === 'success' ? (
-            <div className="w-full py-4 px-6 bg-green-500 text-white text-lg font-bold rounded-xl text-center">
-              Added! Let's play!
+    <div
+      className="absolute inset-0 z-40 flex items-center justify-center"
+      style={{
+        backgroundColor: 'rgba(249, 250, 251, 0.95)', // Match bg-gray-50 with opacity
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      <div className="w-full max-w-sm mx-4">
+        {phase === 'add-app' ? (
+          // Phase 1: Add to Warpcast
+          <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Welcome!
+              </h2>
+              <p className="text-gray-600">
+                Add this app to get notified when new rounds start
+              </p>
             </div>
-          ) : (
-            <>
+
+            <div className="space-y-3">
               <button
                 onClick={handleAddMiniApp}
                 disabled={isAddingApp}
                 className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-bold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg disabled:opacity-50"
               >
-                {isAddingApp ? 'Adding...' : 'Add to Warpcast & Play'}
+                {isAddingApp ? 'Adding...' : 'Add to Warpcast'}
               </button>
               <button
-                onClick={handleSkip}
+                onClick={handleSkipAdd}
                 disabled={isAddingApp}
                 className="w-full py-2 px-6 text-gray-500 text-sm hover:text-gray-700 transition-colors disabled:opacity-50"
               >
                 Skip for now
               </button>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        ) : (
+          // Phase 2: Tutorial
+          <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
+            <h2 className="text-xl font-bold text-gray-900 text-center">
+              How the game works
+            </h2>
 
-        {/* Footer note */}
-        <p className="text-center text-xs text-gray-500">
-          Adding enables notifications for new rounds
-        </p>
+            <ul className="space-y-4 text-gray-700">
+              <li className="flex items-start">
+                <span className="text-blue-600 mr-3 mt-0.5 flex-shrink-0">&#x2022;</span>
+                <span>Everyone is hunting the same secret word. The first person to find it wins the jackpot.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-blue-600 mr-3 mt-0.5 flex-shrink-0">&#x2022;</span>
+                <span>You get 1 free guess per day. Additional guesses can be earned or purchased.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-blue-600 mr-3 mt-0.5 flex-shrink-0">&#x2022;</span>
+                <span>Every incorrect guess helps everyone else by removing that word from play.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-blue-600 mr-3 mt-0.5 flex-shrink-0">&#x2022;</span>
+                <span><span className="text-red-600 font-medium">Red</span> words have already been guessed. <span className="font-medium">Black</span> words are still available.</span>
+              </li>
+            </ul>
+
+            <button
+              onClick={handleReady}
+              className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg active:scale-95"
+              style={{ backgroundColor: '#2D68C7' }}
+            >
+              I'm ready!
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

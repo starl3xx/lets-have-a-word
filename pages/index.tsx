@@ -40,6 +40,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MiniAppProvider } from '@neynar/react';
 import { config } from '../src/config/wagmi';
 
 // Create a client for React Query
@@ -106,6 +107,7 @@ function GameContent() {
   const [showStatsSheet, setShowStatsSheet] = useState(false);
   const [showReferralSheet, setShowReferralSheet] = useState(false);
   const [showFAQSheet, setShowFAQSheet] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [boxResultState, setBoxResultState] = useState<'typing' | 'wrong' | 'correct'>('typing');
   const [hideStateError, setHideStateError] = useState(false);
 
@@ -440,7 +442,7 @@ function GameContent() {
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Don't process if loading or if any modal/sheet is open
-      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showShareModal || showFirstTimeOverlay) {
+      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showShareModal || showFirstTimeOverlay || showTutorial) {
         return;
       }
 
@@ -476,7 +478,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay, showTutorial]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
@@ -1026,20 +1028,51 @@ function GameContent() {
         }}
       />
 
-      {/* User State (Milestone 4.1) - Minimal */}
-      <div className="px-4 pt-1">
-        <div className="max-w-md mx-auto">
-          <UserState key={userStateKey} fid={effectiveFid} />
+      {/* Game Area Wrapper - contains UserState, game container, and overlays */}
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* User State (Milestone 4.1) - Minimal */}
+        <div className="px-4 pt-1">
+          <div className="max-w-md mx-auto">
+            <UserState key={userStateKey} fid={effectiveFid} />
+          </div>
         </div>
-      </div>
 
-      {/* Main Game Container with Layered Wheel */}
-      <div
-        className="flex-1 flex flex-col px-4 pt-1 overflow-hidden"
-        style={{
-          paddingBottom: 'max(13rem, calc(13rem + env(safe-area-inset-bottom)))',
-        }}
-      >
+        {/* Info Icon - resurface tutorial */}
+        {!showFirstTimeOverlay && !showTutorial && (
+          <div className="px-4">
+            <div className="max-w-md mx-auto flex justify-end">
+              <button
+                onClick={() => {
+                  setShowTutorial(true);
+                  void haptics.buttonTapMinor();
+                }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="How to play"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Main Game Container with Layered Wheel */}
+        <div
+          className="flex-1 flex flex-col px-4 pt-1 overflow-hidden"
+          style={{
+            paddingBottom: 'max(13rem, calc(13rem + env(safe-area-inset-bottom)))',
+          }}
+        >
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
 
           {/* Wheel + Input Container - fills remaining space with stable height */}
@@ -1224,6 +1257,22 @@ function GameContent() {
               </div>
           </div>
         </div>
+        </div>
+
+        {/* First Time Overlay - positioned within game area */}
+        {showFirstTimeOverlay && (
+          <FirstTimeOverlay
+            onDismiss={() => setShowFirstTimeOverlay(false)}
+          />
+        )}
+
+        {/* Tutorial Overlay - resurface via info icon */}
+        {showTutorial && (
+          <FirstTimeOverlay
+            onDismiss={() => setShowTutorial(false)}
+            tutorialOnly
+          />
+        )}
       </div>
 
       {/* Custom Keyboard (Milestone 4.4) */}
@@ -1250,13 +1299,6 @@ function GameContent() {
           guessResult={pendingShareResult}
           onClose={handleShareModalClose}
           onShareSuccess={handleShareSuccess}
-        />
-      )}
-
-      {/* First Time Overlay (Milestone 4.3) */}
-      {showFirstTimeOverlay && (
-        <FirstTimeOverlay
-          onDismiss={() => setShowFirstTimeOverlay(false)}
         />
       )}
 
@@ -1329,10 +1371,23 @@ function GameContent() {
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
  */
 export default function Home() {
+  // MiniAppProvider is not SSR-compatible, so we only render it on the client
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <GameContent />
+        {mounted ? (
+          <MiniAppProvider>
+            <GameContent />
+          </MiniAppProvider>
+        ) : (
+          // SSR fallback - render without MiniAppProvider
+          <GameContent />
+        )}
       </QueryClientProvider>
     </WagmiProvider>
   );
