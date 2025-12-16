@@ -84,7 +84,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
                 Welcome!
               </h2>
               <p className="text-gray-600">
-                Add this app to get notified when new rounds start
+                Add this app to get notified when new rounds begin — each round has a jackpot!
               </p>
             </div>
 
@@ -95,7 +95,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
                 className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg disabled:opacity-50 active:scale-95"
                 style={{ backgroundColor: '#2D68C7' }}
               >
-                {isAddingApp ? 'Adding...' : 'Add to Warpcast'}
+                {isAddingApp ? 'Adding...' : 'Add to Farcaster'}
               </button>
               <button
                 onClick={handleSkipAdd}
