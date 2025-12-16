@@ -408,30 +408,47 @@ export async function ensureDevRound(): Promise<number> {
 }
 
 /**
+ * Simple seeded random number generator for deterministic "random" values
+ * Same seed always produces same sequence of numbers
+ */
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+/**
  * Get the current dev round's status from the database
- * Returns the actual prize pool (affected by pack purchases) with random display values
+ * Returns the actual prize pool (affected by pack purchases) with deterministic display values
+ * Display values are "random" but consistent for the same round (won't change on poll)
  */
 export async function getDevRoundStatus(): Promise<{
   roundId: number;
   prizePoolEth: string;
   globalGuessCount: number;
 }> {
-  const roundId = await ensureDevRound();
+  const actualRoundId = await ensureDevRound();
 
   const [round] = await db
     .select()
     .from(rounds)
-    .where(eq(rounds.id, roundId))
+    .where(eq(rounds.id, actualRoundId))
     .limit(1);
 
   if (!round) {
     throw new Error('Dev round not found after ensureDevRound');
   }
 
-  // Use actual prize pool from database, but random display values for round # and guesses
+  // Generate deterministic "random" values based on actual round ID
+  // These will be consistent for the same round, only change when a new round is created
+  const rng = seededRandom(actualRoundId);
+  const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
+  const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
+
   return {
-    roundId: Math.floor(5 + Math.random() * 296), // Random 5-300 for display
+    roundId: displayRoundId,
     prizePoolEth: round.prizePoolEth, // Actual value from database
-    globalGuessCount: Math.floor(100 + Math.random() * 5900), // Random 100-6000 for display
+    globalGuessCount: displayGuessCount,
   };
 }
