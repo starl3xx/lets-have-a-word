@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useMiniApp } from '@neynar/react';
 import { triggerHaptic } from '../src/lib/haptics';
+import sdk from '@farcaster/miniapp-sdk';
 
 interface FirstTimeOverlayProps {
   onDismiss: () => void;
@@ -23,20 +23,13 @@ type OverlayPhase = 'add-app' | 'tutorial';
  * covering the area from guess bar to guess button.
  */
 export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: FirstTimeOverlayProps) {
-  const { isSDKLoaded, actions } = useMiniApp();
   const [phase, setPhase] = useState<OverlayPhase>(tutorialOnly ? 'tutorial' : 'add-app');
   const [isAddingApp, setIsAddingApp] = useState(false);
 
   const handleAddMiniApp = async () => {
-    if (!isSDKLoaded) {
-      // SDK not loaded, skip to tutorial
-      setPhase('tutorial');
-      return;
-    }
-
     setIsAddingApp(true);
     try {
-      const result = await actions.addMiniApp();
+      const result = await sdk.actions.addMiniApp();
       // Success - notificationDetails may be present if notifications were enabled
       if (result.notificationDetails) {
         console.log('Mini app added with notifications enabled');

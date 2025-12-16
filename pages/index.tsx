@@ -40,7 +40,6 @@ import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MiniAppProvider } from '@neynar/react';
 import { config } from '../src/config/wagmi';
 
 // Create a client for React Query
@@ -1371,23 +1370,10 @@ function GameContent() {
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
  */
 export default function Home() {
-  // MiniAppProvider is not SSR-compatible, so we only render it on the client
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        {mounted ? (
-          <MiniAppProvider>
-            <GameContent />
-          </MiniAppProvider>
-        ) : (
-          // SSR fallback - render without MiniAppProvider
-          <GameContent />
-        )}
+        <GameContent />
       </QueryClientProvider>
     </WagmiProvider>
   );
