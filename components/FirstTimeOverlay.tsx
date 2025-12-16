@@ -59,16 +59,26 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
 
   return (
     <div
-      className="absolute inset-0 z-40 flex items-center justify-center"
+      className="absolute inset-0 z-40 flex items-start justify-center pt-4"
       style={{
-        backgroundColor: 'rgba(249, 250, 251, 0.95)', // Match bg-gray-50 with opacity
-        backdropFilter: 'blur(4px)',
+        backgroundColor: 'rgba(249, 250, 251, 0.7)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
       }}
     >
       <div className="w-full max-w-sm mx-4">
         {phase === 'add-app' ? (
           // Phase 1: Add to Warpcast
-          <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
+          <div
+            className="rounded-2xl p-6 space-y-5"
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+            }}
+          >
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-gray-900">
                 Welcome!
@@ -82,7 +92,8 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
               <button
                 onClick={handleAddMiniApp}
                 disabled={isAddingApp}
-                className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-bold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg disabled:opacity-50"
+                className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg disabled:opacity-50 active:scale-95"
+                style={{ backgroundColor: '#2D68C7' }}
               >
                 {isAddingApp ? 'Adding...' : 'Add to Warpcast'}
               </button>
@@ -97,7 +108,16 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
           </div>
         ) : (
           // Phase 2: Tutorial
-          <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
+          <div
+            className="rounded-2xl p-6 space-y-5"
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+            }}
+          >
             <h2 className="text-xl font-bold text-gray-900 text-center">
               How the game works
             </h2>
@@ -126,7 +146,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
               className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg active:scale-95"
               style={{ backgroundColor: '#2D68C7' }}
             >
-              I'm ready!
+              I'm ready! 👉
             </button>
           </div>
         )}
