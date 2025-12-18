@@ -46,25 +46,8 @@ interface RoundArchiveModalProps {
  * RoundArchiveModal Component
  * Milestone 5.4, Updated Milestone 6.3
  *
- * Three-zone structure:
- * 1. Header - strong blue gradient band
- * 2. Stats zone - light-blue background with white cards
- * 3. Content zone - white table area + footer CTA
+ * Bottom sheet style matching StatsSheet
  */
-
-// Color palette - Blue theme
-const COLORS = {
-  blueMain: '#2D68C7',
-  blueDark: '#1F4DA0',
-  blueLight: '#EEF3FF',
-  purpleAccent: '#5C3ED6',
-  textPrimary: '#0F172A',
-  textMuted: '#6B7280',
-  borderSoft: '#D2D7E5',
-  success: '#16a34a',
-  successBg: '#f0fdf4',
-  white: '#FFFFFF',
-};
 
 export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: RoundArchiveModalProps) {
   const [loading, setLoading] = useState(true);
@@ -73,15 +56,11 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
   const [topGuessers, setTopGuessers] = useState<TopGuesser[]>([]);
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setIsAnimating(true);
       fetchArchiveData();
       fetchTopGuessers();
-    } else {
-      setIsAnimating(false);
     }
   }, [isOpen]);
 
@@ -139,344 +118,155 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
   if (!isOpen) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.6)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '16px',
-        opacity: isAnimating ? 1 : 0,
-        transition: 'opacity 0.2s ease-out',
-      }}
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
       <div
-        style={{
-          background: COLORS.white,
-          borderRadius: '20px',
-          maxWidth: '500px',
-          width: '100%',
-          maxHeight: '85vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          transform: isAnimating ? 'scale(1)' : 'scale(0.95)',
-          opacity: isAnimating ? 1 : 0,
-          transition: 'transform 0.2s ease-out, opacity 0.2s ease-out',
-        }}
+        className="bg-white rounded-t-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header - Solid Blue Band */}
-        <div
-          style={{
-            background: COLORS.blueMain,
-            padding: '20px 24px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h2 style={{
-              margin: 0,
-              fontSize: '22px',
-              fontWeight: 700,
-              color: COLORS.white,
-              letterSpacing: '-0.02em',
-            }}>
-              {selectedRound ? `Round #${selectedRound.roundNumber}` : 'LHAW Archive'}
+            <h2 className="text-2xl font-bold text-gray-900">
+              {selectedRound ? `📜 Round #${selectedRound.roundNumber}` : '📜 LHAW Archive'}
             </h2>
             {currentRoundId && !selectedRound && (
-              <p style={{
-                margin: '4px 0 0 0',
-                fontSize: '14px',
-                color: 'rgba(255,255,255,0.7)',
-                fontWeight: 500,
-              }}>
+              <p className="text-sm text-gray-500 mt-1">
                 Current round: #{currentRoundId}
               </p>
             )}
           </div>
           <button
             onClick={selectedRound ? () => setSelectedRound(null) : onClose}
-            style={{
-              background: 'transparent',
-              border: '2px solid rgba(255,255,255,0.5)',
-              borderRadius: '20px',
-              padding: '8px 16px',
-              color: COLORS.white,
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 600,
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = COLORS.white;
-              e.currentTarget.style.color = COLORS.blueMain;
-              e.currentTarget.style.borderColor = COLORS.white;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = COLORS.white;
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)';
-            }}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
           >
-            {selectedRound ? '← Back' : 'Close'}
+            {selectedRound ? '←' : '×'}
           </button>
         </div>
 
-        {/* Stats Zone - Light Blue Background */}
+        {/* Stats Zone */}
         {!loading && !error && stats && !selectedRound && (
-          <div style={{
-            background: COLORS.blueLight,
-            padding: '20px 24px',
-          }}>
+          <div className="space-y-4">
             {/* Top 10 Guessers Section */}
             {topGuessers.length > 0 && (
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{
-                  fontSize: '11px',
-                  color: COLORS.textMuted,
-                  marginBottom: '12px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  fontWeight: 600,
-                }}>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                   Top 10 guessers this round
-                </div>
-                <div
-                  style={{
-                    background: COLORS.white,
-                    borderRadius: '12px',
-                    padding: '16px',
-                    border: `1px solid ${COLORS.borderSoft}`,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {topGuessers.map((guesser, index) => (
-                      <div
-                        key={guesser.fid}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                        }}
-                      >
-                        {/* Rank */}
-                        <div
-                          style={{
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            background: index < 3 ? COLORS.blueMain : COLORS.blueLight,
-                            color: index < 3 ? COLORS.white : COLORS.textMuted,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {index + 1}
-                        </div>
-                        {/* Avatar */}
-                        <img
-                          src={guesser.pfpUrl}
-                          alt={guesser.username}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                            border: `2px solid ${COLORS.borderSoft}`,
-                            flexShrink: 0,
-                          }}
-                          onError={(e) => {
-                            // Fallback to placeholder if image fails to load
-                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
-                          }}
-                        />
-                        {/* Username */}
-                        <div
-                          style={{
-                            flex: 1,
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: COLORS.textPrimary,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {guesser.username}
-                        </div>
-                        {/* Guess Count */}
-                        <div
-                          style={{
-                            fontSize: '14px',
-                            fontWeight: 700,
-                            color: COLORS.blueMain,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {guesser.guessCount} {guesser.guessCount === 1 ? 'guess' : 'guesses'}
-                        </div>
+                </h3>
+                <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm space-y-3">
+                  {topGuessers.map((guesser, index) => (
+                    <div key={guesser.fid} className="flex items-center gap-3">
+                      {/* Rank */}
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        index < 3 ? 'bg-blue-600 text-white' : 'bg-blue-100 text-gray-500'
+                      }`}>
+                        {index + 1}
                       </div>
-                    ))}
-                  </div>
+                      {/* Avatar */}
+                      <img
+                        src={guesser.pfpUrl}
+                        alt={guesser.username}
+                        className="w-8 h-8 rounded-full object-cover border-2 border-gray-200 flex-shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
+                        }}
+                      />
+                      {/* Username */}
+                      <div className="flex-1 text-sm font-semibold text-gray-900 truncate">
+                        {guesser.username}
+                      </div>
+                      {/* Guess Count */}
+                      <div className="text-sm font-bold text-blue-600 flex-shrink-0">
+                        {guesser.guessCount} {guesser.guessCount === 1 ? 'guess' : 'guesses'}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
             {/* Stats Cards */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '12px',
-              }}
-            >
-              <StatsCard label="Total rounds" value={stats.totalRounds.toLocaleString()} />
-              <StatsCard label="Total guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
-              <StatsCard label="Unique winners" value={stats.uniqueWinners.toLocaleString()} />
-              <StatsCard
-                label="Jackpot distributed"
-                value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
-                highlight
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <div className="text-xl font-bold text-gray-900">{stats.totalRounds.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Total rounds</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <div className="text-xl font-bold text-gray-900">{stats.totalGuessesAllTime.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Total guesses</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <div className="text-xl font-bold text-gray-900">{stats.uniqueWinners.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Unique winners</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <div className="text-xl font-bold text-green-600">{formatEth(stats.totalJackpotDistributed)} ETH</div>
+                <div className="text-xs text-gray-500">Jackpot distributed</div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Content Zone - White Background */}
-        <div style={{
-          padding: '20px 24px',
-          overflowY: 'auto',
-          flex: 1,
-          background: COLORS.white,
-        }}>
+        {/* Content Zone */}
+        <div>
           {loading ? (
-            <div style={{
-              textAlign: 'center',
-              color: COLORS.textMuted,
-              padding: '40px',
-              fontSize: '15px',
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                border: `3px solid ${COLORS.blueLight}`,
-                borderTopColor: COLORS.blueMain,
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-                margin: '0 auto 12px',
-              }} />
+            <div className="text-center text-gray-500 py-10">
+              <div className="w-8 h-8 border-3 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
               Loading archive...
-              <style>{`
-                @keyframes spin {
-                  to { transform: rotate(360deg); }
-                }
-              `}</style>
             </div>
           ) : error ? (
-            <div style={{
-              textAlign: 'center',
-              color: '#dc2626',
-              padding: '40px',
-              background: '#fef2f2',
-              borderRadius: '12px',
-              fontSize: '15px',
-            }}>
+            <div className="text-center text-red-600 py-10 bg-red-50 rounded-lg">
               {error}
             </div>
           ) : selectedRound ? (
             // Round Detail View
-            <div>
+            <div className="space-y-4">
               {/* Word display */}
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <div
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: '40px',
-                    fontWeight: 800,
-                    letterSpacing: '8px',
-                    color: COLORS.blueMain,
-                    textTransform: 'uppercase',
-                  }}
-                >
+              <div className="text-center mb-6">
+                <div className="font-mono text-4xl font-extrabold tracking-widest text-blue-600 uppercase">
                   {selectedRound.targetWord}
                 </div>
-                <div style={{
-                  color: COLORS.textMuted,
-                  fontSize: '13px',
-                  marginTop: '8px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  fontWeight: 500,
-                }}>
+                <div className="text-xs text-gray-500 mt-2 uppercase tracking-wider font-medium">
                   The secret word
                 </div>
               </div>
 
               {/* Stats Grid */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '12px',
-                  marginBottom: '20px',
-                }}
-              >
-                <DetailStatBox label="Jackpot" value={`${formatEth(selectedRound.finalJackpotEth)} ETH`} highlight />
-                <DetailStatBox label="Guesses" value={selectedRound.totalGuesses.toLocaleString()} />
-                <DetailStatBox label="Players" value={selectedRound.uniquePlayers.toLocaleString()} />
-                <DetailStatBox label="Duration" value={formatDuration(selectedRound.startTime, selectedRound.endTime)} />
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="bg-green-50 border border-green-100 rounded-lg p-4 text-center">
+                  <div className="text-xl font-bold text-green-600">{formatEth(selectedRound.finalJackpotEth)} ETH</div>
+                  <div className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Jackpot</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center">
+                  <div className="text-xl font-bold text-blue-600">{selectedRound.totalGuesses.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Guesses</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center">
+                  <div className="text-xl font-bold text-blue-600">{selectedRound.uniquePlayers.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Players</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center">
+                  <div className="text-xl font-bold text-blue-600">{formatDuration(selectedRound.startTime, selectedRound.endTime)}</div>
+                  <div className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Duration</div>
+                </div>
               </div>
 
               {/* Winner */}
               {selectedRound.winnerFid && (
-                <div
-                  style={{
-                    background: COLORS.successBg,
-                    border: `1px solid ${COLORS.success}20`,
-                    borderRadius: '12px',
-                    padding: '16px',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <div style={{
-                    fontSize: '11px',
-                    color: COLORS.success,
-                    marginBottom: '6px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    fontWeight: 600,
-                  }}>
+                <div className="bg-green-50 border border-green-100 rounded-lg p-4">
+                  <div className="text-xs text-green-600 mb-1 uppercase tracking-wider font-semibold">
                     🏆 Winner
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: COLORS.textPrimary, fontWeight: 600 }}>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-900 font-semibold">
                       FID {selectedRound.winnerFid}
                       {selectedRound.winnerGuessNumber && (
-                        <span style={{ fontWeight: 400, color: COLORS.textMuted }}>
+                        <span className="font-normal text-gray-500">
                           {' '}(guess #{selectedRound.winnerGuessNumber})
                         </span>
                       )}
                     </span>
                     {selectedRound.payoutsJson.winner && (
-                      <span style={{ color: COLORS.success, fontWeight: 700, fontSize: '16px' }}>
+                      <span className="text-green-600 font-bold text-lg">
                         {formatEth(selectedRound.payoutsJson.winner.amountEth)} ETH
                       </span>
                     )}
@@ -488,96 +278,38 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
             // List View
             <div>
               {/* Section Label */}
-              <div style={{
-                fontSize: '11px',
-                color: COLORS.textMuted,
-                marginBottom: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                fontWeight: 600,
-              }}>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                 Recent completed rounds
-              </div>
+              </h3>
 
               {rounds.length === 0 ? (
                 // Empty state with dashed border
-                <div style={{
-                  textAlign: 'center',
-                  color: COLORS.textMuted,
-                  padding: '32px',
-                  border: `2px dashed ${COLORS.borderSoft}`,
-                  borderRadius: '12px',
-                  background: COLORS.white,
-                }}>
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📭</div>
+                <div className="text-center text-gray-500 py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                  <div className="text-2xl mb-2">📭</div>
                   No archived rounds yet
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                  {rounds.map((round, index) => (
+                <div className="divide-y divide-gray-200">
+                  {rounds.map((round) => (
                     <button
                       key={round.roundNumber}
                       onClick={() => fetchRoundDetail(round.roundNumber)}
-                      style={{
-                        background: COLORS.white,
-                        border: 'none',
-                        borderBottom: index < rounds.length - 1 ? `1px solid ${COLORS.borderSoft}` : 'none',
-                        padding: '16px 0',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        transition: 'background 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = COLORS.blueLight;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = COLORS.white;
-                      }}
+                      className="w-full py-4 text-left flex justify-between items-center hover:bg-gray-50 transition-colors"
                     >
                       <div>
-                        <div style={{
-                          color: COLORS.textPrimary,
-                          fontWeight: 600,
-                          fontSize: '15px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                        }}>
+                        <div className="text-gray-900 font-semibold text-sm flex items-center gap-2">
                           <span>Round #{round.roundNumber}</span>
-                          <span
-                            style={{
-                              fontFamily: 'monospace',
-                              color: COLORS.blueMain,
-                              letterSpacing: '2px',
-                              fontWeight: 700,
-                              fontSize: '14px',
-                              textTransform: 'uppercase',
-                            }}
-                          >
+                          <span className="font-mono text-blue-600 tracking-wide font-bold text-sm uppercase">
                             {round.targetWord}
                           </span>
                         </div>
-                        <div style={{
-                          color: COLORS.textMuted,
-                          fontSize: '13px',
-                          marginTop: '4px'
-                        }}>
+                        <div className="text-gray-500 text-xs mt-1">
                           {round.totalGuesses} guesses · {round.uniquePlayers} players
                         </div>
                       </div>
-                      <div style={{
-                        color: COLORS.success,
-                        fontWeight: 700,
-                        fontSize: '15px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}>
+                      <div className="text-green-600 font-bold text-sm flex items-center gap-1">
                         {formatEth(round.finalJackpotEth)} ETH
-                        <span style={{ color: COLORS.textMuted, fontSize: '18px' }}>›</span>
+                        <span className="text-gray-400 text-lg">›</span>
                       </div>
                     </button>
                   ))}
@@ -587,106 +319,13 @@ export default function RoundArchiveModal({ isOpen, onClose, currentRoundId }: R
           )}
         </div>
 
-        {/* CTA Footer - White bar with blue button */}
-        <div style={{
-          padding: '16px 24px 20px',
-          background: COLORS.white,
-          borderTop: `1px solid ${COLORS.borderSoft}`,
-        }}>
-          <a
-            href={selectedRound ? `/archive/${selectedRound.roundNumber}` : '/archive'}
-            style={{
-              display: 'block',
-              textAlign: 'center',
-              padding: '14px 24px',
-              background: COLORS.blueMain,
-              color: COLORS.white,
-              borderRadius: '12px',
-              textDecoration: 'none',
-              fontSize: '15px',
-              fontWeight: 600,
-              transition: 'all 0.15s ease',
-              boxShadow: '0 4px 12px rgba(45, 104, 199, 0.3)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = COLORS.blueDark;
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(45, 104, 199, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = COLORS.blueMain;
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(45, 104, 199, 0.3)';
-            }}
-          >
-            {selectedRound ? 'View full details' : 'View all rounds'}
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Stats card for the light-blue stats zone
-function StatsCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div
-      style={{
-        background: COLORS.white,
-        borderRadius: '12px',
-        padding: '16px',
-        textAlign: 'center',
-        border: `1px solid ${COLORS.borderSoft}`,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-      }}
-    >
-      <div style={{
-        fontSize: '20px',
-        fontWeight: 700,
-        color: highlight ? COLORS.success : COLORS.textPrimary,
-        marginBottom: '4px',
-      }}>
-        {value}
-      </div>
-      <div style={{
-        fontSize: '12px',
-        color: COLORS.textMuted,
-        fontWeight: 500,
-      }}>
-        {label}
-      </div>
-    </div>
-  );
-}
-
-// Detail stat box for round detail view
-function DetailStatBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div
-      style={{
-        background: highlight ? COLORS.successBg : COLORS.blueLight,
-        border: highlight ? `1px solid ${COLORS.success}20` : `1px solid ${COLORS.borderSoft}`,
-        borderRadius: '12px',
-        padding: '16px',
-        textAlign: 'center',
-      }}
-    >
-      <div style={{
-        fontSize: '20px',
-        fontWeight: 700,
-        color: highlight ? COLORS.success : COLORS.blueMain,
-      }}>
-        {value}
-      </div>
-      <div style={{
-        fontSize: '11px',
-        color: COLORS.textMuted,
-        marginTop: '4px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        fontWeight: 500,
-      }}>
-        {label}
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="w-full py-3 px-4 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-all"
+        >
+          Close
+        </button>
       </div>
     </div>
   );
