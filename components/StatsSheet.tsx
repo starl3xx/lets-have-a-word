@@ -302,15 +302,15 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <h3 className="text-sm font-bold text-gray-900">How to earn XP</h3>
               <ul className="text-sm text-gray-700 space-y-1">
-                <li>• <strong>+10 XP</strong> — Daily participation (first guess)</li>
                 <li>• <strong>+2 XP</strong> — Each valid guess</li>
-                <li>• <strong>+2,500 XP</strong> — Winning the jackpot</li>
-                <li>• <strong>+50 XP</strong> — Top 10 guesser placement</li>
-                <li>• <strong>+20 XP</strong> — Referred user makes first guess</li>
+                <li>• <strong>+10 XP</strong> — Daily participation (first guess)</li>
+                <li>• <strong>+10 XP</strong> — CLANKTON holder daily bonus</li>
                 <li>• <strong>+15 XP</strong> — Consecutive day streak</li>
                 <li>• <strong>+15 XP</strong> — Sharing to Farcaster</li>
+                <li>• <strong>+20 XP</strong> — Referred user makes first guess</li>
                 <li>• <strong>+20 XP</strong> — Buying a guess pack</li>
-                <li>• <strong>+10 XP</strong> — CLANKTON holder daily bonus</li>
+                <li>• <strong>+50 XP</strong> — Top 10 guesser placement</li>
+                <li>• <strong>+2,500 XP</strong> — Winning the jackpot</li>
               </ul>
               <p className="text-sm text-gray-500 italic pt-2">
                 Keep playing to build up your XP before the progression system launches!
