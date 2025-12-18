@@ -146,7 +146,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
               className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg active:scale-95"
               style={{ backgroundColor: '#2D68C7' }}
             >
-              I'm ready! 👉
+              I’m ready! 👉
             </button>
           </div>
         )}
