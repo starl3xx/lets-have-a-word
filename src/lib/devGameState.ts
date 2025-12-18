@@ -243,9 +243,10 @@ export async function synthesizeDevGameStateAsync(
 
 /**
  * Check if dev mode is enabled
+ * Uses NEXT_PUBLIC_ prefix so it works on both client and server
  */
 export function isDevModeEnabled(): boolean {
-  return process.env.LHAW_DEV_MODE === 'true';
+  return process.env.NEXT_PUBLIC_LHAW_DEV_MODE === 'true';
 }
 
 /**
@@ -363,6 +364,18 @@ export async function ensureDevRound(): Promise<number> {
 
     // If the existing round has the correct answer, use it
     if (round.answer === fixedSolution) {
+      // Check if prize pool is outside valid dev range (0.03-0.4 ETH)
+      // If so, reset it to a random value in range
+      const currentPrizePool = parseFloat(round.prizePoolEth);
+      if (currentPrizePool < 0.03 || currentPrizePool > 0.4) {
+        const newPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
+        console.log(`🎮 Dev mode: Resetting prize pool from ${round.prizePoolEth} to ${newPrizePool} ETH (outside valid range)`);
+        await db
+          .update(rounds)
+          .set({ prizePoolEth: newPrizePool })
+          .where(eq(rounds.id, round.id));
+      }
+
       console.log(`🎮 Dev mode: Using existing round ${round.id} with answer ${fixedSolution}`);
       return round.id;
     }
@@ -382,6 +395,9 @@ export async function ensureDevRound(): Promise<number> {
   // Ensure a game rule exists (creates one if needed)
   const rulesetId = await ensureDevGameRule();
 
+  // Random initial prize pool between 0.03 and 0.4 ETH
+  const initialPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
+
   const [newRound] = await db
     .insert(rounds)
     .values({
@@ -389,7 +405,7 @@ export async function ensureDevRound(): Promise<number> {
       answer: fixedSolution,
       salt,
       commitHash,
-      prizePoolEth: '0.42', // Dev mode jackpot
+      prizePoolEth: initialPrizePool,
       seedNextRoundEth: '0',
       winnerFid: null,
       referrerFid: null,
@@ -399,6 +415,52 @@ export async function ensureDevRound(): Promise<number> {
     })
     .returning();
 
-  console.log(`🎮 Dev mode: Created round ${newRound.id} with answer ${fixedSolution}`);
+  console.log(`🎮 Dev mode: Created round ${newRound.id} with answer ${fixedSolution}, prize pool ${initialPrizePool} ETH`);
   return newRound.id;
+}
+
+/**
+ * Simple seeded random number generator for deterministic "random" values
+ * Same seed always produces same sequence of numbers
+ */
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+/**
+ * Get the current dev round's status from the database
+ * Returns the actual prize pool (affected by pack purchases) with deterministic display values
+ * Display values are "random" but consistent for the same round (won't change on poll)
+ */
+export async function getDevRoundStatus(): Promise<{
+  roundId: number;
+  prizePoolEth: string;
+  globalGuessCount: number;
+}> {
+  const actualRoundId = await ensureDevRound();
+
+  const [round] = await db
+    .select()
+    .from(rounds)
+    .where(eq(rounds.id, actualRoundId))
+    .limit(1);
+
+  if (!round) {
+    throw new Error('Dev round not found after ensureDevRound');
+  }
+
+  // Generate deterministic "random" values based on actual round ID
+  // These will be consistent for the same round, only change when a new round is created
+  const rng = seededRandom(actualRoundId);
+  const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
+  const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
+
+  return {
+    roundId: displayRoundId,
+    prizePoolEth: round.prizePoolEth, // Actual value from database
+    globalGuessCount: displayGuessCount,
+  };
 }

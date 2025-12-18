@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveRoundStatus } from '../../src/lib/wheel';
 import type { RoundStatus } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
-import { isDevModeEnabled } from '../../src/lib/devGameState';
+import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 import { getEthUsdPrice } from '../../src/lib/prices';
 
 /**
@@ -23,7 +23,8 @@ import { getEthUsdPrice } from '../../src/lib/prices';
  *
  * Automatically creates a round if none exists.
  * In dev mode with NEXT_PUBLIC_TEST_MID_ROUND=true, creates a mid-round test scenario.
- * In dev mode with LHAW_DEV_MODE=true, returns synthetic data with live ETH/USD price.
+ * In dev mode with NEXT_PUBLIC_LHAW_DEV_MODE=true, uses actual dev round from database
+ * so pack purchases dynamically affect the prize pool.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -37,21 +38,24 @@ export default async function handler(
   try {
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
-      console.log('🎮 Dev mode: Returning synthetic round status with live ETH/USD price');
+      console.log('🎮 Dev mode: Returning dev round status with actual prize pool');
+
+      // Get actual dev round from database (prize pool affected by pack purchases)
+      const devStatus = await getDevRoundStatus();
+      const prizePoolEthNum = parseFloat(devStatus.prizePoolEth);
 
       // Fetch live ETH/USD price even in dev mode (Milestone 4.12)
       const ethUsdRate = await getEthUsdPrice();
-      const prizePoolEthNum = 0.36;
       const prizePoolUsd = ethUsdRate != null
         ? (prizePoolEthNum * ethUsdRate).toFixed(2)
-        : '1080.00'; // Fallback to hardcoded value
+        : (prizePoolEthNum * 3000).toFixed(2); // Fallback estimate
 
-      // Return synthetic round status for dev mode
+      // Return dev round status with actual prize pool, random display values for round/guesses
       const syntheticStatus: RoundStatus = {
-        roundId: 5,
-        prizePoolEth: '0.36',
+        roundId: devStatus.roundId, // Random 5-300
+        prizePoolEth: prizePoolEthNum.toFixed(4), // Actual from database
         prizePoolUsd,
-        globalGuessCount: 8516,
+        globalGuessCount: devStatus.globalGuessCount, // Random 100-6000
         lastUpdatedAt: new Date().toISOString(),
       };
 
