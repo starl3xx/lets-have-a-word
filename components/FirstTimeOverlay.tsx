@@ -59,11 +59,11 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
 
   return (
     <div
-      className="absolute inset-0 z-40 flex items-start justify-center pt-4"
+      className="fixed inset-0 z-50 flex items-center justify-center"
       style={{
-        backgroundColor: 'rgba(249, 250, 251, 0.7)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
+        backgroundColor: 'rgba(249, 250, 251, 0.85)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
       }}
     >
       <div className="w-full max-w-sm mx-4">
