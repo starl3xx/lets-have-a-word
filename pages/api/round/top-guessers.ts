@@ -20,6 +20,7 @@ export interface TopGuesser {
 export interface TopGuessersResponse {
   currentRoundId: number | null;
   topGuessers: TopGuesser[];
+  uniqueGuessersCount: number;
 }
 
 export default async function handler(
@@ -44,23 +45,35 @@ export default async function handler(
       return res.status(200).json({
         currentRoundId: null,
         topGuessers: [],
+        uniqueGuessersCount: 0,
       });
     }
 
     // Get top 10 guessers for the current round
     // Group by FID, count guesses, join with users for username
-    const topGuessersData = await db
-      .select({
-        fid: guesses.fid,
-        username: users.username,
-        guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
-      })
-      .from(guesses)
-      .leftJoin(users, eq(guesses.fid, users.fid))
-      .where(eq(guesses.roundId, currentRoundId))
-      .groupBy(guesses.fid, users.username)
-      .orderBy(desc(sql`count(${guesses.id})`))
-      .limit(10);
+    const [topGuessersData, uniqueCountResult] = await Promise.all([
+      db
+        .select({
+          fid: guesses.fid,
+          username: users.username,
+          guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+        })
+        .from(guesses)
+        .leftJoin(users, eq(guesses.fid, users.fid))
+        .where(eq(guesses.roundId, currentRoundId))
+        .groupBy(guesses.fid, users.username)
+        .orderBy(desc(sql`count(${guesses.id})`))
+        .limit(10),
+      // Count total unique guessers
+      db
+        .select({
+          count: sql<number>`cast(count(distinct ${guesses.fid}) as int)`,
+        })
+        .from(guesses)
+        .where(eq(guesses.roundId, currentRoundId)),
+    ]);
+
+    const uniqueGuessersCount = uniqueCountResult[0]?.count || 0;
 
     // Format response with profile picture URLs
     const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
@@ -74,6 +87,7 @@ export default async function handler(
     return res.status(200).json({
       currentRoundId,
       topGuessers,
+      uniqueGuessersCount,
     });
   } catch (error) {
     console.error('[round/top-guessers] Error fetching top guessers:', error);
