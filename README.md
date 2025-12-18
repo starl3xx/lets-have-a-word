@@ -104,9 +104,9 @@ Added Farcaster mini app notifications support and fixed critical duplicate gues
   - Icon and splash screen configuration
 
 - **Mini App Add Prompt** (`components/FirstTimeOverlay.tsx`)
-  - First-time users prompted to add app to Warpcast
+  - First-time users prompted to add app to Farcaster
   - Uses `sdk.actions.addFrame()` from `@farcaster/miniapp-sdk`
-  - Primary CTA: "Add to Warpcast & Play" with "Skip for now" option
+  - Primary CTA: "Add to Farcaster" with "Skip for now" option
   - Enables push notifications for new rounds
   - Auto-dismisses on success with haptic feedback
 

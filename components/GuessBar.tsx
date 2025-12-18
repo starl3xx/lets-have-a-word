@@ -126,17 +126,18 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
       style={{ minHeight: '2.5rem' }}
     >
       {/* Left side: Total guesses remaining in pill */}
+      {/* Green when guesses available, red when empty */}
       <span
         className="text-sm whitespace-nowrap inline-flex items-center rounded-full"
         style={{
           padding: '2px 8px 3px 6px',
-          backgroundColor: justDecremented
-            ? 'rgba(45, 104, 199, 0.15)'
-            : 'rgba(45, 104, 199, 0.08)',
-          color: '#111827',
+          backgroundColor: totalRemaining > 0
+            ? (justDecremented ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.12)')
+            : 'rgba(239, 68, 68, 0.12)',
+          color: totalRemaining > 0 ? '#166534' : '#dc2626',
           fontWeight: 400,
           lineHeight: 1.2,
-          transition: 'background-color 150ms ease-out, transform 150ms ease-out',
+          transition: 'background-color 150ms ease-out, transform 150ms ease-out, color 150ms ease-out',
           transform: justDecremented && !prefersReducedMotion ? 'scale(1.03)' : 'scale(1)',
         }}
       >

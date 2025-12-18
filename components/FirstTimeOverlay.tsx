@@ -14,7 +14,7 @@ type OverlayPhase = 'add-app' | 'tutorial';
  * FirstTimeOverlay Component
  *
  * Two-phase first-time user experience:
- * 1. Prompt to add mini app to Warpcast (enables notifications)
+ * 1. Prompt to add mini app to Farcaster (enables notifications)
  * 2. Simple "How the game works" tutorial
  *
  * Can also be shown in tutorial-only mode via the info icon.
@@ -62,19 +62,19 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
       className="absolute inset-0 z-40 flex items-start justify-center pt-4"
       style={{
         backgroundColor: 'rgba(249, 250, 251, 0.7)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
       }}
     >
       <div className="w-full max-w-sm mx-4">
         {phase === 'add-app' ? (
-          // Phase 1: Add to Warpcast
+          // Phase 1: Add to Farcaster
           <div
             className="rounded-2xl p-6 space-y-5"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
               border: '1px solid rgba(0, 0, 0, 0.1)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
             }}
@@ -84,7 +84,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
                 Welcome!
               </h2>
               <p className="text-gray-600">
-                Add this app to get notified when new rounds start
+                Add this app to get notified when new rounds begin — each round has a jackpot!
               </p>
             </div>
 
@@ -95,7 +95,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
                 className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg disabled:opacity-50 active:scale-95"
                 style={{ backgroundColor: '#2D68C7' }}
               >
-                {isAddingApp ? 'Adding...' : 'Add to Warpcast'}
+                {isAddingApp ? 'Adding...' : 'Add to Farcaster'}
               </button>
               <button
                 onClick={handleSkipAdd}
@@ -111,9 +111,9 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
           <div
             className="rounded-2xl p-6 space-y-5"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
               border: '1px solid rgba(0, 0, 0, 0.1)',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
             }}

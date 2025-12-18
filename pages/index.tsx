@@ -1042,35 +1042,6 @@ function GameContent() {
           </div>
         </div>
 
-        {/* Info Icon - resurface tutorial */}
-        {!showFirstTimeOverlay && !showTutorial && (
-          <div className="px-4">
-            <div className="max-w-md mx-auto flex justify-end">
-              <button
-                onClick={() => {
-                  setShowTutorial(true);
-                  void haptics.buttonTapMinor();
-                }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="How to play"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="w-5 h-5"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Main Game Container with Layered Wheel */}
         <div
           className="flex-1 flex flex-col px-4 pt-1 overflow-hidden"
@@ -1079,6 +1050,32 @@ function GameContent() {
           }}
         >
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
+
+          {/* Info Icon - resurface tutorial (absolutely positioned to not affect layout) */}
+          {!showFirstTimeOverlay && !showTutorial && (
+            <button
+              onClick={() => {
+                setShowTutorial(true);
+                void haptics.buttonTapMinor();
+              }}
+              className="absolute top-0 right-0 p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+              style={{ zIndex: 20 }}
+              aria-label="How to play"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="w-5 h-5"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <line x1="12" y1="11" x2="12" y2="16" />
+                <circle cx="12" cy="8" r="0.5" fill="currentColor" />
+              </svg>
+            </button>
+          )}
 
           {/* Wheel + Input Container - fills remaining space with stable height */}
           <div
@@ -1237,7 +1234,7 @@ function GameContent() {
                     setShowStatsSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
                 >
                   📊 Stats
                 </button>
@@ -1246,7 +1243,7 @@ function GameContent() {
                     setShowReferralSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
                 >
                   🤝 Refer
                 </button>
@@ -1255,7 +1252,7 @@ function GameContent() {
                     setShowFAQSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all shadow"
+                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
                 >
                   🤔 FAQ
                 </button>
