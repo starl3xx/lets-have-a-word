@@ -1273,20 +1273,6 @@ function GameContent() {
         </div>
         </div>
 
-        {/* First Time Overlay - positioned within game area */}
-        {showFirstTimeOverlay && (
-          <FirstTimeOverlay
-            onDismiss={() => setShowFirstTimeOverlay(false)}
-          />
-        )}
-
-        {/* Tutorial Overlay - resurface via info icon */}
-        {showTutorial && (
-          <FirstTimeOverlay
-            onDismiss={() => setShowTutorial(false)}
-            tutorialOnly
-          />
-        )}
       </div>
 
       {/* Custom Keyboard (Milestone 4.4) */}
@@ -1368,6 +1354,21 @@ function GameContent() {
         onClose={() => setShowArchiveModal(false)}
         currentRoundId={currentRoundId}
       />
+
+      {/* First Time Overlay - rendered after keyboard to appear above it */}
+      {showFirstTimeOverlay && (
+        <FirstTimeOverlay
+          onDismiss={() => setShowFirstTimeOverlay(false)}
+        />
+      )}
+
+      {/* Tutorial Overlay - resurface via info icon */}
+      {showTutorial && (
+        <FirstTimeOverlay
+          onDismiss={() => setShowTutorial(false)}
+          tutorialOnly
+        />
+      )}
     </div>
   );
 }
