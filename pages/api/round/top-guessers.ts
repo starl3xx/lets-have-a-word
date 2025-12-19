@@ -25,6 +25,21 @@ export interface TopGuessersResponse {
   uniqueGuessersCount: number;
 }
 
+// Cache for mock top guessers (refreshed on server restart)
+let cachedMockGuessers: {
+  guessers: TopGuesser[];
+  uniqueCount: number;
+} | null = null;
+
+/**
+ * Clear the cached mock guessers
+ * Call this to force new random values
+ */
+export function clearMockGuessersCache(): void {
+  cachedMockGuessers = null;
+  console.log('[top-guessers] Cleared mock guessers cache');
+}
+
 /**
  * Generate mock top guessers for dev mode
  * Fetches real Farcaster profiles via Neynar for realistic display
@@ -92,12 +107,30 @@ export default async function handler(
   try {
     // Dev mode: return mock data with real Neynar profiles
     if (isDevModeEnabled()) {
-      console.log('[round/top-guessers] Dev mode: returning mock top guessers');
+      // Use cached mock data if available
+      if (cachedMockGuessers) {
+        return res.status(200).json({
+          currentRoundId: 42,
+          topGuessers: cachedMockGuessers.guessers,
+          uniqueGuessersCount: cachedMockGuessers.uniqueCount,
+        });
+      }
+
+      // Generate new mock data
+      console.log('[round/top-guessers] Dev mode: generating fresh mock top guessers');
       const mockGuessers = await generateMockTopGuessers();
+      const uniqueCount = Math.floor(100 + Math.random() * 200); // 100-300
+
+      // Cache it
+      cachedMockGuessers = {
+        guessers: mockGuessers,
+        uniqueCount,
+      };
+
       return res.status(200).json({
         currentRoundId: 42,
         topGuessers: mockGuessers,
-        uniqueGuessersCount: 156,
+        uniqueGuessersCount: uniqueCount,
       });
     }
 
