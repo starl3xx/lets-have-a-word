@@ -16,10 +16,12 @@ import { getGuessWords } from './word-lists';
 import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
 import { getEthUsdPrice } from './prices';
+import { getTop10LockStatus, TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 
 /**
  * Round Status - displayed in top ticker
  * Milestone 3.2: Polished with live data and USD conversion
+ * Milestone 7.x: Added Top-10 lock status fields
  */
 export interface RoundStatus {
   roundId: number;
@@ -27,6 +29,10 @@ export interface RoundStatus {
   prizePoolUsd?: string; // Optional USD conversion
   globalGuessCount: number; // Total guesses for this round
   lastUpdatedAt: string; // ISO timestamp when status was computed
+  // Top-10 lock status (Milestone 7.x)
+  top10LockAfterGuesses: number; // Threshold (750)
+  top10GuessesRemaining: number; // Guesses until lock (0 if locked)
+  top10Locked: boolean; // true if globalGuessCount >= threshold
 }
 
 /**
@@ -147,11 +153,13 @@ export async function getGlobalGuessCount(roundId: number): Promise<number> {
 /**
  * Get round status (for top ticker)
  * Milestone 4.12: Returns live data with CoinGecko ETH/USD conversion
+ * Milestone 7.x: Added Top-10 lock status fields
  *
  * Returns:
  * - Current prize pool (in ETH)
  * - Approximate USD value (from CoinGecko API with 1-min cache)
  * - Global guess count (total guesses, not seed words)
+ * - Top-10 lock status and remaining guesses
  * - Timestamp when computed
  *
  * @param roundId - The round to get status for
@@ -181,12 +189,19 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
     ? (prizePoolEthNum * ethUsdRate).toFixed(2)
     : undefined;
 
+  // Get Top-10 lock status
+  const top10Status = getTop10LockStatus(globalGuessCount);
+
   return {
     roundId: round.id,
     prizePoolEth: round.prizePoolEth,
     prizePoolUsd,
     globalGuessCount,
     lastUpdatedAt: new Date().toISOString(),
+    // Top-10 lock fields
+    top10LockAfterGuesses: top10Status.top10LockAfterGuesses,
+    top10GuessesRemaining: top10Status.top10GuessesRemaining,
+    top10Locked: top10Status.top10Locked,
   };
 }
 
