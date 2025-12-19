@@ -11,11 +11,68 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.7.1 Complete
+## 🎯 Current Status: Milestone 6.9b Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, and improved incorrect guess UX are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, and **fully on-chain prize distribution with tiered Top-10 payouts** are fully implemented and production-ready:
 
-### ✅ Milestone 6.7.1 - Incorrect Guess Banner Flow + Input Reset (Latest)
+### ✅ Milestone 6.9b - Tiered Top-10 Guesser Payouts (Latest)
+
+Implemented fixed-percentage distribution for Top-10 guessers, replacing equal splits with a rank-based allocation:
+
+- **Tiered Distribution** (`src/lib/top-guesser-payouts.ts`)
+  - Rank 1: 19% of Top-10 pool
+  - Rank 2: 16%
+  - Rank 3: 14%
+  - Rank 4: 11%
+  - Rank 5: 10%
+  - Ranks 6–10: 6% each
+  - Total: 100% (10000 basis points)
+
+- **Adaptive N < 10 Handling**
+  - Uses first N ranks from distribution
+  - Renormalizes percentages to sum to 100%
+  - Preserves rank ordering (shape maintained)
+  - Dust assigned to rank #1
+
+- **Precision & Safety**
+  - All math in wei using BigInt
+  - Division rounds down (never overpays)
+  - Comprehensive validation (no duplicates, valid addresses)
+  - 26 acceptance tests
+
+- **Canonical Economics Spec** (`docs/LHAW_canonical_economics.md`)
+  - Single source of truth for all prize distribution rules
+  - Covers 80/10/10 split, referral logic, Top-10 tiers
+  - Design rationale and implementation references
+
+### ✅ Milestone 6.9 - On-Chain Multi-Recipient Prize Distribution
+
+Upgraded smart contract to distribute all prizes atomically in a single transaction:
+
+- **Smart Contract Upgrade** (`contracts/src/JackpotManager.sol`)
+  - New `resolveRoundWithPayouts(recipients[], amounts[], seedForNextRound)` function
+  - Pays winner, referrer, and all Top-10 guessers in one atomic transaction
+  - New events: `RoundResolvedWithPayouts`, `PayoutSent`
+  - New errors: `ArrayLengthMismatch`, `PayoutsExceedJackpot`, `TooManyRecipients`
+  - CEI pattern for reentrancy safety, max 20 recipients
+
+- **Backend Integration** (`src/lib/economics.ts`, `src/lib/jackpot-contract.ts`)
+  - `resolveRoundWithPayoutsOnChain()` calls new contract function
+  - Backend calculates amounts, contract enforces execution
+  - All payouts verifiable on BaseScan
+
+- **Prize Distribution Logic**
+  - Winner always receives 80%
+  - With referrer: 10% referrer, 10% Top-10 guessers
+  - Without referrer: 17.5% Top-10 guessers, 2.5% next round seed
+  - Self-referral blocked at signup
+
+- **No Offchain Payouts**
+  - All prize money distributed on-chain
+  - No manual intervention or backend reconciliation
+  - Trust-minimized, fully transparent
+
+### ✅ Milestone 6.7.1 - Incorrect Guess Banner Flow + Input Reset
 
 Improved UX after incorrect guesses with a timed state machine that transitions from active error to faded context:
 
@@ -1119,18 +1176,18 @@ Complete economic system for prize distribution:
   - 20% → Seed for next round (up to 0.03 ETH cap)
   - Overflow → Creator balance
 
-- **Jackpot Resolution (80/10/10 Split)**
-  - 80% → Winner
-  - 10% → Referrer (or winner if no referrer)
-  - 10% → Top 10 guessers (by volume, tiebreaker: earliest first guess)
+- **Jackpot Resolution (On-Chain, Atomic)**
+  - 80% → Winner (always)
+  - With referrer: 10% referrer, 10% Top-10 guessers
+  - Without referrer: 17.5% Top-10 guessers, 2.5% next round seed
+  - Top-10 ranking: by volume, tiebreaker earliest first guess
+  - **Tiered Top-10 split**: 19%/16%/14%/11%/10%/6%×5 (see Milestone 6.9b)
 
 - **Database Tables**
   - `system_state` - Creator balance tracking
   - `round_payouts` - Payout records per round
 
-- **Tested & Verified**
-  - Comprehensive test suite (8 tests passing)
-  - Handles edge cases (zero jackpot, missing referrer, etc.)
+- **Canonical Spec**: See `docs/LHAW_canonical_economics.md`
 
 ### ✅ Milestone 2.3 - Wheel + Visual State + Top Ticker
 
@@ -1814,30 +1871,39 @@ The game uses smart modal sequencing to offer guesses without being annoying:
 - 20% → Seed for next round (capped at 0.03 ETH)
   - Overflow → Creator balance
 
-**Jackpot Resolution (80/10/10 Split)**
-- 80% → Winner
-- 10% → Referrer (or seed + creator if no referrer - see below)
-- 10% → Top 10 guessers (split equally)
+**Jackpot Resolution (On-Chain, Atomic)**
+- 80% → Winner (always)
+- 10% → Referrer (if winner has one)
+- 10-17.5% → Top-10 guessers (tiered distribution)
 
-**Non-Referral Prize Flow (Milestone 4.9)**
+**Non-Referral Prize Flow (Milestones 4.9, 6.9)**
 
 When a winner **has a referrer**:
 - Winner gets 80%
 - Referrer gets 10%
-- Top 10 get 10%
+- Top-10 get 10% (tiered split)
 
 When a winner **does NOT have a referrer**:
 - Winner gets 80%
-- Top 10 get 10%
-- The unused 10% referrer share goes to:
-  1. Next-round seed (up to 0.03 ETH cap)
-  2. Creator wallet (any remaining overflow)
+- Top-10 get 17.5% (10% base + 7.5% from referrer share)
+- 2.5% → Next round seed (always, no cap)
 
 This prevents players from avoiding referral links to maximize their payout and keeps the growth loop healthy.
 
-**Top 10 Ranking**
+**Top-10 Tiered Distribution (Milestone 6.9b)**
+| Rank | Share |
+|------|-------|
+| #1 | 19% |
+| #2 | 16% |
+| #3 | 14% |
+| #4 | 11% |
+| #5 | 10% |
+| #6-10 | 6% each |
+
+**Top-10 Ranking**
 - Ranked by total paid guess volume
 - Tiebreaker: earliest first guess time
+- If < 10 guessers: shares renormalized to sum to 100%
 
 ### Provable Fairness
 
@@ -1885,7 +1951,7 @@ To prevent bot/sybil abuse, **only Farcaster users with a Neynar User Score ≥ 
 The fairness monitoring system validates game integrity in real-time:
 
 - **Commit-Reveal Validation**: Verifies `H(salt || answer) === commitHash` for all resolved rounds
-- **Payout Verification**: Ensures 80/10/10 split is followed correctly
+- **On-Chain Payout Verification**: All payouts verifiable on BaseScan via `PayoutSent` events
 - **Suspicious Pattern Detection**: Flags unusual win patterns (same winner, same answer)
 - **Automated Alerts**: Logs `FAIRNESS_ALERT_*` events when issues detected
 
@@ -2092,7 +2158,7 @@ Let's Have A Word uses Farcaster mini-app haptics to make the game feel more tac
 **Content Sections**
 1. **How It Works** - Global word, wheel, jackpot
 2. **Your Guesses** - Free, CLANKTON, share, paid
-3. **The Jackpot** - 80/10/10 split explanation
+3. **The Jackpot** - Prize distribution (winner, referrer, Top-10)
 4. **Provably Fair** - Commit-reveal explanation
 
 **Dismissal**
@@ -2340,8 +2406,13 @@ await resolveRound(roundId, winnerFid, referrerFid);
 
 ### Smart Contract
 - **JackpotManager Proxy**: `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5` (Base Mainnet)
-- **Implementation**: UUPS upgradeable pattern
-- **Features**: Jackpot management, guess purchase, payout distribution, CLANKTON oracle
+- **Implementation**: UUPS upgradeable pattern (OpenZeppelin)
+- **Key Functions**:
+  - `resolveRoundWithPayouts()` - Atomic multi-recipient payout (winner + referrer + Top-10)
+  - `purchaseGuesses()` - 80/20 split (jackpot/seed+creator)
+  - `seedJackpot()` - Operator seeding for new rounds
+- **Features**: Jackpot management, guess purchase, on-chain prize distribution, CLANKTON oracle
+- **Events**: `RoundResolvedWithPayouts`, `PayoutSent`, `GuessesPurchased`, `RoundStarted`
 
 ### CLANKTON Oracle
 - Market cap oracle for dynamic bonus tiers
@@ -2371,10 +2442,12 @@ Each player's daily allocation:
 
 ## Referral System
 
-- **Reward**: 10% of referred user's jackpot winnings
+- **Reward**: 10% of jackpot when referred user wins
 - **Tracking**: `referrerFid` field on users table
-- **Payouts**: Handled in round resolution
+- **Payouts**: On-chain, atomic (part of `resolveRoundWithPayouts`)
 - **Link format**: `https://lets-have-a-word.vercel.app?ref={fid}`
+- **Self-referral**: Blocked at signup
+- **No referrer flow**: 7.5% → Top-10 pool, 2.5% → next round seed
 
 ## How to Run
 

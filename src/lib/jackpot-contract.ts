@@ -1,11 +1,12 @@
 /**
  * JackpotManager Contract Integration
  * Milestone 6.1 - Smart Contract Specification
+ * Milestone 6.9 - Multi-recipient payouts
  *
  * Backend utilities for interacting with the JackpotManager smart contract on Base.
  *
  * Key responsibilities:
- * - Call resolveRound with verified winner wallet address
+ * - Call resolveRoundWithPayouts for multi-recipient prize distribution
  * - Track on-chain round state
  * - Verify contract state matches backend state
  */
@@ -44,6 +45,7 @@ const JACKPOT_MANAGER_ABI = [
   // Write functions (operator only)
   'function seedJackpot() payable',
   'function resolveRound(address winner)',
+  'function resolveRoundWithPayouts(address[] recipients, uint256[] amounts, uint256 seedForNextRound)',
   'function startNextRound()',
   'function purchaseGuesses(address player, uint256 quantity) payable',
   'function withdrawCreatorProfit()',
@@ -52,6 +54,8 @@ const JACKPOT_MANAGER_ABI = [
   // Events
   'event RoundStarted(uint256 indexed roundNumber, uint256 startingJackpot, uint256 timestamp)',
   'event RoundResolved(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 winnerPayout, uint256 timestamp)',
+  'event RoundResolvedWithPayouts(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 totalPaidOut, uint256 seedForNextRound, uint256 recipientCount, uint256 timestamp)',
+  'event PayoutSent(uint256 indexed roundNumber, address indexed recipient, uint256 amount, uint256 index)',
   'event JackpotSeeded(uint256 indexed roundNumber, address indexed seeder, uint256 amount, uint256 newJackpot)',
   'event GuessesPurchased(uint256 indexed roundNumber, address indexed player, uint256 quantity, uint256 ethAmount, uint256 toJackpot, uint256 toCreator)',
   'event CreatorProfitPaid(address indexed recipient, uint256 amount)',
@@ -127,6 +131,16 @@ export interface ContractRoundInfo {
 }
 
 /**
+ * Payout recipient for multi-recipient resolution (Milestone 6.9)
+ */
+export interface PayoutRecipient {
+  address: string;
+  amountWei: bigint;
+  role: 'winner' | 'referrer' | 'top_guesser';
+  fid?: number;
+}
+
+/**
  * Get current round information from contract
  */
 export async function getContractRoundInfo(): Promise<ContractRoundInfo> {
@@ -189,6 +203,52 @@ export async function resolveRoundOnChain(winnerFid: number): Promise<string> {
   // Wait for confirmation
   const receipt = await tx.wait();
   console.log(`[CONTRACT] Round resolved - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
+
+  return tx.hash;
+}
+
+/**
+ * Resolve round with multiple payouts on smart contract (Milestone 6.9)
+ *
+ * CRITICAL: This function distributes the jackpot to multiple recipients:
+ * - Winner: 80%
+ * - Referrer: 10% (if winner has one)
+ * - Top guessers: 10% (or 17.5% if no referrer)
+ * - Seed: 2.5% (if no referrer)
+ *
+ * @param payouts - Array of payout recipients with addresses and amounts
+ * @param seedForNextRoundWei - Amount to keep as seed for next round (in wei)
+ * @returns Transaction hash
+ */
+export async function resolveRoundWithPayoutsOnChain(
+  payouts: PayoutRecipient[],
+  seedForNextRoundWei: bigint
+): Promise<string> {
+  if (payouts.length === 0) {
+    throw new Error('At least one payout recipient (winner) is required');
+  }
+
+  // Extract arrays for contract call
+  const recipients = payouts.map(p => p.address);
+  const amounts = payouts.map(p => p.amountWei);
+
+  // Get contract with operator signer
+  const contract = getJackpotManagerWithOperator();
+
+  // Log payout details
+  console.log(`[CONTRACT] Resolving round with ${payouts.length} payouts:`);
+  for (const payout of payouts) {
+    console.log(`  - ${payout.role}${payout.fid ? ` (FID ${payout.fid})` : ''}: ${payout.address} -> ${ethers.formatEther(payout.amountWei)} ETH`);
+  }
+  console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+
+  // Call resolveRoundWithPayouts on contract
+  const tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei);
+  console.log(`[CONTRACT] Transaction submitted: ${tx.hash}`);
+
+  // Wait for confirmation
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Round resolved with payouts - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
 
   return tx.hash;
 }
