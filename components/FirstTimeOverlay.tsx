@@ -121,7 +121,7 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
               onClick={handleReady}
               className="btn-primary-lg w-full"
             >
-              I'm ready!
+              I’m ready! 👉
             </button>
           </>
         )}

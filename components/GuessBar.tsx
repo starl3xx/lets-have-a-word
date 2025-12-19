@@ -2,6 +2,7 @@
  * GuessBar Component
  * Milestone 6.5: Unified Guess Bar UX
  * Milestone 6.8: Added pill styling and decrement pulse animation
+ * Milestone 7.0: Removed dot separators, single-line only
  *
  * Single-line, intuitive, fully transparent guess-status bar that:
  * - Shows total guesses left in a subtle pill
@@ -9,10 +10,11 @@
  * - Shows which sources have been consumed
  * - Works for all user types
  * - Pulses briefly when guesses decrease
+ * - Never wraps to two lines
  *
  * Layout:
  * Left: "X guesses left" (pill)
- * Right: "1 free · +2 CLANKTON · +1 share · +3 paid"
+ * Right: "1 free +2 CLANKTON +1 share +3 paid"
  *
  * Rules:
  * - Order of appearance: Free, CLANKTON, Share, Paid
@@ -40,17 +42,15 @@ interface SourceSegmentProps {
 }
 
 function SourceSegment({ label, value, isConsumed, isFirst, color }: SourceSegmentProps) {
-  const prefix = isFirst ? '' : '+';
-  const displayValue = isFirst ? value : value;
+  const prefix = isFirst ? '' : ' +';
 
   return (
     <span
       className={`transition-opacity duration-200 ${isConsumed ? 'opacity-40' : 'opacity-100'}`}
       style={{ color: isConsumed ? undefined : color }}
     >
-      {!isFirst && <span className="text-gray-400 mx-1">·</span>}
       <span className={isConsumed ? 'line-through' : ''}>
-        {prefix}{displayValue} {label}
+        {prefix}{value} {label}
       </span>
     </span>
   );
@@ -122,7 +122,7 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
 
   return (
     <div
-      className="text-center py-2 flex items-center justify-center gap-2 flex-wrap"
+      className="text-center py-2 flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden"
       style={{ minHeight: '2.5rem' }}
     >
       {/* Left side: Total guesses remaining in pill */}
