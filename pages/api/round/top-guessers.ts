@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds, users } from '../../../src/db/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
+import { isDevModeEnabled } from '../../../src/lib/devGameState';
 
 export interface TopGuesser {
   fid: number;
@@ -22,9 +23,6 @@ export interface TopGuessersResponse {
   topGuessers: TopGuesser[];
   uniqueGuessersCount: number;
 }
-
-// Check if dev mode is enabled
-const IS_DEV_MODE = process.env.LHAW_DEV_MODE === 'true';
 
 /**
  * Generate mock top guessers for dev mode
@@ -82,7 +80,7 @@ export default async function handler(
 
   try {
     // Dev mode: return mock data
-    if (IS_DEV_MODE) {
+    if (isDevModeEnabled()) {
       console.log('[round/top-guessers] Dev mode: returning mock top guessers');
       return res.status(200).json({
         currentRoundId: 42,
