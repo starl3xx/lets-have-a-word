@@ -297,7 +297,7 @@ export default function GuessPurchaseModal({
                   t('guessPack.maxPacksReached')
                 ) : (
                   <>
-                    {t('guessPack.buyButton')} - {selectedOption?.totalPrice} ETH
+                    {t('guessPack.buyButton')} · {selectedOption?.totalPrice} ETH
                   </>
                 )}
               </button>

@@ -164,6 +164,25 @@ contract JackpotManager is
         uint256 timestamp
     );
 
+    /// @notice Emitted when a round is resolved with multiple payouts (Milestone 6.9)
+    event RoundResolvedWithPayouts(
+        uint256 indexed roundNumber,
+        address indexed winner,
+        uint256 jackpotAmount,
+        uint256 totalPaidOut,
+        uint256 seedForNextRound,
+        uint256 recipientCount,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted for each individual payout during round resolution
+    event PayoutSent(
+        uint256 indexed roundNumber,
+        address indexed recipient,
+        uint256 amount,
+        uint256 index
+    );
+
     // ============ Errors ============
 
     error OnlyOperator();
@@ -176,6 +195,9 @@ contract JackpotManager is
     error ZeroAddress();
     error InsufficientPayment();
     error NoProfitToWithdraw();
+    error ArrayLengthMismatch();
+    error PayoutsExceedJackpot();
+    error TooManyRecipients();
 
     // ============ Modifiers ============
 
@@ -296,6 +318,87 @@ contract JackpotManager is
 
         // Clear player guesses mapping for next round
         // Note: This is handled by the mapping being per-round in practice
+    }
+
+    /**
+     * @notice Resolves the current round with multiple payouts (Milestone 6.9)
+     * @dev Only callable by operator. Backend calculates all payout amounts.
+     *
+     * Distribution logic (handled by backend):
+     * - Winner always receives 80% of jackpot
+     * - Top 10 guessers split 10% (or 17.5% if no referrer)
+     * - Referrer receives 10% (if winner has one)
+     * - If no referrer: 7.5% added to top guessers, 2.5% to seed
+     *
+     * @param recipients Array of recipient wallet addresses (winner first, then others)
+     * @param amounts Array of amounts to pay each recipient (in wei)
+     * @param seedForNextRound Amount to keep as seed for next round (in wei)
+     *
+     * Requirements:
+     * - recipients.length == amounts.length
+     * - sum(amounts) + seedForNextRound <= currentJackpot
+     * - recipients.length <= 20 (gas limit safety)
+     */
+    function resolveRoundWithPayouts(
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        uint256 seedForNextRound
+    ) external onlyOperator nonReentrant roundActive {
+        // Validate arrays match
+        if (recipients.length != amounts.length) revert ArrayLengthMismatch();
+        if (recipients.length > 20) revert TooManyRecipients();
+        if (recipients.length == 0) revert InvalidWinnerAddress();
+
+        // First recipient is always the winner
+        address winner = recipients[0];
+        if (winner == address(0)) revert InvalidWinnerAddress();
+
+        Round storage round = rounds[currentRound];
+        uint256 jackpotAmount = currentJackpot;
+
+        // Calculate total payout and validate
+        uint256 totalPayout = seedForNextRound;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            totalPayout += amounts[i];
+        }
+        if (totalPayout > jackpotAmount) revert PayoutsExceedJackpot();
+
+        // Update round state before transfers (CEI pattern)
+        round.finalJackpot = jackpotAmount;
+        round.winner = winner;
+        round.winnerPayout = amounts[0]; // Winner's payout (80%)
+        round.resolvedAt = block.timestamp;
+        round.isActive = false;
+
+        // Set seed for next round
+        currentJackpot = seedForNextRound;
+
+        // Execute all payouts
+        uint256 actualPaidOut = 0;
+        for (uint256 i = 0; i < recipients.length; i++) {
+            if (recipients[i] != address(0) && amounts[i] > 0) {
+                (bool success, ) = recipients[i].call{value: amounts[i]}("");
+                if (!success) revert PaymentFailed();
+                actualPaidOut += amounts[i];
+
+                emit PayoutSent(
+                    currentRound,
+                    recipients[i],
+                    amounts[i],
+                    i
+                );
+            }
+        }
+
+        emit RoundResolvedWithPayouts(
+            currentRound,
+            winner,
+            jackpotAmount,
+            actualPaidOut,
+            seedForNextRound,
+            recipients.length,
+            block.timestamp
+        );
     }
 
     /**

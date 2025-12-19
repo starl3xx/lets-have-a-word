@@ -554,8 +554,14 @@ function GameContent() {
     // Quick rejection: row is full
     if (filledCount >= 5) return;
 
+    // Show purchase modal if user is out of guesses and tries to type
+    if (!hasGuessesLeft) {
+      setShowGuessPurchaseModal(true);
+      return;
+    }
+
     // Quick rejection: locked or error states need full check
-    if (isLoading || boxResultState === 'correct' || !hasGuessesLeft) {
+    if (isLoading || boxResultState === 'correct') {
       const newLetters = guessInputControl.handleLetter(letter);
       if (!newLetters) return;
       setLetters(newLetters);
@@ -598,8 +604,14 @@ function GameContent() {
    * Milestone 6.7.1: Also clears incorrect state
    */
   const handleBackspace = () => {
+    // Show purchase modal if user is out of guesses and tries to type
+    if (!hasGuessesLeft) {
+      setShowGuessPurchaseModal(true);
+      return;
+    }
+
     // Fast path: check if locked (don't allow backspace during submission or after winning)
-    if (isLoading || boxResultState === 'correct' || !hasGuessesLeft) {
+    if (isLoading || boxResultState === 'correct') {
       const newLetters = guessInputControl.handleBackspace();
       if (!newLetters) return;
       setLetters(newLetters);
@@ -1261,20 +1273,6 @@ function GameContent() {
         </div>
         </div>
 
-        {/* First Time Overlay - positioned within game area */}
-        {showFirstTimeOverlay && (
-          <FirstTimeOverlay
-            onDismiss={() => setShowFirstTimeOverlay(false)}
-          />
-        )}
-
-        {/* Tutorial Overlay - resurface via info icon */}
-        {showTutorial && (
-          <FirstTimeOverlay
-            onDismiss={() => setShowTutorial(false)}
-            tutorialOnly
-          />
-        )}
       </div>
 
       {/* Custom Keyboard (Milestone 4.4) */}
@@ -1356,6 +1354,21 @@ function GameContent() {
         onClose={() => setShowArchiveModal(false)}
         currentRoundId={currentRoundId}
       />
+
+      {/* First Time Overlay - rendered after keyboard to appear above it */}
+      {showFirstTimeOverlay && (
+        <FirstTimeOverlay
+          onDismiss={() => setShowFirstTimeOverlay(false)}
+        />
+      )}
+
+      {/* Tutorial Overlay - resurface via info icon */}
+      {showTutorial && (
+        <FirstTimeOverlay
+          onDismiss={() => setShowTutorial(false)}
+          tutorialOnly
+        />
+      )}
     </div>
   );
 }
