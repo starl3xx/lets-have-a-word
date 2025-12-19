@@ -182,7 +182,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             {/* Top Guessers List */}
             <div>
               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 text-center">
-                Top Guessers
+                Top Guessers <span className="font-normal opacity-70">(First 750 guesses)</span>
               </h3>
 
               {topGuessers.length === 0 ? (
