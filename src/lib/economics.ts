@@ -7,6 +7,7 @@ import { awardTopTenGuesserXp } from './xp';
 import { ethers } from 'ethers';
 import { resolveRoundWithPayoutsOnChain, type PayoutRecipient } from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
+import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 
 /**
  * Economics Module - Milestone 3.1
@@ -279,14 +280,8 @@ export async function resolveRoundAndCreatePayouts(
     seedForNextRoundWei = (referrerShareWei * 2500n) / 10000n; // 2.5%
   }
 
-  // Get top 10 guessers
-  const topGuessers = await getTop10Guessers(roundId, winnerFid);
-
-  // Calculate per-guesser amounts (equal split for now - can be changed to tiered later)
-  const guesserCount = topGuessers.length > 0 ? topGuessers.length : 1;
-  const perGuesserWei = toTopGuessersWei / BigInt(guesserCount);
-  // Handle remainder by giving it to first guesser
-  const remainderWei = toTopGuessersWei - (perGuesserWei * BigInt(guesserCount));
+  // Get top 10 guessers (FIDs)
+  const topGuesserFids = await getTop10Guessers(roundId, winnerFid);
 
   // Build on-chain payout recipients
   const onChainPayouts: PayoutRecipient[] = [];
@@ -326,24 +321,38 @@ export async function resolveRoundAndCreatePayouts(
     });
   }
 
-  // 3. Top guessers payouts
-  if (topGuessers.length > 0) {
-    for (let i = 0; i < topGuessers.length; i++) {
-      const guesserFid = topGuessers[i];
-      const guesserWallet = await getWinnerPayoutAddress(guesserFid);
-      logWalletResolution('PAYOUT', guesserFid, guesserWallet);
-      // First guesser gets remainder
-      const amount = i === 0 ? perGuesserWei + remainderWei : perGuesserWei;
+  // 3. Top guessers payouts (tiered distribution - Milestone 6.9b)
+  if (topGuesserFids.length > 0) {
+    // Resolve wallet addresses for all top guessers
+    const guesserWallets: { fid: number; wallet: string }[] = [];
+    for (const fid of topGuesserFids) {
+      const wallet = await getWinnerPayoutAddress(fid);
+      logWalletResolution('PAYOUT', fid, wallet);
+      guesserWallets.push({ fid, wallet });
+    }
+
+    // Calculate tiered payouts using the new system
+    const tieredPayouts = calculateTopGuesserPayouts(
+      guesserWallets.map(g => g.wallet),
+      toTopGuessersWei
+    );
+
+    console.log(`[economics] Tiered top-guesser distribution:\n${formatPayoutsForLog(tieredPayouts)}`);
+
+    // Add to on-chain and DB payouts
+    for (let i = 0; i < tieredPayouts.length; i++) {
+      const { amountWei } = tieredPayouts[i];
+      const { fid, wallet } = guesserWallets[i];
       onChainPayouts.push({
-        address: guesserWallet,
-        amountWei: amount,
+        address: wallet,
+        amountWei,
         role: 'top_guesser',
-        fid: guesserFid,
+        fid,
       });
       dbPayouts.push({
         roundId,
-        fid: guesserFid,
-        amountEth: ethers.formatEther(amount),
+        fid,
+        amountEth: ethers.formatEther(amountWei),
         role: 'top_guesser',
       });
     }
@@ -375,9 +384,9 @@ export async function resolveRoundAndCreatePayouts(
   console.log(`  - Winner (80%): ${ethers.formatEther(onChainPayouts[0].amountWei)} ETH`);
   if (hasReferrer) {
     console.log(`  - Referrer (10%): ${ethers.formatEther(toReferrerWei)} ETH`);
-    console.log(`  - Top guessers (10%): ${ethers.formatEther(toTopGuessersWei)} ETH split among ${guesserCount}`);
+    console.log(`  - Top guessers (10%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
   } else {
-    console.log(`  - Top guessers (17.5%): ${ethers.formatEther(toTopGuessersWei)} ETH split among ${guesserCount}`);
+    console.log(`  - Top guessers (17.5%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
     console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   }
 
@@ -394,8 +403,8 @@ export async function resolveRoundAndCreatePayouts(
   await db.insert(roundPayouts).values(dbPayouts);
 
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
-  if (topGuessers.length > 0) {
-    awardTopTenGuesserXp(roundId, topGuessers);
+  if (topGuesserFids.length > 0) {
+    awardTopTenGuesserXp(roundId, topGuesserFids);
   }
 
   // Mark round as resolved
