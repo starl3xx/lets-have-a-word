@@ -59,26 +59,16 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{
-        backgroundColor: 'rgba(249, 250, 251, 0.85)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-      }}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={onDismiss}
     >
-      <div className="w-full max-w-sm mx-4">
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         {phase === 'add-app' ? (
           // Phase 1: Add to Farcaster
-          <div
-            className="rounded-2xl p-6 space-y-5"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
-              border: '1px solid rgba(0, 0, 0, 0.1)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-            }}
-          >
+          <>
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-gray-900">
                 Welcome!
@@ -105,19 +95,10 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
                 Skip for now
               </button>
             </div>
-          </div>
+          </>
         ) : (
           // Phase 2: Tutorial
-          <div
-            className="rounded-2xl p-6 space-y-5"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
-              border: '1px solid rgba(0, 0, 0, 0.1)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-            }}
-          >
+          <>
             <h2 className="text-xl font-bold text-gray-900 text-center">
               How the game works
             </h2>
@@ -146,9 +127,9 @@ export default function FirstTimeOverlay({ onDismiss, tutorialOnly = false }: Fi
               className="w-full py-4 px-6 text-white text-lg font-bold rounded-xl transition-all shadow-lg active:scale-95"
               style={{ backgroundColor: '#2D68C7' }}
             >
-              I’m ready! 👉
+              I'm ready! 👉
             </button>
-          </div>
+          </>
         )}
       </div>
     </div>
