@@ -4,9 +4,14 @@ import { eq, and, desc, count } from 'drizzle-orm';
 import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
 import { awardTopTenGuesserXp } from './xp';
+import { ethers } from 'ethers';
+import { resolveRoundWithPayoutsOnChain, type PayoutRecipient } from './jackpot-contract';
+import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 
 /**
  * Economics Module - Milestone 3.1
+ * Milestone 6.9 - On-chain multi-recipient payouts
+ *
  * Handles jackpot splits, seed accumulation, and payouts
  */
 
@@ -197,15 +202,19 @@ async function allocateToSeedAndCreator(
 }
 
 /**
- * Resolve round and create payouts
+ * Resolve round and create payouts (Milestone 6.9 - On-chain multi-recipient)
  *
  * Jackpot split:
- * - 80% to winner
- * - 10% to referrer (or seed+creator if no referrer) - Milestone 4.9
- * - 10% to top 10 guessers (split equally among them)
+ * - 80% to winner (always)
+ * - If winner HAS referrer:
+ *   - 10% to referrer
+ *   - 10% to top 10 guessers
+ * - If winner has NO referrer:
+ *   - 17.5% to top 10 guessers (10% + 7.5% from referrer share)
+ *   - 2.5% to seed for next round (always, no cap)
  *
  * Top 10 ranking:
- * - By total guess volume (paid guesses only)
+ * - By total paid guess count (volume)
  * - Tiebreaker: earliest first guess time
  *
  * @param roundId - The round ID
@@ -231,9 +240,10 @@ export async function resolveRoundAndCreatePayouts(
     return;
   }
 
-  const jackpot = parseFloat(round.prizePoolEth);
+  const jackpotEth = parseFloat(round.prizePoolEth);
+  const jackpotWei = ethers.parseEther(round.prizePoolEth);
 
-  if (jackpot === 0) {
+  if (jackpotEth === 0) {
     console.log(`⚠️  Round ${roundId} has zero jackpot, no payouts created`);
     return;
   }
@@ -246,69 +256,146 @@ export async function resolveRoundAndCreatePayouts(
     .limit(1);
 
   const referrerFid = winner?.referrerFid || null;
+  const hasReferrer = referrerFid !== null;
 
-  // Calculate splits
-  const toWinner = jackpot * 0.8;
-  const toReferrer = jackpot * 0.1;
-  const toTopGuessers = jackpot * 0.1;
+  // Calculate splits based on referrer status
+  const toWinnerWei = (jackpotWei * 8000n) / 10000n; // 80%
+  const referrerShareWei = (jackpotWei * 1000n) / 10000n; // 10%
+  const baseTopGuessersWei = (jackpotWei * 1000n) / 10000n; // 10%
 
-  const payouts: RoundPayoutInsert[] = [];
+  let toReferrerWei = 0n;
+  let toTopGuessersWei = baseTopGuessersWei;
+  let seedForNextRoundWei = 0n;
+
+  if (hasReferrer) {
+    // Winner has referrer: 80% winner, 10% referrer, 10% top guessers
+    toReferrerWei = referrerShareWei;
+  } else {
+    // No referrer: 80% winner, 17.5% top guessers, 2.5% seed
+    // 7.5% of referrer share (75% of 10%) goes to top guessers
+    const toTopGuessersBonus = (referrerShareWei * 7500n) / 10000n; // 7.5%
+    toTopGuessersWei = baseTopGuessersWei + toTopGuessersBonus; // 17.5%
+    // 2.5% of referrer share (25% of 10%) goes to seed
+    seedForNextRoundWei = (referrerShareWei * 2500n) / 10000n; // 2.5%
+  }
+
+  // Get top 10 guessers
+  const topGuessers = await getTop10Guessers(roundId, winnerFid);
+
+  // Calculate per-guesser amounts (equal split for now - can be changed to tiered later)
+  const guesserCount = topGuessers.length > 0 ? topGuessers.length : 1;
+  const perGuesserWei = toTopGuessersWei / BigInt(guesserCount);
+  // Handle remainder by giving it to first guesser
+  const remainderWei = toTopGuessersWei - (perGuesserWei * BigInt(guesserCount));
+
+  // Build on-chain payout recipients
+  const onChainPayouts: PayoutRecipient[] = [];
+  const dbPayouts: RoundPayoutInsert[] = [];
 
   // 1. Winner payout (80%)
-  payouts.push({
+  const winnerWallet = await getWinnerPayoutAddress(winnerFid);
+  logWalletResolution('PAYOUT', winnerFid, winnerWallet);
+  onChainPayouts.push({
+    address: winnerWallet,
+    amountWei: toWinnerWei,
+    role: 'winner',
+    fid: winnerFid,
+  });
+  dbPayouts.push({
     roundId,
     fid: winnerFid,
-    amountEth: toWinner.toFixed(18),
+    amountEth: ethers.formatEther(toWinnerWei),
     role: 'winner',
   });
 
-  // 2. Referrer payout (10%)
-  // Milestone 4.9: If no referrer, allocate to seed + creator instead
-  if (referrerFid) {
-    payouts.push({
+  // 2. Referrer payout (10% if exists)
+  if (hasReferrer && referrerFid) {
+    const referrerWallet = await getWinnerPayoutAddress(referrerFid);
+    logWalletResolution('PAYOUT', referrerFid, referrerWallet);
+    onChainPayouts.push({
+      address: referrerWallet,
+      amountWei: toReferrerWei,
+      role: 'referrer',
+      fid: referrerFid,
+    });
+    dbPayouts.push({
       roundId,
       fid: referrerFid,
-      amountEth: toReferrer.toFixed(18),
+      amountEth: ethers.formatEther(toReferrerWei),
       role: 'referrer',
     });
   }
 
-  // 3. Top 10 guessers payout (10% split equally)
-  const topGuessers = await getTop10Guessers(roundId, winnerFid);
-
+  // 3. Top guessers payouts
   if (topGuessers.length > 0) {
-    const perGuesser = toTopGuessers / topGuessers.length;
-
-    for (const fid of topGuessers) {
-      payouts.push({
+    for (let i = 0; i < topGuessers.length; i++) {
+      const guesserFid = topGuessers[i];
+      const guesserWallet = await getWinnerPayoutAddress(guesserFid);
+      logWalletResolution('PAYOUT', guesserFid, guesserWallet);
+      // First guesser gets remainder
+      const amount = i === 0 ? perGuesserWei + remainderWei : perGuesserWei;
+      onChainPayouts.push({
+        address: guesserWallet,
+        amountWei: amount,
+        role: 'top_guesser',
+        fid: guesserFid,
+      });
+      dbPayouts.push({
         roundId,
-        fid,
-        amountEth: perGuesser.toFixed(18),
+        fid: guesserFid,
+        amountEth: ethers.formatEther(amount),
         role: 'top_guesser',
       });
     }
   } else {
     // No other guessers, winner gets this too
-    payouts.push({
+    // Add to winner's existing payout by creating separate entry
+    dbPayouts.push({
       roundId,
       fid: winnerFid,
-      amountEth: toTopGuessers.toFixed(18),
+      amountEth: ethers.formatEther(toTopGuessersWei),
       role: 'top_guesser',
+    });
+    // Update winner's on-chain payout
+    onChainPayouts[0].amountWei += toTopGuessersWei;
+  }
+
+  // 4. Add seed record if applicable (for database tracking only)
+  if (seedForNextRoundWei > 0n) {
+    dbPayouts.push({
+      roundId,
+      fid: null,
+      amountEth: ethers.formatEther(seedForNextRoundWei),
+      role: 'seed',
     });
   }
 
-  // Insert all payouts
-  await db.insert(roundPayouts).values(payouts);
+  console.log(`[economics] Resolving round ${roundId} with on-chain payouts:`);
+  console.log(`  - Jackpot: ${jackpotEth} ETH`);
+  console.log(`  - Winner (80%): ${ethers.formatEther(onChainPayouts[0].amountWei)} ETH`);
+  if (hasReferrer) {
+    console.log(`  - Referrer (10%): ${ethers.formatEther(toReferrerWei)} ETH`);
+    console.log(`  - Top guessers (10%): ${ethers.formatEther(toTopGuessersWei)} ETH split among ${guesserCount}`);
+  } else {
+    console.log(`  - Top guessers (17.5%): ${ethers.formatEther(toTopGuessersWei)} ETH split among ${guesserCount}`);
+    console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+  }
+
+  // Execute on-chain payouts
+  try {
+    const txHash = await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
+    console.log(`[economics] On-chain payouts executed: ${txHash}`);
+  } catch (error) {
+    console.error(`[economics] CRITICAL: On-chain payout failed for round ${roundId}:`, error);
+    throw error; // Re-throw to prevent marking round as resolved
+  }
+
+  // Insert all database payout records
+  await db.insert(roundPayouts).values(dbPayouts);
 
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
   if (topGuessers.length > 0) {
     awardTopTenGuesserXp(roundId, topGuessers);
-  }
-
-  // Milestone 4.9: If no referrer, allocate referrer share to seed + creator
-  if (!referrerFid) {
-    console.log(`No referrer for winner - allocating ${toReferrer.toFixed(18)} ETH to seed + creator:`);
-    await allocateToSeedAndCreator(roundId, toReferrer);
   }
 
   // Mark round as resolved
@@ -321,7 +408,7 @@ export async function resolveRoundAndCreatePayouts(
     })
     .where(eq(rounds.id, roundId));
 
-  console.log(`✅ Resolved round ${roundId} with ${payouts.length} payouts (jackpot: ${jackpot.toFixed(18)} ETH)`);
+  console.log(`✅ Resolved round ${roundId} with ${dbPayouts.length} payouts (jackpot: ${jackpotEth.toFixed(18)} ETH)`);
 
   // Milestone 5.1: Announce round resolution (non-blocking)
   try {
@@ -341,11 +428,11 @@ export async function resolveRoundAndCreatePayouts(
 
     if (resolvedRound) {
       // Announce round resolved
-      const result = await announceRoundResolved(resolvedRound, payouts, totalGuesses);
+      const result = await announceRoundResolved(resolvedRound, dbPayouts, totalGuesses);
 
       // If there was a referrer payout, announce it as a reply
       if (referrerFid) {
-        const referrerPayout = payouts.find(p => p.role === 'referrer');
+        const referrerPayout = dbPayouts.find(p => p.role === 'referrer');
         if (referrerPayout) {
           await announceReferralWin(
             resolvedRound,
