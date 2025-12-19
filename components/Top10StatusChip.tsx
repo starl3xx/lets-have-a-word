@@ -33,7 +33,7 @@ export default function Top10StatusChip({
       >
         <span className="font-medium">Top 10 locked</span>
         <span className="opacity-70">•</span>
-        <span className="opacity-80">Jackpot still available</span>
+        <span className="opacity-80">Jackpot always available</span>
       </div>
     );
   }
