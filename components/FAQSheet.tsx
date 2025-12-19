@@ -12,9 +12,13 @@ interface FAQItem {
 
 /**
  * FAQSheet Component
- * Milestone 4.3
+ * Milestone 4.3, Updated Milestone 7.0
  *
  * Displays comprehensive FAQ covering all game mechanics
+ *
+ * Milestone 7.0: Visual polish
+ * - Uses unified design token classes
+ * - Consistent typography and spacing
  */
 export default function FAQSheet({ onClose }: FAQSheetProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -38,7 +42,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           console.error('[FAQ] Error opening token view:', error);
         }
       }}
-      className="text-purple-700 hover:text-purple-900 font-semibold"
+      className="text-accent-600 hover:text-accent-800 font-semibold transition-colors duration-fast"
     >
       {children}
     </button>
@@ -55,7 +59,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           console.error('Error opening profile:', error);
         }
       }}
-      className="text-purple-700 hover:text-purple-900 font-semibold"
+      className="text-accent-600 hover:text-accent-800 font-semibold transition-colors duration-fast"
     >
       {children}
     </button>
@@ -147,18 +151,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto"
+        className="modal-sheet"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3">
-          <h2 className="text-2xl font-bold text-gray-900">🤔 FAQ</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-          >
+        <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">FAQ</h2>
+          <button onClick={onClose} className="btn-close" aria-label="Close">
             ×
           </button>
         </div>
@@ -168,14 +169,14 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           {FAQ_DATA.map((item, index) => (
             <div
               key={index}
-              className="border border-gray-200 rounded-lg overflow-hidden transition-all"
+              className="border border-gray-200 rounded-btn overflow-hidden"
             >
               {/* Question */}
               <button
                 onClick={() => toggleQuestion(index)}
-                className="w-full text-left p-4 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                className="w-full text-left p-4 bg-gray-50 hover:bg-gray-100 transition-colors duration-fast flex items-center justify-between"
               >
-                <span className="font-semibold text-gray-900 text-sm pr-2">
+                <span className="font-medium text-gray-900 text-sm pr-2">
                   {item.question}
                 </span>
                 <span className="text-gray-500 text-xl flex-shrink-0">
@@ -196,10 +197,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </div>
 
         {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="w-full py-3 px-4 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-all"
-        >
+        <button onClick={onClose} className="btn-secondary w-full mt-4">
           Close
         </button>
       </div>
