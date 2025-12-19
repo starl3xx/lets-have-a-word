@@ -79,14 +79,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           You can get more guesses by:
-          <br /><br />
-          • Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens
-          <br />
-          • Sharing your daily guess on Farcaster/Base
-          <br />
-          • Buying guess packs (3 guesses per pack)
-          <br /><br />
-          You can buy up to 3 packs per day.
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens</li>
+            <li>Sharing your daily guess on Farcaster/Base</li>
+            <li>Buying guess packs (3 guesses per pack)</li>
+          </ul>
+          <p className="mt-2">You can buy up to 3 packs per day.</p>
         </>
       ),
     },
@@ -95,12 +93,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> in your connected wallet, you receive extra free guesses:
-          <br /><br />
-          • <strong>+2 guesses/day</strong> while CLANKTON market cap is below $250K
-          <br />
-          • <strong>+3 guesses/day</strong> once market cap reaches $250K
-          <br /><br />
-          This is detected automatically when you connect. Market cap is currently config-based and will move to a live oracle later.
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>+2 guesses/day</strong> while CLANKTON market cap is below $250K</li>
+            <li><strong>+3 guesses/day</strong> once market cap reaches $250K</li>
+          </ul>
+          <p className="mt-2">This is detected automatically when you connect. Market cap is currently config-based and will move to a live oracle later.</p>
         </>
       ),
     },
@@ -113,14 +110,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Paid guesses:
-          <br /><br />
-          • Cost ETH
-          <br />
-          • Increase the global prize pool
-          <br />
-          • Can be used at any point during the round
-          <br />
-          • Fund all prize payouts
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>Cost ETH</li>
+            <li>Increase the global prize pool</li>
+            <li>Can be used at any point during the round</li>
+            <li>Fund all prize payouts</li>
+          </ul>
         </>
       ),
     },
@@ -129,20 +124,17 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           When a round is won, payouts are resolved atomically onchain in a single transaction:
-          <br /><br />
-          • <strong>80%</strong> → Jackpot winner
-          <br />
-          • <strong>10%</strong> → Top 10 guessers
-          <br />
-          • <strong>10%</strong> → Referrer (if one exists)
-          <br /><br />
-          If the winner does not have a referrer:
-          <br />
-          • 7.5% is added to the Top 10 pool
-          <br />
-          • 2.5% seeds the next round's jackpot
-          <br /><br />
-          Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>80%</strong> → Jackpot winner</li>
+            <li><strong>10%</strong> → Top 10 guessers</li>
+            <li><strong>10%</strong> → Referrer (if one exists)</li>
+          </ul>
+          <p className="mt-2">If the winner does not have a referrer:</p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>7.5% is added to the Top 10 pool</li>
+            <li>2.5% seeds the next round's jackpot</li>
+          </ul>
+          <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
         </>
       ),
     },
@@ -151,14 +143,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Top 10 rewards are based on early participation in each round.
-          <br /><br />
-          • Only the first 750 guesses in a round are eligible for Top 10 ranking
-          <br />
-          • After guess #750, Top 10 locks
-          <br />
-          • Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking
-          <br /><br />
-          This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>Only the first 750 guesses in a round are eligible for Top 10 ranking</li>
+            <li>After guess #750, Top 10 locks</li>
+            <li>Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking</li>
+          </ul>
+          <p className="mt-2">This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.</p>
         </>
       ),
     },
@@ -167,20 +157,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           The Top 10 pool is split using fixed percentages that scale with the prize size:
-          <br /><br />
-          • Rank #1: 19%
-          <br />
-          • Rank #2: 16%
-          <br />
-          • Rank #3: 14%
-          <br />
-          • Rank #4: 11%
-          <br />
-          • Rank #5: 10%
-          <br />
-          • Ranks #6–#10: 6% each
-          <br /><br />
-          This distribution is fixed and always applies when a round is resolved, scaling proportionally with the total Top 10 pool.
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>Rank #1: 19%</li>
+            <li>Rank #2: 16%</li>
+            <li>Rank #3: 14%</li>
+            <li>Rank #4: 11%</li>
+            <li>Rank #5: 10%</li>
+            <li>Ranks #6–#10: 6% each</li>
+          </ul>
+          <p className="mt-2">This distribution is fixed and always applies when a round is resolved, scaling proportionally with the total Top 10 pool.</p>
         </>
       ),
     },
@@ -189,27 +174,23 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Each pack contains 3 guesses.
-          <br /><br />
-          • <strong>0–749 total guesses</strong> in the round: 0.00030 ETH
-          <br />
-          • <strong>750–1249 guesses</strong> (mid round): 0.00045 ETH
-          <br />
-          • <strong>1250+ guesses</strong> (late round, capped): 0.00060 ETH
-          <br /><br />
-          Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>0–749 total guesses</strong> in the round: 0.00030 ETH</li>
+            <li><strong>750–1249 guesses</strong> (mid round): 0.00045 ETH</li>
+            <li><strong>1250+ guesses</strong> (late round, capped): 0.00060 ETH</li>
+          </ul>
+          <p className="mt-2">Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.</p>
         </>
       ),
     },
     {
       question: "What happens to unused guesses?",
       answer: (
-        <>
-          • Free guesses reset daily at 11:00 UTC
-          <br />
-          • Paid guess credits expire at the end of each day
-          <br />
-          • If a round ends and a new round starts the same day, unused paid guesses carry over
-        </>
+        <ul className="list-disc list-inside space-y-1">
+          <li>Free guesses reset daily at 11:00 UTC</li>
+          <li>Paid guess credits expire at the end of each day</li>
+          <li>If a round ends and a new round starts the same day, unused paid guesses carry over</li>
+        </ul>
       ),
     },
     {
@@ -217,16 +198,13 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Before each round, the game commits onchain to the secret word using a cryptographic hash and hidden salt.
-          <br /><br />
-          When the round ends:
-          <br />
-          • The word and salt are revealed
-          <br />
-          • Anyone can recompute the hash
-          <br />
-          • Anyone can verify the answer was fixed from the start
-          <br /><br />
-          This commit–reveal process makes every round verifiable and fair.
+          <p className="mt-2">When the round ends:</p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>The word and salt are revealed</li>
+            <li>Anyone can recompute the hash</li>
+            <li>Anyone can verify the answer was fixed from the start</li>
+          </ul>
+          <p className="mt-2">This commit–reveal process makes every round verifiable and fair.</p>
         </>
       ),
     },
@@ -239,8 +217,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Yes. When a round is won, the answer is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>.
-          <br /><br />
-          Past winning words and cryptographic proofs are also available.
+          <p className="mt-2">Past winning words and cryptographic proofs are also available.</p>
         </>
       ),
     },
