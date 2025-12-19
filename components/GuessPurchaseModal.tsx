@@ -3,13 +3,18 @@ import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
 
 /**
- * Pack pricing info (fetched from API or fallback to defaults)
+ * Pack pricing info (fetched from API)
+ * Milestone 7.1: Dynamic late-round pricing
  */
 interface PackOption {
   packCount: number;
   guessCount: number;
-  totalPrice: string;
+  totalPriceWei: string;
+  totalPriceEth: string;
 }
+
+/** Pricing phase from API */
+type PricingPhase = 'BASE' | 'LATE_1' | 'LATE_2';
 
 interface GuessPurchaseModalProps {
   fid: number | null;
@@ -19,13 +24,17 @@ interface GuessPurchaseModalProps {
 
 /**
  * GuessPurchaseModal
- * Milestone 6.3, Updated Milestone 7.0
+ * Milestone 6.3, Updated Milestone 7.0, 7.1
  *
  * Modal for purchasing guess packs (3 guesses per pack).
  *
  * Milestone 7.0: Visual polish
  * - Uses unified design token classes
  * - Consistent color palette
+ *
+ * Milestone 7.1: Dynamic late-round pricing
+ * - Price increases after 750 guesses (Top-10 lock)
+ * - Shows late-round pricing indicator
  */
 export default function GuessPurchaseModal({
   fid,
@@ -34,11 +43,11 @@ export default function GuessPurchaseModal({
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
-  // Pack pricing options
+  // Pack pricing options (default values, updated from API)
   const [packOptions, setPackOptions] = useState<PackOption[]>([
-    { packCount: 1, guessCount: 3, totalPrice: '0.0003' },
-    { packCount: 2, guessCount: 6, totalPrice: '0.0006' },
-    { packCount: 3, guessCount: 9, totalPrice: '0.0009' },
+    { packCount: 1, guessCount: 3, totalPriceWei: '300000000000000', totalPriceEth: '0.0003' },
+    { packCount: 2, guessCount: 6, totalPriceWei: '600000000000000', totalPriceEth: '0.0006' },
+    { packCount: 3, guessCount: 9, totalPriceWei: '900000000000000', totalPriceEth: '0.0009' },
   ]);
 
   // State
@@ -49,6 +58,10 @@ export default function GuessPurchaseModal({
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Milestone 7.1: Late-round pricing state
+  const [pricingPhase, setPricingPhase] = useState<PricingPhase>('BASE');
+  const [isLateRoundPricing, setIsLateRoundPricing] = useState(false);
 
   // Fetch current purchase state and pricing
   useEffect(() => {
@@ -77,6 +90,13 @@ export default function GuessPurchaseModal({
           }
           if (pricingData.maxPacksPerDay) {
             setMaxPacksPerDay(pricingData.maxPacksPerDay);
+          }
+          // Milestone 7.1: Update late-round pricing state
+          if (pricingData.pricingPhase) {
+            setPricingPhase(pricingData.pricingPhase);
+          }
+          if (typeof pricingData.isLateRoundPricing === 'boolean') {
+            setIsLateRoundPricing(pricingData.isLateRoundPricing);
           }
         }
       } catch (err) {
@@ -231,13 +251,24 @@ export default function GuessPurchaseModal({
                     {/* Price */}
                     <div className="text-right">
                       <p className="font-bold text-gray-900">
-                        {option.totalPrice} ETH
+                        {option.totalPriceEth} ETH
                       </p>
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            {/* Late-round pricing indicator (Milestone 7.1) */}
+            {isLateRoundPricing && (
+              <div className="bg-amber-50 border border-amber-200 rounded-btn px-3 py-2 text-center">
+                <p className="text-sm text-amber-700">
+                  <span className="font-medium">Late-round pricing</span>
+                  <span className="mx-1">·</span>
+                  <span className="opacity-80">Packs cost more after Top 10 locks</span>
+                </p>
+              </div>
+            )}
 
             {/* Limit Indicator */}
             <div className="bg-gray-50 rounded-btn p-3 text-center">
@@ -290,7 +321,7 @@ export default function GuessPurchaseModal({
                   t('guessPack.maxPacksReached')
                 ) : (
                   <>
-                    {t('guessPack.buyButton')} · {selectedOption?.totalPrice} ETH
+                    {t('guessPack.buyButton')} · {selectedOption?.totalPriceEth} ETH
                   </>
                 )}
               </button>

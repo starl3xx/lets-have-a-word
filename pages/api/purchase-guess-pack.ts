@@ -3,12 +3,20 @@ import { awardPaidPack, getOrCreateDailyState, getTodayUTC, DAILY_LIMITS_RULES }
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 import { getActiveRound } from '../../src/lib/rounds';
 import { logXpEvent } from '../../src/lib/xp';
+import { db } from '../../src/db';
+import { guesses } from '../../src/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import {
+  getTotalPackCostWei,
+  weiToEthString,
+  getPricingPhase,
+} from '../../src/lib/pack-pricing';
 
 /**
  * POST /api/purchase-guess-pack
- * Milestone 6.3
+ * Milestone 6.3, Updated Milestone 7.1
  *
- * Process guess pack purchase.
+ * Process guess pack purchase with dynamic late-round pricing.
  *
  * Body:
  * - fid: number - Farcaster ID
@@ -16,6 +24,7 @@ import { logXpEvent } from '../../src/lib/xp';
  *
  * Note: In production, this would validate payment on-chain before awarding packs.
  * For now, it awards packs directly (payment validation to be added in Milestone 6.4).
+ * The expected cost is calculated and returned for logging/verification purposes.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -50,14 +59,33 @@ export default async function handler(
       });
     }
 
-    // Log analytics event - pack viewed (implicit in purchase flow)
+    // Get active round and calculate dynamic pricing
     const activeRound = await getActiveRound();
+
+    // Get total guesses in current round for dynamic pricing
+    let totalGuessesInRound = 0;
+    if (activeRound?.id) {
+      const [result] = await db
+        .select({ count: sql<number>`cast(count(*) as int)` })
+        .from(guesses)
+        .where(eq(guesses.roundId, activeRound.id));
+      totalGuessesInRound = result?.count || 0;
+    }
+
+    // Calculate expected cost based on current round state
+    const expectedCostWei = getTotalPackCostWei(totalGuessesInRound, packCount);
+    const expectedCostEth = weiToEthString(expectedCostWei);
+    const pricingPhase = getPricingPhase(totalGuessesInRound);
+
+    // Log analytics event - pack viewed (implicit in purchase flow)
     logAnalyticsEvent(AnalyticsEventTypes.GUESS_PACK_VIEWED, {
       userId: fid.toString(),
       roundId: activeRound?.id?.toString(),
       data: {
         pack_count: packCount,
         packs_already_purchased: currentState.paidPacksPurchased,
+        pricing_phase: pricingPhase,
+        expected_cost_wei: expectedCostWei.toString(),
       },
     });
 
@@ -67,7 +95,7 @@ export default async function handler(
       updatedState = await awardPaidPack(fid, dateStr);
     }
 
-    // Log analytics event - packs purchased
+    // Log analytics event - packs purchased with pricing info
     logAnalyticsEvent(AnalyticsEventTypes.GUESS_PACK_PURCHASED, {
       userId: fid.toString(),
       roundId: activeRound?.id?.toString(),
@@ -76,6 +104,10 @@ export default async function handler(
         total_packs_today: updatedState.paidPacksPurchased,
         credits_added: packCount * DAILY_LIMITS_RULES.paidGuessPackSize,
         total_credits: updatedState.paidGuessCredits,
+        pricing_phase: pricingPhase,
+        expected_cost_wei: expectedCostWei.toString(),
+        expected_cost_eth: expectedCostEth,
+        total_guesses_in_round: totalGuessesInRound,
       },
     });
 
@@ -91,7 +123,7 @@ export default async function handler(
     }
 
     console.log(
-      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s). ` +
+      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${expectedCostEth} ETH (${pricingPhase}). ` +
       `Total today: ${updatedState.paidPacksPurchased}/${DAILY_LIMITS_RULES.maxPaidPacksPerDay}. ` +
       `Credits: ${updatedState.paidGuessCredits}`
     );
@@ -102,6 +134,10 @@ export default async function handler(
       totalPacksToday: updatedState.paidPacksPurchased,
       paidGuessCredits: updatedState.paidGuessCredits,
       remainingPacks: DAILY_LIMITS_RULES.maxPaidPacksPerDay - updatedState.paidPacksPurchased,
+      // Milestone 7.1: Include pricing info in response
+      expectedCostWei: expectedCostWei.toString(),
+      expectedCostEth,
+      pricingPhase,
     });
   } catch (error) {
     console.error('[purchase-guess-pack] Error:', error);
