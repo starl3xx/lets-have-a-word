@@ -10,6 +10,7 @@ import { db } from '../../../src/db';
 import { guesses, rounds, users } from '../../../src/db/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
+import { neynarClient } from '../../../src/lib/farcaster';
 
 export interface TopGuesser {
   fid: number;
@@ -26,45 +27,55 @@ export interface TopGuessersResponse {
 
 /**
  * Generate mock top guessers for dev mode
- * Uses seeded random for consistency during a session
+ * Fetches real Farcaster profiles via Neynar for realistic display
  */
-function generateMockTopGuessers(): TopGuesser[] {
-  // Sample usernames for variety
-  const sampleUsernames = [
-    'dwr.eth', 'vitalik.eth', 'balajis', 'punk6529', 'cdixon',
-    'jessepollak', 'linda', 'ace', 'coopahtroopa', 'gmoney.eth',
-    'divine_economy', 'sassal.eth', 'hayden', 'nickcherry', 'horsefacts'
-  ];
-
-  const mockGuessers: TopGuesser[] = [];
+async function generateMockTopGuessers(): Promise<TopGuesser[]> {
+  // Generate 10 unique random FIDs between 1 and 10,000
+  const fids: number[] = [];
   const usedFids = new Set<number>();
 
-  for (let i = 0; i < 10; i++) {
-    // Generate unique random FID between 1 and 10,000
-    let fid: number;
-    do {
-      fid = Math.floor(Math.random() * 10000) + 1;
-    } while (usedFids.has(fid));
-    usedFids.add(fid);
+  while (fids.length < 10) {
+    const fid = Math.floor(Math.random() * 10000) + 1;
+    if (!usedFids.has(fid)) {
+      usedFids.add(fid);
+      fids.push(fid);
+    }
+  }
 
-    // Random guess count between 30 and 200, decreasing roughly by rank
+  // Generate random guess counts (decreasing by rank with variance)
+  const guessCounts = fids.map((_, i) => {
     const baseGuesses = 200 - (i * 15);
     const variance = Math.floor(Math.random() * 20) - 10;
-    const guessCount = Math.max(30, baseGuesses + variance);
+    return Math.max(30, baseGuesses + variance);
+  });
 
-    // Pick a username (some will have usernames, some won't)
-    const hasUsername = Math.random() > 0.2;
-    const username = hasUsername
-      ? sampleUsernames[i % sampleUsernames.length]
-      : null;
+  // Try to fetch real user data from Neynar
+  let userDataMap: Map<number, { username: string; pfpUrl: string }> = new Map();
 
-    mockGuessers.push({
-      fid,
-      username: username || `FID ${fid}`,
-      guessCount,
-      pfpUrl: `https://warpcast.com/avatar/${fid}`,
-    });
+  try {
+    const userData = await neynarClient.fetchBulkUsers({ fids });
+    if (userData.users) {
+      for (const user of userData.users) {
+        userDataMap.set(user.fid, {
+          username: user.username || `FID ${user.fid}`,
+          pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[top-guessers] Could not fetch Neynar user data, using fallbacks:', error);
   }
+
+  // Build the mock guessers list
+  const mockGuessers: TopGuesser[] = fids.map((fid, i) => {
+    const userData = userDataMap.get(fid);
+    return {
+      fid,
+      username: userData?.username || `FID ${fid}`,
+      guessCount: guessCounts[i],
+      pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
+    };
+  });
 
   // Sort by guess count descending
   return mockGuessers.sort((a, b) => b.guessCount - a.guessCount);
@@ -79,12 +90,13 @@ export default async function handler(
   }
 
   try {
-    // Dev mode: return mock data
+    // Dev mode: return mock data with real Neynar profiles
     if (isDevModeEnabled()) {
       console.log('[round/top-guessers] Dev mode: returning mock top guessers');
+      const mockGuessers = await generateMockTopGuessers();
       return res.status(200).json({
         currentRoundId: 42,
-        topGuessers: generateMockTopGuessers(),
+        topGuessers: mockGuessers,
         uniqueGuessersCount: 156,
       });
     }
