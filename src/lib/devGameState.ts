@@ -364,18 +364,6 @@ export async function ensureDevRound(): Promise<number> {
 
     // If the existing round has the correct answer, use it
     if (round.answer === fixedSolution) {
-      // Check if prize pool is outside valid dev range (0.03-0.4 ETH)
-      // If so, reset it to a random value in range
-      const currentPrizePool = parseFloat(round.prizePoolEth);
-      if (currentPrizePool < 0.03 || currentPrizePool > 0.4) {
-        const newPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
-        console.log(`🎮 Dev mode: Resetting prize pool from ${round.prizePoolEth} to ${newPrizePool} ETH (outside valid range)`);
-        await db
-          .update(rounds)
-          .set({ prizePoolEth: newPrizePool })
-          .where(eq(rounds.id, round.id));
-      }
-
       console.log(`🎮 Dev mode: Using existing round ${round.id} with answer ${fixedSolution}`);
       return round.id;
     }
@@ -419,21 +407,27 @@ export async function ensureDevRound(): Promise<number> {
   return newRound.id;
 }
 
+// In-memory cache for dev display values (randomized once per server start)
+let cachedDevDisplayValues: {
+  roundId: number;
+  prizePoolEth: string;
+  globalGuessCount: number;
+  cachedForRoundId: number;
+} | null = null;
+
 /**
- * Simple seeded random number generator for deterministic "random" values
- * Same seed always produces same sequence of numbers
+ * Clear the cached dev display values
+ * Call this to force new random values on next getDevRoundStatus() call
  */
-function seededRandom(seed: number): () => number {
-  return () => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
+export function clearDevDisplayCache(): void {
+  cachedDevDisplayValues = null;
+  console.log('🎮 Dev mode: Cleared display value cache');
 }
 
 /**
  * Get the current dev round's status from the database
- * Returns the actual prize pool (affected by pack purchases) with deterministic display values
- * Display values are "random" but consistent for the same round (won't change on poll)
+ * Returns randomized display values that stay consistent during a session
+ * but randomize on server restart or when a new round is created
  */
 export async function getDevRoundStatus(): Promise<{
   roundId: number;
@@ -442,25 +436,33 @@ export async function getDevRoundStatus(): Promise<{
 }> {
   const actualRoundId = await ensureDevRound();
 
-  const [round] = await db
-    .select()
-    .from(rounds)
-    .where(eq(rounds.id, actualRoundId))
-    .limit(1);
-
-  if (!round) {
-    throw new Error('Dev round not found after ensureDevRound');
+  // If we have cached values for this round, return them
+  if (cachedDevDisplayValues && cachedDevDisplayValues.cachedForRoundId === actualRoundId) {
+    return {
+      roundId: cachedDevDisplayValues.roundId,
+      prizePoolEth: cachedDevDisplayValues.prizePoolEth,
+      globalGuessCount: cachedDevDisplayValues.globalGuessCount,
+    };
   }
 
-  // Generate deterministic "random" values based on actual round ID
-  // These will be consistent for the same round, only change when a new round is created
-  const rng = seededRandom(actualRoundId);
-  const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
-  const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
+  // Generate new random display values
+  const displayRoundId = Math.floor(5 + Math.random() * 296); // 5-300
+  const displayPrizePool = (0.03 + Math.random() * 0.37).toFixed(4); // 0.03-0.40 ETH
+  const displayGuessCount = Math.floor(100 + Math.random() * 5900); // 100-6000
+
+  // Cache the values
+  cachedDevDisplayValues = {
+    roundId: displayRoundId,
+    prizePoolEth: displayPrizePool,
+    globalGuessCount: displayGuessCount,
+    cachedForRoundId: actualRoundId,
+  };
+
+  console.log(`🎮 Dev mode: Generated new display values - Round #${displayRoundId}, ${displayPrizePool} ETH, ${displayGuessCount} guesses`);
 
   return {
     roundId: displayRoundId,
-    prizePoolEth: round.prizePoolEth, // Actual value from database
+    prizePoolEth: displayPrizePool,
     globalGuessCount: displayGuessCount,
   };
 }
