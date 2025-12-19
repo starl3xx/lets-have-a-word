@@ -8,6 +8,7 @@ import { DAILY_LIMITS_RULES } from './daily-limits';
 import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
+import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 
 /**
  * Normalize a guess word
@@ -71,6 +72,34 @@ export async function getGuessCountForUserInRound(fid: number, roundId: number):
     );
 
   return result[0]?.count || 0;
+}
+
+/**
+ * Get the total count of guesses in a round
+ * Used for Top-10 lock threshold checking
+ */
+export async function getTotalGuessCountInRound(roundId: number): Promise<number> {
+  const result = await db
+    .select({ count: count() })
+    .from(guesses)
+    .where(eq(guesses.roundId, roundId));
+
+  return result[0]?.count || 0;
+}
+
+/**
+ * Get the next guess index for a round (atomically)
+ * Uses SELECT FOR UPDATE to prevent race conditions
+ * Returns 1-based index (first guess = 1)
+ */
+async function getNextGuessIndexInRound(roundId: number, tx?: typeof db): Promise<number> {
+  const database = tx || db;
+  const result = await database
+    .select({ count: count() })
+    .from(guesses)
+    .where(eq(guesses.roundId, roundId));
+
+  return (result[0]?.count || 0) + 1;
 }
 
 /**
@@ -219,13 +248,17 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           throw new Error('ROUND_ALREADY_RESOLVED');
         }
 
-        // Insert the winning guess
+        // Get the next guess index atomically within transaction
+        const guessIndexInRound = await getNextGuessIndexInRound(round.id, tx);
+
+        // Insert the winning guess with index
         await tx.insert(guesses).values({
           roundId: round.id,
           fid,
           word,
           isPaid: isPaidGuess,
           isCorrect: true,
+          guessIndexInRound,
           createdAt: new Date(),
         });
 
@@ -308,15 +341,32 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
   } else {
     // INCORRECT GUESS
 
-    // Insert the guess
-    await db.insert(guesses).values({
-      roundId: round.id,
-      fid,
-      word,
-      isPaid: isPaidGuess,
-      isCorrect: false,
-      createdAt: new Date(),
+    // Use transaction to atomically get index and insert
+    let guessIndexInRound: number;
+    await db.transaction(async (tx) => {
+      // Get the next guess index atomically
+      guessIndexInRound = await getNextGuessIndexInRound(round.id, tx);
+
+      // Insert the guess with index
+      await tx.insert(guesses).values({
+        roundId: round.id,
+        fid,
+        word,
+        isPaid: isPaidGuess,
+        isCorrect: false,
+        guessIndexInRound,
+        createdAt: new Date(),
+      });
     });
+
+    // Log Top-10 lock event if this guess triggered the lock
+    if (guessIndexInRound! === TOP10_LOCK_AFTER_GUESSES) {
+      console.log(`🔒 Top-10 locked at guess #${guessIndexInRound} in round ${round.id}`);
+      logAnalyticsEvent(AnalyticsEventTypes.TOP10_LOCK_REACHED || 'top10_lock_reached', {
+        roundId: round.id.toString(),
+        data: { totalGuesses: guessIndexInRound },
+      });
+    }
 
     // Apply economic effects for paid guesses (Milestone 3.1)
     if (isPaidGuess) {

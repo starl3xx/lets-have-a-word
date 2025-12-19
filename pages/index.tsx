@@ -4,6 +4,7 @@ import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
+import Top10Status from '../components/Top10Status';
 import SharePromptModal from '../components/SharePromptModal';
 import WinnerShareCard from '../components/WinnerShareCard';
 import LetterBoxes from '../components/LetterBoxes';
@@ -1051,6 +1052,8 @@ function GameContent() {
         <div className="px-4 pt-1">
           <div className="max-w-md mx-auto">
             <UserState key={userStateKey} fid={effectiveFid} />
+            {/* Top-10 Status (Milestone 7.x) */}
+            <Top10Status />
           </div>
         </div>
 

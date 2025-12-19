@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { rounds, systemState, roundPayouts, guesses, users } from '../db/schema';
-import { eq, and, desc, count } from 'drizzle-orm';
+import { eq, and, desc, count, lte, isNotNull } from 'drizzle-orm';
 import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
 import { awardTopTenGuesserXp } from './xp';
@@ -8,6 +8,7 @@ import { ethers } from 'ethers';
 import { resolveRoundWithPayoutsOnChain, type PayoutRecipient } from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
+import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 
 /**
  * Economics Module - Milestone 3.1
@@ -460,8 +461,11 @@ export async function resolveRoundAndCreatePayouts(
 /**
  * Get top 10 guessers for a round (excluding the winner)
  *
+ * Milestone 7.x: Only considers guesses with guessIndexInRound <= TOP10_LOCK_AFTER_GUESSES
+ * Guesses after the lock threshold do not count toward Top-10 ranking.
+ *
  * Ranking criteria:
- * - By total paid guess count (volume)
+ * - By total paid guess count (volume) - only eligible guesses
  * - Tiebreaker: earliest first guess time
  *
  * @param roundId - The round ID
@@ -470,11 +474,35 @@ export async function resolveRoundAndCreatePayouts(
  */
 async function getTop10Guessers(roundId: number, winnerFid: number): Promise<number[]> {
 
-  // Get all paid guesses for this round (excluding winner's guesses)
-  const allGuesses = await db
+  // Get all TOP-10 ELIGIBLE paid guesses for this round
+  // Only guesses with guessIndexInRound <= TOP10_LOCK_AFTER_GUESSES count
+  const eligibleGuesses = await db
     .select({
       fid: guesses.fid,
       createdAt: guesses.createdAt,
+      guessIndexInRound: guesses.guessIndexInRound,
+    })
+    .from(guesses)
+    .where(
+      and(
+        eq(guesses.roundId, roundId),
+        eq(guesses.isPaid, true),
+        // Only include guesses within the Top-10 eligibility window
+        // Handle legacy guesses without index (treat as eligible for backwards compat)
+        // New guesses will always have an index
+        isNotNull(guesses.guessIndexInRound)
+          ? lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES)
+          : undefined
+      )
+    )
+    .orderBy(guesses.createdAt);
+
+  // Also get legacy guesses without index (backwards compatibility)
+  const legacyGuesses = await db
+    .select({
+      fid: guesses.fid,
+      createdAt: guesses.createdAt,
+      guessIndexInRound: guesses.guessIndexInRound,
     })
     .from(guesses)
     .where(
@@ -484,6 +512,12 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
       )
     )
     .orderBy(guesses.createdAt);
+
+  // Combine: use indexed guesses if available, fall back to all guesses for legacy rounds
+  const hasIndexedGuesses = eligibleGuesses.some(g => g.guessIndexInRound !== null);
+  const allGuesses = hasIndexedGuesses
+    ? eligibleGuesses.filter(g => g.guessIndexInRound !== null && g.guessIndexInRound <= TOP10_LOCK_AFTER_GUESSES)
+    : legacyGuesses;
 
   // Group by FID and count
   const guesserStats = new Map<number, { count: number; firstGuessTime: Date }>();

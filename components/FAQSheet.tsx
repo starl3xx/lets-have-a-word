@@ -109,6 +109,10 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: "When someone wins: 80% goes to the winner, 10% goes to their referrer (if any), and the remaining 10% is split among that round's top 10 most active guessers. A small portion also seeds the next round's jackpot.",
     },
     {
+      question: "What is the Top-10 lock?",
+      answer: "Only the first 750 guesses in each round count toward the Top-10 ranking. After 750 total guesses are made, the Top-10 is locked. You can still guess and win the jackpot, but new guesses after the lock won't affect the Top-10 payout. This prevents late-game manipulation and rewards early active players.",
+    },
+    {
       question: "What does \"provably fair\" mean?",
       answer: (
         <>
