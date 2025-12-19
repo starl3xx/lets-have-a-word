@@ -19,10 +19,13 @@ interface GuessPurchaseModalProps {
 
 /**
  * GuessPurchaseModal
- * Milestone 6.3
+ * Milestone 6.3, Updated Milestone 7.0
  *
  * Modal for purchasing guess packs (3 guesses per pack).
- * Users can buy 1, 2, or 3 packs per day.
+ *
+ * Milestone 7.0: Visual polish
+ * - Uses unified design token classes
+ * - Consistent color palette
  */
 export default function GuessPurchaseModal({
   fid,
@@ -57,7 +60,6 @@ export default function GuessPurchaseModal({
       }
 
       try {
-        // Fetch user's current daily state and pricing info
         const [stateResponse, pricingResponse] = await Promise.all([
           fetch(`/api/user-state?devFid=${fid}`),
           fetch('/api/guess-pack-pricing'),
@@ -79,7 +81,6 @@ export default function GuessPurchaseModal({
         }
       } catch (err) {
         console.error('[GuessPurchaseModal] Error fetching state:', err);
-        // Continue with defaults - don't block the modal
       } finally {
         setIsLoading(false);
       }
@@ -91,11 +92,6 @@ export default function GuessPurchaseModal({
   // Calculate remaining packs allowed
   const remainingPacks = Math.max(0, maxPacksPerDay - packsPurchasedToday);
   const maxSelectablePacks = Math.min(3, remainingPacks);
-
-  // Get available pack options (filter by what's still purchasable)
-  const availableOptions = packOptions.filter(
-    (option) => option.packCount <= maxSelectablePacks
-  );
 
   // Get selected pack info
   const selectedOption = packOptions.find(
@@ -131,7 +127,6 @@ export default function GuessPurchaseModal({
     setError(null);
 
     try {
-      // Call the purchase API endpoint
       const response = await fetch('/api/purchase-guess-pack', {
         method: 'POST',
         headers: {
@@ -149,12 +144,10 @@ export default function GuessPurchaseModal({
         throw new Error(data.error || t('guessPack.purchaseFailed'));
       }
 
-      // Success!
       void haptics.packPurchased();
       setSuccessMessage(t('guessPack.purchaseSuccess'));
       setPacksPurchasedToday((prev) => prev + selectedPackCount);
 
-      // Notify parent after a short delay
       setTimeout(() => {
         onPurchaseSuccess(selectedPackCount);
         onClose();
@@ -170,11 +163,11 @@ export default function GuessPurchaseModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+        className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -204,23 +197,23 @@ export default function GuessPurchaseModal({
                     key={option.packCount}
                     onClick={() => handleSelectPack(option.packCount)}
                     disabled={isDisabled || isPurchasing}
-                    className={`w-full p-4 rounded-xl border-2 transition-all flex items-center justify-between ${
+                    className={`w-full p-4 rounded-btn border-2 transition-all duration-fast flex items-center justify-between ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-brand bg-brand-50'
                         : isDisabled
                         ? 'border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed'
-                        : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-brand-50'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       {/* Radio indicator */}
                       <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          isSelected ? 'border-blue-500' : 'border-gray-300'
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors duration-fast ${
+                          isSelected ? 'border-brand' : 'border-gray-300'
                         }`}
                       >
                         {isSelected && (
-                          <div className="w-3 h-3 rounded-full bg-blue-500" />
+                          <div className="w-3 h-3 rounded-full bg-brand" />
                         )}
                       </div>
 
@@ -247,12 +240,12 @@ export default function GuessPurchaseModal({
             </div>
 
             {/* Limit Indicator */}
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
+            <div className="bg-gray-50 rounded-btn p-3 text-center">
               <p className="text-sm text-gray-600">
                 {t('guessPack.limitIndicator', { count: packsPurchasedToday })}
               </p>
               {remainingPacks === 0 && (
-                <p className="text-sm text-orange-600 font-medium mt-1">
+                <p className="text-sm text-warning-600 font-medium mt-1">
                   {t('guessPack.maxPacksReached')}
                 </p>
               )}
@@ -260,15 +253,15 @@ export default function GuessPurchaseModal({
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm text-red-600 text-center">{error}</p>
+              <div className="bg-error-50 border border-error-200 rounded-btn p-3">
+                <p className="text-sm text-error-700 text-center">{error}</p>
               </div>
             )}
 
             {/* Success Message */}
             {successMessage && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-600 text-center">{successMessage}</p>
+              <div className="bg-success-50 border border-success-200 rounded-btn p-3">
+                <p className="text-sm text-success-700 text-center">{successMessage}</p>
               </div>
             )}
 
@@ -282,13 +275,13 @@ export default function GuessPurchaseModal({
                   !selectedOption ||
                   !!successMessage
                 }
-                className={`w-full py-4 px-6 rounded-xl font-bold text-white transition-all ${
+                className={`btn-primary-lg w-full ${
                   isPurchasing ||
                   remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
                 }`}
               >
                 {isPurchasing ? (
@@ -305,7 +298,7 @@ export default function GuessPurchaseModal({
               <button
                 onClick={onClose}
                 disabled={isPurchasing}
-                className="w-full py-3 px-6 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50"
+                className="btn-secondary w-full"
               >
                 {t('common.cancel')}
               </button>

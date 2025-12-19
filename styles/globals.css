@@ -2,7 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Söhne font family */
+/**
+ * Milestone 7.0: Global Styles
+ * Font declarations and base layer styles
+ */
+
+/* Söhne font family - Full weight range */
 @font-face {
   font-family: 'Soehne';
   src: url('/fonts/soehne-extraleicht.woff2') format('woff2');
@@ -131,39 +136,104 @@
   font-display: swap;
 }
 
-body {
-  font-family: 'Soehne', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
+/**
+ * Base layer styles
+ */
+@layer base {
+  body {
+    @apply font-sans text-gray-900 antialiased;
+  }
 
-/* Shake animation for invalid guess feedback (Milestone 4.3) */
-@keyframes shake {
-  0%, 100% {
-    transform: translateX(0);
+  /* Smooth scrolling for modals/sheets */
+  html {
+    scroll-behavior: smooth;
   }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translateX(-8px);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translateX(8px);
-  }
-}
 
-.animate-shake {
-  animation: shake 0.4s ease-in-out;
-}
-
-/* Pulse-glow animation for winner feedback (Milestone 4.14) */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(34, 197, 94, 0.4), 0 0 20px rgba(34, 197, 94, 0.2);
-    transform: scale(1);
+  /* Better focus styles for accessibility */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
   }
-  50% {
-    box-shadow: 0 0 20px rgba(34, 197, 94, 0.6), 0 0 40px rgba(34, 197, 94, 0.4);
-    transform: scale(1.02);
+
+  /* Remove tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 1.5s ease-in-out infinite;
+/**
+ * Component layer - Reusable button styles
+ */
+@layer components {
+  /* Primary button */
+  .btn-primary {
+    @apply py-3 px-6 rounded-btn font-semibold text-white bg-brand
+           hover:bg-brand-600 active:scale-95
+           transition-all duration-fast shadow-btn
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* Large primary button */
+  .btn-primary-lg {
+    @apply py-4 px-6 rounded-btn font-bold text-white text-lg bg-brand
+           hover:bg-brand-600 active:scale-95
+           transition-all duration-fast shadow-btn
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* Secondary button */
+  .btn-secondary {
+    @apply py-3 px-4 rounded-btn font-semibold text-gray-700 bg-gray-100
+           hover:bg-gray-200 active:scale-95
+           transition-all duration-fast
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* Ghost button (text only) */
+  .btn-ghost {
+    @apply py-2 px-4 rounded-btn font-medium text-gray-500
+           hover:text-gray-700 hover:bg-gray-50
+           transition-colors duration-fast
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Accent button (purple - for sharing/special actions) */
+  .btn-accent {
+    @apply py-4 px-6 rounded-btn font-bold text-white bg-accent
+           hover:bg-accent-700 active:scale-95
+           transition-all duration-fast shadow-btn
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* Modal/Sheet container */
+  .modal-sheet {
+    @apply bg-white rounded-t-card shadow-modal p-6 w-full max-w-md
+           max-h-[85vh] overflow-y-auto;
+  }
+
+  /* Modal backdrop */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/50 flex items-end justify-center z-50;
+  }
+
+  /* Section card (for stats sections) */
+  .section-card {
+    @apply rounded-card p-4 space-y-3;
+  }
+
+  /* Close button (X) for modals */
+  .btn-close {
+    @apply text-gray-400 hover:text-gray-600 text-2xl leading-none
+           transition-colors duration-fast;
+  }
+}
+
+/**
+ * Utility layer - Animation helpers
+ * Note: Primary animations (shake, pulse-glow) are defined in tailwind.config.js
+ */
+@layer utilities {
+  /* Tabular numbers for stats/counts */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }

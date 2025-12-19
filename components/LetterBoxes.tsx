@@ -33,6 +33,7 @@ interface GuessSlotProps {
 
 /**
  * Milestone 6.4.3: Get CSS classes for a slot based on visual state
+ * Milestone 7.0: Uses semantic color tokens
  * Extracted to pure function for clarity and testability
  */
 function getSlotClasses(
@@ -41,18 +42,18 @@ function getSlotClasses(
 ): string {
   switch (visualState) {
     case 'result-correct':
-      return 'bg-white border-green-500 text-gray-900';
+      return 'bg-white border-success-500 text-gray-900';
     case 'result-wrong':
-      return 'bg-white border-red-500 text-gray-900';
+      return 'bg-white border-error-500 text-gray-900';
     case 'error':
-      return 'bg-white border-red-500 text-gray-900';
+      return 'bg-white border-error-500 text-gray-900';
     case 'disabled':
       return 'bg-gray-100 border-gray-300 text-gray-400';
     case 'valid':
     case 'typing':
-      // If there's a letter, show it with black text and blue border immediately
+      // If there's a letter, show it with black text and brand border immediately
       return hasLetter
-        ? 'bg-white border-blue-500 text-gray-900'
+        ? 'bg-white border-brand text-gray-900'
         : 'bg-white border-gray-300 text-gray-300';
     case 'empty':
     default:
@@ -86,7 +87,7 @@ const GuessSlot = memo(function GuessSlot({
     cursorType === 'not-allowed'
       ? 'cursor-not-allowed'
       : cursorType === 'text'
-      ? 'cursor-text hover:border-blue-400'
+      ? 'cursor-text hover:border-brand-400'
       : 'cursor-default';
 
   return (
@@ -98,7 +99,7 @@ const GuessSlot = memo(function GuessSlot({
         border-4 rounded-lg
         ${slotClasses}
         ${cursorClass}
-        ${showReadyGlow ? 'ring-2 ring-blue-300 ring-opacity-50' : ''}
+        ${showReadyGlow ? 'ring-2 ring-brand-300 ring-opacity-50' : ''}
         ${visualState === 'result-correct' ? 'animate-pulse-glow' : ''}
         ${isLockedState ? 'opacity-60' : ''}
         shadow-md
