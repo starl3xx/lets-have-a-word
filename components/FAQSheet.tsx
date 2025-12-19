@@ -68,17 +68,25 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
   const FAQ_DATA: FAQItem[] = [
     {
       question: "How does the game work?",
-      answer: "Every Let's Have A Word! player worldwide is hunting for the same 5-letter word. When someone guesses correctly, they win the accumulated ETH jackpot and a new round starts with a new word. The jackpot grows with every paid guess.",
+      answer: "Every Let's Have A Word! player worldwide is hunting the same secret 5-letter word. When someone guesses correctly, they win the ETH jackpot and a new round starts with a new secret word. The jackpot grows as players purchase guess packs.",
     },
     {
       question: "What are free guesses?",
-      answer: "Every player gets 1 free guess per day. Free guesses don't cost anything (duh) but still give you a chance to win the jackpot. Additional free guesses can be earned through bonuses.",
+      answer: "Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses.",
     },
     {
       question: "How do I get more guesses?",
       answer: (
         <>
-          You can earn bonus free guesses by: (1) Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens (+2-3 guesses/day depending on market cap), and (2) Sharing your daily guess on Farcaster (+1 guess/day). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
+          You can get more guesses by:
+          <br /><br />
+          • Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens
+          <br />
+          • Sharing your daily guess on Farcaster/Base
+          <br />
+          • Buying guess packs (3 guesses per pack)
+          <br /><br />
+          You can buy up to 3 packs per day.
         </>
       ),
     },
@@ -86,71 +94,163 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What's the CLANKTON bonus?",
       answer: (
         <>
-          If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens in your connected wallet, you get additional free guesses per day:
+          If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> in your connected wallet, you receive extra free guesses:
           <br /><br />
-          • <strong>+2 guesses/day</strong> while CLANKTON market cap is below $250k
+          • <strong>+2 guesses/day</strong> while CLANKTON market cap is below $250K
           <br />
-          • <strong>+3 guesses/day</strong> once market cap reaches $250k
+          • <strong>+3 guesses/day</strong> once market cap reaches $250K
           <br /><br />
-          This bonus is automatically detected when you connect. Market cap is currently supplied via configuration and will be replaced with a live oracle in a future update.
+          This is detected automatically when you connect. Market cap is currently config-based and will move to a live oracle later.
         </>
       ),
     },
     {
       question: "How does the share bonus work?",
-      answer: "Share your guess via Farcaster once per day to earn +1 free guess. The bonus is applied automatically after you cast.",
+      answer: "Share your guess on Farcaster or Base once per day to earn +1 free guess. The bonus is applied automatically after you cast.",
     },
     {
       question: "How are paid guesses different?",
-      answer: "Paid guesses cost ETH and contribute to the global prize pool. You can buy up to 3 packs per day (3 guesses each). Paid guesses increase the jackpot for everyone.",
+      answer: (
+        <>
+          Paid guesses:
+          <br /><br />
+          • Cost ETH
+          <br />
+          • Increase the global prize pool
+          <br />
+          • Can be used at any point during the round
+          <br />
+          • Fund all prize payouts
+        </>
+      ),
     },
     {
       question: "How is the jackpot split?",
-      answer: "When someone wins: 80% goes to the winner, 10% goes to their referrer (if any), and the remaining 10% is split among that round's top 10 most active guessers. A small portion also seeds the next round's jackpot.",
+      answer: (
+        <>
+          When a round is won, payouts are resolved atomically onchain in a single transaction:
+          <br /><br />
+          • <strong>80%</strong> → Jackpot winner
+          <br />
+          • <strong>10%</strong> → Top 10 guessers
+          <br />
+          • <strong>10%</strong> → Referrer (if one exists)
+          <br /><br />
+          If the winner does not have a referrer:
+          <br />
+          • 7.5% is added to the Top 10 pool
+          <br />
+          • 2.5% seeds the next round's jackpot
+          <br /><br />
+          Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
+        </>
+      ),
     },
     {
-      question: "What is the Top 10 lock?",
-      answer: "Only the first 750 guesses in each round count toward the Top 10 ranking. After 750 total guesses are made, the Top 10 is locked. You can still guess and win the jackpot, but new guesses after the lock won't affect the Top 10 payout. This prevents late-game manipulation and rewards early active players.",
+      question: "How do Top 10 rewards work?",
+      answer: (
+        <>
+          Top 10 rewards are based on early participation in each round.
+          <br /><br />
+          • Only the first 750 guesses in a round are eligible for Top 10 ranking
+          <br />
+          • After guess #750, Top 10 locks
+          <br />
+          • Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking
+          <br /><br />
+          This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.
+        </>
+      ),
+    },
+    {
+      question: "How are Top 10 rewards split?",
+      answer: (
+        <>
+          The Top 10 pool is split using fixed percentages that scale with the prize size:
+          <br /><br />
+          • Rank #1: 19%
+          <br />
+          • Rank #2: 16%
+          <br />
+          • Rank #3: 14%
+          <br />
+          • Rank #4: 11%
+          <br />
+          • Rank #5: 10%
+          <br />
+          • Ranks #6–#10: 6% each
+          <br /><br />
+          This distribution is fixed and always applies when a round is resolved, scaling proportionally with the total Top 10 pool.
+        </>
+      ),
+    },
+    {
+      question: "How much do guess packs cost?",
+      answer: (
+        <>
+          Each pack contains 3 guesses.
+          <br /><br />
+          • <strong>0–749 total guesses</strong> in the round: 0.00030 ETH
+          <br />
+          • <strong>750–1249 guesses</strong> (mid round): 0.00045 ETH
+          <br />
+          • <strong>1250+ guesses</strong> (late round, capped): 0.00060 ETH
+          <br /><br />
+          Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.
+        </>
+      ),
+    },
+    {
+      question: "What happens to unused guesses?",
+      answer: (
+        <>
+          • Free guesses reset daily at 11:00 UTC
+          <br />
+          • Paid guess credits expire at the end of each day
+          <br />
+          • If a round ends and a new round starts the same day, unused paid guesses carry over
+        </>
+      ),
     },
     {
       question: "What does \"provably fair\" mean?",
       answer: (
         <>
-          Before each round, the game commits to the secret answer by publishing a cryptographic hash of the word (combined with a hidden salt) onchain. This hash proves the answer was fixed from the start and cannot be changed after guesses begin.
+          Before each round, the game commits onchain to the secret word using a cryptographic hash and hidden salt.
           <br /><br />
-          When the round ends, <ProfileLink fid={1477413}>@letshaveaword</ProfileLink> reveals the winning word and the salt, allowing anyone to recompute the hash themselves and verify it matches the original onchain commitment. This "commit–reveal" process makes every round transparently and mathematically fair.
+          When the round ends:
+          <br />
+          • The word and salt are revealed
+          <br />
+          • Anyone can recompute the hash
+          <br />
+          • Anyone can verify the answer was fixed from the start
+          <br /><br />
+          This commit–reveal process makes every round verifiable and fair.
         </>
       ),
     },
     {
       question: "How do referrals work?",
-      answer: "Share your referral link with your Farcaster friends. If someone you referred ever wins a jackpot, you'll automatically receive 10% of their winnings. You can track your referral earnings in the Refer sheet.",
-    },
-    {
-      question: "What happens to my unused guesses?",
-      answer: "Free guess allocations reset daily at 11:00 UTC. Paid guess credits expire at the end of each day. Use them or lose them! If a round is won and a new round starts, any unused paid guess credits automatically carry over to the next round.",
+      answer: "Share your referral link with friends on Farcaster and Base. If someone you referred ever wins a jackpot, you automatically receive 10% of their winnings. You can track referral earnings in the Refer sheet.",
     },
     {
       question: "Can I see the word after someone wins?",
       answer: (
         <>
-          Yes! When a round is won, the answer is revealed to everyone by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>. You can also view past winning words and their cryptographic proofs.
+          Yes. When a round is won, the answer is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>.
+          <br /><br />
+          Past winning words and cryptographic proofs are also available.
         </>
       ),
     },
     {
       question: "What is XP for?",
-      answer: "XP is currently being tracked but has no gameplay effect yet. Future updates may add leaderboards, progression systems, or XP-based rewards. Who knows!",
+      answer: "XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don't really know yet, tbh.",
     },
     {
       question: "Can I play outside of Farcaster?",
-      answer: (
-        <>
-          Not yet. Let's Have A Word! is Farcaster-only for now. The game uses your Farcaster identity, signer wallet, spam score, and referral graph to keep the game fair and to prevent bot abuse. Therefore, the game only works when launched inside a Farcaster client.
-          <br /><br />
-          I (<ProfileLink fid={6500}>@starl3xx</ProfileLink>) may explore a standalone web version later, but the current experience and security model are built specifically for Farcaster's ecosystem.
-        </>
-      ),
+      answer: "Let's Have A Word! uses the Farcaster stack. You can play in Farcaster clients and the Base app, which shares the same identity and wallet infrastructure. Standalone web play isn't supported yet. A standalone web version may be explored later.",
     },
   ];
 
