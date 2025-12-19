@@ -31,7 +31,7 @@ export default function Top10StatusChip({
           color: '#d97706', // amber-600
         }}
       >
-        <span className="font-medium">Top-10 locked</span>
+        <span className="font-medium">Top 10 locked</span>
         <span className="opacity-70">•</span>
         <span className="opacity-80">Jackpot still available</span>
       </div>
@@ -47,7 +47,7 @@ export default function Top10StatusChip({
         color: '#166534', // green-800
       }}
     >
-      <span className="font-medium">Top-10 open</span>
+      <span className="font-medium">Top 10 open</span>
       <span className="opacity-70">•</span>
       <span className="opacity-80">{top10GuessesRemaining.toLocaleString()} guesses left</span>
     </div>
