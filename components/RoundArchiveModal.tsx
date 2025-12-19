@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Top10StatusChip from './Top10StatusChip';
 
 interface TopGuesser {
   fid: number;
@@ -12,6 +13,9 @@ interface RoundState {
   prizePoolEth: string;
   prizePoolUsd: string;
   globalGuessCount: number;
+  top10Locked: boolean;
+  top10GuessesRemaining: number;
+  top10LockAfterGuesses: number;
 }
 
 interface RoundArchiveModalProps {
@@ -108,6 +112,16 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             Close
           </button>
         </div>
+
+        {/* Top-10 Status Chip (Milestone 7.x) */}
+        {roundState && (
+          <div className="flex justify-center -mt-2">
+            <Top10StatusChip
+              top10Locked={roundState.top10Locked}
+              top10GuessesRemaining={roundState.top10GuessesRemaining}
+            />
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center text-gray-500 py-10">
