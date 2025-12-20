@@ -181,16 +181,6 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
           </div>
         )}
 
-        {/* Top-10 Status Chip (Milestone 7.x) */}
-        {roundState && (
-          <div className="flex justify-center -mt-2">
-            <Top10StatusChip
-              top10Locked={roundState.top10Locked}
-              top10GuessesRemaining={roundState.top10GuessesRemaining}
-            />
-          </div>
-        )}
-
         {loading ? (
           <div className="text-center text-gray-500 py-10">
             <div className="w-8 h-8 border-2 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
@@ -250,9 +240,19 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
             {/* Top Guessers List */}
             <div>
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3 text-center">
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2 text-center">
                 Top Guessers <span className="font-normal opacity-70">(First 750 guesses)</span>
               </h3>
+
+              {/* Top-10 Status Chip (Milestone 7.x) */}
+              {roundState && (
+                <div className="flex justify-center mb-3">
+                  <Top10StatusChip
+                    top10Locked={roundState.top10Locked}
+                    top10GuessesRemaining={roundState.top10GuessesRemaining}
+                  />
+                </div>
+              )}
 
               {topGuessers.length === 0 ? (
                 <div className="text-center text-gray-400 py-4">
