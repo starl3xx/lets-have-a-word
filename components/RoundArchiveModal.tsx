@@ -218,26 +218,26 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               <div className="grid grid-cols-3 gap-2">
                 {/* Jackpot */}
                 <div className="border-2 border-gray-200 rounded-xl p-3 text-center">
-                  <div className="text-lg font-bold text-gray-900">.{breakdown.jackpot.eth.replace('0.', '')} ETH</div>
-                  <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
-                  <div className="text-xs text-gray-500 mt-2 uppercase font-semibold">Jackpot</div>
+                  <div className="text-xs text-gray-500 uppercase font-semibold">Jackpot</div>
                   <div className="text-xs text-gray-400">(80% of prize pool)</div>
+                  <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.jackpot.eth.replace('0.', '')} ETH</div>
+                  <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
                 </div>
 
                 {/* Referrer */}
                 <div className="border-2 border-gray-200 rounded-xl p-3 text-center">
-                  <div className="text-lg font-bold text-gray-900">.{breakdown.referrer.eth.replace('0.', '')} ETH</div>
+                  <div className="text-xs text-gray-500 uppercase font-semibold">Referrer</div>
+                  <div className="text-xs text-gray-400">(10% of prize pool)</div>
+                  <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.referrer.eth.replace('0.', '')} ETH</div>
                   <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
-                  <div className="text-xs text-gray-500 mt-2 uppercase font-semibold">Referrer</div>
-                  <div className="text-xs text-gray-400">(if applicable, 10% of prize pool)</div>
                 </div>
 
                 {/* Top Guessers */}
                 <div className="border-2 border-gray-200 rounded-xl p-3 text-center">
-                  <div className="text-lg font-bold text-gray-900">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
-                  <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
-                  <div className="text-xs text-gray-500 mt-2 uppercase font-semibold">Top Guessers</div>
+                  <div className="text-xs text-gray-500 uppercase font-semibold">Top Guessers</div>
                   <div className="text-xs text-gray-400">(10% of prize pool)</div>
+                  <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
+                  <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                 </div>
               </div>
             )}
