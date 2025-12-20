@@ -216,26 +216,26 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             {/* Prize Breakdown - 3 columns */}
             {breakdown && (
               <div className="grid grid-cols-3 gap-2">
-                {/* Jackpot */}
-                <div className="border-2 border-gray-200 rounded-xl p-3 text-center">
-                  <div className="text-xs text-gray-500 uppercase font-semibold">Jackpot</div>
-                  <div className="text-xs text-gray-400">(80% of prize pool)</div>
+                {/* Jackpot - highlighted as the main prize */}
+                <div className="border-2 border-green-200 bg-green-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-green-700 uppercase font-semibold">Jackpot</div>
+                  <div className="text-xs text-green-600/70">(80% of prize pool)</div>
                   <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.jackpot.eth.replace('0.', '')} ETH</div>
                   <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
                 </div>
 
                 {/* Referrer */}
-                <div className="border-2 border-gray-200 rounded-xl p-3 text-center">
-                  <div className="text-xs text-gray-500 uppercase font-semibold">Referrer</div>
-                  <div className="text-xs text-gray-400">(10% of prize pool)</div>
+                <div className="border-2 border-purple-200 bg-purple-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-purple-700 uppercase font-semibold">Referrer</div>
+                  <div className="text-xs text-purple-600/70">(10% of prize pool)</div>
                   <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.referrer.eth.replace('0.', '')} ETH</div>
                   <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
                 </div>
 
                 {/* Top Guessers */}
-                <div className="border-2 border-gray-200 rounded-xl p-3 text-center">
-                  <div className="text-xs text-gray-500 uppercase font-semibold">Top Guessers</div>
-                  <div className="text-xs text-gray-400">(10% of prize pool)</div>
+                <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-amber-700 uppercase font-semibold">Top Guessers</div>
+                  <div className="text-xs text-amber-600/70">(10% of prize pool)</div>
                   <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
                   <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                 </div>
