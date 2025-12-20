@@ -165,13 +165,17 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
           </button>
         </div>
 
-        {/* Prize Pool Total */}
+        {/* Prize Pool Total - Chip style */}
         {roundState && (
-          <div className="text-center -mt-1">
-            <div className="text-2xl font-bold text-green-600">
-              PRIZE POOL: {roundState.prizePoolEth} ETH
+          <div className="flex flex-col items-center -mt-1">
+            <div
+              className="inline-flex items-center gap-1.5 text-sm rounded-full px-3 py-1"
+              style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#16a34a' }}
+            >
+              <span className="font-bold">{roundState.prizePoolEth} ETH</span>
+              <span className="opacity-70">prize pool</span>
             </div>
-            <div className="text-sm text-gray-500">
+            <div className="text-xs text-gray-400 mt-0.5">
               (${roundState.prizePoolUsd} USD)
             </div>
           </div>
@@ -276,16 +280,17 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                             (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
                           }}
                         />
-                        {/* Username */}
-                        <div className="flex-1 font-medium text-gray-900 truncate">
-                          {guesser.username || `fid:${guesser.fid}`}
-                        </div>
-                        {/* ETH Payout */}
-                        <div className="text-green-600 font-semibold text-sm tabular-nums">
-                          .{rankPayout.replace('0.', '')}
+                        {/* Username + ETH Payout */}
+                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                          <span className="font-medium text-gray-900 truncate">
+                            {guesser.username || `fid:${guesser.fid}`}
+                          </span>
+                          <span className="text-gray-400 text-sm tabular-nums whitespace-nowrap">
+                            (.{rankPayout.replace('0.', '')})
+                          </span>
                         </div>
                         {/* Guess Count */}
-                        <div className="text-blue-600 font-bold w-10 text-right tabular-nums">
+                        <div className="text-blue-600 font-bold tabular-nums">
                           {guesser.guessCount}
                         </div>
                       </div>
