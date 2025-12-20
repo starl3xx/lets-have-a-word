@@ -308,10 +308,10 @@ export default function ReferralSheet({
             {/* How it Works */}
             <div className="section-card bg-gray-50">
               <h3 className="text-sm font-semibold text-gray-900">{t('referral.howItWorks.title')}</h3>
-              <ul className="text-sm text-gray-700 space-y-1 mt-2">
-                <li>• {t('referral.howItWorks.step1')}</li>
-                <li>• {t('referral.howItWorks.step2')}</li>
-                <li>• {t('referral.howItWorks.step3')}</li>
+              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mt-2">
+                <li>{t('referral.howItWorks.step1')}</li>
+                <li>{t('referral.howItWorks.step2')}</li>
+                <li>{t('referral.howItWorks.step3')}</li>
               </ul>
             </div>
           </div>
