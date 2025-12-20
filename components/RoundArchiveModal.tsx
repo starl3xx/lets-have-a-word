@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Top10StatusChip from './Top10StatusChip';
 
 interface TopGuesser {
@@ -59,18 +59,14 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
   const [uniqueGuessers, setUniqueGuessers] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchData();
-      // Poll for real-time updates every 5 seconds while modal is open
-      const interval = setInterval(fetchData, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [isOpen]);
+  // Track if initial load is complete to avoid flickering on polls
+  const hasLoadedRef = useRef(false);
+  const previousGuessersRef = useRef<string>('');
 
-  const fetchData = async () => {
-    // Only show loading spinner on initial load, not on polls
-    if (!roundState) {
+  const fetchData = useCallback(async () => {
+    // Only show loading spinner on initial load
+    const isInitialLoad = !hasLoadedRef.current;
+    if (isInitialLoad) {
       setLoading(true);
     }
 
@@ -93,31 +89,56 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
         if (
           prev.roundId === roundData.roundId &&
           prev.prizePoolEth === roundData.prizePoolEth &&
-          prev.globalGuessCount === roundData.globalGuessCount
+          prev.globalGuessCount === roundData.globalGuessCount &&
+          prev.top10Locked === roundData.top10Locked &&
+          prev.top10GuessesRemaining === roundData.top10GuessesRemaining
         ) {
           return prev; // No change, keep previous reference
         }
         return roundData;
       });
 
+      // Use ref to compare guessers to avoid JSON.stringify on every render
       const newGuessers = guessersData.topGuessers || [];
-      setTopGuessers((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(newGuessers)) {
-          return prev; // No change
-        }
-        return newGuessers;
-      });
+      const newGuessersJson = JSON.stringify(newGuessers);
+      if (previousGuessersRef.current !== newGuessersJson) {
+        previousGuessersRef.current = newGuessersJson;
+        setTopGuessers(newGuessers);
+      }
 
       const newUniqueCount = guessersData.uniqueGuessersCount || 0;
       setUniqueGuessers((prev) => (prev === newUniqueCount ? prev : newUniqueCount));
 
-      setError(null);
+      // Only clear error if there was one
+      setError((prev) => (prev !== null ? null : prev));
+
+      // Mark as loaded after first successful fetch
+      if (isInitialLoad) {
+        hasLoadedRef.current = true;
+        setLoading(false);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
-    } finally {
-      setLoading(false);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load data';
+      setError((prev) => (prev !== errorMsg ? errorMsg : prev));
+      if (isInitialLoad) {
+        hasLoadedRef.current = true;
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Reset for fresh load when modal opens
+      hasLoadedRef.current = false;
+      previousGuessersRef.current = '';
+
+      fetchData();
+      // Poll for real-time updates every 5 seconds while modal is open
+      const interval = setInterval(fetchData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, fetchData]);
 
   // Calculate prize breakdown (80% jackpot, 10% referrer, 10% top guessers)
   const calculateBreakdown = (totalEth: string, totalUsd: string) => {
