@@ -78,10 +78,12 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
   }
 
   // Generate guess counts using seeded random (decreasing by rank with variance)
+  // Total should be well under 750 since that's when top 10 locks
+  // Realistic distribution: top guesser ~80-120, decreasing from there
   const guessCounts = fids.map((_, i) => {
-    const baseGuesses = 200 - (i * 15);
-    const variance = Math.floor(rng() * 20) - 10;
-    return Math.max(30, baseGuesses + variance);
+    const baseGuesses = 100 - (i * 8); // 100, 92, 84, 76, 68, 60, 52, 44, 36, 28
+    const variance = Math.floor(rng() * 15) - 7; // -7 to +7 variance
+    return Math.max(15, baseGuesses + variance);
   });
 
   // Try to fetch real user data from Neynar
