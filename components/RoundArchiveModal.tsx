@@ -232,9 +232,9 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
                 </div>
 
-                {/* Top Early Guessers */}
+                {/* Early Guessers */}
                 <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-amber-700 uppercase font-semibold">Top Early Guessers</div>
+                  <div className="text-xs text-amber-700 uppercase font-semibold">Early Guessers</div>
                   <div className="text-xs text-amber-600/70">(10% of prize pool)</div>
                   <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
                   <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
@@ -258,10 +258,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               </div>
             </div>
 
-            {/* Top Early Guessers List */}
+            {/* Early Guessers List */}
             <div>
               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2 text-center">
-                Top Early Guessers <span className="font-normal opacity-70">(First 750 guesses)</span>
+                Early Guessers <span className="font-normal opacity-70 normal-case">(first 750 guesses)</span>
               </h3>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
