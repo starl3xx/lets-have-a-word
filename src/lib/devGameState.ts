@@ -416,6 +416,17 @@ let cachedDevDisplayValues: {
 } | null = null;
 
 /**
+ * Simple seeded random number generator
+ * Same seed always produces same sequence
+ */
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+/**
  * Clear the cached dev display values
  * Call this to force new random values on next getDevRoundStatus() call
  */
@@ -427,7 +438,7 @@ export function clearDevDisplayCache(): void {
 /**
  * Get the current dev round's status from the database
  * Returns randomized display values that stay consistent during a session
- * but randomize on server restart or when a new round is created
+ * Uses time-based seed so values persist across hot reloads but change on server restart
  */
 export async function getDevRoundStatus(): Promise<{
   roundId: number;
@@ -445,10 +456,17 @@ export async function getDevRoundStatus(): Promise<{
     };
   }
 
-  // Generate new random display values
-  const displayRoundId = Math.floor(5 + Math.random() * 296); // 5-300
-  const displayPrizePool = (0.03 + Math.random() * 0.37).toFixed(4); // 0.03-0.40 ETH
-  const displayGuessCount = Math.floor(100 + Math.random() * 5900); // 100-6000
+  // Use a seed based on the server start time (rounded to 10-minute intervals)
+  // This ensures values are consistent across hot reloads within the same session
+  // but will change when you restart the server
+  const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000)); // 10-minute buckets
+  const seed = serverStartSeed * 1000 + actualRoundId;
+  const rng = seededRandom(seed);
+
+  // Generate deterministic "random" display values
+  const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
+  const displayPrizePool = (0.03 + rng() * 0.37).toFixed(4); // 0.03-0.40 ETH
+  const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
 
   // Cache the values
   cachedDevDisplayValues = {

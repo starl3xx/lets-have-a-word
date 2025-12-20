@@ -29,7 +29,26 @@ export interface TopGuessersResponse {
 let cachedMockGuessers: {
   guessers: TopGuesser[];
   uniqueCount: number;
+  seed: number;
 } | null = null;
+
+/**
+ * Simple seeded random number generator
+ * Same seed always produces same sequence
+ */
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+/**
+ * Get a time-based seed that stays consistent within a 10-minute window
+ */
+function getTimeSeed(): number {
+  return Math.floor(Date.now() / (10 * 60 * 1000));
+}
 
 /**
  * Clear the cached mock guessers
@@ -43,24 +62,25 @@ export function clearMockGuessersCache(): void {
 /**
  * Generate mock top guessers for dev mode
  * Fetches real Farcaster profiles via Neynar for realistic display
+ * Uses seeded random for consistency across hot reloads
  */
-async function generateMockTopGuessers(): Promise<TopGuesser[]> {
-  // Generate 10 unique random FIDs between 1 and 10,000
+async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]> {
+  // Generate 10 unique FIDs using seeded random
   const fids: number[] = [];
   const usedFids = new Set<number>();
 
   while (fids.length < 10) {
-    const fid = Math.floor(Math.random() * 10000) + 1;
+    const fid = Math.floor(rng() * 10000) + 1;
     if (!usedFids.has(fid)) {
       usedFids.add(fid);
       fids.push(fid);
     }
   }
 
-  // Generate random guess counts (decreasing by rank with variance)
+  // Generate guess counts using seeded random (decreasing by rank with variance)
   const guessCounts = fids.map((_, i) => {
     const baseGuesses = 200 - (i * 15);
-    const variance = Math.floor(Math.random() * 20) - 10;
+    const variance = Math.floor(rng() * 20) - 10;
     return Math.max(30, baseGuesses + variance);
   });
 
@@ -107,8 +127,10 @@ export default async function handler(
   try {
     // Dev mode: return mock data with real Neynar profiles
     if (isDevModeEnabled()) {
-      // Use cached mock data if available
-      if (cachedMockGuessers) {
+      const currentSeed = getTimeSeed();
+
+      // Use cached mock data if available and seed hasn't changed
+      if (cachedMockGuessers && cachedMockGuessers.seed === currentSeed) {
         return res.status(200).json({
           currentRoundId: 42,
           topGuessers: cachedMockGuessers.guessers,
@@ -116,15 +138,17 @@ export default async function handler(
         });
       }
 
-      // Generate new mock data
+      // Generate new mock data with seeded random
       console.log('[round/top-guessers] Dev mode: generating fresh mock top guessers');
-      const mockGuessers = await generateMockTopGuessers();
-      const uniqueCount = Math.floor(100 + Math.random() * 200); // 100-300
+      const rng = seededRandom(currentSeed * 7919); // Use prime multiplier for variety
+      const mockGuessers = await generateMockTopGuessers(rng);
+      const uniqueCount = Math.floor(100 + rng() * 200); // 100-300
 
-      // Cache it
+      // Cache it with the seed
       cachedMockGuessers = {
         guessers: mockGuessers,
         uniqueCount,
+        seed: currentSeed,
       };
 
       return res.status(200).json({
