@@ -242,20 +242,19 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               </div>
             )}
 
-            {/* Stats - Compact inline */}
-            <div className="flex justify-center gap-6 text-sm text-gray-600">
-              <div className="flex items-center gap-1.5">
+            {/* Stats - Chip style */}
+            <div className="flex justify-center gap-3 text-sm">
+              <div className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1">
                 <span className="font-bold text-gray-900 tabular-nums">
                   {roundState?.globalGuessCount?.toLocaleString() || '0'}
                 </span>
-                <span>guesses</span>
+                <span className="text-gray-500">guesses</span>
               </div>
-              <div className="text-gray-300">•</div>
-              <div className="flex items-center gap-1.5">
+              <div className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1">
                 <span className="font-bold text-gray-900 tabular-nums">
                   {uniqueGuessers.toLocaleString()}
                 </span>
-                <span>unique players</span>
+                <span className="text-gray-500">unique players</span>
               </div>
             </div>
 
@@ -307,7 +306,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                             {guesser.username || `fid:${guesser.fid}`}
                           </span>
                           <span className="text-gray-400 text-sm tabular-nums whitespace-nowrap">
-                            (.{rankPayout.replace('0.', '')})
+                            (.{rankPayout.replace('0.', '')} ETH)
                           </span>
                         </div>
                         {/* Guess Count */}
