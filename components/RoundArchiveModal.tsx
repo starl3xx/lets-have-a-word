@@ -73,7 +73,6 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
     if (!roundState) {
       setLoading(true);
     }
-    setError(null);
 
     try {
       // Fetch round state and top guessers in parallel
@@ -88,9 +87,31 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
       const roundData = await roundResponse.json();
       const guessersData = await guessersResponse.json();
 
-      setRoundState(roundData);
-      setTopGuessers(guessersData.topGuessers || []);
-      setUniqueGuessers(guessersData.uniqueGuessersCount || 0);
+      // Only update state if data has actually changed (prevents flickering)
+      setRoundState((prev) => {
+        if (!prev) return roundData;
+        if (
+          prev.roundId === roundData.roundId &&
+          prev.prizePoolEth === roundData.prizePoolEth &&
+          prev.globalGuessCount === roundData.globalGuessCount
+        ) {
+          return prev; // No change, keep previous reference
+        }
+        return roundData;
+      });
+
+      const newGuessers = guessersData.topGuessers || [];
+      setTopGuessers((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(newGuessers)) {
+          return prev; // No change
+        }
+        return newGuessers;
+      });
+
+      const newUniqueCount = guessersData.uniqueGuessersCount || 0;
+      setUniqueGuessers((prev) => (prev === newUniqueCount ? prev : newUniqueCount));
+
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
