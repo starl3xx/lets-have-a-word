@@ -144,6 +144,18 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
           </button>
         </div>
 
+        {/* Prize Pool Total */}
+        {roundState && (
+          <div className="text-center -mt-1">
+            <div className="text-2xl font-bold text-green-600">
+              PRIZE POOL: {roundState.prizePoolEth} ETH
+            </div>
+            <div className="text-sm text-gray-500">
+              (${roundState.prizePoolUsd} USD)
+            </div>
+          </div>
+        )}
+
         {/* Top-10 Status Chip (Milestone 7.x) */}
         {roundState && (
           <div className="flex justify-center -mt-2">
@@ -194,19 +206,20 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               </div>
             )}
 
-            {/* Stats - 2 columns */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="border-2 border-gray-200 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-gray-900">
+            {/* Stats - Compact inline */}
+            <div className="flex justify-center gap-6 text-sm text-gray-600">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-gray-900 tabular-nums">
                   {roundState?.globalGuessCount?.toLocaleString() || '0'}
-                </div>
-                <div className="text-xs text-gray-500 uppercase font-semibold mt-1">Total Guesses</div>
+                </span>
+                <span>guesses</span>
               </div>
-              <div className="border-2 border-gray-200 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-gray-900">
+              <div className="text-gray-300">•</div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-gray-900 tabular-nums">
                   {uniqueGuessers.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-500 uppercase font-semibold mt-1">Unique Guessers</div>
+                </span>
+                <span>unique players</span>
               </div>
             </div>
 
