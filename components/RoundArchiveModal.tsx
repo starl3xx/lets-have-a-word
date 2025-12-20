@@ -23,6 +23,31 @@ interface RoundArchiveModalProps {
   onClose: () => void;
 }
 
+// Top 10 rank distribution percentages (of the Top 10 pool)
+const TOP10_RANK_PERCENTAGES = [
+  0.19, // Rank 1: 19%
+  0.16, // Rank 2: 16%
+  0.14, // Rank 3: 14%
+  0.11, // Rank 4: 11%
+  0.10, // Rank 5: 10%
+  0.06, // Rank 6: 6%
+  0.06, // Rank 7: 6%
+  0.06, // Rank 8: 6%
+  0.06, // Rank 9: 6%
+  0.06, // Rank 10: 6%
+];
+
+/**
+ * Calculate the ETH payout for a specific rank
+ * @param rank - 1-indexed rank (1-10)
+ * @param top10PoolEth - Total ETH in the Top 10 pool (10% of prize pool)
+ */
+function getRankPayout(rank: number, top10PoolEth: number): string {
+  if (rank < 1 || rank > 10) return '0.0000';
+  const percentage = TOP10_RANK_PERCENTAGES[rank - 1];
+  return (top10PoolEth * percentage).toFixed(4);
+}
+
 /**
  * RoundArchiveModal Component
  * Shows current round stats with prize breakdown and top guessers
@@ -37,11 +62,17 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
   useEffect(() => {
     if (isOpen) {
       fetchData();
+      // Poll for real-time updates every 5 seconds while modal is open
+      const interval = setInterval(fetchData, 5000);
+      return () => clearInterval(interval);
     }
   }, [isOpen]);
 
   const fetchData = async () => {
-    setLoading(true);
+    // Only show loading spinner on initial load, not on polls
+    if (!roundState) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -191,31 +222,41 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {topGuessers.slice(0, 10).map((guesser, index) => (
-                    <div key={guesser.fid} className="flex items-center gap-3">
-                      {/* Rank */}
-                      <div className="text-gray-500 font-medium w-6 text-right">
-                        {index + 1}.
+                  {topGuessers.slice(0, 10).map((guesser, index) => {
+                    const rank = index + 1;
+                    const top10PoolEth = breakdown ? parseFloat(breakdown.topGuessers.eth) : 0;
+                    const rankPayout = getRankPayout(rank, top10PoolEth);
+
+                    return (
+                      <div key={guesser.fid} className="flex items-center gap-3">
+                        {/* Rank */}
+                        <div className="text-gray-500 font-medium w-6 text-right">
+                          {rank}.
+                        </div>
+                        {/* Avatar */}
+                        <img
+                          src={guesser.pfpUrl}
+                          alt={guesser.username}
+                          className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
+                          }}
+                        />
+                        {/* Username */}
+                        <div className="flex-1 font-medium text-gray-900 truncate">
+                          {guesser.username || `fid:${guesser.fid}`}
+                        </div>
+                        {/* ETH Payout */}
+                        <div className="text-green-600 font-semibold text-sm tabular-nums">
+                          .{rankPayout.replace('0.', '')}
+                        </div>
+                        {/* Guess Count */}
+                        <div className="text-blue-600 font-bold w-10 text-right tabular-nums">
+                          {guesser.guessCount}
+                        </div>
                       </div>
-                      {/* Avatar */}
-                      <img
-                        src={guesser.pfpUrl}
-                        alt={guesser.username}
-                        className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
-                        }}
-                      />
-                      {/* Username */}
-                      <div className="flex-1 font-medium text-gray-900 truncate">
-                        {guesser.username || `fid:${guesser.fid}`}
-                      </div>
-                      {/* Guess Count */}
-                      <div className="text-blue-600 font-bold">
-                        {guesser.guessCount}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
