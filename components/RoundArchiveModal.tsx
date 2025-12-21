@@ -299,7 +299,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                 <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">
                   Top 10 Early Guessers
                 </h3>
-                <p className="text-sm text-gray-500">(ranked from first 750 guesses)</p>
+                <p className="text-sm text-gray-500">(ranked from the first 750 guesses)</p>
               </div>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
