@@ -266,7 +266,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   </div>
                   {/* Values region - mt-auto ensures alignment across cards */}
                   <div className="mt-auto pt-2">
-                    <div className="text-lg font-bold text-gray-900">.{breakdown.jackpot.eth.replace('0.', '')} ETH</div>
+                    <div className="text-lg leading-tight text-gray-900">
+                      <span className="font-bold">.{breakdown.jackpot.eth.replace('0.', '')}</span>
+                      <span className="font-medium"> ETH</span>
+                    </div>
                     <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
                   </div>
                 </div>
@@ -278,7 +281,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                     <div className="text-xs text-purple-600/70">(10% of pool)</div>
                   </div>
                   <div className="mt-auto pt-2">
-                    <div className="text-lg font-bold text-gray-900">.{breakdown.referrer.eth.replace('0.', '')} ETH</div>
+                    <div className="text-lg leading-tight text-gray-900">
+                      <span className="font-bold">.{breakdown.referrer.eth.replace('0.', '')}</span>
+                      <span className="font-medium"> ETH</span>
+                    </div>
                     <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
                   </div>
                 </div>
@@ -290,7 +296,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                     <div className="text-xs text-amber-600/70">(10% of pool)</div>
                   </div>
                   <div className="mt-auto pt-2">
-                    <div className="text-lg font-bold text-gray-900">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
+                    <div className="text-lg leading-tight text-gray-900">
+                      <span className="font-bold">.{breakdown.topGuessers.eth.replace('0.', '')}</span>
+                      <span className="font-medium"> ETH</span>
+                    </div>
                     <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                   </div>
                 </div>
@@ -304,21 +313,21 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
             {/* Early Guessers List */}
             <div>
-              <div className="text-center mb-2">
+              <div className="text-center mb-1.5">
                 <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">
                   Top 10 Early Guessers
                 </h3>
-                <p className="text-sm text-gray-500">(ranked from the first 750 guesses)</p>
+                <p className="text-sm text-gray-500 mt-0.5">(ranked from the first 750 guesses)</p>
               </div>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
               {roundState && (
-                <div className="flex flex-col items-center mb-3">
+                <div className="flex flex-col items-center mb-2">
                   <Top10StatusChip
                     top10Locked={roundState.top10Locked}
                     top10GuessesRemaining={roundState.top10GuessesRemaining}
                   />
-                  <p className="text-xs text-gray-400 italic mt-1">Est. payout if round ended now</p>
+                  <p className="text-xs text-gray-400 italic mt-1.5">Est. payout if round ended now</p>
                 </div>
               )}
 
