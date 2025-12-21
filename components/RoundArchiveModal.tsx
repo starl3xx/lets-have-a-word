@@ -209,11 +209,8 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               </div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="px-3 py-1 text-sm font-medium text-gray-500 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
-          >
-            Close
+          <button onClick={onClose} className="btn-close" aria-label="Close">
+            ×
           </button>
         </div>
         {/* Stats chips - full width row below header */}
@@ -386,6 +383,11 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
         >
           View full archive
         </a>
+
+        {/* Close Button */}
+        <button onClick={onClose} className="btn-secondary w-full">
+          Close
+        </button>
       </div>
     </div>
   );
