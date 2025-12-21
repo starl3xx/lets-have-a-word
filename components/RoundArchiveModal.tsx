@@ -225,8 +225,9 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                     <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
                       <span className="text-gray-500">started</span>
                       <span className="font-bold text-gray-900">
-                        {formatTimeAgo(roundState.roundStartedAt)}
+                        {formatTimeAgo(roundState.roundStartedAt).replace(' ago', '')}
                       </span>
+                      <span className="text-gray-500">ago</span>
                     </div>
                   )}
                 </div>
