@@ -181,10 +181,10 @@ export default function FirstTimeOverlay({
           <>
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-gray-900">
-                One more thing!
+                One last step
               </h2>
               <p className="text-gray-600">
-                Add this app to get notified when new rounds begin — each round has a jackpot!
+                Add the app to play daily, track your progress, and never miss a round
               </p>
             </div>
 
@@ -194,12 +194,12 @@ export default function FirstTimeOverlay({
                 disabled={isAddingApp}
                 className="btn-primary-lg w-full"
               >
-                {isAddingApp ? 'Adding...' : 'Add to Farcaster'}
+                {isAddingApp ? 'Adding...' : 'Add app'}
               </button>
               <button
                 onClick={handleSkipAdd}
                 disabled={isAddingApp}
-                className="btn-ghost w-full"
+                className="btn-ghost w-full text-gray-400"
               >
                 Skip for now
               </button>
