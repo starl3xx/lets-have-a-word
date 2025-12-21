@@ -173,7 +173,7 @@ export default function FirstTimeOverlay({
               onClick={handleTutorialComplete}
               className="btn-primary-lg w-full"
             >
-              I'm ready! 👉
+              I’m ready! 👉
             </button>
           </>
         ) : (
