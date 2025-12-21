@@ -383,8 +383,10 @@ export async function ensureDevRound(): Promise<number> {
   // Ensure a game rule exists (creates one if needed)
   const rulesetId = await ensureDevGameRule();
 
-  // Random initial prize pool between 0.03 and 0.4 ETH
-  const initialPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
+  // Use 10-minute bucket seeded random for consistent prize pool
+  const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000));
+  const prizePoolRng = seededRandom(serverStartSeed * 9973); // Prime multiplier for variety
+  const initialPrizePool = (0.03 + prizePoolRng() * 0.37).toFixed(4);
 
   const [newRound] = await db
     .insert(rounds)

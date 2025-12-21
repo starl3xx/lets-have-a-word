@@ -11,6 +11,16 @@ import { eq, sql, and, isNull } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
 
 /**
+ * Simple seeded random number generator for consistent dev mode values
+ */
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+/**
  * GET /api/guess-pack-pricing
  * Milestone 6.3, Updated Milestone 7.1
  *
@@ -37,13 +47,15 @@ export default async function handler(
 
     if (isDevModeEnabled()) {
       // In dev mode, use a synthetic guess count for testing
-      // Parse from query param if provided, otherwise use random value
+      // Parse from query param if provided, otherwise use seeded random value
       const devGuesses = req.query.devGuesses;
       if (devGuesses && typeof devGuesses === 'string') {
         totalGuessesInRound = parseInt(devGuesses, 10) || 0;
       } else {
-        // Use a value that shows late-round pricing sometimes
-        totalGuessesInRound = Math.floor(Math.random() * 1500);
+        // Use 10-minute bucket seeded random for consistent values
+        const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000));
+        const rng = seededRandom(serverStartSeed * 7927); // Prime multiplier
+        totalGuessesInRound = Math.floor(rng() * 1500);
       }
     } else {
       // Production: get actual guess count from database
