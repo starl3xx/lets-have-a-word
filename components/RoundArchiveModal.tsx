@@ -170,37 +170,29 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 max-h-[85vh] overflow-y-auto"
+        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-4 space-y-3 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header + Prize Pool - Combined for compactness */}
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Current round: #{roundState?.roundId || '—'}
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              Round #{roundState?.roundId || '—'}
+            </h2>
+            {roundState && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
+                <span className="text-xs text-gray-400">(${roundState.prizePoolUsd})</span>
+              </div>
+            )}
+          </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-sm font-medium text-gray-500 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
+            className="px-3 py-1 text-sm font-medium text-gray-500 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
           >
             Close
           </button>
         </div>
-
-        {/* Prize Pool Total - Chip style */}
-        {roundState && (
-          <div className="flex flex-col items-center -mt-1">
-            <div
-              className="inline-flex items-center gap-1.5 text-sm rounded-full px-3 py-1"
-              style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#16a34a' }}
-            >
-              <span className="font-bold">{roundState.prizePoolEth} ETH</span>
-              <span className="opacity-70">prize pool</span>
-            </div>
-            <div className="text-xs text-gray-400 mt-0.5">
-              (${roundState.prizePoolUsd} USD)
-            </div>
-          </div>
-        )}
 
         {loading ? (
           <div className="text-center text-gray-500 py-10">
