@@ -261,16 +261,17 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             {/* Early Guessers List */}
             <div>
               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2 text-center">
-                Early Guessers <span className="font-normal opacity-70 normal-case">(first 750 guesses)</span>
+                Top 10 Early Guessers <span className="font-normal opacity-70 normal-case">(ranked from first 750 guesses)</span>
               </h3>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
               {roundState && (
-                <div className="flex justify-center mb-3">
+                <div className="flex flex-col items-center mb-3">
                   <Top10StatusChip
                     top10Locked={roundState.top10Locked}
                     top10GuessesRemaining={roundState.top10GuessesRemaining}
                   />
+                  <p className="text-xs text-gray-400 italic mt-1">Estimated payout if round ended now</p>
                 </div>
               )}
 
