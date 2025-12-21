@@ -258,32 +258,40 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               <div className="grid grid-cols-3 gap-2">
                 {/* Jackpot - highlighted as the main prize */}
                 <div className="border-2 border-green-200 bg-green-50 rounded-xl p-3 text-center flex flex-col">
-                  <div className="min-h-[2.5rem] flex flex-col justify-center">
+                  {/* Header region - flex-1 grows to fill space, pushing values to bottom */}
+                  <div className="flex-1 flex flex-col justify-start">
                     <div className="text-xs text-green-700 uppercase font-semibold">Jackpot</div>
                     <div className="text-xs text-green-600/70">(80% of pool)</div>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.jackpot.eth.replace('0.', '')} ETH</div>
-                  <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
+                  {/* Values region - mt-auto ensures alignment across cards */}
+                  <div className="mt-auto pt-2">
+                    <div className="text-lg font-bold text-gray-900">.{breakdown.jackpot.eth.replace('0.', '')} ETH</div>
+                    <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
+                  </div>
                 </div>
 
                 {/* Referrer */}
                 <div className="border-2 border-purple-200 bg-purple-50 rounded-xl p-3 text-center flex flex-col">
-                  <div className="min-h-[2.5rem] flex flex-col justify-center">
+                  <div className="flex-1 flex flex-col justify-start">
                     <div className="text-xs text-purple-700 uppercase font-semibold">Referrer</div>
                     <div className="text-xs text-purple-600/70">(10% of pool)</div>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.referrer.eth.replace('0.', '')} ETH</div>
-                  <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
+                  <div className="mt-auto pt-2">
+                    <div className="text-lg font-bold text-gray-900">.{breakdown.referrer.eth.replace('0.', '')} ETH</div>
+                    <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
+                  </div>
                 </div>
 
                 {/* Early Guessers */}
                 <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center flex flex-col">
-                  <div className="min-h-[2.5rem] flex flex-col justify-center">
+                  <div className="flex-1 flex flex-col justify-start">
                     <div className="text-xs text-amber-700 uppercase font-semibold">Early Guessers</div>
                     <div className="text-xs text-amber-600/70">(10% of pool)</div>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
-                  <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
+                  <div className="mt-auto pt-2">
+                    <div className="text-lg font-bold text-gray-900">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
+                    <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
+                  </div>
                 </div>
               </div>
             )}
