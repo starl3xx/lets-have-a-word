@@ -268,7 +268,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
                       <span className="font-bold">.{breakdown.jackpot.eth.replace('0.', '')}</span>
-                      <span className="font-medium"> ETH</span>
+                      <span className="text-sm font-medium"> ETH</span>
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
                   </div>
@@ -283,7 +283,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
                       <span className="font-bold">.{breakdown.referrer.eth.replace('0.', '')}</span>
-                      <span className="font-medium"> ETH</span>
+                      <span className="text-sm font-medium"> ETH</span>
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
                   </div>
@@ -298,7 +298,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
                       <span className="font-bold">.{breakdown.topGuessers.eth.replace('0.', '')}</span>
-                      <span className="font-medium"> ETH</span>
+                      <span className="text-sm font-medium"> ETH</span>
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                   </div>
