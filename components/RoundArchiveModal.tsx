@@ -173,17 +173,33 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
         className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-4 space-y-3 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header + Prize Pool - Combined for compactness */}
-        <div className="flex items-center justify-between">
+        {/* Header + Prize Pool + Stats - Combined for compactness */}
+        <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">
               Round #{roundState?.roundId || '—'}
             </h2>
             {roundState && (
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
-                <span className="text-xs text-gray-400">(${roundState.prizePoolUsd})</span>
-              </div>
+              <>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
+                  <span className="text-xs text-gray-500">prize pool</span>
+                </div>
+                <div className="flex gap-2 mt-1.5 text-xs">
+                  <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+                    <span className="font-bold text-gray-900 tabular-nums">
+                      {roundState.globalGuessCount?.toLocaleString() || '0'}
+                    </span>
+                    <span className="text-gray-500">guesses</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+                    <span className="font-bold text-gray-900 tabular-nums">
+                      {uniqueGuessers.toLocaleString()}
+                    </span>
+                    <span className="text-gray-500">players</span>
+                  </div>
+                </div>
+              </>
             )}
           </div>
           <button
@@ -240,26 +256,15 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               </div>
             )}
 
-            {/* Stats - Chip style */}
-            <div className="flex justify-center gap-3 text-sm">
-              <div className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1">
-                <span className="font-bold text-gray-900 tabular-nums">
-                  {roundState?.globalGuessCount?.toLocaleString() || '0'}
-                </span>
-                <span className="text-gray-500">guesses</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1">
-                <span className="font-bold text-gray-900 tabular-nums">
-                  {uniqueGuessers.toLocaleString()}
-                </span>
-                <span className="text-gray-500">unique players</span>
-              </div>
-            </div>
+            {/* Payout disclaimer */}
+            <p className="text-xs text-gray-400 italic text-center -mt-1">
+              All payouts resolve onchain when the word is solved
+            </p>
 
             {/* Early Guessers List */}
             <div>
               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2 text-center">
-                Top 10 Early Guessers <span className="font-normal opacity-70 normal-case">(ranked from first 750 guesses)</span>
+                Top 10 Early Guessers <span className="font-normal opacity-70 normal-case">(from first 750 guesses)</span>
               </h3>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
@@ -269,7 +274,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                     top10Locked={roundState.top10Locked}
                     top10GuessesRemaining={roundState.top10GuessesRemaining}
                   />
-                  <p className="text-xs text-gray-400 italic mt-1">Estimated payout if round ended now</p>
+                  <p className="text-xs text-gray-400 italic mt-1">Est. payout if round ended now</p>
                 </div>
               )}
 
