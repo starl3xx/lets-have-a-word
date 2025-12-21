@@ -29,6 +29,7 @@ export interface RoundStatus {
   prizePoolUsd?: string; // Optional USD conversion
   globalGuessCount: number; // Total guesses for this round
   lastUpdatedAt: string; // ISO timestamp when status was computed
+  roundStartedAt?: string; // ISO timestamp when round started
   // Top-10 lock status (Milestone 7.x)
   top10LockAfterGuesses: number; // Threshold (750)
   top10GuessesRemaining: number; // Guesses until lock (0 if locked)

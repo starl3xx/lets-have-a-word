@@ -16,6 +16,28 @@ interface RoundState {
   top10Locked: boolean;
   top10GuessesRemaining: number;
   top10LockAfterGuesses: number;
+  roundStartedAt?: string;
+}
+
+/**
+ * Format a timestamp as "started X ago"
+ */
+function formatTimeAgo(isoTimestamp: string): string {
+  const startTime = new Date(isoTimestamp).getTime();
+  const now = Date.now();
+  const diffMs = now - startTime;
+
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h ago`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes % 60}m ago`;
+  } else {
+    return `${minutes}m ago`;
+  }
 }
 
 interface RoundArchiveModalProps {
@@ -91,7 +113,8 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
           prev.prizePoolEth === roundData.prizePoolEth &&
           prev.globalGuessCount === roundData.globalGuessCount &&
           prev.top10Locked === roundData.top10Locked &&
-          prev.top10GuessesRemaining === roundData.top10GuessesRemaining
+          prev.top10GuessesRemaining === roundData.top10GuessesRemaining &&
+          prev.roundStartedAt === roundData.roundStartedAt
         ) {
           return prev; // No change, keep previous reference
         }
@@ -185,7 +208,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
                   <span className="text-xs text-gray-500">prize pool</span>
                 </div>
-                <div className="flex gap-2 mt-1.5 text-xs">
+                <div className="flex flex-wrap gap-2 mt-1.5 text-xs">
                   <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
                     <span className="font-bold text-gray-900 tabular-nums">
                       {roundState.globalGuessCount?.toLocaleString() || '0'}
@@ -198,6 +221,14 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                     </span>
                     <span className="text-gray-500">players</span>
                   </div>
+                  {roundState.roundStartedAt && (
+                    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+                      <span className="text-gray-500">started</span>
+                      <span className="font-bold text-gray-900">
+                        {formatTimeAgo(roundState.roundStartedAt)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </>
             )}

@@ -412,6 +412,7 @@ let cachedDevDisplayValues: {
   roundId: number;
   prizePoolEth: string;
   globalGuessCount: number;
+  roundStartedAt: string;
   cachedForRoundId: number;
 } | null = null;
 
@@ -444,6 +445,7 @@ export async function getDevRoundStatus(): Promise<{
   roundId: number;
   prizePoolEth: string;
   globalGuessCount: number;
+  roundStartedAt: string;
 }> {
   const actualRoundId = await ensureDevRound();
 
@@ -453,6 +455,7 @@ export async function getDevRoundStatus(): Promise<{
       roundId: cachedDevDisplayValues.roundId,
       prizePoolEth: cachedDevDisplayValues.prizePoolEth,
       globalGuessCount: cachedDevDisplayValues.globalGuessCount,
+      roundStartedAt: cachedDevDisplayValues.roundStartedAt,
     };
   }
 
@@ -468,19 +471,25 @@ export async function getDevRoundStatus(): Promise<{
   const displayPrizePool = (0.03 + rng() * 0.37).toFixed(4); // 0.03-0.40 ETH
   const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
 
+  // Random round start time: 0-6 days ago
+  const hoursAgo = Math.floor(rng() * 144); // 0-144 hours (6 days)
+  const roundStartedAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+
   // Cache the values
   cachedDevDisplayValues = {
     roundId: displayRoundId,
     prizePoolEth: displayPrizePool,
     globalGuessCount: displayGuessCount,
+    roundStartedAt,
     cachedForRoundId: actualRoundId,
   };
 
-  console.log(`🎮 Dev mode: Generated new display values - Round #${displayRoundId}, ${displayPrizePool} ETH, ${displayGuessCount} guesses`);
+  console.log(`🎮 Dev mode: Generated new display values - Round #${displayRoundId}, ${displayPrizePool} ETH, ${displayGuessCount} guesses, started ${hoursAgo}h ago`);
 
   return {
     roundId: displayRoundId,
     prizePoolEth: displayPrizePool,
     globalGuessCount: displayGuessCount,
+    roundStartedAt,
   };
 }

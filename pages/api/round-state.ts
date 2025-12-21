@@ -61,6 +61,7 @@ export default async function handler(
         prizePoolUsd,
         globalGuessCount: devStatus.globalGuessCount, // Random 100-6000
         lastUpdatedAt: new Date().toISOString(),
+        roundStartedAt: devStatus.roundStartedAt, // Random 0-6 days ago
         // Top-10 lock fields (Milestone 7.x)
         top10LockAfterGuesses: top10Status.top10LockAfterGuesses,
         top10GuessesRemaining: top10Status.top10GuessesRemaining,
