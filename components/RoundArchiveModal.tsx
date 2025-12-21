@@ -258,7 +258,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
             {/* Payout disclaimer */}
             <p className="text-xs text-gray-400 italic text-center -mt-1">
-              All payouts resolve onchain when the word is solved
+              All payouts resolve onchain when the word is found
             </p>
 
             {/* Early Guessers List */}
