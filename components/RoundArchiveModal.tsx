@@ -203,35 +203,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               Round #{roundState?.roundId || '—'}
             </h2>
             {roundState && (
-              <>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
-                  <span className="text-xs text-gray-500">prize pool</span>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-1.5 text-xs">
-                  <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
-                    <span className="font-bold text-gray-900 tabular-nums">
-                      {roundState.globalGuessCount?.toLocaleString() || '0'}
-                    </span>
-                    <span className="text-gray-500">guesses</span>
-                  </div>
-                  <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
-                    <span className="font-bold text-gray-900 tabular-nums">
-                      {uniqueGuessers.toLocaleString()}
-                    </span>
-                    <span className="text-gray-500">players</span>
-                  </div>
-                  {roundState.roundStartedAt && (
-                    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
-                      <span className="text-gray-500">started</span>
-                      <span className="font-bold text-gray-900">
-                        {formatTimeAgo(roundState.roundStartedAt).replace(' ago', '')}
-                      </span>
-                      <span className="text-gray-500">ago</span>
-                    </div>
-                  )}
-                </div>
-              </>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
+                <span className="text-xs text-gray-500">prize pool</span>
+              </div>
             )}
           </div>
           <button
@@ -241,6 +216,32 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             Close
           </button>
         </div>
+        {/* Stats chips - full width row below header */}
+        {roundState && (
+          <div className="flex flex-wrap gap-2 text-xs -mt-1">
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+              <span className="font-bold text-gray-900 tabular-nums">
+                {roundState.globalGuessCount?.toLocaleString() || '0'}
+              </span>
+              <span className="text-gray-500">guesses</span>
+            </div>
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+              <span className="font-bold text-gray-900 tabular-nums">
+                {uniqueGuessers.toLocaleString()}
+              </span>
+              <span className="text-gray-500">players</span>
+            </div>
+            {roundState.roundStartedAt && (
+              <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+                <span className="text-gray-500">started</span>
+                <span className="font-bold text-gray-900">
+                  {formatTimeAgo(roundState.roundStartedAt).replace(' ago', '')}
+                </span>
+                <span className="text-gray-500">ago</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center text-gray-500 py-10">
