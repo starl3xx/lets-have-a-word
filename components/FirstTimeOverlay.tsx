@@ -165,7 +165,7 @@ export default function FirstTimeOverlay({
               </li>
               <li className="flex items-start">
                 <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-                <span><span className="text-error font-medium">Red</span> words have already been guessed. <span className="font-medium">Black</span> words are still available.</span>
+                <span><span className="text-error font-medium">Red</span> words have already been guessed. <span className="font-medium">Black</span> words can still win.</span>
               </li>
             </ul>
 
