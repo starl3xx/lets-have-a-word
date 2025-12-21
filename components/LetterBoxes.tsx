@@ -51,10 +51,9 @@ function getSlotClasses(
       return 'bg-gray-100 border-gray-300 text-gray-400';
     case 'valid':
     case 'typing':
-      // If there's a letter, show it with black text and brand border immediately
-      // Uses brand-400 for brighter appearance that matches TopTicker visually
+      // If there's a letter, show it with black text and bright blue border
       return hasLetter
-        ? 'bg-white border-brand-400 text-gray-900'
+        ? 'bg-white border-blue-500 text-gray-900'
         : 'bg-white border-gray-300 text-gray-300';
     case 'empty':
     default:
@@ -88,7 +87,7 @@ const GuessSlot = memo(function GuessSlot({
     cursorType === 'not-allowed'
       ? 'cursor-not-allowed'
       : cursorType === 'text'
-      ? 'cursor-text hover:border-brand-400'
+      ? 'cursor-text hover:border-blue-500'
       : 'cursor-default';
 
   return (
