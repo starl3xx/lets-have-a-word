@@ -168,9 +168,9 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
           onClick={() => onRoundClick?.(status.roundId)}
           style={{
             cursor: onRoundClick ? 'pointer' : 'default',
-            padding: '4px 8px',
-            margin: '-4px -8px',
-            borderRadius: '8px',
+            padding: '8px 12px',
+            margin: '-8px -12px',
+            borderRadius: '12px',
             transition: 'background 0.2s',
           }}
           className={onRoundClick ? 'hover:bg-white/10' : ''}
