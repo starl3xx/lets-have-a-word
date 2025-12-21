@@ -263,9 +263,12 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
             {/* Early Guessers List */}
             <div>
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2 text-center">
-                Top 10 Early Guessers <span className="font-normal opacity-70 normal-case">(from first 750 guesses)</span>
-              </h3>
+              <div className="text-center mb-2">
+                <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">
+                  Top 10 Early Guessers
+                </h3>
+                <p className="text-sm text-gray-500">(from first 750 guesses)</p>
+              </div>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
               {roundState && (
