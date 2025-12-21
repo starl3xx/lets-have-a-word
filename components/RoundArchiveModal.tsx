@@ -367,7 +367,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           </span>
                         </div>
                         {/* Guess Count */}
-                        <div className="text-blue-600 font-bold tabular-nums">
+                        <div className="text-gray-900 font-bold tabular-nums mr-1">
                           {guesser.guessCount}
                         </div>
                       </div>
