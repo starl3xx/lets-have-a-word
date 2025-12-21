@@ -1359,6 +1359,7 @@ function GameContent() {
       {showFirstTimeOverlay && (
         <FirstTimeOverlay
           onDismiss={() => setShowFirstTimeOverlay(false)}
+          fid={effectiveFid}
         />
       )}
 
@@ -1367,6 +1368,7 @@ function GameContent() {
         <FirstTimeOverlay
           onDismiss={() => setShowTutorial(false)}
           tutorialOnly
+          fid={effectiveFid}
         />
       )}
     </div>
