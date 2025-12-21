@@ -234,7 +234,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
                 {/* Early Guessers */}
                 <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center">
-                  <div className="text-[10px] text-amber-700 uppercase font-semibold">Early Guessers</div>
+                  <div className="text-xs text-amber-700 uppercase font-semibold">Early Guessers</div>
                   <div className="text-xs text-amber-600/70">(10% of pool)</div>
                   <div className="text-lg font-bold text-gray-900 mt-2">.{breakdown.topGuessers.eth.replace('0.', '')} ETH</div>
                   <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
@@ -301,7 +301,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           }}
                         />
                         {/* Username + ETH Payout */}
-                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <div className="flex-1 flex items-baseline gap-2 min-w-0">
                           <span className="font-medium text-gray-900 truncate">
                             {guesser.username || `fid:${guesser.fid}`}
                           </span>
