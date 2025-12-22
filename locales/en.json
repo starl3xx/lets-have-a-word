@@ -34,7 +34,7 @@
     "connectWallet": "Connect wallet first",
     "purchaseSuccess": "Guesses added!",
     "purchaseFailed": "Purchase failed. Please try again.",
-    "jackpotNote": "Purchases contribute to the jackpot"
+    "jackpotNote": "Purchases contribute to the prize pool"
   },
   "shareForGuess": {
     "titleSuffix": "Want another guess?",
