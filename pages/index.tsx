@@ -120,9 +120,11 @@ function GameContent() {
   const [incorrectState, setIncorrectState] = useState<IncorrectState>('none');
   const [lastSubmittedGuess, setLastSubmittedGuess] = useState<string | null>(null);
   const incorrectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadedDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Milestone 6.7.1: Duration for active incorrect state before fading
-  const INCORRECT_ACTIVE_DURATION_MS = 1200;
+  const INCORRECT_ACTIVE_DURATION_MS = 600; // Red state duration before fading to gray
+  const INCORRECT_FADED_DURATION_MS = 1500; // Gray state duration before disappearing
 
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -145,12 +147,15 @@ function GameContent() {
 
 
   /**
-   * Milestone 6.7.1: Cleanup incorrect timer on unmount or round change
+   * Milestone 6.7.1: Cleanup incorrect timers on unmount or round change
    */
   useEffect(() => {
     return () => {
       if (incorrectTimerRef.current) {
         clearTimeout(incorrectTimerRef.current);
+      }
+      if (fadedDismissTimerRef.current) {
+        clearTimeout(fadedDismissTimerRef.current);
       }
     };
   }, []);
@@ -845,6 +850,12 @@ function GameContent() {
                 incorrectTimerRef.current = setTimeout(() => {
                   setIncorrectState('faded');
                   setBoxResultState('typing'); // Reset box state to normal
+
+                  // Start timer to dismiss faded state completely
+                  fadedDismissTimerRef.current = setTimeout(() => {
+                    setIncorrectState('none');
+                    setLastSubmittedGuess(null);
+                  }, INCORRECT_FADED_DURATION_MS);
                 }, INCORRECT_ACTIVE_DURATION_MS);
               } else {
                 // No guesses remaining - stay in 'none' state (out-of-guesses banner will show)
