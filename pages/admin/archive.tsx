@@ -1,16 +1,27 @@
-// pages/admin/archive.tsx
-// Milestone 5.4: Round Archive Admin Dashboard
+/**
+ * Admin Round Archive Dashboard
+ * Milestone 8.0: Updated with Söhne typography to match analytics page
+ *
+ * Features:
+ * - Söhne typography for consistency
+ * - View and manage historical round data
+ * - Sync archive from completed rounds
+ * - Detailed round breakdowns with payouts
+ */
+
 import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
-import { AdminStatsCard } from "../../components/admin/AdminStatsCard"
-import { AdminSection } from "../../components/admin/AdminSection"
 import { AnalyticsChart } from "../../components/admin/AnalyticsChart"
 
 // Dynamically import the auth wrapper (client-only)
 const AdminAuthWrapper = dynamic(
   () => import("../../components/admin/AdminAuthWrapper").then(m => m.AdminAuthWrapper),
-  { ssr: false, loading: () => <div style={{ padding: 24 }}>Loading...</div> }
+  { ssr: false, loading: () => <div style={{ padding: 24, fontFamily: 'Söhne, system-ui, sans-serif' }}>Loading...</div> }
 )
+
+// =============================================================================
+// Types
+// =============================================================================
 
 interface ArchiveDashboardProps {
   user?: {
@@ -64,6 +75,125 @@ interface ArchiveError {
   resolvedBy: number | null
   createdAt: string
 }
+
+// =============================================================================
+// Styling Constants (Söhne typography - matches analytics page)
+// =============================================================================
+
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "#f8f9fa",
+    fontFamily,
+  },
+  header: {
+    background: "white",
+    borderBottom: "1px solid #e5e7eb",
+    padding: "20px 24px",
+  },
+  headerContent: {
+    maxWidth: "1400px",
+    margin: "0 auto",
+    display: "flex" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+  },
+  title: {
+    margin: 0,
+    fontSize: "24px",
+    fontWeight: 600,
+    color: "#111827",
+    letterSpacing: "-0.02em",
+  },
+  subtitle: {
+    margin: "4px 0 0 0",
+    fontSize: "13px",
+    color: "#6b7280",
+    fontWeight: 400,
+  },
+  content: {
+    maxWidth: "1400px",
+    margin: "0 auto",
+    padding: "24px",
+  },
+  module: {
+    background: "white",
+    borderRadius: "12px",
+    border: "1px solid #e5e7eb",
+    padding: "20px",
+    marginBottom: "20px",
+  },
+  moduleHeader: {
+    fontSize: "15px",
+    fontWeight: 600,
+    color: "#111827",
+    marginBottom: "16px",
+    letterSpacing: "-0.01em",
+  },
+  grid: {
+    display: "grid" as const,
+    gap: "12px",
+  },
+  statCard: {
+    padding: "16px",
+    background: "#f9fafb",
+    borderRadius: "8px",
+    border: "1px solid #f3f4f6",
+  },
+  statLabel: {
+    fontSize: "12px",
+    color: "#6b7280",
+    fontWeight: 500,
+    marginBottom: "4px",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.03em",
+  },
+  statValue: {
+    fontSize: "22px",
+    fontWeight: 600,
+    color: "#111827",
+    letterSpacing: "-0.02em",
+  },
+  statSubtext: {
+    fontSize: "12px",
+    color: "#9ca3af",
+    marginTop: "2px",
+  },
+}
+
+// =============================================================================
+// Helper Components
+// =============================================================================
+
+function StatCard({ label, value, subtext, loading }: {
+  label: string
+  value: string | number
+  subtext?: string
+  loading?: boolean
+}) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={styles.statValue}>{loading ? "..." : value}</div>
+      {subtext && <div style={styles.statSubtext}>{subtext}</div>}
+    </div>
+  )
+}
+
+function Module({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={styles.module}>
+      <h3 style={styles.moduleHeader}>{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+// =============================================================================
+// Main Dashboard Component
+// =============================================================================
 
 function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
   const [loading, setLoading] = useState(true)
@@ -172,108 +302,67 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
   }
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#f3f4f6",
-      fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-    }}>
+    <main style={styles.page}>
       {/* Header */}
-      <header style={{
-        background: "white",
-        borderBottom: "1px solid #e5e7eb",
-        padding: "24px",
-      }}>
-        <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h1 style={{
-                margin: 0,
-                fontSize: "28px",
-                fontWeight: 700,
-                color: "#111827",
-              }}>
-                Round Archive — Admin Dashboard
-              </h1>
-              <p style={{
-                margin: "8px 0 0 0",
-                fontSize: "14px",
-                color: "#6b7280",
-              }}>
-                Milestone 5.4: View and manage historical round data
-              </p>
-            </div>
-
+      <header style={styles.header}>
+        <div style={styles.headerContent}>
+          <div>
+            <h1 style={styles.title}>Round Archive</h1>
+            <p style={styles.subtitle}>Milestone 5.4 — Historical Round Data</p>
+          </div>
+          {user && (
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <a
                 href="/admin/analytics"
                 style={{
-                  padding: "8px 16px",
-                  background: "#6b7280",
+                  padding: "8px 14px",
+                  background: "#6366f1",
                   color: "white",
                   borderRadius: "6px",
                   textDecoration: "none",
-                  fontSize: "14px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  fontFamily,
                 }}
               >
                 Analytics
               </a>
-              {user && (
-                <>
-                  {user.pfp_url && (
-                    <img
-                      src={user.pfp_url}
-                      alt={user.username || `FID ${user.fid}`}
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  )}
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>
-                      {user.username ? `@${user.username}` : user.display_name || 'Admin User'}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                      FID: {user.fid}
-                    </div>
-                  </div>
-                  {onSignOut && (
-                    <button
-                      onClick={onSignOut}
-                      style={{
-                        padding: "6px 12px",
-                        background: "#6b7280",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                      }}
-                    >
-                      Sign Out
-                    </button>
-                  )}
-                </>
+              {user.pfp_url && (
+                <img src={user.pfp_url} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%" }} />
+              )}
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>
+                  {user.username ? `@${user.username}` : user.display_name || 'Admin'}
+                </div>
+                <div style={{ fontSize: "11px", color: "#6b7280" }}>FID: {user.fid}</div>
+              </div>
+              {onSignOut && (
+                <button
+                  onClick={onSignOut}
+                  style={{
+                    padding: "6px 12px",
+                    background: "#6b7280",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontFamily,
+                  }}
+                >
+                  Sign Out
+                </button>
               )}
             </div>
-          </div>
+          )}
         </div>
       </header>
 
       {/* Content */}
-      <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px" }}>
-        {/* Error Message */}
+      <div style={styles.content}>
+        {/* Error */}
         {error && (
-          <div style={{
-            background: "#fee2e2",
-            border: "1px solid #fecaca",
-            borderRadius: "8px",
-            padding: "16px",
-            marginBottom: "24px",
-            color: "#991b1b",
-          }}>
+          <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: "8px", padding: "16px", marginBottom: "20px", color: "#991b1b", fontFamily }}>
             <strong>Error:</strong> {error}
           </div>
         )}
@@ -285,10 +374,11 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
             border: `1px solid ${syncResult.failed > 0 ? "#fbbf24" : "#34d399"}`,
             borderRadius: "8px",
             padding: "16px",
-            marginBottom: "24px",
+            marginBottom: "20px",
+            fontFamily,
           }}>
             <strong>Sync Complete:</strong> {syncResult.archived} new, {syncResult.alreadyArchived} existing, {syncResult.failed} failed
-            {syncResult.errors.length > 0 && (
+            {syncResult.errors?.length > 0 && (
               <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
                 {syncResult.errors.map((err: string, idx: number) => (
                   <li key={idx}>{err}</li>
@@ -299,19 +389,20 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
         )}
 
         {/* Sync Controls */}
-        <div style={{ marginBottom: "24px", display: "flex", gap: "12px" }}>
+        <div style={{ marginBottom: "20px", display: "flex", gap: "12px" }}>
           <button
             onClick={syncArchive}
             disabled={syncing}
             style={{
-              padding: "12px 24px",
+              padding: "10px 20px",
               background: syncing ? "#d1d5db" : "#3b82f6",
               color: "white",
               border: "none",
               borderRadius: "8px",
               cursor: syncing ? "not-allowed" : "pointer",
-              fontSize: "14px",
+              fontSize: "13px",
               fontWeight: 500,
+              fontFamily,
             }}
           >
             {syncing ? 'Syncing...' : 'Sync All Rounds'}
@@ -320,13 +411,14 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
             onClick={fetchArchiveData}
             disabled={loading}
             style={{
-              padding: "12px 24px",
+              padding: "10px 20px",
               background: "#6b7280",
               color: "white",
               border: "none",
               borderRadius: "8px",
               cursor: loading ? "not-allowed" : "pointer",
-              fontSize: "14px",
+              fontSize: "13px",
+              fontFamily,
             }}
           >
             Refresh
@@ -334,71 +426,62 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
         </div>
 
         {/* Stats Overview */}
-        <AdminSection title="Archive Statistics">
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "16px",
-          }}>
-            <AdminStatsCard
-              title="Total Rounds"
-              value={loading ? "..." : stats?.totalRounds.toLocaleString() || "0"}
-              subtitle="Archived"
+        <Module title="Archive Statistics">
+          <div style={{ ...styles.grid, gridTemplateColumns: "repeat(7, 1fr)" }}>
+            <StatCard
+              label="Total Rounds"
+              value={stats?.totalRounds.toLocaleString() || "0"}
+              subtext="Archived"
               loading={loading}
             />
-            <AdminStatsCard
-              title="Total Guesses"
-              value={loading ? "..." : stats?.totalGuessesAllTime.toLocaleString() || "0"}
-              subtitle="All time"
+            <StatCard
+              label="Total Guesses"
+              value={stats?.totalGuessesAllTime.toLocaleString() || "0"}
+              subtext="All time"
               loading={loading}
             />
-            <AdminStatsCard
-              title="Unique Winners"
-              value={loading ? "..." : stats?.uniqueWinners.toLocaleString() || "0"}
-              subtitle="Different players"
+            <StatCard
+              label="Unique Winners"
+              value={stats?.uniqueWinners.toLocaleString() || "0"}
+              subtext="Different players"
               loading={loading}
             />
-            <AdminStatsCard
-              title="Total Jackpot"
-              value={loading ? "..." : `${formatEth(stats?.totalJackpotDistributed || "0")} ETH`}
-              subtitle="Distributed"
+            <StatCard
+              label="Total Jackpot"
+              value={`${formatEth(stats?.totalJackpotDistributed || "0")} ETH`}
+              subtext="Distributed"
               loading={loading}
             />
-            <AdminStatsCard
-              title="Avg Guesses/Round"
-              value={loading ? "..." : stats?.avgGuessesPerRound.toFixed(1) || "0"}
-              subtitle="Per round"
+            <StatCard
+              label="Avg Guesses"
+              value={stats?.avgGuessesPerRound.toFixed(1) || "0"}
+              subtext="Per round"
               loading={loading}
             />
-            <AdminStatsCard
-              title="Avg Players/Round"
-              value={loading ? "..." : stats?.avgPlayersPerRound.toFixed(1) || "0"}
-              subtitle="Per round"
+            <StatCard
+              label="Avg Players"
+              value={stats?.avgPlayersPerRound.toFixed(1) || "0"}
+              subtext="Per round"
               loading={loading}
             />
-            <AdminStatsCard
-              title="Avg Round Length"
-              value={loading ? "..." : `${Math.round(stats?.avgRoundLengthMinutes || 0)} min`}
-              subtitle="Start to end"
+            <StatCard
+              label="Avg Duration"
+              value={`${Math.round(stats?.avgRoundLengthMinutes || 0)} min`}
+              subtext="Start to end"
               loading={loading}
             />
           </div>
-        </AdminSection>
+        </Module>
 
         {/* Archive Errors */}
         {errors.length > 0 && (
-          <AdminSection title={`Archive Errors (${errors.length})`}>
-            <div style={{
-              background: "#fef3c7",
-              border: "1px solid #fbbf24",
-              borderRadius: "8px",
-              padding: "16px",
-            }}>
+          <Module title={`Archive Errors (${errors.length})`}>
+            <div style={{ background: "#fef3c7", border: "1px solid #fbbf24", borderRadius: "8px", padding: "16px" }}>
               {errors.slice(0, 5).map((err, idx) => (
                 <div key={idx} style={{
-                  padding: "8px",
+                  padding: "8px 12px",
                   background: "#fffbeb",
-                  borderRadius: "4px",
+                  borderRadius: "6px",
                   marginBottom: "8px",
                   fontSize: "13px",
                 }}>
@@ -406,34 +489,29 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                 </div>
               ))}
             </div>
-          </AdminSection>
+          </Module>
         )}
 
         {/* Rounds Table */}
-        <AdminSection title={`Archived Rounds (${totalRounds})`}>
-          <div style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: "8px",
-            overflow: "hidden",
-          }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+        <Module title={`Archived Rounds (${totalRounds})`}>
+          <div style={{ background: "white", borderRadius: "8px", overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  <th style={{ padding: "12px", textAlign: "left" }}>Round #</th>
-                  <th style={{ padding: "12px", textAlign: "left" }}>Word</th>
-                  <th style={{ padding: "12px", textAlign: "right" }}>Jackpot</th>
-                  <th style={{ padding: "12px", textAlign: "right" }}>Winner FID</th>
-                  <th style={{ padding: "12px", textAlign: "right" }}>Guesses</th>
-                  <th style={{ padding: "12px", textAlign: "right" }}>Players</th>
-                  <th style={{ padding: "12px", textAlign: "right" }}>Duration</th>
-                  <th style={{ padding: "12px", textAlign: "center" }}>Actions</th>
+                  <th style={{ padding: "12px", textAlign: "left", fontWeight: 600 }}>Round #</th>
+                  <th style={{ padding: "12px", textAlign: "left", fontWeight: 600 }}>Word</th>
+                  <th style={{ padding: "12px", textAlign: "right", fontWeight: 600 }}>Jackpot</th>
+                  <th style={{ padding: "12px", textAlign: "right", fontWeight: 600 }}>Winner FID</th>
+                  <th style={{ padding: "12px", textAlign: "right", fontWeight: 600 }}>Guesses</th>
+                  <th style={{ padding: "12px", textAlign: "right", fontWeight: 600 }}>Players</th>
+                  <th style={{ padding: "12px", textAlign: "right", fontWeight: 600 }}>Duration</th>
+                  <th style={{ padding: "12px", textAlign: "center", fontWeight: 600 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} style={{ padding: "24px", textAlign: "center" }}>Loading...</td>
+                    <td colSpan={8} style={{ padding: "24px", textAlign: "center", color: "#6b7280" }}>Loading...</td>
                   </tr>
                 ) : rounds.length === 0 ? (
                   <tr>
@@ -462,12 +540,13 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                           onClick={() => fetchRoundDetail(round.roundNumber)}
                           style={{
                             padding: "4px 12px",
-                            background: "#3b82f6",
+                            background: "#6366f1",
                             color: "white",
                             border: "none",
                             borderRadius: "4px",
                             cursor: "pointer",
                             fontSize: "12px",
+                            fontFamily,
                           }}
                         >
                           Details
@@ -493,16 +572,18 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                   disabled={page === 0}
                   style={{
                     padding: "8px 16px",
-                    background: page === 0 ? "#e5e7eb" : "#3b82f6",
+                    background: page === 0 ? "#e5e7eb" : "#6366f1",
                     color: page === 0 ? "#9ca3af" : "white",
                     border: "none",
                     borderRadius: "4px",
                     cursor: page === 0 ? "not-allowed" : "pointer",
+                    fontSize: "13px",
+                    fontFamily,
                   }}
                 >
                   Previous
                 </button>
-                <span style={{ padding: "8px 16px", color: "#6b7280" }}>
+                <span style={{ padding: "8px 16px", color: "#6b7280", fontSize: "13px" }}>
                   Page {page + 1} of {Math.ceil(totalRounds / pageSize)}
                 </span>
                 <button
@@ -510,11 +591,13 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                   disabled={(page + 1) * pageSize >= totalRounds}
                   style={{
                     padding: "8px 16px",
-                    background: (page + 1) * pageSize >= totalRounds ? "#e5e7eb" : "#3b82f6",
+                    background: (page + 1) * pageSize >= totalRounds ? "#e5e7eb" : "#6366f1",
                     color: (page + 1) * pageSize >= totalRounds ? "#9ca3af" : "white",
                     border: "none",
                     borderRadius: "4px",
                     cursor: (page + 1) * pageSize >= totalRounds ? "not-allowed" : "pointer",
+                    fontSize: "13px",
+                    fontFamily,
                   }}
                 >
                   Next
@@ -522,78 +605,82 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
               </div>
             )}
           </div>
-        </AdminSection>
+        </Module>
 
         {/* Selected Round Detail */}
         {selectedRound && (
-          <AdminSection title={`Round #${selectedRound.roundNumber} Details`}>
+          <Module title={`Round #${selectedRound.roundNumber} Details`}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
               {/* Left Column - Basic Info */}
               <div>
-                <h4 style={{ margin: "0 0 16px 0" }}>Round Information</h4>
-                <table style={{ width: "100%", fontSize: "14px" }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Target Word:</td>
-                      <td style={{ padding: "8px 0", fontFamily: "monospace", fontWeight: 600 }}>{selectedRound.targetWord}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Start Time:</td>
-                      <td style={{ padding: "8px 0" }}>{new Date(selectedRound.startTime).toLocaleString()}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>End Time:</td>
-                      <td style={{ padding: "8px 0" }}>{new Date(selectedRound.endTime).toLocaleString()}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Duration:</td>
-                      <td style={{ padding: "8px 0" }}>{formatDuration(selectedRound.startTime, selectedRound.endTime)}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Seed ETH:</td>
-                      <td style={{ padding: "8px 0" }}>{formatEth(selectedRound.seedEth)} ETH</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Final Jackpot:</td>
-                      <td style={{ padding: "8px 0", fontWeight: 600 }}>{formatEth(selectedRound.finalJackpotEth)} ETH</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Salt:</td>
-                      <td style={{ padding: "8px 0", fontFamily: "monospace", fontSize: "12px", wordBreak: "break-all" }}>{selectedRound.salt}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <h4 style={{ margin: "24px 0 16px 0" }}>Winner Details</h4>
-                <table style={{ width: "100%", fontSize: "14px" }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Winner FID:</td>
-                      <td style={{ padding: "8px 0" }}>{selectedRound.winnerFid || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Winning Guess #:</td>
-                      <td style={{ padding: "8px 0" }}>{selectedRound.winnerGuessNumber || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: "8px 0", color: "#6b7280" }}>Referrer FID:</td>
-                      <td style={{ padding: "8px 0" }}>{selectedRound.referrerFid || 'None'}</td>
-                    </tr>
-                    {selectedRound.winnerCastHash && (
+                <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>Round Information</div>
+                <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px" }}>
+                  <table style={{ width: "100%", fontSize: "13px" }}>
+                    <tbody>
                       <tr>
-                        <td style={{ padding: "8px 0", color: "#6b7280" }}>Cast Hash:</td>
-                        <td style={{ padding: "8px 0", fontFamily: "monospace", fontSize: "12px" }}>{selectedRound.winnerCastHash}</td>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Target Word:</td>
+                        <td style={{ padding: "6px 0", fontFamily: "monospace", fontWeight: 600 }}>{selectedRound.targetWord}</td>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Start Time:</td>
+                        <td style={{ padding: "6px 0" }}>{new Date(selectedRound.startTime).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>End Time:</td>
+                        <td style={{ padding: "6px 0" }}>{new Date(selectedRound.endTime).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Duration:</td>
+                        <td style={{ padding: "6px 0" }}>{formatDuration(selectedRound.startTime, selectedRound.endTime)}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Seed ETH:</td>
+                        <td style={{ padding: "6px 0" }}>{formatEth(selectedRound.seedEth)} ETH</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Final Jackpot:</td>
+                        <td style={{ padding: "6px 0", fontWeight: 600 }}>{formatEth(selectedRound.finalJackpotEth)} ETH</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Salt:</td>
+                        <td style={{ padding: "6px 0", fontFamily: "monospace", fontSize: "11px", wordBreak: "break-all" }}>{selectedRound.salt}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ fontSize: "14px", fontWeight: 600, margin: "20px 0 12px 0" }}>Winner Details</div>
+                <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px" }}>
+                  <table style={{ width: "100%", fontSize: "13px" }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Winner FID:</td>
+                        <td style={{ padding: "6px 0" }}>{selectedRound.winnerFid || 'N/A'}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Winning Guess #:</td>
+                        <td style={{ padding: "6px 0" }}>{selectedRound.winnerGuessNumber || 'N/A'}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Referrer FID:</td>
+                        <td style={{ padding: "6px 0" }}>{selectedRound.referrerFid || 'None'}</td>
+                      </tr>
+                      {selectedRound.winnerCastHash && (
+                        <tr>
+                          <td style={{ padding: "6px 0", color: "#6b7280" }}>Cast Hash:</td>
+                          <td style={{ padding: "6px 0", fontFamily: "monospace", fontSize: "11px" }}>{selectedRound.winnerCastHash}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Right Column - Payouts & Stats */}
               <div>
-                <h4 style={{ margin: "0 0 16px 0" }}>Payouts</h4>
+                <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>Payouts</div>
                 {selectedRound.payoutsJson && (
-                  <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px" }}>
+                  <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px", fontSize: "13px" }}>
                     {selectedRound.payoutsJson.winner && (
                       <div style={{ marginBottom: "8px" }}>
                         <strong>Winner (FID {selectedRound.payoutsJson.winner.fid}):</strong>{' '}
@@ -629,28 +716,12 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                   </div>
                 )}
 
-                <h4 style={{ margin: "24px 0 16px 0" }}>Round Stats</h4>
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "12px",
-                }}>
-                  <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "24px", fontWeight: 600 }}>{selectedRound.totalGuesses.toLocaleString()}</div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>Total Guesses</div>
-                  </div>
-                  <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "24px", fontWeight: 600 }}>{selectedRound.uniquePlayers}</div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>Unique Players</div>
-                  </div>
-                  <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "24px", fontWeight: 600 }}>{selectedRound.clanktonBonusCount}</div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>CLANKTON Bonuses</div>
-                  </div>
-                  <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "24px", fontWeight: 600 }}>{selectedRound.referralBonusCount}</div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>Referral Signups</div>
-                  </div>
+                <div style={{ fontSize: "14px", fontWeight: 600, margin: "20px 0 12px 0" }}>Round Stats</div>
+                <div style={{ ...styles.grid, gridTemplateColumns: "1fr 1fr" }}>
+                  <StatCard label="Total Guesses" value={selectedRound.totalGuesses.toLocaleString()} />
+                  <StatCard label="Unique Players" value={selectedRound.uniquePlayers} />
+                  <StatCard label="CLANKTON Bonuses" value={selectedRound.clanktonBonusCount} />
+                  <StatCard label="Referral Signups" value={selectedRound.referralBonusCount} />
                 </div>
               </div>
             </div>
@@ -668,6 +739,7 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                   xAxisKey="hour"
                   title="Guess Distribution by Hour"
                   colors={["#8b5cf6"]}
+                  height={200}
                 />
               </div>
             )}
@@ -675,13 +747,13 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
             {/* Top Guessers */}
             {distribution && distribution.byPlayer.length > 0 && (
               <div style={{ marginTop: "24px" }}>
-                <h4 style={{ margin: "0 0 16px 0" }}>Top Guessers This Round</h4>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px" }}>Top Guessers This Round</div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
-                      <th style={{ padding: "8px", textAlign: "left" }}>#</th>
-                      <th style={{ padding: "8px", textAlign: "left" }}>FID</th>
-                      <th style={{ padding: "8px", textAlign: "right" }}>Guesses</th>
+                      <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>#</th>
+                      <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>FID</th>
+                      <th style={{ padding: "8px", textAlign: "right", fontWeight: 600 }}>Guesses</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -707,11 +779,13 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
+                fontSize: "13px",
+                fontFamily,
               }}
             >
               Close Details
             </button>
-          </AdminSection>
+          </Module>
         )}
       </div>
     </main>
