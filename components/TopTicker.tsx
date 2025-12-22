@@ -166,14 +166,10 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
         {/* Round Number - Clickable to open archive */}
         <div
           onClick={() => onRoundClick?.(status.roundId)}
-          style={{
-            cursor: onRoundClick ? 'pointer' : 'default',
-            padding: '8px 12px',
-            margin: '-8px -12px',
-            borderRadius: '12px',
-            transition: 'background 0.2s',
-          }}
-          className={onRoundClick ? 'hover:bg-white/10' : ''}
+          className={`
+            ${onRoundClick ? 'cursor-pointer hover:bg-white/10' : 'cursor-default'}
+            px-4 py-2 -mx-4 -my-2 rounded-xl transition-colors duration-200
+          `}
           role={onRoundClick ? 'button' : undefined}
           tabIndex={onRoundClick ? 0 : undefined}
           onKeyDown={(e) => {
