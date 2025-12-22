@@ -203,6 +203,11 @@ export default async function handler(
       // Development mode: allow explicit FID for testing
       fid = typeof devFid === 'number' ? devFid : parseInt(devFid, 10);
       console.log(`⚠️  Development mode: using devFid ${fid}`);
+    } else if (isDevModeEnabled()) {
+      // Dev mode enabled but no devFid provided - use default FID
+      // This allows the web UI to work in dev mode without requiring auth
+      fid = 6500; // Default dev FID
+      console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
     } else {
       // Production mode: require Farcaster authentication
 
