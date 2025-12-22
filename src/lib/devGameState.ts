@@ -181,8 +181,10 @@ function generateWheelWords(
 /**
  * Synthesize a dev game state with live ETH/USD conversion (async)
  * Milestone 4.12 — Uses CoinGecko for real-time price
+ * Milestone 7.5 — Uses getDevRoundStatus() for consistent display values across UI
  *
  * Same as synthesizeDevGameState but fetches live ETH/USD price from CoinGecko
+ * and uses cached dev display values for consistency with TopTicker and other components.
  *
  * @param params - State synthesis parameters
  * @returns GameStateResponse with synthetic data and live USD conversion
@@ -192,19 +194,22 @@ export async function synthesizeDevGameStateAsync(
 ): Promise<GameStateResponse> {
   const { devState, devInput, solution, fid, guessCount = 0 } = params;
 
+  // Get cached dev display values for consistent UI across all components
+  const devStatus = await getDevRoundStatus();
+
   // Fetch live ETH/USD price
   const ethUsdRate = await getEthUsdPrice();
-  const prizePoolEthNum = 0.42;
+  const prizePoolEthNum = parseFloat(devStatus.prizePoolEth);
   const prizePoolUsd = ethUsdRate != null
     ? (prizePoolEthNum * ethUsdRate).toFixed(2)
-    : '1260.00'; // Fallback to hardcoded value
+    : (prizePoolEthNum * 3000).toFixed(2); // Fallback estimate
 
-  // Base game state with live USD price
+  // Base game state with cached display values and live USD price
   const baseState: GameStateResponse = {
-    roundId: 999999, // Synthetic round ID
-    prizePoolEth: '0.42',
+    roundId: devStatus.roundId,
+    prizePoolEth: devStatus.prizePoolEth,
     prizePoolUsd,
-    globalGuessCount: 73,
+    globalGuessCount: devStatus.globalGuessCount,
     userState: {
       fid,
       freeGuessesRemaining: 3,
