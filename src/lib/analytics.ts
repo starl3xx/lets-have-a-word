@@ -91,6 +91,9 @@ export const AnalyticsEventTypes = {
   ONBOARDING_ADD_APP_ACCEPTED: 'onboarding_add_app_accepted',
   ONBOARDING_ADD_APP_SKIPPED: 'onboarding_add_app_skipped',
   ONBOARDING_FLOW_COMPLETED: 'onboarding_flow_completed',
+
+  // Milestone 7.5: Pricing State Events
+  EARLY_ROUND_PRICING_REINFORCEMENT: 'early_round_pricing_reinforcement',
 } as const;
 
 export type AnalyticsEventType = typeof AnalyticsEventTypes[keyof typeof AnalyticsEventTypes];

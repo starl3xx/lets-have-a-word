@@ -1,6 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
+
+/**
+ * Log analytics event (fire-and-forget)
+ */
+function logAnalytics(
+  eventType: string,
+  fid?: number | null,
+  data?: Record<string, any>
+) {
+  fetch('/api/analytics/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      eventType,
+      userId: fid?.toString(),
+      data,
+    }),
+  }).catch(() => {
+    // Silently ignore - analytics should never block UI
+  });
+}
 
 /**
  * Pack pricing info (fetched from API)
@@ -24,7 +45,7 @@ interface GuessPurchaseModalProps {
 
 /**
  * GuessPurchaseModal
- * Milestone 6.3, Updated Milestone 7.0, 7.1
+ * Milestone 6.3, Updated Milestone 7.0, 7.1, 7.5
  *
  * Modal for purchasing guess packs (3 guesses per pack).
  *
@@ -34,7 +55,11 @@ interface GuessPurchaseModalProps {
  *
  * Milestone 7.1: Dynamic late-round pricing
  * - Price increases after 750 guesses (Top-10 lock)
- * - Shows late-round pricing indicator
+ *
+ * Milestone 7.5: Progressive pricing with minimal UI cues
+ * - Shows neutral state label ("Early round pricing" / "Late round pricing")
+ * - Early-round purchases show positive reinforcement message
+ * - Analytics events for pricing state tracking
  */
 export default function GuessPurchaseModal({
   fid,
@@ -59,9 +84,13 @@ export default function GuessPurchaseModal({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Milestone 7.1: Late-round pricing state
+  // Milestone 7.1/7.5: Pricing state
   const [pricingPhase, setPricingPhase] = useState<PricingPhase>('BASE');
   const [isLateRoundPricing, setIsLateRoundPricing] = useState(false);
+
+  // Milestone 7.5: Track if early-round reinforcement was shown (for analytics)
+  const [showEarlyRoundReinforcement, setShowEarlyRoundReinforcement] = useState(false);
+  const reinforcementLoggedRef = useRef(false);
 
   // Fetch current purchase state and pricing
   useEffect(() => {
@@ -165,7 +194,29 @@ export default function GuessPurchaseModal({
       }
 
       void haptics.packPurchased();
-      setSuccessMessage(t('guessPack.purchaseSuccess'));
+
+      // Milestone 7.5: Check pricing phase from response and show reinforcement
+      const purchasePricingPhase = data.pricingPhase || pricingPhase;
+      const isEarlyRound = purchasePricingPhase === 'BASE';
+
+      if (isEarlyRound) {
+        // Show early-round reinforcement message
+        setShowEarlyRoundReinforcement(true);
+        setSuccessMessage(null); // Don't show generic success, show reinforcement instead
+
+        // Log analytics event (once)
+        if (!reinforcementLoggedRef.current) {
+          reinforcementLoggedRef.current = true;
+          logAnalytics('early_round_pricing_reinforcement', fid, {
+            packCount: selectedPackCount,
+            pricingPhase: purchasePricingPhase,
+            totalPriceEth: selectedOption?.totalPriceEth,
+          });
+        }
+      } else {
+        setSuccessMessage(t('guessPack.purchaseSuccess'));
+      }
+
       setPacksPurchasedToday((prev) => prev + selectedPackCount);
 
       setTimeout(() => {
@@ -259,16 +310,20 @@ export default function GuessPurchaseModal({
               })}
             </div>
 
-            {/* Late-round pricing indicator (Milestone 7.1) */}
-            {isLateRoundPricing && (
-              <div className="bg-amber-50 border border-amber-200 rounded-btn px-3 py-2 text-center">
-                <p className="text-sm text-amber-700">
-                  <span className="font-medium">Late-round pricing</span>
-                  <span className="mx-1">·</span>
-                  <span className="opacity-80">Packs cost more after Top 10 locks</span>
-                </p>
-              </div>
-            )}
+            {/* Milestone 7.5: Pricing state label (always shown) */}
+            <div className={`rounded-btn px-3 py-2 text-center ${
+              isLateRoundPricing
+                ? 'bg-gray-100'
+                : 'bg-gray-50'
+            }`}>
+              <p className={`text-sm ${
+                isLateRoundPricing
+                  ? 'text-gray-600'
+                  : 'text-gray-500'
+              }`}>
+                {isLateRoundPricing ? 'Late round pricing' : 'Early round pricing'}
+              </p>
+            </div>
 
             {/* Limit Indicator */}
             <div className="bg-gray-50 rounded-btn p-3 text-center">
@@ -296,6 +351,15 @@ export default function GuessPurchaseModal({
               </div>
             )}
 
+            {/* Milestone 7.5: Early-round reinforcement message */}
+            {showEarlyRoundReinforcement && (
+              <div className="bg-success-50 border border-success-200 rounded-btn p-3">
+                <p className="text-sm text-success-700 text-center font-medium">
+                  Early-round pricing applied ✓
+                </p>
+              </div>
+            )}
+
             {/* Buttons */}
             <div className="flex flex-col gap-3">
               <button
@@ -304,13 +368,15 @@ export default function GuessPurchaseModal({
                   isPurchasing ||
                   remainingPacks === 0 ||
                   !selectedOption ||
-                  !!successMessage
+                  !!successMessage ||
+                  showEarlyRoundReinforcement
                 }
                 className={`btn-primary-lg w-full ${
                   isPurchasing ||
                   remainingPacks === 0 ||
                   !selectedOption ||
-                  !!successMessage
+                  !!successMessage ||
+                  showEarlyRoundReinforcement
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
                 }`}
