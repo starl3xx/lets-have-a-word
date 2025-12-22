@@ -268,7 +268,11 @@ export default function GuessPurchaseModal({
                   ? 'text-gray-600'
                   : 'text-gray-500'
               }`}>
-                {isLateRoundPricing ? 'Late round pricing' : 'Early round pricing'}
+                {pricingPhase === 'BASE'
+                  ? 'Early round pricing'
+                  : pricingPhase === 'LATE_2'
+                  ? 'Late round pricing (max)'
+                  : 'Late round pricing'}
               </p>
             </div>
 
