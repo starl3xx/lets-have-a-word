@@ -137,7 +137,7 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
    */
   return (
     <div className="bg-brand text-white py-3 px-4 shadow-md">
-      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-hidden">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-visible">
         {/* Prize Pool */}
         <div>
           <p className="text-xs uppercase font-light tracking-wide opacity-90">
