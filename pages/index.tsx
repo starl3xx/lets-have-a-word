@@ -710,6 +710,17 @@ function GameContent() {
       });
 
       if (!response.ok) {
+        // Try to get detailed error from response (available in dev mode)
+        try {
+          const errorData = await response.json();
+          if (errorData.devDetails) {
+            console.error('API Error Details:', errorData.devDetails);
+            console.error('API Error Stack:', errorData.devStack);
+            throw new Error(`API Error: ${errorData.devDetails}`);
+          }
+        } catch (parseError) {
+          // Response wasn't JSON or parsing failed
+        }
         throw new Error('Failed to submit guess');
       }
 
@@ -884,9 +895,14 @@ function GameContent() {
       }
       // For 'correct', keep the winning word in the boxes with green pulse-glow
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting guess:', error);
-      setErrorMessage('Something went wrong. Please try again.');
+      // In dev mode, show the actual error for debugging
+      if (isClientDevMode() && error.message && error.message !== 'Failed to submit guess') {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage('Something went wrong. Please try again.');
+      }
       triggerHaptic('error');
       triggerShake();
     } finally {
