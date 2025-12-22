@@ -8,17 +8,7 @@ import {
 import { db } from '../../src/db';
 import { guesses, rounds } from '../../src/db/schema';
 import { eq, sql, and, isNull } from 'drizzle-orm';
-import { isDevModeEnabled } from '../../src/lib/devGameState';
-
-/**
- * Simple seeded random number generator for consistent dev mode values
- */
-function seededRandom(seed: number): () => number {
-  return () => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
-}
+import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 
 /**
  * GET /api/guess-pack-pricing
@@ -46,16 +36,15 @@ export default async function handler(
     let totalGuessesInRound = 0;
 
     if (isDevModeEnabled()) {
-      // In dev mode, use a synthetic guess count for testing
-      // Parse from query param if provided, otherwise use seeded random value
+      // In dev mode, use the same guess count displayed in TopTicker for consistency
+      // Parse from query param if provided, otherwise use cached dev round values
       const devGuesses = req.query.devGuesses;
       if (devGuesses && typeof devGuesses === 'string') {
         totalGuessesInRound = parseInt(devGuesses, 10) || 0;
       } else {
-        // Use 10-minute bucket seeded random for consistent values
-        const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000));
-        const rng = seededRandom(serverStartSeed * 7927); // Prime multiplier
-        totalGuessesInRound = Math.floor(rng() * 1500);
+        // Use getDevRoundStatus() for consistent values across all UI components
+        const devStatus = await getDevRoundStatus();
+        totalGuessesInRound = devStatus.globalGuessCount;
       }
     } else {
       // Production: get actual guess count from database
