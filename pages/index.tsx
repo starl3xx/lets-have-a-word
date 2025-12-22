@@ -115,16 +115,19 @@ function GameContent() {
    * - 'none': No incorrect banner visible
    * - 'active': Bright red error, input locked visually
    * - 'faded': Softer gray banner showing context, input ready again
+   * - 'fading_out': Gray banner fading out to transparent
    */
-  type IncorrectState = 'none' | 'active' | 'faded';
+  type IncorrectState = 'none' | 'active' | 'faded' | 'fading_out';
   const [incorrectState, setIncorrectState] = useState<IncorrectState>('none');
   const [lastSubmittedGuess, setLastSubmittedGuess] = useState<string | null>(null);
   const incorrectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadedDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Milestone 6.7.1: Duration for active incorrect state before fading
-  const INCORRECT_ACTIVE_DURATION_MS = 600; // Red state duration before fading to gray
-  const INCORRECT_FADED_DURATION_MS = 1500; // Gray state duration before disappearing
+  // Milestone 6.7.1: Duration for incorrect state transitions
+  const INCORRECT_ACTIVE_DURATION_MS = 1000; // Red state: 1s
+  const INCORRECT_FADED_DURATION_MS = 1500; // Gray state: 1.5s
+  const INCORRECT_FADEOUT_DURATION_MS = 1500; // Fade out: 1.5s
 
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -156,6 +159,9 @@ function GameContent() {
       }
       if (fadedDismissTimerRef.current) {
         clearTimeout(fadedDismissTimerRef.current);
+      }
+      if (fadeoutTimerRef.current) {
+        clearTimeout(fadeoutTimerRef.current);
       }
     };
   }, []);
@@ -846,16 +852,21 @@ function GameContent() {
 
               // Milestone 6.7.1: Start timer for faded transition if user has guesses remaining
               if (guessesRemaining > 0) {
-                // Start timer to transition from active to faded
+                // Start timer to transition from active (red) to faded (gray)
                 incorrectTimerRef.current = setTimeout(() => {
                   setIncorrectState('faded');
                   setBoxResultState('typing'); // Reset box state to normal
 
-                  // Start timer to dismiss faded state completely
+                  // Start timer to begin fade out after gray state
                   fadedDismissTimerRef.current = setTimeout(() => {
-                    setIncorrectState('none');
-                    setLastSubmittedGuess(null);
-                    setResult(null); // Clear result to prevent banner reverting to red
+                    setIncorrectState('fading_out');
+
+                    // Start timer to complete fade out and dismiss
+                    fadeoutTimerRef.current = setTimeout(() => {
+                      setIncorrectState('none');
+                      setLastSubmittedGuess(null);
+                      setResult(null); // Clear result to prevent banner reverting to red
+                    }, INCORRECT_FADEOUT_DURATION_MS);
                   }, INCORRECT_FADED_DURATION_MS);
                 }, INCORRECT_ACTIVE_DURATION_MS);
               } else {
@@ -927,7 +938,24 @@ function GameContent() {
    * Returns variant and message for unified ResultBanner component
    * Milestone 6.7.1: Added faded property for incorrect state transitions
    */
-  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode; faded?: boolean } | null => {
+  const getFeedbackMessage = (): { variant: ResultBannerVariant; message: ReactNode; icon?: ReactNode; faded?: boolean; visible?: boolean } | null => {
+    // Milestone 6.7.1: Handle fading_out state (visible=false triggers opacity fade)
+    if (incorrectState === 'fading_out' && lastSubmittedGuess) {
+      return {
+        variant: 'error',
+        faded: true,
+        visible: false, // Triggers opacity fade out
+        icon: null,
+        message: (
+          <>
+            <span>Incorrect! </span>
+            <span className="font-bold">{lastSubmittedGuess.toUpperCase()}</span>
+            <span> is not the secret word.</span>
+          </>
+        ),
+      };
+    }
+
     // Milestone 6.7.1: Handle faded incorrect state
     // Show faded banner with last submitted guess even if result is cleared
     if (incorrectState === 'faded' && lastSubmittedGuess) {
@@ -1224,13 +1252,14 @@ function GameContent() {
               )}
 
               {/* Show feedback from last submission - using unified ResultBanner */}
-              {/* Milestone 6.7.1: Pass faded prop for incorrect state transitions */}
+              {/* Milestone 6.7.1: Pass faded and visible props for incorrect state transitions */}
               {feedback && !errorMessage && !stateErrorMessage && (
                 <ResultBanner
                   variant={feedback.variant}
                   message={feedback.message}
                   icon={feedback.icon}
                   faded={feedback.faded}
+                  visible={feedback.visible !== false}
                 />
               )}
             </div>
