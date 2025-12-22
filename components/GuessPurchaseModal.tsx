@@ -257,6 +257,21 @@ export default function GuessPurchaseModal({
         {/* Main Content */}
         {!isLoading && (
           <>
+            {/* Pricing state label - shown before pack options for context */}
+            <div className={`rounded-btn px-3 py-1.5 text-center ${
+              isLateRoundPricing
+                ? 'bg-gray-100'
+                : 'bg-gray-50'
+            }`}>
+              <p className={`text-xs ${
+                isLateRoundPricing
+                  ? 'text-gray-600'
+                  : 'text-gray-500'
+              }`}>
+                {isLateRoundPricing ? 'Late round pricing' : 'Early round pricing'}
+              </p>
+            </div>
+
             {/* Pack Options */}
             <div className="space-y-3">
               {packOptions.map((option) => {
@@ -310,32 +325,15 @@ export default function GuessPurchaseModal({
               })}
             </div>
 
-            {/* Milestone 7.5: Pricing state label (always shown) */}
-            <div className={`rounded-btn px-3 py-2 text-center ${
-              isLateRoundPricing
-                ? 'bg-gray-100'
-                : 'bg-gray-50'
-            }`}>
-              <p className={`text-sm ${
-                isLateRoundPricing
-                  ? 'text-gray-600'
-                  : 'text-gray-500'
-              }`}>
-                {isLateRoundPricing ? 'Late round pricing' : 'Early round pricing'}
-              </p>
-            </div>
-
-            {/* Limit Indicator */}
-            <div className="bg-gray-50 rounded-btn p-3 text-center">
-              <p className="text-sm text-gray-600">
-                {t('guessPack.limitIndicator', { count: packsPurchasedToday })}
-              </p>
+            {/* Limit Indicator - de-emphasized */}
+            <p className="text-xs text-gray-400 text-center">
+              {t('guessPack.limitIndicator', { count: packsPurchasedToday })}
               {remainingPacks === 0 && (
-                <p className="text-sm text-warning-600 font-medium mt-1">
+                <span className="block text-warning-600 font-medium mt-0.5">
                   {t('guessPack.maxPacksReached')}
-                </p>
+                </span>
               )}
-            </div>
+            </p>
 
             {/* Error Message */}
             {error && (
@@ -361,7 +359,7 @@ export default function GuessPurchaseModal({
             )}
 
             {/* Buttons */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <button
                 onClick={handlePurchase}
                 disabled={
@@ -391,6 +389,11 @@ export default function GuessPurchaseModal({
                   </>
                 )}
               </button>
+
+              {/* Reassurance microcopy */}
+              <p className="text-xs text-gray-400 text-center">
+                {t('guessPack.jackpotNote')}
+              </p>
 
               <button
                 onClick={onClose}
