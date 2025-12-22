@@ -42,7 +42,7 @@
     "ctaButton": "Share",
     "sharing": "Sharing...",
     "alreadyClaimed": "You've already claimed your share bonus today",
-    "footer": "Share bonus can only be earned once per day (Farcaster only)",
+    "footer": "Share bonus can only be earned once per day",
     "shareText": "I'm playing Let's Have A Word!\nDaily jackpot-based word puzzle on Base.\nhttps://lets-have-a-word.vercel.app"
   },
   "anotherGuess": {

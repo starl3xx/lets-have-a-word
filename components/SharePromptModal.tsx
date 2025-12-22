@@ -212,14 +212,6 @@ export default function SharePromptModal({
           </p>
         </div>
 
-        {/* Share preview - Milestone 8.1 */}
-        {word && (
-          <div className="bg-gray-50 rounded-btn p-3 border border-gray-200">
-            <p className="text-xs text-gray-500 mb-2">Preview:</p>
-            <p className="text-sm text-gray-700 whitespace-pre-line">{shareText}</p>
-          </div>
-        )}
-
         {/* Error message */}
         {error && (
           <div className="bg-error-50 border border-error-200 rounded-btn p-3">
