@@ -855,6 +855,7 @@ function GameContent() {
                   fadedDismissTimerRef.current = setTimeout(() => {
                     setIncorrectState('none');
                     setLastSubmittedGuess(null);
+                    setResult(null); // Clear result to prevent banner reverting to red
                   }, INCORRECT_FADED_DURATION_MS);
                 }, INCORRECT_ACTIVE_DURATION_MS);
               } else {

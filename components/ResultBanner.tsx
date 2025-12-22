@@ -199,7 +199,7 @@ const ResultBanner = memo(function ResultBanner({
         opacity: visible ? (faded ? 0.8 : 1) : 0,
         borderColor: styles.borderColor,
         backgroundColor: styles.bgColor,
-        transition: 'opacity 400ms ease-out, border-color 800ms ease-out, background-color 800ms ease-out',
+        transition: 'opacity 400ms ease-out, border-color 1200ms ease-out, background-color 1200ms ease-out',
       }}
       role="status"
       aria-live="polite"
@@ -219,7 +219,7 @@ const ResultBanner = memo(function ResultBanner({
         className="text-center text-sm font-medium"
         style={{
           color: styles.textColor,
-          transition: 'color 800ms ease-out',
+          transition: 'color 1200ms ease-out',
         }}
       >
         {message}
