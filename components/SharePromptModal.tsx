@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
+import { getRandomTemplate, renderShareTemplate, GAME_URL } from '../src/lib/shareTemplates';
 
 interface SharePromptModalProps {
   fid: number | null;
@@ -30,9 +31,32 @@ export default function SharePromptModal({
   const { t, getRandomInterjection } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
 
   // Get random interjection once when modal mounts
   const interjection = useMemo(() => getRandomInterjection(), [getRandomInterjection]);
+
+  // Milestone 8.1: Select random share template once when modal mounts
+  // This ensures the template doesn't change during the share flow
+  const selectedTemplate = useMemo(() => getRandomTemplate(), []);
+
+  // Milestone 8.1: Fetch prize pool when modal mounts
+  useEffect(() => {
+    const fetchPrizePool = async () => {
+      try {
+        const response = await fetch('/api/round-state');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.prizePoolEth) {
+            setPrizePoolEth(data.prizePoolEth);
+          }
+        }
+      } catch (err) {
+        console.error('[SharePromptModal] Error fetching prize pool:', err);
+      }
+    };
+    fetchPrizePool();
+  }, []);
 
   /**
    * Get the guessed word from the result (if available)
@@ -68,6 +92,37 @@ export default function SharePromptModal({
   };
 
   /**
+   * Format jackpot ETH for display in share text
+   * Shows 4 decimal places for consistency
+   */
+  const formatJackpotEth = (eth: string | undefined): string => {
+    if (!eth) return '0.0000';
+    const num = parseFloat(eth);
+    if (isNaN(num)) return '0.0000';
+    return num.toFixed(4);
+  };
+
+  /**
+   * Get the share text using selected template
+   * Milestone 8.1: Uses rotating templates with dynamic values
+   */
+  const getShareText = (): string => {
+    const word = getGuessedWord();
+    const jackpot = formatJackpotEth(prizePoolEth);
+
+    // If we have a word (incorrect guess), use the rotating template
+    if (word) {
+      return renderShareTemplate(selectedTemplate, word, jackpot);
+    }
+
+    // Fallback for cases without a word
+    return `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\n${GAME_URL}`;
+  };
+
+  // Memoize the share text so it doesn't change during the modal session
+  const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
+
+  /**
    * Handle share button click
    */
   const handleShare = async () => {
@@ -81,20 +136,6 @@ export default function SharePromptModal({
     setError(null);
 
     try {
-      const word = getGuessedWord();
-      const guessNumber = getGuessNumber();
-      const roundId = getRoundId();
-
-      let shareText: string;
-
-      if (word && guessNumber && roundId) {
-        shareText = `My guess "${word}" was #${guessNumber} in round #${roundId} of Let's Have A Word!\n\nEvery guess helps narrow the field — and one person wins the ETH jackpot! 🎯\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
-      } else if (word) {
-        shareText = `My guess "${word}" in Let's Have A Word!\n\nEvery guess helps narrow the field — and one person wins the ETH jackpot! 🎯\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
-      } else {
-        shareText = `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\nhttps://lets-have-a-word.vercel.app`;
-      }
-
       console.log('[SharePromptModal] Opening composer with text:', shareText);
 
       const result = await sdk.actions.openUrl({
@@ -170,6 +211,14 @@ export default function SharePromptModal({
             )}
           </p>
         </div>
+
+        {/* Share preview - Milestone 8.1 */}
+        {word && (
+          <div className="bg-gray-50 rounded-btn p-3 border border-gray-200">
+            <p className="text-xs text-gray-500 mb-2">Preview:</p>
+            <p className="text-sm text-gray-700 whitespace-pre-line">{shareText}</p>
+          </div>
+        )}
 
         {/* Error message */}
         {error && (
