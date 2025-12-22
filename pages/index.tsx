@@ -125,9 +125,9 @@ function GameContent() {
   const fadeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Milestone 6.7.1: Duration for incorrect state transitions
-  const INCORRECT_ACTIVE_DURATION_MS = 1000; // Red state: 1s
+  const INCORRECT_ACTIVE_DURATION_MS = 1500; // Red state: 1.5s
   const INCORRECT_FADED_DURATION_MS = 1500; // Gray state: 1.5s
-  const INCORRECT_FADEOUT_DURATION_MS = 1500; // Fade out: 1.5s
+  const INCORRECT_FADEOUT_DURATION_MS = 1000; // Fade out: 1s
 
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
