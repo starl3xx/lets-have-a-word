@@ -137,14 +137,15 @@ export default async function handler(
     // ========================================
     // DEV MODE CRANE BYPASS - Guaranteed win for CRANE
     // ========================================
-    // If dev mode is enabled and the word is CRANE, return success immediately
-    // This bypasses ALL database operations to guarantee CRANE always wins
-    if (isDevModeEnabled() && normalizedWord === 'CRANE') {
+    // If dev mode is enabled and the word is CRANE (or fixed solution), return success immediately
+    // This bypasses ALL database operations to guarantee the solution always wins
+    const devFixedSolution = (process.env.LHAW_DEV_FIXED_SOLUTION || 'CRANE').toUpperCase();
+    if (isDevModeEnabled() && normalizedWord === devFixedSolution) {
       const devFidValue = devFid ? (typeof devFid === 'number' ? devFid : parseInt(devFid, 10)) : 6500;
-      console.log(`🎮 Dev mode CRANE bypass: Returning instant win for FID ${devFidValue}`);
+      console.log(`🎮 Dev mode: Correct guess! Returning instant win for FID ${devFidValue}`);
       return res.status(200).json({
         status: 'correct',
-        word: 'CRANE',
+        word: devFixedSolution,
         roundId: 999999, // Fake round ID for dev mode
         winnerFid: devFidValue,
       });
@@ -153,28 +154,46 @@ export default async function handler(
     // ========================================
     // Milestone 6.5.1: Dev Mode Guess Economy Parity
     // ========================================
-    // Dev mode now uses the same daily limits logic as production.
-    // The only difference is that dev mode uses a round with a known fixed solution.
+    // Dev mode tries to use the same daily limits logic as production.
+    // If database is unavailable, falls back to offline mock responses.
 
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 
     // Ensure there's an active round
     let roundId: number | undefined;
+    let useOfflineDevMode = false;
+
     if (isDevModeEnabled()) {
-      // In dev mode, ensure a round exists with the fixed solution
-      console.log('🎮 Dev mode: Using real daily limits with fixed solution round');
+      // In dev mode, try to ensure a round exists with the fixed solution
+      console.log('🎮 Dev mode: Attempting to use real daily limits with fixed solution round');
       try {
         roundId = await ensureDevRound();
         console.log(`🎮 Dev mode: ensureDevRound succeeded, roundId=${roundId}`);
       } catch (devRoundError: any) {
-        console.error('🎮 Dev mode: ensureDevRound FAILED:', devRoundError);
-        console.error('🎮 Dev mode: Stack trace:', devRoundError.stack);
-        throw devRoundError;
+        // Database unavailable - fall back to offline dev mode
+        console.warn('🎮 Dev mode: Database unavailable, using offline mode');
+        console.warn('🎮 Dev mode: Error was:', devRoundError.message);
+        useOfflineDevMode = true;
       }
     } else {
       // Production: create a normal round if needed
       await ensureActiveRound();
+    }
+
+    // ========================================
+    // DEV MODE OFFLINE FALLBACK
+    // ========================================
+    // When database is unavailable in dev mode, return mock responses
+    if (useOfflineDevMode) {
+      const devFidValue = devFid ? (typeof devFid === 'number' ? devFid : parseInt(devFid, 10)) : 6500;
+      console.log(`🎮 Dev mode offline: Returning mock incorrect response for "${normalizedWord}"`);
+      console.log(`🎮 Dev mode offline: (Guess "${devFixedSolution}" to win)`);
+      return res.status(200).json({
+        status: 'incorrect',
+        word: normalizedWord,
+        totalGuessesForUserThisRound: 1,
+      });
     }
 
     let signerWallet: string | null = null;
