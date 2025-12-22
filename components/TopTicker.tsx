@@ -168,7 +168,7 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
           onClick={() => onRoundClick?.(status.roundId)}
           className={`
             ${onRoundClick ? 'cursor-pointer hover:bg-white/10' : 'cursor-default'}
-            px-4 py-2 -mx-4 -my-2 rounded-xl transition-colors duration-200
+            px-2.5 py-1.5 -mx-2.5 -my-1.5 rounded-lg transition-colors duration-200
           `}
           role={onRoundClick ? 'button' : undefined}
           tabIndex={onRoundClick ? 0 : undefined}
