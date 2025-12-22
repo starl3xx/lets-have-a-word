@@ -199,7 +199,7 @@ const ResultBanner = memo(function ResultBanner({
         opacity: visible ? (faded ? 0.8 : 1) : 0,
         borderColor: styles.borderColor,
         backgroundColor: styles.bgColor,
-        transition: 'opacity 300ms ease-out, border-color 400ms ease-out, background-color 400ms ease-out',
+        transition: 'opacity 400ms ease-out, border-color 800ms ease-out, background-color 800ms ease-out',
       }}
       role="status"
       aria-live="polite"
@@ -209,7 +209,7 @@ const ResultBanner = memo(function ResultBanner({
           className="flex-shrink-0"
           style={{
             opacity: faded ? 0 : 1,
-            transition: 'opacity 300ms ease-out',
+            transition: 'opacity 600ms ease-out',
           }}
         >
           {iconElement}
@@ -219,7 +219,7 @@ const ResultBanner = memo(function ResultBanner({
         className="text-center text-sm font-medium"
         style={{
           color: styles.textColor,
-          transition: 'color 400ms ease-out',
+          transition: 'color 800ms ease-out',
         }}
       >
         {message}
