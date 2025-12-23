@@ -9,6 +9,7 @@ import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } fr
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+import { invalidateRoundCaches, invalidateOnRoundTransition } from './redis';
 
 /**
  * Normalize a guess word
@@ -274,6 +275,11 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
 
+      // CRITICAL: Invalidate all caches immediately on round transition
+      // This ensures no stale data is served about the old round
+      console.log(`[Cache] 🔴 ROUND WON - Invalidating all caches for round ${round.id}`);
+      await invalidateOnRoundTransition(round.id);
+
       // Get guess count (after insert, so totalGuesses includes this winning guess)
       const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
 
@@ -357,6 +363,14 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         guessIndexInRound,
         createdAt: new Date(),
       });
+    });
+
+    // Milestone 9.0: Invalidate caches after wrong guess
+    // This ensures the wheel shows the new wrong word and guess count updates
+    console.log(`[Cache] Invalidating round ${round.id} caches after wrong guess`);
+    invalidateRoundCaches(round.id).catch((err) => {
+      // Don't block the response on cache errors
+      console.error('[Cache] Failed to invalidate after wrong guess:', err);
     });
 
     // Log Top-10 lock event if this guess triggered the lock

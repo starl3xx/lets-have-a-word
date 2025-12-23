@@ -17,6 +17,7 @@ import {
   INSUFFICIENT_USER_SCORE_ERROR,
   MIN_USER_SCORE,
 } from '../../src/lib/user-quality';
+import { checkRateLimit, RateLimiters } from '../../src/lib/redis';
 
 /**
  * POST /api/guess
@@ -70,6 +71,19 @@ export default async function handler(
 
   try {
     const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
+
+    // Milestone 9.0: Rate limiting for guesses (by IP, then by FID once authenticated)
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const rateLimitIdentifier = devFid ? `guess:fid:${devFid}` : `guess:ip:${clientIp}`;
+    const rateCheck = await checkRateLimit(RateLimiters.guess, rateLimitIdentifier);
+    if (!rateCheck.success) {
+      res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '30');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
+      return res.status(429).json({ error: 'Too many guesses. Please slow down.' });
+    }
 
     // Debug: Log environment variables (Milestone 4.8)
     console.log('🔍 Environment check:', {
