@@ -58,6 +58,17 @@ interface OperationalStatus {
       totalAmountEth: string
     }
   }>
+  refundCron?: {
+    lastRun: string | null
+    lastResult: {
+      roundsProcessed: number
+      totalSent: number
+      totalFailed: number
+      durationMs: number
+      timestamp: string
+    } | null
+    nextRunEstimate: string
+  }
   timestamp: string
 }
 
@@ -252,6 +263,11 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [deadDayReason, setDeadDayReason] = useState("")
   const [deadDayReopenAt, setDeadDayReopenAt] = useState("")
 
+  // Kill Switch confirmation states
+  const [showKillSwitchConfirm, setShowKillSwitchConfirm] = useState(false)
+  const [killSwitchConfirmText, setKillSwitchConfirmText] = useState("")
+  const KILL_SWITCH_CONFIRM_PHRASE = "CANCEL ROUND"
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -308,6 +324,8 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
       setSuccess(`Kill switch enabled. Round ${data.roundId} cancelled. ${data.refundsCreated} refunds created.`)
       setKillSwitchReason("")
+      setShowKillSwitchConfirm(false)
+      setKillSwitchConfirmText("")
       await fetchStatus()
     } catch (err: any) {
       setError(err.message)
@@ -616,6 +634,39 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                             ⏳ Refund processing in progress...
                           </div>
                         )}
+
+                        {/* Cron timing info - only show if refunds are not complete */}
+                        {!cancelledRound.refundsCompletedAt && status.refundCron && (
+                          <div style={{
+                            marginTop: '12px',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #bae6fd',
+                            fontSize: '12px',
+                            color: '#64748b',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span>Last cron run:</span>
+                              <span style={{ fontWeight: 500, color: '#475569' }}>
+                                {status.refundCron.lastRun
+                                  ? formatDate(status.refundCron.lastRun)
+                                  : 'Never'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>Next run (est.):</span>
+                              <span style={{ fontWeight: 500, color: '#475569' }}>
+                                {formatDate(status.refundCron.nextRunEstimate)}
+                              </span>
+                            </div>
+                            {status.refundCron.lastResult && (
+                              <div style={{ marginTop: '6px', color: '#94a3b8', fontSize: '11px' }}>
+                                Last run: {status.refundCron.lastResult.totalSent} sent,{' '}
+                                {status.refundCron.lastResult.totalFailed} failed in{' '}
+                                {status.refundCron.lastResult.durationMs}ms
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : null
                   })()}
@@ -644,25 +695,98 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 </>
               ) : (
                 <>
-                  <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-                    Enabling the kill switch will immediately cancel the current round and refund all paid pack purchases.
-                  </p>
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={styles.label}>Reason (required)</label>
-                    <textarea
-                      style={styles.textarea}
-                      placeholder="Explain why the round is being cancelled..."
-                      value={killSwitchReason}
-                      onChange={(e) => setKillSwitchReason(e.target.value)}
-                    />
-                  </div>
-                  <button
-                    onClick={handleEnableKillSwitch}
-                    style={styles.btnDanger}
-                    disabled={actionLoading || !killSwitchReason}
-                  >
-                    {actionLoading ? 'Processing...' : 'Enable Kill Switch'}
-                  </button>
+                  {!showKillSwitchConfirm ? (
+                    // Step 1: Reason input
+                    <>
+                      <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                        Enabling the kill switch will immediately cancel the current round and refund all paid pack purchases.
+                      </p>
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={styles.label}>Reason (required)</label>
+                        <textarea
+                          style={styles.textarea}
+                          placeholder="Explain why the round is being cancelled..."
+                          value={killSwitchReason}
+                          onChange={(e) => setKillSwitchReason(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        onClick={() => setShowKillSwitchConfirm(true)}
+                        style={styles.btnDanger}
+                        disabled={!killSwitchReason || killSwitchReason.length < 10}
+                      >
+                        Continue to Confirmation
+                      </button>
+                    </>
+                  ) : (
+                    // Step 2: Confirmation
+                    <>
+                      <div style={{
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        marginBottom: '16px',
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '8px' }}>
+                          ⚠️ This action is irreversible
+                        </div>
+                        <p style={{ fontSize: '13px', color: '#7f1d1d', margin: 0 }}>
+                          Enabling the Kill Switch will:
+                        </p>
+                        <ul style={{ fontSize: '13px', color: '#7f1d1d', margin: '8px 0', paddingLeft: '20px' }}>
+                          <li>Immediately cancel Round #{status.activeRoundId}</li>
+                          <li>Block all gameplay until disabled</li>
+                          <li>Trigger automatic refunds for all paid pack purchases</li>
+                        </ul>
+                        <p style={{ fontSize: '13px', color: '#7f1d1d', margin: 0 }}>
+                          <strong>Reason:</strong> {killSwitchReason}
+                        </p>
+                      </div>
+
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={styles.label}>
+                          Type <code style={{ background: '#fee2e2', padding: '2px 6px', borderRadius: '4px', color: '#991b1b' }}>{KILL_SWITCH_CONFIRM_PHRASE}</code> to confirm
+                        </label>
+                        <input
+                          type="text"
+                          style={{
+                            ...styles.input,
+                            borderColor: killSwitchConfirmText === KILL_SWITCH_CONFIRM_PHRASE ? '#16a34a' : '#d1d5db',
+                          }}
+                          placeholder={KILL_SWITCH_CONFIRM_PHRASE}
+                          value={killSwitchConfirmText}
+                          onChange={(e) => setKillSwitchConfirmText(e.target.value.toUpperCase())}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                          onClick={() => {
+                            setShowKillSwitchConfirm(false)
+                            setKillSwitchConfirmText("")
+                          }}
+                          style={styles.btnSecondary}
+                          disabled={actionLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleEnableKillSwitch}
+                          style={{
+                            ...styles.btnDanger,
+                            opacity: killSwitchConfirmText !== KILL_SWITCH_CONFIRM_PHRASE ? 0.5 : 1,
+                            cursor: killSwitchConfirmText !== KILL_SWITCH_CONFIRM_PHRASE ? 'not-allowed' : 'pointer',
+                          }}
+                          disabled={actionLoading || killSwitchConfirmText !== KILL_SWITCH_CONFIRM_PHRASE}
+                        >
+                          {actionLoading ? 'Processing...' : 'Enable Kill Switch'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

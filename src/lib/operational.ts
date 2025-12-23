@@ -82,6 +82,10 @@ const REDIS_KEYS = {
 
   // Game status (derived, cached for quick checks)
   gameStatus: `${CACHE_PREFIX}ops:game_status`,
+
+  // Cron tracking
+  refundCronLastRun: `${CACHE_PREFIX}ops:refund_cron:last_run`,
+  refundCronLastResult: `${CACHE_PREFIX}ops:refund_cron:last_result`,
 } as const;
 
 // ============================================================
@@ -619,6 +623,103 @@ export async function isRefundProcessingRunning(): Promise<boolean> {
     return !!running;
   } catch (error) {
     return false;
+  }
+}
+
+// ============================================================
+// Cron Tracking
+// ============================================================
+
+/**
+ * Record a refund cron run
+ */
+export async function recordRefundCronRun(result: {
+  roundsProcessed: number;
+  totalSent: number;
+  totalFailed: number;
+  durationMs: number;
+}): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+
+  try {
+    const now = new Date().toISOString();
+    await Promise.all([
+      redis.set(REDIS_KEYS.refundCronLastRun, now),
+      redis.set(REDIS_KEYS.refundCronLastResult, JSON.stringify({
+        ...result,
+        timestamp: now,
+      })),
+    ]);
+  } catch (error) {
+    console.error('[Ops] Failed to record refund cron run:', error);
+  }
+}
+
+/**
+ * Get refund cron timing info
+ */
+export async function getRefundCronTiming(): Promise<{
+  lastRun: string | null;
+  lastResult: {
+    roundsProcessed: number;
+    totalSent: number;
+    totalFailed: number;
+    durationMs: number;
+    timestamp: string;
+  } | null;
+  nextRunEstimate: string;
+}> {
+  const redis = getRedisClient();
+
+  // Default: cron runs every 5 minutes
+  const CRON_INTERVAL_MS = 5 * 60 * 1000;
+
+  // Calculate next run estimate based on 5-minute intervals from the hour
+  const now = new Date();
+  const minutes = now.getMinutes();
+  const nextMinute = Math.ceil(minutes / 5) * 5;
+  const nextRun = new Date(now);
+  nextRun.setMinutes(nextMinute, 0, 0);
+  if (nextRun <= now) {
+    nextRun.setMinutes(nextRun.getMinutes() + 5);
+  }
+
+  if (!redis) {
+    return {
+      lastRun: null,
+      lastResult: null,
+      nextRunEstimate: nextRun.toISOString(),
+    };
+  }
+
+  try {
+    const [lastRun, lastResultStr] = await Promise.all([
+      redis.get(REDIS_KEYS.refundCronLastRun),
+      redis.get(REDIS_KEYS.refundCronLastResult),
+    ]);
+
+    let lastResult = null;
+    if (lastResultStr) {
+      try {
+        lastResult = JSON.parse(lastResultStr as string);
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    return {
+      lastRun: lastRun as string | null,
+      lastResult,
+      nextRunEstimate: nextRun.toISOString(),
+    };
+  } catch (error) {
+    console.error('[Ops] Failed to get refund cron timing:', error);
+    return {
+      lastRun: null,
+      lastResult: null,
+      nextRunEstimate: nextRun.toISOString(),
+    };
   }
 }
 
