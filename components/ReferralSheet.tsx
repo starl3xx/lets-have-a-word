@@ -301,6 +301,9 @@ export default function ReferralSheet({
                   <p className="text-3xl font-bold text-accent-900 tabular-nums">
                     {displayedEth}
                   </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {t('referral.stats.ethEarnedHelper')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -308,10 +311,11 @@ export default function ReferralSheet({
             {/* How it Works */}
             <div className="section-card bg-gray-50">
               <h3 className="text-sm font-semibold text-gray-900">{t('referral.howItWorks.title')}</h3>
-              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mt-2">
+              <ul className="list-disc list-inside text-sm text-gray-700 space-y-2 mt-2">
                 <li>{t('referral.howItWorks.step1')}</li>
-                <li>{t('referral.howItWorks.step2')}</li>
+                <li dangerouslySetInnerHTML={{ __html: t('referral.howItWorks.step2') }} />
                 <li>{t('referral.howItWorks.step3')}</li>
+                <li>{t('referral.howItWorks.step4')}</li>
               </ul>
             </div>
           </div>
