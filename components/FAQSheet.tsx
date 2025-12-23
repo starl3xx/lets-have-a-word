@@ -97,7 +97,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>+2 guesses/day</strong> while CLANKTON market cap is below $250K</li>
             <li><strong>+3 guesses/day</strong> once market cap reaches $250K</li>
           </ul>
-          <p className="mt-2">This is detected automatically when you connect. Market cap is currently config-based and will move to a live oracle later.</p>
+          <p className="mt-2">This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.</p>
         </>
       ),
     },
