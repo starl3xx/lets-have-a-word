@@ -1129,6 +1129,20 @@ function GameContent() {
 
     // Trigger the fade-out of the incorrect banner if showing
     if (incorrectState === 'active' || incorrectState === 'faded') {
+      // Clear any existing timers to prevent conflicts
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      if (fadedDismissTimerRef.current) {
+        clearTimeout(fadedDismissTimerRef.current);
+        fadedDismissTimerRef.current = null;
+      }
+      if (fadeoutTimerRef.current) {
+        clearTimeout(fadeoutTimerRef.current);
+        fadeoutTimerRef.current = null;
+      }
+
       setIncorrectState('fading_out');
       setTimeout(() => {
         setIncorrectState('none');
