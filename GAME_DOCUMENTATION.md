@@ -1587,6 +1587,103 @@ const SHARE_TEMPLATES = [
 - `components/SharePromptModal.tsx` - Rotating templates, removed preview
 - `locales/en.json` - Updated footer text
 
+### Milestone 9.5: Kill Switch & Dead Day Operational Controls
+- **Status**: ✅ Complete
+- **Goal**: Add operational controls for emergency situations and planned maintenance
+
+#### Unified Admin Dashboard (`pages/admin/index.tsx`)
+- Single page at `/admin` with tabbed interface
+- Four tabs: Operations, Analytics, Round Archive, Economics
+- URL query param navigation (`?tab=operations|analytics|archive|economics`)
+- Persistent status strip showing operational state
+- Keyboard shortcuts (1/2/3/4) for tab switching
+
+#### Kill Switch
+- **API**: `POST /api/admin/operational/kill-switch`
+- Emergency stop for active rounds
+- Cancels current round and prevents new rounds from starting
+- Requires reason for audit trail
+- Triggers automatic refund process for cancelled rounds
+
+#### Dead Day Mode
+- **API**: `POST /api/admin/operational/dead-day`
+- Planned maintenance mode - no new rounds start
+- Current round continues to completion
+- Visual indicators in Operations tab
+
+#### Refund System
+- **API**: `GET/POST /api/admin/operational/refunds`
+- **Cron**: `pages/api/cron/process-refunds.ts`
+- Automatic refund processing for cancelled rounds
+- Tracks refund status: pending → processing → sent/failed
+- Per-user refund aggregation from pack purchases
+
+#### Database Schema Updates
+- `pack_purchases` table for tracking individual purchases
+- `refunds` table for refund tracking (status, tx hash, amounts)
+- `operational_events` table for audit logging
+- Round status field: `active` | `resolved` | `cancelled`
+- Migrations: `0009_kill_switch_dead_day.sql`
+
+#### Files Created/Modified
+- `pages/admin/index.tsx` - Unified tabbed admin dashboard
+- `components/admin/OperationsSection.tsx` - Operations tab UI
+- `components/admin/AnalyticsSection.tsx` - Analytics tab wrapper
+- `components/admin/ArchiveSection.tsx` - Archive tab wrapper
+- `pages/api/admin/operational/status.ts` - Status endpoint
+- `pages/api/admin/operational/kill-switch.ts` - Kill switch endpoint
+- `pages/api/admin/operational/dead-day.ts` - Dead day endpoint
+- `pages/api/admin/operational/refunds.ts` - Refund management endpoint
+- `pages/api/cron/process-refunds.ts` - Refund processing cron
+
+### Milestone 9.6: Economics Dashboard Enhancements
+- **Status**: ✅ Complete
+- **Goal**: Make Economics tab more decision-oriented and comparable over time
+
+#### Target Evaluation Layer
+- Static target ranges defined in code (`ECONOMICS_TARGETS`)
+- Key metrics with targets:
+  - Paid participation: 8-25%
+  - ETH per 100 guesses: 0.005-0.02
+  - Rounds ending before 750: 20-60%
+  - Packs before 750: 40-80%
+  - Referrer attach rate: 20-60%
+  - Median round length: 300-1200 guesses
+- "Below/Within/Above target" badges on scorecard tiles
+- Delta display showing distance from target range
+- Target-aware guidance recommendations
+
+#### Prize Pool Growth Curve Chart
+- SVG chart showing cumulative pool ETH vs guess index
+- X-axis: guess index (sampled at 0, 50, 100, 150, 200, 250, 300, 400, 500, 600, 750, 900, 1000, 1200, 1500)
+- Y-axis: prize pool ETH
+- Median line with P25-P75 shaded envelope
+- 750 cutoff vertical annotation line
+- Auto-interpretation of growth pattern (early-heavy, balanced, late-heavy)
+
+#### Per-Round Economics Config Snapshots
+- New `round_economics_config` table
+- Stores per round: top-10 cutoff, pricing thresholds/prices, pool split params
+- Config change detection for historical comparison
+- Migration: `0010_economics_config_snapshots.sql`
+
+#### Compare Mode
+- Dropdown selector in UI
+- Options:
+  - "Last 10 vs Previous 10 rounds"
+  - "Since config change" (when detected)
+- Side-by-side comparison showing:
+  - Paid participation
+  - ETH per 100 guesses
+  - Rounds ending before 750
+- Delta indicators with positive/negative styling
+
+#### Files Modified
+- `pages/api/admin/analytics/economics.ts` - Enhanced API with targets, growth curve, comparison
+- `components/admin/EconomicsSection.tsx` - Updated UI with all new sections
+- `src/db/schema.ts` - Added `roundEconomicsConfig` table and types
+- `migrations/0010_economics_config_snapshots.sql` - New migration
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)
@@ -1940,7 +2037,7 @@ await logAnalyticsEvent(AnalyticsEventTypes.ROUND_STARTED, { roundId });
 
 ### Admin Dashboard
 
-The analytics dashboard is accessible at `/admin/analytics` (web-only, not in mini app).
+The unified admin dashboard is accessible at `/admin` (web-only, not in mini app).
 
 #### Authentication
 
@@ -1948,24 +2045,116 @@ The analytics dashboard is accessible at `/admin/analytics` (web-only, not in mi
 - Only FIDs in `LHAW_ADMIN_USER_IDS` can access
 - Session validated on every API call
 
+#### Unified Dashboard (`/admin`)
+
+The main admin interface consolidates all management functions into a single tabbed page:
+
+- **URL**: `/admin` with query param navigation (`?tab=operations|analytics|archive|economics`)
+- **Default tab**: Operations
+- **Keyboard shortcuts**: Press 1/2/3/4 to switch tabs
+- **Status strip**: Persistent header showing operational state (normal, kill switch, dead day)
+
 #### Dashboard Tabs
 
-1. **DAU** - Daily active users table
-2. **WAU** - Weekly active users table
-3. **Free/Paid Ratio** - Free vs paid guess breakdown
-4. **Jackpot Growth** - Prize pool evolution
-5. **Referral Funnel** - Referral metrics
-6. **Raw Events** - Paginated event log with expandable JSON
+1. **Operations** (`?tab=operations`) - Operational controls and status
+   - Kill switch toggle with reason input
+   - Dead day mode toggle
+   - Real-time operational status display
+   - Refund progress tracking for cancelled rounds
+   - Audit log of operational events
+
+2. **Analytics** (`?tab=analytics`) - Game metrics and user analytics
+   - DAU/WAU tables
+   - Free vs paid guess breakdown
+   - Jackpot growth charts
+   - Referral funnel metrics
+   - Raw events log with expandable JSON
+
+3. **Round Archive** (`?tab=archive`) - Historical round data
+   - Statistics overview (total rounds, guesses, winners, jackpot distributed)
+   - Paginated round table with click-to-detail
+   - Winner info, payouts, guess distribution histogram
+   - Sync controls and error monitoring
+
+4. **Economics** (`?tab=economics`) - Game economics health monitoring
+   - Health Overview Scorecard with target evaluation (paid participation, pool velocity, etc.)
+   - Prize Pool Growth Curve chart (median with P25-P75 envelope)
+   - Pack Pricing & Purchase Behavior analysis
+   - 750 Cutoff Diagnostics
+   - Pool Split & Referral Analysis
+   - Compare Mode for period comparisons
+   - Guidance Recommendations based on targets
+
+#### Operational Controls (Milestone 9.5)
+
+**Kill Switch** - Emergency stop for critical issues:
+- Immediately cancels the active round
+- Prevents new rounds from starting
+- Triggers automatic refund process for pack purchases
+- Requires reason for audit trail
+- API: `POST /api/admin/operational/kill-switch`
+
+**Dead Day Mode** - Planned maintenance:
+- Current round continues to completion
+- No new rounds start after current round ends
+- Use for scheduled maintenance or breaks
+- API: `POST /api/admin/operational/dead-day`
+
+**Refund System**:
+- Automatic refunds for cancelled rounds
+- Status tracking: pending → processing → sent/failed
+- Cron job processes refunds in batches
+- API: `GET/POST /api/admin/operational/refunds`
+
+#### Economics Dashboard (Milestone 9.6)
+
+**Target Evaluation**:
+- Static target ranges defined in code
+- Metrics evaluated against targets: below/within/above
+- Targets include: paid participation (8-25%), ETH/100 guesses (0.005-0.02), rounds ending before 750 (20-60%), referrer attach rate (20-60%)
+
+**Growth Curve Chart**:
+- X-axis: guess index (0-1500)
+- Y-axis: prize pool ETH
+- Shows median, P25, P75 percentile bands
+- 750 cutoff line annotated
+- Auto-generated interpretation
+
+**Compare Mode**:
+- "Last 10 vs Previous 10 rounds"
+- "Since config change" (when detected)
+- Side-by-side metrics comparison
+- Delta indicators for improvements/regressions
+
+**Config Snapshots**:
+- `round_economics_config` table stores per-round config
+- Automatically detects config changes
+- Enables before/after comparison
 
 #### API Endpoints
 
+**Admin Status:**
 - `GET /api/admin/me` - Check admin status
+
+**Operational:**
+- `GET /api/admin/operational/status` - Current operational state
+- `POST /api/admin/operational/kill-switch` - Toggle kill switch
+- `POST /api/admin/operational/dead-day` - Toggle dead day mode
+- `GET/POST /api/admin/operational/refunds` - Refund management
+
+**Analytics:**
 - `GET /api/admin/analytics/dau` - DAU data
 - `GET /api/admin/analytics/wau` - WAU data
 - `GET /api/admin/analytics/free-paid` - Free/paid ratio
 - `GET /api/admin/analytics/jackpot` - Jackpot growth
 - `GET /api/admin/analytics/referral` - Referral funnel
 - `GET /api/admin/analytics/events` - Raw events (paginated)
+- `GET /api/admin/analytics/economics` - Economics metrics with targets
+
+**Archive:**
+- `POST /api/admin/archive/sync` - Sync rounds to archive
+- `GET /api/admin/archive/errors` - View archive errors
+- `GET /api/admin/archive/debug/:roundNumber` - Debug specific round
 
 All endpoints:
 - Require admin FID check

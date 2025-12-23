@@ -11,11 +11,77 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 8.1 Complete
+## 🎯 Current Status: Milestone 9.6 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully on-chain prize distribution with tiered Top-10 payouts, and **rotating share templates with refined UI/UX** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully on-chain prize distribution with tiered Top-10 payouts, rotating share templates, **operational controls (kill switch, dead day)**, and **enhanced economics dashboard with targets and comparison mode** are fully implemented and production-ready:
 
-### ✅ Milestone 8.1 - Rotating Share Copy Templates (Latest)
+### ✅ Milestone 9.6 - Economics Dashboard Enhancements (Latest)
+
+Enhanced the Economics tab with decision-oriented features for comparing metrics over time:
+
+- **Target Evaluation Layer**
+  - Static target ranges for key metrics (paid participation 8-25%, ETH/100 guesses 0.005-0.02, etc.)
+  - "Below/Within/Above target" badges on scorecard tiles
+  - Delta display showing distance from target range
+  - Target-aware guidance recommendations ("Below target in 7 of last 10 rounds")
+
+- **Prize Pool Growth Curve Chart**
+  - SVG chart showing cumulative pool ETH vs guess index
+  - Median line with P25-P75 shaded envelope
+  - 750 cutoff vertical annotation line
+  - Auto-interpretation of growth pattern (early-heavy, balanced, late-heavy)
+
+- **Per-Round Economics Config Snapshots** (`src/db/schema.ts`, `migrations/0010_economics_config_snapshots.sql`)
+  - New `round_economics_config` table stores config per round
+  - Captures: top-10 cutoff, pricing thresholds/prices, pool split params
+  - Config change detection for historical comparison
+
+- **Compare Mode**
+  - Dropdown selector: "Last 10 vs Previous 10 rounds" or "Since config change"
+  - Side-by-side comparison showing paid participation, ETH/100 guesses, rounds ending before 750
+  - Delta indicators with positive/negative styling
+
+### ✅ Milestone 9.5 - Kill Switch & Dead Day Operational Controls
+
+Added operational controls for emergency situations and planned maintenance:
+
+- **Unified Admin Dashboard** (`pages/admin/index.tsx`)
+  - Single page at `/admin` with tabbed interface
+  - Four tabs: Operations, Analytics, Round Archive, Economics
+  - URL query param navigation (`?tab=operations|analytics|archive|economics`)
+  - Persistent status strip showing operational state
+  - Keyboard shortcuts (1/2/3/4) for tab switching
+
+- **Kill Switch** (`pages/api/admin/operational/kill-switch.ts`)
+  - Emergency stop for active rounds
+  - Cancels current round and prevents new rounds from starting
+  - Requires reason for audit trail
+  - Triggers automatic refund process for cancelled rounds
+
+- **Dead Day Mode** (`pages/api/admin/operational/dead-day.ts`)
+  - Planned maintenance mode - no new rounds start
+  - Current round continues to completion
+  - Visual indicators in Operations tab
+
+- **Refund System** (`pages/api/admin/operational/refunds.ts`, `pages/api/cron/process-refunds.ts`)
+  - Automatic refund processing for cancelled rounds
+  - Tracks refund status: pending → processing → sent/failed
+  - Per-user refund aggregation from pack purchases
+  - Cron job for batch processing
+
+- **Operations Dashboard** (`components/admin/OperationsSection.tsx`)
+  - Real-time operational status display
+  - Kill switch and dead day toggle controls
+  - Refund progress tracking
+  - Audit log of operational events
+
+- **Database Schema Updates** (`src/db/schema.ts`)
+  - `pack_purchases` table for tracking individual purchases
+  - `refunds` table for refund tracking
+  - `operational_events` table for audit logging
+  - Round status field: `active` | `resolved` | `cancelled`
+
+### ✅ Milestone 8.1 - Rotating Share Copy Templates
 
 Added variety to share prompts with rotating copy templates for incorrect guesses:
 
