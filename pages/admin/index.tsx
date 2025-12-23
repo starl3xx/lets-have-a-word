@@ -1,11 +1,11 @@
 /**
  * Unified Admin Dashboard
- * Combines Operations, Analytics, and Archive into a single tabbed interface
+ * Combines Operations, Analytics, Archive, and Economics into a single tabbed interface
  *
  * Features:
- * - Tab Navigation with URL query params (?tab=operations|analytics|archive)
+ * - Tab Navigation with URL query params (?tab=operations|analytics|archive|economics)
  * - Persistent status strip showing operational state across all tabs
- * - Keyboard shortcuts (1/2/3) for fast tab switching
+ * - Keyboard shortcuts (1/2/3/4) for fast tab switching
  */
 
 import React, { useState, useEffect, useCallback } from "react"
@@ -34,11 +34,16 @@ const ArchiveSection = dynamic(
   { ssr: false, loading: () => <SectionLoader name="Archive" /> }
 )
 
+const EconomicsSection = dynamic(
+  () => import("../../components/admin/EconomicsSection"),
+  { ssr: false, loading: () => <SectionLoader name="Economics" /> }
+)
+
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = 'operations' | 'analytics' | 'archive'
+type TabId = 'operations' | 'analytics' | 'archive' | 'economics'
 
 interface DashboardContentProps {
   user?: {
@@ -234,6 +239,7 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '1' },
   { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '2' },
   { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '3' },
+  { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '4' },
 ]
 
 // =============================================================================
@@ -418,6 +424,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         case '3':
           handleTabChange('archive')
           break
+        case '4':
+          handleTabChange('economics')
+          break
       }
     }
 
@@ -482,6 +491,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         {activeTab === 'operations' && <OperationsSection user={user} />}
         {activeTab === 'analytics' && <AnalyticsSection user={user} />}
         {activeTab === 'archive' && <ArchiveSection user={user} />}
+        {activeTab === 'economics' && <EconomicsSection user={user} />}
       </div>
     </div>
   )
