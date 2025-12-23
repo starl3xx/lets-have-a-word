@@ -438,3 +438,46 @@ export const operationalEvents = pgTable('operational_events', {
 
 export type OperationalEventRow = typeof operationalEvents.$inferSelect;
 export type OperationalEventInsert = typeof operationalEvents.$inferInsert;
+
+/**
+ * Round Economics Config Snapshots Table
+ * Stores the economics configuration active for each round
+ * Milestone 9.6: Economics dashboard improvements
+ */
+export interface RoundEconomicsConfigData {
+  // Top-10 cutoff threshold
+  top10CutoffGuesses: number;
+
+  // Pricing phase thresholds and prices
+  pricing: {
+    basePrice: string; // ETH
+    priceRampStart: number; // guesses
+    priceStepGuesses: number;
+    priceStepIncrease: string; // ETH
+    maxPrice: string; // ETH
+  };
+
+  // Pool split parameters
+  poolSplit: {
+    winnerPct: number;
+    top10Pct: number;
+    referrerPct: number;
+    seedPct: number;
+    creatorPct: number;
+    // Fallback when no referrer
+    fallbackTop10Pct: number;
+    fallbackSeedPct: number;
+  };
+}
+
+export const roundEconomicsConfig = pgTable('round_economics_config', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id).unique(),
+  config: jsonb('config').$type<RoundEconomicsConfigData>().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('round_economics_config_round_idx').on(table.roundId),
+}));
+
+export type RoundEconomicsConfigRow = typeof roundEconomicsConfig.$inferSelect;
+export type RoundEconomicsConfigInsert = typeof roundEconomicsConfig.$inferInsert;

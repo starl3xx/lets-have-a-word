@@ -1,34 +1,101 @@
 /**
  * Economics Analytics API
- * Provides aggregated economics metrics for the admin Economics dashboard
+ * Milestone 9.6: Enhanced economics dashboard with targets, growth curves, and comparison
  *
- * Metrics include:
- * - Paid participation rates
- * - Prize pool velocity
- * - Pricing phase effectiveness
- * - Top-10 incentive analysis
- * - 750-cutoff diagnostics
- * - Pool split & referral analysis
+ * Features:
+ * - Paid participation rates with target evaluation
+ * - Prize pool velocity with target evaluation
+ * - Prize pool growth curve (median, p25, p75)
+ * - Per-round config snapshots
+ * - Compare mode for period comparisons
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
-import { rounds, guesses, packPurchases } from '../../../../src/db/schema';
-import { eq, sql, desc, and, gte, isNotNull, count, sum, avg } from 'drizzle-orm';
+import { rounds, guesses, packPurchases, roundEconomicsConfig } from '../../../../src/db/schema';
+import type { RoundEconomicsConfigData } from '../../../../src/db/schema';
+import { sql, desc, and, gte, isNotNull, count, sum, avg, lt, lte } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
+import {
+  PRICE_RAMP_START_GUESSES,
+  PRICE_STEP_GUESSES,
+  BASE_PACK_PRICE_WEI,
+  PRICE_STEP_INCREASE_WEI,
+  MAX_PACK_PRICE_WEI,
+  weiToEthString,
+} from '../../../../src/lib/pack-pricing';
+
+// =============================================================================
+// Target Configuration (static for now)
+// =============================================================================
+
+export const ECONOMICS_TARGETS = {
+  paidParticipation: { min: 8, max: 25, unit: '%' as const },
+  ethPer100Guesses: { min: 0.005, max: 0.02, unit: 'ETH' as const },
+  roundsEndingBefore750: { min: 20, max: 60, unit: '%' as const },
+  packsBefore750: { min: 40, max: 80, unit: '%' as const },
+  referrerAttachRate: { min: 20, max: 60, unit: '%' as const },
+  medianRoundLength: { min: 300, max: 1200, unit: 'guesses' as const },
+};
+
+type TargetStatus = 'below' | 'within' | 'above';
+
+function evaluateTarget(value: number, target: { min: number; max: number }): TargetStatus {
+  if (value < target.min) return 'below';
+  if (value > target.max) return 'above';
+  return 'within';
+}
+
+function formatDelta(value: number, target: { min: number; max: number }): string | null {
+  if (value < target.min) {
+    return `${(target.min - value).toFixed(1)} below min`;
+  }
+  if (value > target.max) {
+    return `${(value - target.max).toFixed(1)} above max`;
+  }
+  return null;
+}
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface TargetEvaluation {
+  value: number;
+  status: TargetStatus;
+  delta: string | null;
+  target: { min: number; max: number };
+}
+
+interface GrowthCurvePoint {
+  guessIndex: number;
+  median: number;
+  p25: number;
+  p75: number;
+}
+
+interface ComparisonMetrics {
+  paidParticipation: number;
+  ethPer100Guesses: number;
+  packsBefore750Pct: number;
+  roundsEndingBefore750Pct: number;
+  roundCount: number;
+}
 
 interface EconomicsData {
-  // Health overview metrics
+  // Health overview metrics with target evaluation
   healthOverview: {
     paidParticipation: {
-      rate: number; // % of guesses that are paid
+      rate: number;
       trend: 'up' | 'down' | 'stable';
       descriptor: string;
+      target: TargetEvaluation;
     };
     prizePoolVelocity: {
       ethPer100Guesses: number;
       descriptor: string;
+      target: TargetEvaluation;
     };
     pricingPhaseEffectiveness: {
       earlyPct: number;
@@ -37,7 +104,7 @@ interface EconomicsData {
       descriptor: string;
     };
     top10IncentiveStrength: {
-      poolPct: number; // Top-10 pool as % of total paid ETH
+      poolPct: number;
       descriptor: string;
     };
   };
@@ -57,7 +124,7 @@ interface EconomicsData {
     }>;
   };
 
-  // 750-cutoff diagnostics
+  // 750-cutoff diagnostics with targets
   cutoffDiagnostics: {
     roundLengthDistribution: {
       median: number;
@@ -67,13 +134,16 @@ interface EconomicsData {
       max: number;
     };
     roundsEndingBefore750Pct: number;
+    roundsEndingBefore750Target: TargetEvaluation;
     packsPurchasedBefore750Pct: number;
+    packsBefore750Target: TargetEvaluation;
     avgGuessesAtRank10Lock: number | null;
   };
 
   // Pool split analysis
   poolSplit: {
     roundsWithReferrerPct: number;
+    referrerTarget: TargetEvaluation;
     fallbackFrequencyPct: number;
     ethDistribution: {
       toWinner: number;
@@ -89,6 +159,32 @@ interface EconomicsData {
     } | null;
   };
 
+  // Prize pool growth curve
+  growthCurve: {
+    points: GrowthCurvePoint[];
+    interpretation: string;
+  };
+
+  // Current economics config snapshot
+  currentConfig: RoundEconomicsConfigData | null;
+
+  // Config change detection
+  configChange: {
+    detected: boolean;
+    changeRoundId: number | null;
+    changeDate: string | null;
+    previousConfig: RoundEconomicsConfigData | null;
+  } | null;
+
+  // Comparison data (if requested)
+  comparison: {
+    mode: 'recent_vs_previous' | 'since_config_change' | null;
+    recent: ComparisonMetrics;
+    baseline: ComparisonMetrics;
+    recentLabel: string;
+    baselineLabel: string;
+  } | null;
+
   // Guidance recommendations
   guidance: Array<{
     condition: string;
@@ -97,6 +193,7 @@ interface EconomicsData {
   }>;
 
   // Metadata
+  targets: typeof ECONOMICS_TARGETS;
   dataRange: {
     roundCount: number;
     oldestRound: string | null;
@@ -104,6 +201,10 @@ interface EconomicsData {
   };
   timestamp: string;
 }
+
+// =============================================================================
+// API Handler
+// =============================================================================
 
 export default async function handler(
   req: NextApiRequest,
@@ -114,17 +215,22 @@ export default async function handler(
   }
 
   const devFid = req.query.devFid ? parseInt(req.query.devFid as string, 10) : null;
+  const compareMode = req.query.compare as string | undefined;
 
   if (!isAdminFid(devFid)) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
   try {
-    const cacheKey = CacheKeys.adminAnalytics('economics');
+    // Use different cache key if comparison is requested
+    const cacheKey = compareMode
+      ? CacheKeys.adminAnalytics(`economics:${compareMode}`)
+      : CacheKeys.adminAnalytics('economics');
+
     const data = await cacheAside<EconomicsData>(
       cacheKey,
       CacheTTL.adminAnalytics,
-      computeEconomicsData
+      () => computeEconomicsData(compareMode)
     );
 
     return res.status(200).json(data);
@@ -134,8 +240,11 @@ export default async function handler(
   }
 }
 
-async function computeEconomicsData(): Promise<EconomicsData> {
-  // Get resolved rounds from the last 30 days for analysis
+// =============================================================================
+// Main Computation
+// =============================================================================
+
+async function computeEconomicsData(compareMode?: string): Promise<EconomicsData> {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -156,7 +265,14 @@ async function computeEconomicsData(): Promise<EconomicsData> {
     ))
     .orderBy(desc(rounds.resolvedAt));
 
-  // Get guess counts and paid/free breakdown
+  if (resolvedRounds.length === 0) {
+    return getEmptyData();
+  }
+
+  const roundIds = resolvedRounds.map(r => r.id);
+  const roundIdsStr = roundIds.join(',') || '0';
+
+  // Get guess counts and paid/free breakdown per round
   const guessStats = await db
     .select({
       roundId: guesses.roundId,
@@ -165,7 +281,7 @@ async function computeEconomicsData(): Promise<EconomicsData> {
       freeGuesses: sql<number>`COUNT(*) FILTER (WHERE ${guesses.isPaid} = false)`,
     })
     .from(guesses)
-    .where(sql`${guesses.roundId} IN (${sql.raw(resolvedRounds.map(r => r.id).join(',') || '0')})`)
+    .where(sql`${guesses.roundId} IN (${sql.raw(roundIdsStr)})`)
     .groupBy(guesses.roundId);
 
   const guessStatsByRound = new Map(guessStats.map(g => [g.roundId, g]));
@@ -180,10 +296,10 @@ async function computeEconomicsData(): Promise<EconomicsData> {
       purchaseCount: count(),
     })
     .from(packPurchases)
-    .where(sql`${packPurchases.roundId} IN (${sql.raw(resolvedRounds.map(r => r.id).join(',') || '0')})`)
+    .where(sql`${packPurchases.roundId} IN (${sql.raw(roundIdsStr)})`)
     .groupBy(packPurchases.pricingPhase);
 
-  // Get purchases by interval (buckets of 100 guesses)
+  // Get purchases by interval
   const purchasesByInterval = await db
     .select({
       bucket: sql<number>`FLOOR(${packPurchases.totalGuessesAtPurchase} / 100) * 100`,
@@ -191,27 +307,47 @@ async function computeEconomicsData(): Promise<EconomicsData> {
       totalEth: sum(packPurchases.totalPriceEth),
     })
     .from(packPurchases)
-    .where(sql`${packPurchases.roundId} IN (${sql.raw(resolvedRounds.map(r => r.id).join(',') || '0')})`)
+    .where(sql`${packPurchases.roundId} IN (${sql.raw(roundIdsStr)})`)
     .groupBy(sql`FLOOR(${packPurchases.totalGuessesAtPurchase} / 100) * 100`)
     .orderBy(sql`FLOOR(${packPurchases.totalGuessesAtPurchase} / 100) * 100`);
 
-  // Calculate total guesses and paid rate
+  // Get prize pool progression for growth curve
+  const growthCurve = await computeGrowthCurve(roundIds);
+
+  // Get config snapshots for comparison
+  const configSnapshots = await db
+    .select()
+    .from(roundEconomicsConfig)
+    .where(sql`${roundEconomicsConfig.roundId} IN (${sql.raw(roundIdsStr)})`)
+    .orderBy(desc(roundEconomicsConfig.roundId));
+
+  // Detect config changes
+  const configChange = detectConfigChange(configSnapshots);
+
+  // Calculate metrics
   let totalGuesses = 0;
   let totalPaidGuesses = 0;
   const roundLengths: number[] = [];
+  const roundData: Array<{ roundId: number; length: number; paidRate: number; poolEth: number }> = [];
 
   for (const round of resolvedRounds) {
     const stats = guessStatsByRound.get(round.id);
     if (stats) {
-      totalGuesses += Number(stats.totalGuesses);
-      totalPaidGuesses += Number(stats.paidGuesses);
-      roundLengths.push(Number(stats.totalGuesses));
+      const length = Number(stats.totalGuesses);
+      const paid = Number(stats.paidGuesses);
+      totalGuesses += length;
+      totalPaidGuesses += paid;
+      roundLengths.push(length);
+      roundData.push({
+        roundId: round.id,
+        length,
+        paidRate: length > 0 ? (paid / length) * 100 : 0,
+        poolEth: parseFloat(round.prizePoolEth || '0'),
+      });
     }
   }
 
   const paidRate = totalGuesses > 0 ? (totalPaidGuesses / totalGuesses) * 100 : 0;
-
-  // Calculate prize pool velocity (ETH per 100 guesses)
   const totalPoolEth = resolvedRounds.reduce((sum, r) => sum + parseFloat(r.prizePoolEth || '0'), 0);
   const ethPer100Guesses = totalGuesses > 0 ? (totalPoolEth / totalGuesses) * 100 : 0;
 
@@ -255,9 +391,7 @@ async function computeEconomicsData(): Promise<EconomicsData> {
     : 0;
 
   // % of packs purchased before 750
-  const packsBefore750 = phaseStats.early.count;
-  const packsAfter750 = phaseStats.late.count + phaseStats.lateMax.count;
-  const packsBefore750Pct = totalPacks > 0 ? (packsBefore750 / totalPacks) * 100 : 0;
+  const packsBefore750Pct = totalPacks > 0 ? (phaseStats.early.count / totalPacks) * 100 : 0;
 
   // Referrer analysis
   const roundsWithReferrer = resolvedRounds.filter(r => r.referrerFid !== null).length;
@@ -265,13 +399,12 @@ async function computeEconomicsData(): Promise<EconomicsData> {
     ? (roundsWithReferrer / resolvedRounds.length) * 100
     : 0;
 
-  // Calculate ETH distribution (based on 80/10/10 split)
-  // Winner: 80%, Top-10: 10%, Referrer: 10% (or redistributed if no referrer)
+  // Calculate ETH distribution
   const totalDistributedEth = totalPoolEth;
   const ethToWinner = totalDistributedEth * 0.8;
   const ethToTop10 = totalDistributedEth * 0.1;
   const ethToReferrals = totalDistributedEth * 0.1 * (roundsWithReferrerPct / 100);
-  const ethToSeed = totalDistributedEth * 0.1 * ((100 - roundsWithReferrerPct) / 100) * 0.25; // 2.5% of 10%
+  const ethToSeed = totalDistributedEth * 0.1 * ((100 - roundsWithReferrerPct) / 100) * 0.25;
 
   // Top-10 pool as % of total paid ETH
   const totalPaidEth = phaseStats.early.ethTotal + phaseStats.late.ethTotal + phaseStats.lateMax.ethTotal;
@@ -282,7 +415,43 @@ async function computeEconomicsData(): Promise<EconomicsData> {
     ? parseFloat(resolvedRounds[Math.floor(resolvedRounds.length / 2)].prizePoolEth || '0')
     : null;
 
-  // Generate guidance
+  // Build target evaluations
+  const paidParticipationTarget: TargetEvaluation = {
+    value: paidRate,
+    status: evaluateTarget(paidRate, ECONOMICS_TARGETS.paidParticipation),
+    delta: formatDelta(paidRate, ECONOMICS_TARGETS.paidParticipation),
+    target: ECONOMICS_TARGETS.paidParticipation,
+  };
+
+  const ethPer100Target: TargetEvaluation = {
+    value: ethPer100Guesses,
+    status: evaluateTarget(ethPer100Guesses, ECONOMICS_TARGETS.ethPer100Guesses),
+    delta: formatDelta(ethPer100Guesses, ECONOMICS_TARGETS.ethPer100Guesses),
+    target: ECONOMICS_TARGETS.ethPer100Guesses,
+  };
+
+  const roundsEndingTarget: TargetEvaluation = {
+    value: roundsEndingBefore750Pct,
+    status: evaluateTarget(roundsEndingBefore750Pct, ECONOMICS_TARGETS.roundsEndingBefore750),
+    delta: formatDelta(roundsEndingBefore750Pct, ECONOMICS_TARGETS.roundsEndingBefore750),
+    target: ECONOMICS_TARGETS.roundsEndingBefore750,
+  };
+
+  const packsBefore750Target: TargetEvaluation = {
+    value: packsBefore750Pct,
+    status: evaluateTarget(packsBefore750Pct, ECONOMICS_TARGETS.packsBefore750),
+    delta: formatDelta(packsBefore750Pct, ECONOMICS_TARGETS.packsBefore750),
+    target: ECONOMICS_TARGETS.packsBefore750,
+  };
+
+  const referrerTarget: TargetEvaluation = {
+    value: roundsWithReferrerPct,
+    status: evaluateTarget(roundsWithReferrerPct, ECONOMICS_TARGETS.referrerAttachRate),
+    delta: formatDelta(roundsWithReferrerPct, ECONOMICS_TARGETS.referrerAttachRate),
+    target: ECONOMICS_TARGETS.referrerAttachRate,
+  };
+
+  // Generate guidance with target references
   const guidance = generateGuidance({
     paidRate,
     earlyPct,
@@ -291,6 +460,10 @@ async function computeEconomicsData(): Promise<EconomicsData> {
     roundsWithReferrerPct,
     ethPer100Guesses,
     median,
+    paidParticipationTarget,
+    roundsEndingTarget,
+    referrerTarget,
+    roundData,
   });
 
   // Format intervals for chart
@@ -301,16 +474,28 @@ async function computeEconomicsData(): Promise<EconomicsData> {
     ethTotal: parseFloat(String(p.totalEth)) || 0,
   }));
 
+  // Get current config snapshot
+  const currentConfig = getCurrentEconomicsConfig();
+
+  // Build comparison data if requested
+  const comparison = await buildComparisonData(
+    compareMode,
+    roundData,
+    configChange
+  );
+
   return {
     healthOverview: {
       paidParticipation: {
         rate: Math.round(paidRate * 10) / 10,
-        trend: 'stable', // Would need historical data for trend
+        trend: 'stable',
         descriptor: paidRate >= 15 ? 'Healthy' : paidRate >= 8 ? 'Moderate' : 'Low',
+        target: paidParticipationTarget,
       },
       prizePoolVelocity: {
         ethPer100Guesses: Math.round(ethPer100Guesses * 10000) / 10000,
         descriptor: ethPer100Guesses >= 0.01 ? 'Strong growth' : ethPer100Guesses >= 0.005 ? 'Moderate' : 'Slow',
+        target: ethPer100Target,
       },
       pricingPhaseEffectiveness: {
         earlyPct: Math.round(earlyPct),
@@ -336,11 +521,14 @@ async function computeEconomicsData(): Promise<EconomicsData> {
         max: roundLengths[roundLengths.length - 1] || 0,
       },
       roundsEndingBefore750Pct: Math.round(roundsEndingBefore750Pct),
+      roundsEndingBefore750Target: roundsEndingTarget,
       packsPurchasedBefore750Pct: Math.round(packsBefore750Pct),
-      avgGuessesAtRank10Lock: null, // Would need top-10 tracking data
+      packsBefore750Target: packsBefore750Target,
+      avgGuessesAtRank10Lock: null,
     },
     poolSplit: {
       roundsWithReferrerPct: Math.round(roundsWithReferrerPct),
+      referrerTarget: referrerTarget,
       fallbackFrequencyPct: Math.round(100 - roundsWithReferrerPct),
       ethDistribution: {
         toWinner: Math.round(ethToWinner * 10000) / 10000,
@@ -355,7 +543,12 @@ async function computeEconomicsData(): Promise<EconomicsData> {
         referrer: Math.round(medianPool * 0.1 * 10000) / 10000,
       } : null,
     },
+    growthCurve,
+    currentConfig,
+    configChange,
+    comparison,
     guidance,
+    targets: ECONOMICS_TARGETS,
     dataRange: {
       roundCount: resolvedRounds.length,
       oldestRound: resolvedRounds.length > 0
@@ -369,6 +562,257 @@ async function computeEconomicsData(): Promise<EconomicsData> {
   };
 }
 
+// =============================================================================
+// Growth Curve Computation
+// =============================================================================
+
+async function computeGrowthCurve(roundIds: number[]): Promise<{
+  points: GrowthCurvePoint[];
+  interpretation: string;
+}> {
+  if (roundIds.length === 0) {
+    return { points: [], interpretation: 'No data available' };
+  }
+
+  // Get cumulative pool progression by guess index for each round
+  // We'll sample at 50-guess intervals up to 1500
+  const intervals = [0, 50, 100, 150, 200, 250, 300, 400, 500, 600, 750, 900, 1000, 1200, 1500];
+
+  // Get pack purchases grouped by round and cumulative progress
+  const roundIdsStr = roundIds.join(',') || '0';
+  const purchaseData = await db
+    .select({
+      roundId: packPurchases.roundId,
+      guessIndex: packPurchases.totalGuessesAtPurchase,
+      priceEth: packPurchases.totalPriceEth,
+    })
+    .from(packPurchases)
+    .where(sql`${packPurchases.roundId} IN (${sql.raw(roundIdsStr)})`)
+    .orderBy(packPurchases.roundId, packPurchases.totalGuessesAtPurchase);
+
+  // Build cumulative pool by guess index for each round
+  const roundPools: Map<number, Map<number, number>> = new Map();
+
+  for (const purchase of purchaseData) {
+    if (!roundPools.has(purchase.roundId)) {
+      roundPools.set(purchase.roundId, new Map());
+    }
+    const poolMap = roundPools.get(purchase.roundId)!;
+
+    // Get current cumulative total for this round
+    const entries = Array.from(poolMap.entries()).sort((a, b) => b[0] - a[0]);
+    const lastCumulative = entries.length > 0 ? entries[0][1] : 0;
+    const newCumulative = lastCumulative + parseFloat(purchase.priceEth);
+
+    poolMap.set(purchase.guessIndex, newCumulative);
+  }
+
+  // For each interval, collect the pool values across all rounds
+  const points: GrowthCurvePoint[] = [];
+
+  for (const interval of intervals) {
+    const values: number[] = [];
+
+    for (const [_roundId, poolMap] of roundPools) {
+      // Find the cumulative pool at or before this interval
+      const entries = Array.from(poolMap.entries())
+        .filter(([idx]) => idx <= interval)
+        .sort((a, b) => b[0] - a[0]);
+
+      const poolValue = entries.length > 0 ? entries[0][1] : 0;
+      values.push(poolValue);
+    }
+
+    if (values.length === 0) {
+      points.push({ guessIndex: interval, median: 0, p25: 0, p75: 0 });
+      continue;
+    }
+
+    values.sort((a, b) => a - b);
+    const median = values[Math.floor(values.length / 2)];
+    const p25 = values[Math.floor(values.length * 0.25)];
+    const p75 = values[Math.floor(values.length * 0.75)];
+
+    points.push({
+      guessIndex: interval,
+      median: Math.round(median * 10000) / 10000,
+      p25: Math.round(p25 * 10000) / 10000,
+      p75: Math.round(p75 * 10000) / 10000,
+    });
+  }
+
+  // Generate interpretation
+  const earlyGrowth = points.find(p => p.guessIndex === 300)?.median || 0;
+  const midGrowth = points.find(p => p.guessIndex === 750)?.median || 0;
+  const lateGrowth = points.find(p => p.guessIndex === 1200)?.median || 0;
+
+  let interpretation = '';
+  if (earlyGrowth > 0 && midGrowth > 0) {
+    const earlyToMidRatio = (midGrowth - earlyGrowth) / earlyGrowth;
+    if (earlyToMidRatio > 1) {
+      interpretation = 'Growth accelerates after 750 (late-round pricing activates). Strong late-round buying.';
+    } else if (earlyToMidRatio > 0.3) {
+      interpretation = 'Steady growth throughout rounds. Good balance of early and late buying.';
+    } else {
+      interpretation = 'Most growth happens early. Late-round pricing may be too aggressive.';
+    }
+  } else if (points.some(p => p.median > 0)) {
+    interpretation = 'Limited purchase data. Growth curve may not be representative.';
+  } else {
+    interpretation = 'No purchase data available for growth curve analysis.';
+  }
+
+  return { points, interpretation };
+}
+
+// =============================================================================
+// Config Snapshots
+// =============================================================================
+
+function getCurrentEconomicsConfig(): RoundEconomicsConfigData {
+  return {
+    top10CutoffGuesses: 750,
+    pricing: {
+      basePrice: weiToEthString(BASE_PACK_PRICE_WEI),
+      priceRampStart: PRICE_RAMP_START_GUESSES,
+      priceStepGuesses: PRICE_STEP_GUESSES,
+      priceStepIncrease: weiToEthString(PRICE_STEP_INCREASE_WEI),
+      maxPrice: weiToEthString(MAX_PACK_PRICE_WEI),
+    },
+    poolSplit: {
+      winnerPct: 80,
+      top10Pct: 10,
+      referrerPct: 10,
+      seedPct: 0,
+      creatorPct: 0,
+      fallbackTop10Pct: 17.5,
+      fallbackSeedPct: 2.5,
+    },
+  };
+}
+
+function detectConfigChange(
+  snapshots: Array<{ roundId: number; config: RoundEconomicsConfigData; createdAt: Date }>
+): EconomicsData['configChange'] {
+  if (snapshots.length < 2) {
+    return { detected: false, changeRoundId: null, changeDate: null, previousConfig: null };
+  }
+
+  // Compare adjacent snapshots to find config changes
+  for (let i = 0; i < snapshots.length - 1; i++) {
+    const current = snapshots[i];
+    const previous = snapshots[i + 1];
+
+    // Simple comparison - check if key values differ
+    const currentConfig = current.config;
+    const previousConfig = previous.config;
+
+    const hasChange =
+      currentConfig.top10CutoffGuesses !== previousConfig.top10CutoffGuesses ||
+      currentConfig.pricing.priceRampStart !== previousConfig.pricing.priceRampStart ||
+      currentConfig.pricing.basePrice !== previousConfig.pricing.basePrice ||
+      currentConfig.poolSplit.winnerPct !== previousConfig.poolSplit.winnerPct;
+
+    if (hasChange) {
+      return {
+        detected: true,
+        changeRoundId: current.roundId,
+        changeDate: current.createdAt.toISOString(),
+        previousConfig: previousConfig,
+      };
+    }
+  }
+
+  return { detected: false, changeRoundId: null, changeDate: null, previousConfig: null };
+}
+
+// =============================================================================
+// Comparison Mode
+// =============================================================================
+
+async function buildComparisonData(
+  compareMode: string | undefined,
+  roundData: Array<{ roundId: number; length: number; paidRate: number; poolEth: number }>,
+  configChange: EconomicsData['configChange']
+): Promise<EconomicsData['comparison']> {
+  if (!compareMode || roundData.length < 5) {
+    return null;
+  }
+
+  // Sort rounds by ID (most recent first)
+  const sortedRounds = [...roundData].sort((a, b) => b.roundId - a.roundId);
+
+  if (compareMode === 'recent_vs_previous') {
+    // Compare last 10 rounds vs previous 10
+    const recentRounds = sortedRounds.slice(0, 10);
+    const baselineRounds = sortedRounds.slice(10, 20);
+
+    if (baselineRounds.length < 3) {
+      return null;
+    }
+
+    return {
+      mode: 'recent_vs_previous',
+      recent: computeComparisonMetrics(recentRounds),
+      baseline: computeComparisonMetrics(baselineRounds),
+      recentLabel: `Last ${recentRounds.length} rounds`,
+      baselineLabel: `Previous ${baselineRounds.length} rounds`,
+    };
+  }
+
+  if (compareMode === 'since_config_change' && configChange?.detected && configChange.changeRoundId) {
+    // Compare rounds after config change vs before
+    const afterChange = sortedRounds.filter(r => r.roundId >= configChange.changeRoundId!);
+    const beforeChange = sortedRounds.filter(r => r.roundId < configChange.changeRoundId!);
+
+    if (afterChange.length < 3 || beforeChange.length < 3) {
+      return null;
+    }
+
+    return {
+      mode: 'since_config_change',
+      recent: computeComparisonMetrics(afterChange),
+      baseline: computeComparisonMetrics(beforeChange),
+      recentLabel: `Since config change (${afterChange.length} rounds)`,
+      baselineLabel: `Before change (${beforeChange.length} rounds)`,
+    };
+  }
+
+  return null;
+}
+
+function computeComparisonMetrics(
+  rounds: Array<{ roundId: number; length: number; paidRate: number; poolEth: number }>
+): ComparisonMetrics {
+  if (rounds.length === 0) {
+    return {
+      paidParticipation: 0,
+      ethPer100Guesses: 0,
+      packsBefore750Pct: 0,
+      roundsEndingBefore750Pct: 0,
+      roundCount: 0,
+    };
+  }
+
+  const totalGuesses = rounds.reduce((sum, r) => sum + r.length, 0);
+  const avgPaidRate = rounds.reduce((sum, r) => sum + r.paidRate, 0) / rounds.length;
+  const totalPoolEth = rounds.reduce((sum, r) => sum + r.poolEth, 0);
+  const ethPer100 = totalGuesses > 0 ? (totalPoolEth / totalGuesses) * 100 : 0;
+  const roundsEndingBefore750 = rounds.filter(r => r.length < 750).length;
+
+  return {
+    paidParticipation: Math.round(avgPaidRate * 10) / 10,
+    ethPer100Guesses: Math.round(ethPer100 * 10000) / 10000,
+    packsBefore750Pct: 0, // Would need pack data per round
+    roundsEndingBefore750Pct: Math.round((roundsEndingBefore750 / rounds.length) * 100),
+    roundCount: rounds.length,
+  };
+}
+
+// =============================================================================
+// Guidance Generation
+// =============================================================================
+
 function generateGuidance(metrics: {
   paidRate: number;
   earlyPct: number;
@@ -377,19 +821,46 @@ function generateGuidance(metrics: {
   roundsWithReferrerPct: number;
   ethPer100Guesses: number;
   median: number;
+  paidParticipationTarget: TargetEvaluation;
+  roundsEndingTarget: TargetEvaluation;
+  referrerTarget: TargetEvaluation;
+  roundData: Array<{ roundId: number; length: number; paidRate: number; poolEth: number }>;
 }): EconomicsData['guidance'] {
   const guidance: EconomicsData['guidance'] = [];
 
-  // 750 cutoff analysis
-  if (metrics.roundsEndingBefore750Pct > 70) {
+  // Count rounds below target for recent window
+  const recentRounds = metrics.roundData.slice(0, 10);
+  const roundsBelowPaidTarget = recentRounds.filter(
+    r => r.paidRate < ECONOMICS_TARGETS.paidParticipation.min
+  ).length;
+
+  // Target-based guidance
+  if (metrics.paidParticipationTarget.status === 'below') {
     guidance.push({
-      condition: `${Math.round(metrics.roundsEndingBefore750Pct)}% of rounds end before 750 guesses`,
+      condition: roundsBelowPaidTarget > 5
+        ? `Below target in ${roundsBelowPaidTarget} of last 10 rounds (paid participation: ${metrics.paidRate.toFixed(1)}%)`
+        : `Paid participation (${metrics.paidRate.toFixed(1)}%) is below target range (${ECONOMICS_TARGETS.paidParticipation.min}-${ECONOMICS_TARGETS.paidParticipation.max}%)`,
+      recommendation: 'Consider improving paid value proposition or limiting free guesses',
+      severity: roundsBelowPaidTarget > 7 ? 'action' : 'warning',
+    });
+  } else if (metrics.paidParticipationTarget.status === 'above') {
+    guidance.push({
+      condition: `Paid participation (${metrics.paidRate.toFixed(1)}%) is above target range`,
+      recommendation: 'Strong monetization. Consider if paid pressure is too high for new users',
+      severity: 'info',
+    });
+  }
+
+  // 750 cutoff analysis with target
+  if (metrics.roundsEndingTarget.status === 'above') {
+    guidance.push({
+      condition: `${Math.round(metrics.roundsEndingBefore750Pct)}% of rounds end before 750 (above ${ECONOMICS_TARGETS.roundsEndingBefore750.max}% target)`,
       recommendation: 'Consider lowering the late-pricing cutoff to capture more late-round purchases',
       severity: 'warning',
     });
-  } else if (metrics.roundsEndingBefore750Pct < 30) {
+  } else if (metrics.roundsEndingTarget.status === 'below') {
     guidance.push({
-      condition: `Only ${Math.round(metrics.roundsEndingBefore750Pct)}% of rounds end before 750 guesses`,
+      condition: `Only ${Math.round(metrics.roundsEndingBefore750Pct)}% of rounds end before 750`,
       recommendation: 'Current cutoff is well-placed; most rounds reach late pricing',
       severity: 'info',
     });
@@ -402,9 +873,7 @@ function generateGuidance(metrics: {
       recommendation: 'Consider strengthening early-round incentives or lowering base pack price',
       severity: 'warning',
     });
-  }
-
-  if (metrics.earlyPct > 80) {
+  } else if (metrics.earlyPct > 80) {
     guidance.push({
       condition: `${Math.round(metrics.earlyPct)}% of packs purchased at early pricing`,
       recommendation: 'Late pricing tiers may be too aggressive; consider gentler price increases',
@@ -412,47 +881,99 @@ function generateGuidance(metrics: {
     });
   }
 
-  // Referral attach rate
-  if (metrics.roundsWithReferrerPct < 20) {
+  // Referral attach rate with target
+  if (metrics.referrerTarget.status === 'below') {
     guidance.push({
-      condition: `Only ${Math.round(metrics.roundsWithReferrerPct)}% of winners had referrers`,
+      condition: `Referrer attach rate (${Math.round(metrics.roundsWithReferrerPct)}%) is below target (${ECONOMICS_TARGETS.referrerAttachRate.min}%)`,
       recommendation: 'Low referral attach rate suggests UX friction; consider improving referral visibility before adjusting percentages',
       severity: 'warning',
     });
   }
 
   // Pool growth
-  if (metrics.ethPer100Guesses < 0.003) {
+  if (metrics.ethPer100Guesses < ECONOMICS_TARGETS.ethPer100Guesses.min) {
     guidance.push({
-      condition: `Pool grows slowly (${(metrics.ethPer100Guesses * 1000).toFixed(2)} ETH per 1000 guesses)`,
+      condition: `Pool velocity (${(metrics.ethPer100Guesses).toFixed(4)} ETH/100 guesses) is below target`,
       recommendation: 'Pricing slope may be too shallow; consider increasing pack prices or purchase frequency',
       severity: 'action',
     });
   }
 
-  // Paid participation
-  if (metrics.paidRate < 5) {
+  // Round length
+  if (metrics.median < ECONOMICS_TARGETS.medianRoundLength.min) {
     guidance.push({
-      condition: `Very low paid participation (${metrics.paidRate.toFixed(1)}%)`,
-      recommendation: 'Most users rely on free guesses; consider limiting free guesses or improving paid value proposition',
-      severity: 'action',
-    });
-  } else if (metrics.paidRate > 25) {
-    guidance.push({
-      condition: `High paid participation (${metrics.paidRate.toFixed(1)}%)`,
-      recommendation: 'Strong monetization; current incentive balance is working',
+      condition: `Median round length (${metrics.median} guesses) is below target range`,
+      recommendation: 'Rounds may be ending too quickly for prize pool growth; consider harder words',
       severity: 'info',
     });
   }
 
-  // Round length
-  if (metrics.median < 200) {
+  // All within target - positive feedback
+  const allWithinTarget =
+    metrics.paidParticipationTarget.status === 'within' &&
+    metrics.roundsEndingTarget.status === 'within' &&
+    metrics.referrerTarget.status === 'within';
+
+  if (allWithinTarget && guidance.length === 0) {
     guidance.push({
-      condition: `Median round length is short (${metrics.median} guesses)`,
-      recommendation: 'Rounds may be ending too quickly for prize pool growth; consider harder words or larger word pool',
+      condition: 'All key metrics are within target ranges',
+      recommendation: 'Economics are healthy. Continue monitoring for trends',
       severity: 'info',
     });
   }
 
   return guidance;
+}
+
+// =============================================================================
+// Empty Data Helper
+// =============================================================================
+
+function getEmptyData(): EconomicsData {
+  const emptyTarget: TargetEvaluation = {
+    value: 0,
+    status: 'within',
+    delta: null,
+    target: { min: 0, max: 100 },
+  };
+
+  return {
+    healthOverview: {
+      paidParticipation: { rate: 0, trend: 'stable', descriptor: 'No data', target: emptyTarget },
+      prizePoolVelocity: { ethPer100Guesses: 0, descriptor: 'No data', target: emptyTarget },
+      pricingPhaseEffectiveness: { earlyPct: 0, latePct: 0, lateMaxPct: 0, descriptor: 'No data' },
+      top10IncentiveStrength: { poolPct: 0, descriptor: 'No data' },
+    },
+    packPricing: {
+      byPhase: {
+        early: { count: 0, ethTotal: 0, avgGuessIndex: 0 },
+        late: { count: 0, ethTotal: 0, avgGuessIndex: 0 },
+        lateMax: { count: 0, ethTotal: 0, avgGuessIndex: 0 },
+      },
+      purchasesByInterval: [],
+    },
+    cutoffDiagnostics: {
+      roundLengthDistribution: { median: 0, p25: 0, p75: 0, min: 0, max: 0 },
+      roundsEndingBefore750Pct: 0,
+      roundsEndingBefore750Target: emptyTarget,
+      packsPurchasedBefore750Pct: 0,
+      packsBefore750Target: emptyTarget,
+      avgGuessesAtRank10Lock: null,
+    },
+    poolSplit: {
+      roundsWithReferrerPct: 0,
+      referrerTarget: emptyTarget,
+      fallbackFrequencyPct: 0,
+      ethDistribution: { toWinner: 0, toTop10: 0, toReferrals: 0, toNextRoundSeed: 0 },
+      examplePayout: null,
+    },
+    growthCurve: { points: [], interpretation: 'No data available' },
+    currentConfig: getCurrentEconomicsConfig(),
+    configChange: null,
+    comparison: null,
+    guidance: [],
+    targets: ECONOMICS_TARGETS,
+    dataRange: { roundCount: 0, oldestRound: null, newestRound: null },
+    timestamp: new Date().toISOString(),
+  };
 }
