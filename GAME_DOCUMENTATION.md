@@ -1356,18 +1356,26 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
 #### 6.7.1: Incorrect Guess Banner Flow + Input Reset
 - **Goal**: Improve UX after incorrect guesses with timed state transitions
 - **Incorrect State Machine** (`pages/index.tsx`):
-  - `type IncorrectState = 'none' | 'active' | 'faded'`
+  - `type IncorrectState = 'none' | 'active' | 'faded' | 'fading_out'`
   - `none`: No incorrect banner visible
-  - `active`: Bright red error, input locked visually (2 seconds)
+  - `active`: Bright red error, input locked visually
   - `faded`: Softer gray banner showing context, input ready again
-- **Timing**:
-  - On incorrect guess → enter `active` for `INCORRECT_ACTIVE_DURATION_MS` (2000ms)
-  - After timeout → transition to `faded` only if user still has guesses remaining
-  - If user submits new guess before timeout → cancel timer, go back through `active`
+  - `fading_out`: Gray banner fading to transparent before dismissal
+- **Timing** (Milestone 7.x refinements):
+  - `INCORRECT_ACTIVE_DURATION_MS = 1500` (1.5s red state)
+  - Red-to-gray transition: 1s (CSS transition on colors)
+  - `INCORRECT_FADED_DURATION_MS = 1500` (1.5s gray state)
+  - `INCORRECT_FADEOUT_DURATION_MS = 1000` (1s opacity fade out)
+- **Color Transitions** (`components/ResultBanner.tsx`):
+  - Smooth CSS transitions: `border-color 1000ms, background-color 1000ms, color 1000ms`
+  - Faded state changes colors from red to gray via `faded` prop
+  - Opacity transition for fade out: `opacity 1000ms ease-out`
 - **Banner Behavior**:
   - `active`: Red banner with "Incorrect! WORD is not the secret word."
-  - `faded`: Gray banner (opacity 0.7) with same message, gray X icon
+  - `faded`: Gray banner (opacity 0.8) with same message
+  - `fading_out`: Gray banner fading to opacity 0
   - Message uses `lastSubmittedGuess` to persist word context
+  - Clears `result` on dismiss to prevent banner reverting to red
 - **Input Box Behavior**:
   - `active`: Red borders, empty, visually locked (`boxResultState = 'wrong'`)
   - `faded`: Normal neutral state (`boxResultState = 'typing'`), ready for input
@@ -1376,12 +1384,14 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
   - Clear `incorrectState` to `'none'` and show "No guesses left today" banner
   - Input boxes remain locked/disabled
 - **Timer Management**:
-  - `incorrectTimerRef` tracks the fade timeout
+  - `incorrectTimerRef` tracks the active→faded timeout
+  - `fadedDismissTimerRef` tracks the faded→fading_out timeout
+  - `fadeoutTimerRef` tracks the fading_out→none timeout
   - Cleanup on component unmount (`useEffect` with cleanup function)
   - Cancel timer when user starts typing (`handleLettersChange`, `handleLetter`, `handleBackspace`)
   - Multiple incorrect guesses in a row work correctly (timer reset on each)
 - **Files Changed**:
-  - `components/ResultBanner.tsx`: Added `faded` prop, `FadedIcon`, updated styling
+  - `components/ResultBanner.tsx`: Added `faded` prop, color transitions, updated styling
   - `pages/index.tsx`: Added state machine, timer logic, updated handlers
 
 #### 6.4.5: Wheel Jump UX - Uniform Perceived Speed
@@ -1509,6 +1519,73 @@ Updated `components/FirstTimeOverlay.tsx` to prompt users to add the mini app:
 - `components/ResultBanner.tsx` - Message prop now accepts `React.ReactNode`
 - `src/__tests__/daily-limits.test.ts` - Duplicate guess protection tests
 - `src/__tests__/input-state.test.ts` - New input state machine tests
+
+### Milestone 7.x: UI/UX Refinements
+- **Status**: ✅ Complete
+- **Goal**: Polish user interface with improved transitions, typography, and visual consistency
+
+#### Archive Page Redesign (`pages/archive/index.tsx`)
+- Restyled to match RoundArchiveModal design language
+- Uses Söhne font family: `'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif`
+- Replaced inline styles with Tailwind classes for maintainability
+- StatChip components with pill-style badges matching modal stat chips
+- Clean rounded-2xl cards and modern button styling
+- Consistent color scheme (gray-50 background, white cards, green for ETH, blue for links)
+
+#### GuessPurchaseModal Refinements (`components/GuessPurchaseModal.tsx`)
+- Moved pricing state label before pack options for better visual hierarchy
+- De-emphasized purchase limit indicator (text-xs text-gray-400)
+- Added reassurance microcopy: "Purchases contribute to the prize pool"
+- Changed CTA from "Buy pack(s)" to "Buy guesses"
+- Pricing labels:
+  - BASE (0-749 guesses): "Early round pricing"
+  - LATE_1 (750-1249 guesses): "Late round pricing"
+  - LATE_2 (1250+ guesses): "Late round pricing (max)"
+
+#### Dev Mode Pricing Consistency (`pages/api/guess-pack-pricing.ts`)
+- Fixed inconsistency between TopTicker and GuessPurchaseModal in dev mode
+- Problem: Pricing API used separate seeded random (multiplier 7927) different from `getDevRoundStatus()`
+- Solution: Pricing API now calls `getDevRoundStatus()` for cached random values
+- Ensures consistent display values across all UI components in dev mode
+
+#### Files Modified
+- `pages/archive/index.tsx` - Complete redesign with Söhne font and Tailwind
+- `components/GuessPurchaseModal.tsx` - UX refinements and copy updates
+- `pages/api/guess-pack-pricing.ts` - Dev mode consistency fix
+- `components/ResultBanner.tsx` - Color transition timing updates
+- `pages/index.tsx` - Banner timing and state machine updates
+- `locales/en.json` - Updated translations ("Buy guesses", "jackpotNote")
+
+### Milestone 8.1: Rotating Share Copy Templates
+- **Status**: ✅ Complete
+- **Goal**: Add variety to share prompts with rotating copy templates for incorrect guesses
+
+#### Share Templates (`src/lib/shareTemplates.ts`)
+New module with 9 unique share copy templates:
+```typescript
+const SHARE_TEMPLATES = [
+  "❌ {WORD} wasn't it...\n\n🎯 Think you know the word?\n💰 {JACKPOT} ETH up for grabs\n\n👉 letshaveaword.fun",
+  "So close! {WORD} was wrong 😅\n\n🧠 Can you crack it?\n💸 {JACKPOT} ETH prize pool\n\n🎮 letshaveaword.fun",
+  // ... 7 more templates
+];
+```
+
+- Uses `{WORD}` and `{JACKPOT}` placeholders for dynamic content
+- `getRandomTemplate()`: Returns random template from array
+- `renderShareTemplate(template, word, jackpotEth)`: Replaces placeholders with actual values
+- All templates include game URL and emojis for engagement
+
+#### SharePromptModal Updates (`components/SharePromptModal.tsx`)
+- Fetches current prize pool from `/api/round-state` on mount
+- Uses `useMemo` for stable random template selection (consistent within modal session)
+- Removed preview section for cleaner, simpler modal
+- Simplified footer: "Share bonus can only be earned once per day"
+- Template rendered with current word and prize pool on share action
+
+#### Files Modified
+- `src/lib/shareTemplates.ts` - New file with 9 share templates
+- `components/SharePromptModal.tsx` - Rotating templates, removed preview
+- `locales/en.json` - Updated footer text
 
 ### Planned / Future Enhancements
 - **Status**: Wishlist

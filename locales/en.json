@@ -27,13 +27,14 @@
       "three": "3 packs",
       "threeGuesses": "9 guesses"
     },
-    "limitIndicator": "You have purchased {{count}} of 3 packs today",
-    "buyButton": "Buy pack(s)",
+    "limitIndicator": "{{count}} of 3 packs purchased today",
+    "buyButton": "Buy guesses",
     "buyButtonLoading": "Processing...",
     "maxPacksReached": "Maximum packs purchased today",
     "connectWallet": "Connect wallet first",
-    "purchaseSuccess": "Pack purchased successfully!",
-    "purchaseFailed": "Purchase failed. Please try again."
+    "purchaseSuccess": "Guesses added!",
+    "purchaseFailed": "Purchase failed. Please try again.",
+    "jackpotNote": "Purchases contribute to the prize pool"
   },
   "shareForGuess": {
     "titleSuffix": "Want another guess?",
@@ -41,7 +42,7 @@
     "ctaButton": "Share",
     "sharing": "Sharing...",
     "alreadyClaimed": "You've already claimed your share bonus today",
-    "footer": "Share bonus can only be earned once per day (Farcaster only)",
+    "footer": "Share bonus can only be earned once per day",
     "shareText": "I'm playing Let's Have A Word!\nDaily jackpot-based word puzzle on Base.\nhttps://lets-have-a-word.vercel.app"
   },
   "anotherGuess": {

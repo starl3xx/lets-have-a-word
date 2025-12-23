@@ -7,20 +7,18 @@ import { useTranslation } from '../src/hooks/useTranslation';
 interface ReferralSheetProps {
   fid: number | null;
   onClose: () => void;
-  autoCopyOnOpen?: boolean; // Milestone 6.3: Auto-copy link when opening
+  autoCopyOnOpen?: boolean;
 }
 
 /**
  * ReferralSheet Component
- * Milestone 4.3, Updated Milestone 6.3
+ * Milestone 4.3, Updated Milestone 6.3, Updated Milestone 7.0
  *
  * Displays referral link, copy button, and referral statistics
  *
- * Milestone 6.3 improvements:
- * - Auto-copy referral link when opening modal (optional toggle)
- * - Animation to ETH earned counter
- * - Enhanced haptics for copy/share
- * - Analytics events
+ * Milestone 7.0: Visual polish
+ * - Uses unified design token classes
+ * - Consistent color palette (brand, accent, success)
  */
 export default function ReferralSheet({
   fid,
@@ -49,7 +47,7 @@ export default function ReferralSheet({
       }
 
       try {
-        // Log analytics event - modal opened (fire and forget)
+        // Log analytics event
         fetch('/api/analytics/log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -101,20 +99,15 @@ export default function ReferralSheet({
    * Animate referral count and ETH counter
    */
   const animateCounters = (targetReferrals: number, targetEth: number) => {
-    const duration = 800; // 0.8 seconds
+    const duration = 800;
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-
-      // Ease-out cubic
       const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-      // Animate referrals (integer)
       setDisplayedReferrals(Math.round(targetReferrals * easeProgress));
-
-      // Animate ETH (4 decimal places)
       const currentEth = targetEth * easeProgress;
       setDisplayedEth(currentEth.toFixed(4));
 
@@ -149,7 +142,6 @@ export default function ReferralSheet({
       void haptics.linkCopied();
       setCopySuccess(true);
 
-      // Log analytics event
       fetch('/api/analytics/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,7 +151,6 @@ export default function ReferralSheet({
         }),
       }).catch(() => {});
 
-      // Reset copy success message after 2 seconds
       setTimeout(() => {
         setCopySuccess(false);
       }, 2000);
@@ -178,7 +169,6 @@ export default function ReferralSheet({
     try {
       void haptics.buttonTapMinor();
 
-      // Log analytics event
       fetch('/api/analytics/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -212,18 +202,15 @@ export default function ReferralSheet({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto"
+        className="modal-sheet"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3">
+        <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4">
           <h2 className="text-2xl font-bold text-gray-900">{t('referral.title')}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-          >
+          <button onClick={onClose} className="btn-close" aria-label="Close">
             ×
           </button>
         </div>
@@ -237,8 +224,8 @@ export default function ReferralSheet({
 
         {/* Error State */}
         {error && !isLoading && (
-          <div className="bg-red-50 border border-red-200 rounded p-4">
-            <p className="text-red-600 text-center">{error}</p>
+          <div className="bg-error-50 border border-error-200 rounded-btn p-4">
+            <p className="text-error-700 text-center">{error}</p>
           </div>
         )}
 
@@ -247,42 +234,39 @@ export default function ReferralSheet({
           <div className="space-y-4">
             {/* Auto-copied notification */}
             {autoCopied && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center animate-pulse">
-                <p className="text-green-700 text-sm font-medium">
+              <div className="bg-success-50 border border-success-200 rounded-btn p-3 text-center">
+                <p className="text-success-700 text-sm font-medium">
                   Link auto-copied to clipboard!
                 </p>
               </div>
             )}
 
             {/* Referral Link Section */}
-            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+            <div className="section-card bg-brand-50">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-blue-900">{t('referral.yourLink')}</h3>
+                <h3 className="text-base font-semibold text-brand-900">{t('referral.yourLink')}</h3>
                 {/* Auto-copy toggle */}
                 <button
                   onClick={toggleAutoCopy}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                  className={`text-xs px-2 py-1 rounded-full transition-colors duration-fast ${
                     autoCopyEnabled
-                      ? 'bg-blue-200 text-blue-800'
+                      ? 'bg-brand-200 text-brand-800'
                       : 'bg-gray-200 text-gray-600'
                   }`}
                 >
                   {autoCopyEnabled ? t('referral.autoCopy.enabled') : t('referral.autoCopy.disabled')}
                 </button>
               </div>
-              <div className="bg-white border-2 border-blue-200 rounded p-3">
-                <p className="text-sm text-blue-700 break-all font-mono">
+              <div className="bg-white border-2 border-brand-200 rounded-btn p-3 mt-2">
+                <p className="text-sm text-brand-700 break-all font-mono">
                   {referralData.referralLink}
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-3">
                 {/* Share Button */}
                 <button
                   onClick={handleShare}
-                  className="flex-1 py-3 px-4 font-semibold rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95"
-                  style={{ backgroundColor: '#6A3CFF', color: 'white' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5A2CEF'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
+                  className="btn-accent flex-1 flex items-center justify-center gap-2 py-3"
                 >
                   <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
                   {t('referral.shareLink')}
@@ -291,10 +275,10 @@ export default function ReferralSheet({
                 {/* Copy Button */}
                 <button
                   onClick={handleCopyLink}
-                  className={`flex-1 py-3 px-4 font-semibold rounded-lg transition-all active:scale-95 ${
+                  className={`flex-1 py-3 px-4 font-semibold rounded-btn transition-all duration-fast active:scale-95 ${
                     copySuccess
-                      ? 'bg-green-500 text-white'
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                      ? 'bg-success-500 text-white'
+                      : 'bg-brand text-white hover:bg-brand-600'
                   }`}
                 >
                   {copySuccess ? t('common.copied') : t('referral.copyLink')}
@@ -303,18 +287,18 @@ export default function ReferralSheet({
             </div>
 
             {/* Referral Stats Section */}
-            <div className="bg-purple-50 rounded-lg p-4 space-y-3">
-              <h3 className="text-lg font-bold text-purple-900">{t('referral.stats.title')}</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-lg p-3 text-center">
-                  <p className="text-sm text-purple-700">{t('referral.stats.referrals')}</p>
-                  <p className="text-3xl font-bold text-purple-900 tabular-nums">
+            <div className="section-card bg-accent-50">
+              <h3 className="text-base font-semibold text-accent-900">{t('referral.stats.title')}</h3>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="bg-white rounded-lg p-3 text-center border border-accent-100">
+                  <p className="text-sm text-accent-700">{t('referral.stats.referrals')}</p>
+                  <p className="text-3xl font-bold text-accent-900 tabular-nums">
                     {displayedReferrals}
                   </p>
                 </div>
-                <div className="bg-white rounded-lg p-3 text-center">
-                  <p className="text-sm text-purple-700">{t('referral.stats.ethEarned')}</p>
-                  <p className="text-3xl font-bold text-purple-900 tabular-nums">
+                <div className="bg-white rounded-lg p-3 text-center border border-accent-100">
+                  <p className="text-sm text-accent-700">{t('referral.stats.ethEarned')}</p>
+                  <p className="text-3xl font-bold text-accent-900 tabular-nums">
                     {displayedEth}
                   </p>
                 </div>
@@ -322,22 +306,19 @@ export default function ReferralSheet({
             </div>
 
             {/* How it Works */}
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-              <h3 className="text-sm font-bold text-gray-900">{t('referral.howItWorks.title')}</h3>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>• {t('referral.howItWorks.step1')}</li>
-                <li>• {t('referral.howItWorks.step2')}</li>
-                <li>• {t('referral.howItWorks.step3')}</li>
+            <div className="section-card bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900">{t('referral.howItWorks.title')}</h3>
+              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mt-2">
+                <li>{t('referral.howItWorks.step1')}</li>
+                <li>{t('referral.howItWorks.step2')}</li>
+                <li>{t('referral.howItWorks.step3')}</li>
               </ul>
             </div>
           </div>
         )}
 
         {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="w-full py-3 px-4 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-all"
-        >
+        <button onClick={onClose} className="btn-secondary w-full mt-4">
           {t('common.close')}
         </button>
       </div>

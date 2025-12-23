@@ -98,7 +98,7 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
    */
   if (isLoading) {
     return (
-      <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#2D68C7' }}>
+      <div className="bg-brand text-white py-3 px-4 shadow-md">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-sm animate-pulse">Loading round status...</p>
         </div>
@@ -136,8 +136,8 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
    * Display round status
    */
   return (
-    <div className="text-white py-3 px-4 shadow-md" style={{ backgroundColor: '#2D68C7' }}>
-      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-hidden">
+    <div className="bg-brand text-white py-3 px-4 shadow-md">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-visible">
         {/* Prize Pool */}
         <div>
           <p className="text-xs uppercase font-light tracking-wide opacity-90">
@@ -166,14 +166,10 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
         {/* Round Number - Clickable to open archive */}
         <div
           onClick={() => onRoundClick?.(status.roundId)}
-          style={{
-            cursor: onRoundClick ? 'pointer' : 'default',
-            padding: '4px 8px',
-            margin: '-4px -8px',
-            borderRadius: '8px',
-            transition: 'background 0.2s',
-          }}
-          className={onRoundClick ? 'hover:bg-white/10' : ''}
+          className={`
+            ${onRoundClick ? 'cursor-pointer hover:bg-white/10' : 'cursor-default'}
+            pl-2.5 pr-2 pt-1.5 pb-1 -ml-2.5 -mr-2 -mt-1.5 -mb-1 rounded-lg transition-colors duration-200
+          `}
           role={onRoundClick ? 'button' : undefined}
           tabIndex={onRoundClick ? 0 : undefined}
           onKeyDown={(e) => {

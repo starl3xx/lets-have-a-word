@@ -94,12 +94,13 @@ const FadedIcon = () => (
 );
 
 /**
- * Get variant-specific styling classes
+ * Get variant-specific styling
  * Milestone 6.7.1: Added faded parameter for gray state
+ * Updated: All colors now use inline styles for smooth transitions
  */
 function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false): {
-  container: string;
-  text: string;
+  borderColor: string;
+  textColor: string;
   bgColor: string; // Semi-transparent background for backdrop blur effect
   blurClass: string; // Blur class for backdrop effect
 } {
@@ -109,36 +110,36 @@ function getVariantStyles(variant: ResultBannerVariant, faded: boolean = false):
   switch (effectiveVariant) {
     case 'error':
       return {
-        container: 'border-red-300',
-        text: 'text-red-700',
+        borderColor: 'rgb(252, 165, 165)', // red-300
+        textColor: 'rgb(185, 28, 28)', // red-700
         bgColor: 'rgba(254, 242, 242, 0.3)', // red-50 frosted glass
         blurClass: 'backdrop-blur-sm', // 4px blur
       };
     case 'warning':
       return {
-        container: 'border-amber-300',
-        text: 'text-amber-700',
+        borderColor: 'rgb(252, 211, 77)', // amber-300
+        textColor: 'rgb(180, 83, 9)', // amber-700
         bgColor: 'rgba(255, 251, 235, 0.3)', // amber-50 frosted glass
         blurClass: 'backdrop-blur-sm', // 4px blur
       };
     case 'success':
       return {
-        container: 'border-green-300',
-        text: 'text-green-700',
+        borderColor: 'rgb(134, 239, 172)', // green-300
+        textColor: 'rgb(21, 128, 61)', // green-700
         bgColor: 'rgba(240, 253, 244, 0.3)', // green-50 frosted glass
         blurClass: 'backdrop-blur-sm', // 4px blur
       };
     case 'faded':
       return {
-        container: 'border-gray-400',
-        text: 'text-gray-500',
+        borderColor: 'rgb(156, 163, 175)', // gray-400
+        textColor: 'rgb(107, 114, 128)', // gray-500
         bgColor: 'rgba(249, 250, 251, 0.3)', // gray-50 frosted glass (same opacity as others)
         blurClass: 'backdrop-blur', // 8px blur for faded
       };
     default:
       return {
-        container: 'border-gray-300',
-        text: 'text-gray-700',
+        borderColor: 'rgb(209, 213, 219)', // gray-300
+        textColor: 'rgb(55, 65, 81)', // gray-700
         bgColor: 'rgba(249, 250, 251, 0.3)', // gray-50 frosted glass
         blurClass: 'backdrop-blur-sm',
       };
@@ -183,29 +184,44 @@ const ResultBanner = memo(function ResultBanner({
 }: ResultBannerProps) {
   const styles = getVariantStyles(variant, faded);
 
-  // Milestone 6.7.1: No icon when in faded state, otherwise use provided or default
-  const displayIcon = faded
-    ? null
-    : (icon !== undefined ? icon : getDefaultIcon(variant));
+  // Get the appropriate icon (custom or default)
+  // We'll always render it but fade it out when in faded state
+  const iconElement = icon !== undefined ? icon : getDefaultIcon(variant);
 
   return (
     <div
       className={`
-        ${styles.container}
         border-2 rounded-lg p-3
         flex items-center justify-center gap-2
         ${styles.blurClass}
       `}
       style={{
         opacity: visible ? (faded ? 0.8 : 1) : 0,
-        transition: 'opacity 300ms',
+        borderColor: styles.borderColor,
         backgroundColor: styles.bgColor,
+        transition: 'opacity 1000ms ease-out, border-color 1000ms ease-out, background-color 1000ms ease-out',
       }}
       role="status"
       aria-live="polite"
     >
-      {displayIcon && <span className="flex-shrink-0">{displayIcon}</span>}
-      <p className={`${styles.text} text-center text-sm font-medium`}>
+      {iconElement && (
+        <span
+          className="flex-shrink-0"
+          style={{
+            opacity: faded ? 0 : 1,
+            transition: 'opacity 600ms ease-out',
+          }}
+        >
+          {iconElement}
+        </span>
+      )}
+      <p
+        className="text-center text-sm font-medium"
+        style={{
+          color: styles.textColor,
+          transition: 'color 1000ms ease-out',
+        }}
+      >
         {message}
       </p>
     </div>

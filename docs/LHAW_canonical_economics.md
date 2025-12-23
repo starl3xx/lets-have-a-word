@@ -1,6 +1,6 @@
 # Let's Have A Word! — Canonical Economics Specification
 
-This document defines the **single source of truth** for prize pools, payouts, referrals, and Top-10 reward distribution in *Let's Have A Word!*.
+This document defines the **single source of truth** for prize pools, payouts, referrals, and Top 10 reward distribution in *Let's Have A Word!*.
 
 ---
 
@@ -13,11 +13,11 @@ There are **no offchain payouts** and no manual intervention.
 
 ---
 
-## 2. High-Level Payout Split (100%)
+## 2. High‑Level Payout Split (100%)
 
 ### Base allocation
 - **80%** → Jackpot winner (secret word guesser)
-- **10%** → Top-10 guessers pool
+- **10%** → Top 10 guessers pool
 - **10%** → Referral pool (conditional)
 
 ---
@@ -28,11 +28,11 @@ There are **no offchain payouts** and no manual intervention.
 - Referrer receives the full **10%**
 
 ### If the jackpot winner **does NOT have a referrer**
-- **7.5%** is added to the Top-10 guessers pool
+- **7.5%** is added to the Top 10 guessers pool
 - **2.5%** is rolled into the **next round's seed prize pool**
 
 ### Notes
-- Self-referrals are blocked at signup
+- Self‑referrals are blocked at signup
 - Null or zero referrer is treated as "no referrer"
 
 ---
@@ -40,44 +40,53 @@ There are **no offchain payouts** and no manual intervention.
 ## 4. Resulting Outcomes
 
 ### With referrer
-| Recipient | Share |
-|-----------|-------|
-| Winner | 80% |
-| Top-10 guessers | 10% |
-| Referrer | 10% |
+- Winner: **80%**
+- Top 10 guessers: **10%**
+- Referrer: **10%**
 
 ### Without referrer
-| Recipient | Share |
-|-----------|-------|
-| Winner | 80% |
-| Top-10 guessers | 17.5% |
-| Next round seed | 2.5% |
+- Winner: **80%**
+- Top 10 guessers: **17.5%**
+- Next round seed: **2.5%**
 
 ---
 
-## 5. Top-10 Guessers Distribution (Canonical)
+## 5. Top 10 Guessers Distribution
 
-Let `T` be the total Top-10 pool for the round
+Let `T` be the total Top 10 pool for the round
 (`T = 10%` or `17.5%` of the prize pool, depending on referral outcome)
+
+### Eligibility lock
+
+Top 10 ranking is based on **early-round participation**.
+
+- Only the **first 750 guesses** in a round are **Top 10 eligible**
+- After guess #750, **Top 10 locks** for that round
+- Guesses after the lock can still win the jackpot, but **do not affect Top 10 ranking**
+
+Enforcement:
+- Eligibility is enforced by the backend when constructing the ordered `topGuessers[]` list
+- Payouts remain fully onchain at round resolution
 
 ### Fixed percentage split (scales with prize size)
 
-| Rank | Share of T | Basis Points |
-|------|------------|--------------|
-| #1 | 19% | 1900 |
-| #2 | 16% | 1600 |
-| #3 | 14% | 1400 |
-| #4 | 11% | 1100 |
-| #5 | 10% | 1000 |
-| #6 | 6% | 600 |
-| #7 | 6% | 600 |
-| #8 | 6% | 600 |
-| #9 | 6% | 600 |
-| #10 | 6% | 600 |
-| **Total** | **100%** | **10000** |
+| Rank | Share of T |
+|----|----|
+| #1 | 19% |
+| #2 | 16% |
+| #3 | 14% |
+| #4 | 11% |
+| #5 | 10% |
+| #6 | 6% |
+| #7 | 6% |
+| #8 | 6% |
+| #9 | 6% |
+| #10 | 6% |
+
+**Total: 100%**
 
 This structure guarantees:
-- Ranks **6–10** earn a meaningful "one-pack back" at typical pool sizes
+- Ranks **6–10** earn a meaningful "one‑guess-pack-back" at typical pool sizes
 - Ranks **1–5** always earn more than ranks 6–10
 - Rewards scale proportionally as prize pools grow
 
@@ -92,31 +101,56 @@ If fewer than 10 eligible top guessers exist:
 - Any rounding remainder ("dust") is assigned to rank #1
 
 If **zero** eligible top guessers exist:
-- The Top-10 pool is paid to the jackpot winner
+- The Top 10 pool is paid to the jackpot winner
 
 ---
 
-## 7. Rounding & Dust
+## 7. Guess Pack Pricing (Canonical)
+
+Guess packs are priced dynamically based on round progress.
+
+### Pack definition
+- 1 pack = **3 guesses**
+
+### Base price
+- Base pack price: **0.00030 ETH** (per pack)
+
+### Late-round pricing (post-Top 10 lock)
+Pack price increases only after Top 10 locks (after guess #750), then caps.
+
+| Total guesses in round | Pack price (ETH) |
+|---|---:|
+| 0–749 | 0.00030 |
+| 750–1249 | 0.00045 |
+| 1250+ | 0.00060 |
+
+Implementation notes:
+- Pricing is computed **server-side at purchase time** from the authoritative `totalGuessesInRound`
+- UI must display the backend-returned price and totals
+- Pack purchases continue to fund the round prize pool per existing rules
+
+
+## 8. Rounding & Dust
 
 - All calculations are performed in **wei** using integer math
 - Division rounds down (never overpays)
 - Any remainder is deterministically assigned to rank #1
 - Maximum trapped dust is negligible (~3 wei per round)
-- Dust accumulation is non-exploitable and cosmetic only
+- Dust accumulation is non‑exploitable and cosmetic only
 
 ---
 
-## 8. Execution Guarantees
+## 9. Execution Guarantees
 
 - Single atomic onchain transaction
 - Resolve callable exactly once per round
-- Non-reentrant payout logic
+- Non‑reentrant payout logic
 - Round must be ended before resolve
-- Backend supplies ordered Top-10 list only; contract enforces payouts
+- Backend supplies ordered Top 10 list only; contract enforces payouts
 
 ---
 
-## 9. Trust & Transparency
+## 10. Trust & Transparency
 
 - All economics are enforced onchain
 - No discretionary payouts
@@ -125,27 +159,15 @@ If **zero** eligible top guessers exist:
 
 ---
 
-## 10. Design Intent
+## 11. Design Intent
 
 This model is designed to:
 - Strongly reward the solver
-- Make Top-10 participation consistently feel worth it
-- Encourage referrals without penalizing non-referred rounds
+- Make Top 10 participation consistently feel worth it
+- Encourage referrals without penalizing non‑referred rounds
 - Scale cleanly from small to large prize pools
 - Remain simple enough to explain without math in the UI
 
 ---
 
-## Implementation References
-
-| Component | Location |
-|-----------|----------|
-| Smart contract | `contracts/src/JackpotManager.sol` |
-| Tiered payout calculation | `src/lib/top-guesser-payouts.ts` |
-| Round resolution logic | `src/lib/economics.ts` |
-| Contract integration | `src/lib/jackpot-contract.ts` |
-
----
-
 **This document is canonical.**
-*Last updated: Milestone 6.9b*

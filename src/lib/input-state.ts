@@ -117,19 +117,20 @@ export function isGuessButtonEnabled(state: InputState): boolean {
 
 /**
  * Get box border color based on state
+ * Milestone 7.0: Uses semantic color tokens
  */
 export function getBoxBorderColor(state: InputState, hasLetter: boolean): string {
   // Result states
   if (state === 'RESULT_CORRECT') {
-    return 'border-green-500';
+    return 'border-success-500';
   }
   if (state === 'RESULT_WRONG_VALID') {
-    return 'border-red-500';
+    return 'border-error-500';
   }
 
   // Invalid states
   if (state === 'TYPING_FULL_INVALID_NONSENSE' || state === 'TYPING_FULL_INVALID_ALREADY_GUESSED') {
-    return 'border-red-500';
+    return 'border-error-500';
   }
 
   // Out of guesses
@@ -139,11 +140,11 @@ export function getBoxBorderColor(state: InputState, hasLetter: boolean): string
 
   // Typing states
   if (state === 'TYPING_FULL_VALID') {
-    return 'border-blue-500';
+    return 'border-brand';
   }
 
   if (hasLetter && (state === 'TYPING_PARTIAL' || state === 'SUBMITTING')) {
-    return 'border-blue-500';
+    return 'border-brand';
   }
 
   // Empty or idle

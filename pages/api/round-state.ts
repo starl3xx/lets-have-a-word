@@ -4,6 +4,7 @@ import type { RoundStatus } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 import { getEthUsdPrice } from '../../src/lib/prices';
+import { getTop10LockStatus } from '../../src/lib/top10-lock';
 
 /**
  * GET /api/round-state
@@ -50,6 +51,9 @@ export default async function handler(
         ? (prizePoolEthNum * ethUsdRate).toFixed(2)
         : (prizePoolEthNum * 3000).toFixed(2); // Fallback estimate
 
+      // Get Top-10 lock status based on display guess count
+      const top10Status = getTop10LockStatus(devStatus.globalGuessCount);
+
       // Return dev round status with actual prize pool, random display values for round/guesses
       const syntheticStatus: RoundStatus = {
         roundId: devStatus.roundId, // Random 5-300
@@ -57,6 +61,11 @@ export default async function handler(
         prizePoolUsd,
         globalGuessCount: devStatus.globalGuessCount, // Random 100-6000
         lastUpdatedAt: new Date().toISOString(),
+        roundStartedAt: devStatus.roundStartedAt, // Random 0-6 days ago
+        // Top-10 lock fields (Milestone 7.x)
+        top10LockAfterGuesses: top10Status.top10LockAfterGuesses,
+        top10GuessesRemaining: top10Status.top10GuessesRemaining,
+        top10Locked: top10Status.top10Locked,
       };
 
       return res.status(200).json(syntheticStatus);

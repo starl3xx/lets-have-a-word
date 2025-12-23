@@ -70,12 +70,14 @@ export const guesses = pgTable('guesses', {
   word: varchar('word', { length: 5 }).notNull(),
   isPaid: boolean('is_paid').default(false).notNull(),
   isCorrect: boolean('is_correct').default(false).notNull(), // True if this guess won the round
+  guessIndexInRound: integer('guess_index_in_round'), // 1-based index within round (Milestone 7.x: Top-10 lock)
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundFidIdx: index('guesses_round_fid_idx').on(table.roundId, table.fid),
   roundWordIdx: index('guesses_round_word_idx').on(table.roundId, table.word),
   createdAtIdx: index('guesses_created_at_idx').on(table.createdAt),
   isCorrectIdx: index('guesses_is_correct_idx').on(table.isCorrect),
+  guessIndexIdx: index('guesses_round_guess_index_idx').on(table.roundId, table.guessIndexInRound),
 }));
 
 export type GameRulesRow = typeof gameRules.$inferSelect;

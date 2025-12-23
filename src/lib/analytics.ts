@@ -83,6 +83,17 @@ export const AnalyticsEventTypes = {
   // Milestone 5.3: User Quality Events
   USER_QUALITY_BLOCKED: 'USER_QUALITY_BLOCKED',
   USER_QUALITY_REFRESHED: 'USER_QUALITY_REFRESHED',
+
+  // Milestone 7.x: Onboarding Events
+  ONBOARDING_HOW_IT_WORKS_VIEWED: 'onboarding_how_it_works_viewed',
+  ONBOARDING_HOW_IT_WORKS_COMPLETED: 'onboarding_how_it_works_completed',
+  ONBOARDING_ADD_APP_VIEWED: 'onboarding_add_app_viewed',
+  ONBOARDING_ADD_APP_ACCEPTED: 'onboarding_add_app_accepted',
+  ONBOARDING_ADD_APP_SKIPPED: 'onboarding_add_app_skipped',
+  ONBOARDING_FLOW_COMPLETED: 'onboarding_flow_completed',
+
+  // Milestone 7.5: Pricing State Events
+  EARLY_ROUND_PRICING_REINFORCEMENT: 'early_round_pricing_reinforcement',
 } as const;
 
 export type AnalyticsEventType = typeof AnalyticsEventTypes[keyof typeof AnalyticsEventTypes];

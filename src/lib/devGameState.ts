@@ -181,8 +181,10 @@ function generateWheelWords(
 /**
  * Synthesize a dev game state with live ETH/USD conversion (async)
  * Milestone 4.12 — Uses CoinGecko for real-time price
+ * Milestone 7.5 — Uses getDevRoundStatus() for consistent display values across UI
  *
  * Same as synthesizeDevGameState but fetches live ETH/USD price from CoinGecko
+ * and uses cached dev display values for consistency with TopTicker and other components.
  *
  * @param params - State synthesis parameters
  * @returns GameStateResponse with synthetic data and live USD conversion
@@ -192,19 +194,22 @@ export async function synthesizeDevGameStateAsync(
 ): Promise<GameStateResponse> {
   const { devState, devInput, solution, fid, guessCount = 0 } = params;
 
+  // Get cached dev display values for consistent UI across all components
+  const devStatus = await getDevRoundStatus();
+
   // Fetch live ETH/USD price
   const ethUsdRate = await getEthUsdPrice();
-  const prizePoolEthNum = 0.42;
+  const prizePoolEthNum = parseFloat(devStatus.prizePoolEth);
   const prizePoolUsd = ethUsdRate != null
     ? (prizePoolEthNum * ethUsdRate).toFixed(2)
-    : '1260.00'; // Fallback to hardcoded value
+    : (prizePoolEthNum * 3000).toFixed(2); // Fallback estimate
 
-  // Base game state with live USD price
+  // Base game state with cached display values and live USD price
   const baseState: GameStateResponse = {
-    roundId: 999999, // Synthetic round ID
-    prizePoolEth: '0.42',
+    roundId: devStatus.roundId,
+    prizePoolEth: devStatus.prizePoolEth,
     prizePoolUsd,
-    globalGuessCount: 73,
+    globalGuessCount: devStatus.globalGuessCount,
     userState: {
       fid,
       freeGuessesRemaining: 3,
@@ -364,18 +369,6 @@ export async function ensureDevRound(): Promise<number> {
 
     // If the existing round has the correct answer, use it
     if (round.answer === fixedSolution) {
-      // Check if prize pool is outside valid dev range (0.03-0.4 ETH)
-      // If so, reset it to a random value in range
-      const currentPrizePool = parseFloat(round.prizePoolEth);
-      if (currentPrizePool < 0.03 || currentPrizePool > 0.4) {
-        const newPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
-        console.log(`🎮 Dev mode: Resetting prize pool from ${round.prizePoolEth} to ${newPrizePool} ETH (outside valid range)`);
-        await db
-          .update(rounds)
-          .set({ prizePoolEth: newPrizePool })
-          .where(eq(rounds.id, round.id));
-      }
-
       console.log(`🎮 Dev mode: Using existing round ${round.id} with answer ${fixedSolution}`);
       return round.id;
     }
@@ -395,8 +388,10 @@ export async function ensureDevRound(): Promise<number> {
   // Ensure a game rule exists (creates one if needed)
   const rulesetId = await ensureDevGameRule();
 
-  // Random initial prize pool between 0.03 and 0.4 ETH
-  const initialPrizePool = (0.03 + Math.random() * 0.37).toFixed(4);
+  // Use 10-minute bucket seeded random for consistent prize pool
+  const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000));
+  const prizePoolRng = seededRandom(serverStartSeed * 9973); // Prime multiplier for variety
+  const initialPrizePool = (0.03 + prizePoolRng() * 0.37).toFixed(4);
 
   const [newRound] = await db
     .insert(rounds)
@@ -419,9 +414,18 @@ export async function ensureDevRound(): Promise<number> {
   return newRound.id;
 }
 
+// In-memory cache for dev display values (randomized once per server start)
+let cachedDevDisplayValues: {
+  roundId: number;
+  prizePoolEth: string;
+  globalGuessCount: number;
+  roundStartedAt: string;
+  cachedForRoundId: number;
+} | null = null;
+
 /**
- * Simple seeded random number generator for deterministic "random" values
- * Same seed always produces same sequence of numbers
+ * Simple seeded random number generator
+ * Same seed always produces same sequence
  */
 function seededRandom(seed: number): () => number {
   return () => {
@@ -431,36 +435,68 @@ function seededRandom(seed: number): () => number {
 }
 
 /**
+ * Clear the cached dev display values
+ * Call this to force new random values on next getDevRoundStatus() call
+ */
+export function clearDevDisplayCache(): void {
+  cachedDevDisplayValues = null;
+  console.log('🎮 Dev mode: Cleared display value cache');
+}
+
+/**
  * Get the current dev round's status from the database
- * Returns the actual prize pool (affected by pack purchases) with deterministic display values
- * Display values are "random" but consistent for the same round (won't change on poll)
+ * Returns randomized display values that stay consistent during a session
+ * Uses time-based seed so values persist across hot reloads but change on server restart
  */
 export async function getDevRoundStatus(): Promise<{
   roundId: number;
   prizePoolEth: string;
   globalGuessCount: number;
+  roundStartedAt: string;
 }> {
   const actualRoundId = await ensureDevRound();
 
-  const [round] = await db
-    .select()
-    .from(rounds)
-    .where(eq(rounds.id, actualRoundId))
-    .limit(1);
-
-  if (!round) {
-    throw new Error('Dev round not found after ensureDevRound');
+  // If we have cached values for this round, return them
+  if (cachedDevDisplayValues && cachedDevDisplayValues.cachedForRoundId === actualRoundId) {
+    return {
+      roundId: cachedDevDisplayValues.roundId,
+      prizePoolEth: cachedDevDisplayValues.prizePoolEth,
+      globalGuessCount: cachedDevDisplayValues.globalGuessCount,
+      roundStartedAt: cachedDevDisplayValues.roundStartedAt,
+    };
   }
 
-  // Generate deterministic "random" values based on actual round ID
-  // These will be consistent for the same round, only change when a new round is created
-  const rng = seededRandom(actualRoundId);
+  // Use a seed based on the server start time (rounded to 10-minute intervals)
+  // This ensures values are consistent across hot reloads within the same session
+  // but will change when you restart the server
+  const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000)); // 10-minute buckets
+  const seed = serverStartSeed * 1000 + actualRoundId;
+  const rng = seededRandom(seed);
+
+  // Generate deterministic "random" display values
   const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
+  const displayPrizePool = (0.03 + rng() * 0.37).toFixed(4); // 0.03-0.40 ETH
   const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
+
+  // Random round start time: 0-6 days ago
+  const hoursAgo = Math.floor(rng() * 144); // 0-144 hours (6 days)
+  const roundStartedAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+
+  // Cache the values
+  cachedDevDisplayValues = {
+    roundId: displayRoundId,
+    prizePoolEth: displayPrizePool,
+    globalGuessCount: displayGuessCount,
+    roundStartedAt,
+    cachedForRoundId: actualRoundId,
+  };
+
+  console.log(`🎮 Dev mode: Generated new display values - Round #${displayRoundId}, ${displayPrizePool} ETH, ${displayGuessCount} guesses, started ${hoursAgo}h ago`);
 
   return {
     roundId: displayRoundId,
-    prizePoolEth: round.prizePoolEth, // Actual value from database
+    prizePoolEth: displayPrizePool,
     globalGuessCount: displayGuessCount,
+    roundStartedAt,
   };
 }
