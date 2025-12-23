@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { awardPaidPack, getOrCreateDailyState, getTodayUTC, DAILY_LIMITS_RULES } from '../../src/lib/daily-limits';
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 import { getActiveRound } from '../../src/lib/rounds';
@@ -13,6 +14,7 @@ import {
 } from '../../src/lib/pack-pricing';
 import {
   invalidateRoundStateCache,
+  invalidateUserCaches,
   checkRateLimit,
   RateLimiters,
 } from '../../src/lib/redis';
@@ -139,9 +141,13 @@ export default async function handler(
     }
 
     // Milestone 9.0: Invalidate round state cache (prize pool changed)
+    // Milestone 9.2: Also invalidate user caches
     if (activeRound?.id) {
-      console.log(`[Cache] Invalidating round-state cache after pack purchase for round ${activeRound.id}`);
-      invalidateRoundStateCache(activeRound.id).catch((err) => {
+      console.log(`[Cache] Invalidating caches after pack purchase for round ${activeRound.id}`);
+      Promise.all([
+        invalidateRoundStateCache(activeRound.id),
+        invalidateUserCaches(fid, activeRound.id),
+      ]).catch((err) => {
         console.error('[Cache] Failed to invalidate after pack purchase:', err);
       });
     }
@@ -165,6 +171,16 @@ export default async function handler(
     });
   } catch (error) {
     console.error('[purchase-guess-pack] Error:', error);
+
+    // Milestone 9.2: Report to Sentry with context
+    Sentry.captureException(error, {
+      tags: { endpoint: 'purchase-guess-pack' },
+      extra: {
+        fid: req.body?.fid,
+        packCount: req.body?.packCount,
+      },
+    });
+
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to purchase pack',
     });

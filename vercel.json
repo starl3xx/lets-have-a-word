@@ -4,6 +4,14 @@
     {
       "path": "/api/cron/oracle-update",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/health-check",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/archive-sync",
+      "schedule": "0 1 * * *"
     }
   ]
 }
