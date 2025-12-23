@@ -2,13 +2,13 @@
  * Unified Admin Dashboard
  * Combines Operations, Analytics, and Archive into a single tabbed interface
  *
- * Tab Navigation:
- * - Operations: Kill switch, dead day, refund monitoring
- * - Analytics: Metrics, charts, economics data
- * - Archive: Historical round data
+ * Features:
+ * - Tab Navigation with URL query params (?tab=operations|analytics|archive)
+ * - Persistent status strip showing operational state across all tabs
+ * - Keyboard shortcuts (1/2/3) for fast tab switching
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/router"
 
@@ -48,6 +48,22 @@ interface DashboardContentProps {
     pfp_url?: string
   }
   onSignOut?: () => void
+}
+
+interface OperationalStatus {
+  ok: boolean
+  status: 'NORMAL' | 'KILL_SWITCH_ACTIVE' | 'DEAD_DAY_ACTIVE' | 'PAUSED_BETWEEN_ROUNDS'
+  activeRoundId?: number
+  killSwitch: {
+    enabled: boolean
+    activatedAt?: string
+    reason?: string
+  }
+  deadDay: {
+    enabled: boolean
+    activatedAt?: string
+  }
+  timestamp: string
 }
 
 // =============================================================================
@@ -102,6 +118,68 @@ const styles = {
     fontSize: "12px",
     fontFamily,
   },
+  // Status strip styles
+  statusStrip: {
+    background: "#fafafa",
+    borderBottom: "1px solid #e5e7eb",
+    padding: "10px 24px",
+  },
+  statusStripInner: {
+    maxWidth: "1400px",
+    margin: "0 auto",
+    display: "flex" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    flexWrap: "wrap" as const,
+    gap: "12px",
+  },
+  statusLeft: {
+    display: "flex" as const,
+    alignItems: "center" as const,
+    gap: "16px",
+    flexWrap: "wrap" as const,
+  },
+  statusItem: {
+    display: "flex" as const,
+    alignItems: "center" as const,
+    gap: "6px",
+    fontSize: "13px",
+    color: "#374151",
+    fontFamily,
+  },
+  statusLabel: {
+    color: "#6b7280",
+    fontSize: "11px",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.03em",
+  },
+  statusBadge: (status: string) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    padding: "3px 8px",
+    borderRadius: "4px",
+    fontSize: "12px",
+    fontWeight: 600,
+    background: status === 'NORMAL' ? "#dcfce7" :
+                status === 'KILL_SWITCH_ACTIVE' ? "#fef3c7" :
+                status === 'DEAD_DAY_ACTIVE' ? "#dbeafe" :
+                "#f3f4f6",
+    color: status === 'NORMAL' ? "#166534" :
+           status === 'KILL_SWITCH_ACTIVE' ? "#92400e" :
+           status === 'DEAD_DAY_ACTIVE' ? "#1e40af" :
+           "#374151",
+  }),
+  statusDot: (status: string) => ({
+    width: "6px",
+    height: "6px",
+    borderRadius: "50%",
+    background: status === 'NORMAL' ? "#22c55e" :
+                status === 'KILL_SWITCH_ACTIVE' ? "#f59e0b" :
+                status === 'DEAD_DAY_ACTIVE' ? "#3b82f6" :
+                "#9ca3af",
+  }),
+  // Tab bar styles
   tabBar: {
     background: "white",
     borderBottom: "1px solid #e5e7eb",
@@ -125,7 +203,19 @@ const styles = {
     borderBottom: isActive ? `3px solid ${color}` : "3px solid transparent",
     marginBottom: "-1px",
     transition: "all 0.15s ease",
+    display: "flex" as const,
+    alignItems: "center" as const,
+    gap: "8px",
   }),
+  shortcutHint: {
+    fontSize: "10px",
+    fontWeight: 500,
+    color: "#9ca3af",
+    background: "#f3f4f6",
+    padding: "2px 5px",
+    borderRadius: "3px",
+    marginLeft: "4px",
+  },
   content: {
     maxWidth: "1400px",
     margin: "0 auto",
@@ -139,11 +229,11 @@ const styles = {
   },
 }
 
-// Tab configuration
-const tabs: { id: TabId; label: string; color: string; icon: string }[] = [
-  { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧' },
-  { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊' },
-  { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁' },
+// Tab configuration with keyboard shortcuts
+const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: string }[] = [
+  { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '1' },
+  { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '2' },
+  { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '3' },
 ]
 
 // =============================================================================
@@ -159,26 +249,181 @@ function SectionLoader({ name }: { name: string }) {
 }
 
 // =============================================================================
+// Status Strip Component
+// =============================================================================
+
+function StatusStrip({ user }: { user?: { fid: number } }) {
+  const [status, setStatus] = useState<OperationalStatus | null>(null)
+
+  const fetchStatus = useCallback(async () => {
+    if (!user?.fid) return
+
+    try {
+      const res = await fetch(`/api/admin/operational/status?devFid=${user.fid}`)
+      if (res.ok) {
+        const data = await res.json()
+        setStatus(data)
+      }
+    } catch {
+      // Silent fail - status strip is informational
+    }
+  }, [user?.fid])
+
+  useEffect(() => {
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 30000)
+    return () => clearInterval(interval)
+  }, [fetchStatus])
+
+  const getStatusLabel = (s: string) => {
+    switch (s) {
+      case 'NORMAL': return 'Normal'
+      case 'KILL_SWITCH_ACTIVE': return 'Kill Switch'
+      case 'DEAD_DAY_ACTIVE': return 'Dead Day'
+      case 'PAUSED_BETWEEN_ROUNDS': return 'Paused'
+      default: return s
+    }
+  }
+
+  const getSinceTimestamp = () => {
+    if (!status) return null
+    if (status.status === 'KILL_SWITCH_ACTIVE' && status.killSwitch.activatedAt) {
+      return status.killSwitch.activatedAt
+    }
+    if ((status.status === 'DEAD_DAY_ACTIVE' || status.status === 'PAUSED_BETWEEN_ROUNDS') && status.deadDay.activatedAt) {
+      return status.deadDay.activatedAt
+    }
+    return null
+  }
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const today = new Date()
+    if (date.toDateString() === today.toDateString()) {
+      return `Today ${formatTime(dateStr)}`
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + formatTime(dateStr)
+  }
+
+  if (!status) {
+    return (
+      <div style={styles.statusStrip}>
+        <div style={styles.statusStripInner}>
+          <div style={{ fontSize: "12px", color: "#9ca3af" }}>Loading status...</div>
+        </div>
+      </div>
+    )
+  }
+
+  const sinceTimestamp = getSinceTimestamp()
+
+  return (
+    <div style={styles.statusStrip}>
+      <div style={styles.statusStripInner}>
+        <div style={styles.statusLeft}>
+          {/* Status */}
+          <div style={styles.statusItem}>
+            <span style={styles.statusLabel}>Status</span>
+            <span style={styles.statusBadge(status.status)}>
+              <span style={styles.statusDot(status.status)} />
+              {getStatusLabel(status.status)}
+            </span>
+          </div>
+
+          {/* Active Round */}
+          <div style={styles.statusItem}>
+            <span style={styles.statusLabel}>Round</span>
+            <span style={{ fontWeight: 600 }}>
+              {status.activeRoundId ? `#${status.activeRoundId}` : 'None'}
+            </span>
+          </div>
+
+          {/* Since timestamp (when applicable) */}
+          {sinceTimestamp && status.status !== 'NORMAL' && (
+            <div style={styles.statusItem}>
+              <span style={styles.statusLabel}>Since</span>
+              <span>{formatDate(sinceTimestamp)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Last updated */}
+        <div style={{ fontSize: "11px", color: "#9ca3af" }}>
+          Updated {formatTime(status.timestamp)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
 // Dashboard Content
 // =============================================================================
 
 function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('operations')
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  // Sync tab with URL hash
+  // Sync tab with URL query param on mount and when query changes
   useEffect(() => {
-    const hash = window.location.hash.slice(1) as TabId
-    if (hash && tabs.some(t => t.id === hash)) {
-      setActiveTab(hash)
+    const tabParam = router.query.tab as string
+    if (tabParam && tabs.some(t => t.id === tabParam)) {
+      setActiveTab(tabParam as TabId)
+    } else if (!tabParam && isInitialized) {
+      // If no tab param and already initialized, stay on current tab
+    } else {
+      // Default to operations
+      setActiveTab('operations')
     }
-  }, [])
+    setIsInitialized(true)
+  }, [router.query.tab, isInitialized])
 
   const handleTabChange = (tabId: TabId) => {
     setActiveTab(tabId)
-    // Update URL hash without triggering navigation
-    window.history.replaceState(null, '', `#${tabId}`)
+    // Update URL with query param
+    router.replace(
+      { pathname: router.pathname, query: { tab: tabId } },
+      undefined,
+      { shallow: true }
+    )
   }
+
+  // Keyboard shortcuts for tab switching
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if focus is in input/textarea
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
+      // Don't interfere with modifier keys
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return
+      }
+
+      switch (e.key) {
+        case '1':
+          handleTabChange('operations')
+          break
+        case '2':
+          handleTabChange('analytics')
+          break
+        case '3':
+          handleTabChange('archive')
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={styles.page}>
@@ -212,6 +457,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         </div>
       </header>
 
+      {/* Status Strip */}
+      <StatusStrip user={user} />
+
       {/* Tab Bar */}
       <div style={styles.tabBar}>
         <div style={styles.tabBarInner}>
@@ -221,8 +469,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
               onClick={() => handleTabChange(tab.id)}
               style={styles.tab(activeTab === tab.id, tab.color)}
             >
-              <span style={{ marginRight: "8px" }}>{tab.icon}</span>
-              {tab.label}
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span style={styles.shortcutHint}>{tab.shortcut}</span>
             </button>
           ))}
         </div>
