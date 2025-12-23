@@ -1109,6 +1109,21 @@ function GameContent() {
     // Refetch user state to update guess counts
     setUserStateKey(prev => prev + 1);
     void haptics.packPurchased();
+
+    // Close share modal if open (user chose to buy packs instead of sharing)
+    if (showShareModal) {
+      setShowShareModal(false);
+      setPendingShareResult(null);
+    }
+
+    // Trigger the fade-out of the incorrect banner if showing
+    if (incorrectState === 'active' || incorrectState === 'faded') {
+      setIncorrectState('fading_out');
+      setTimeout(() => {
+        setIncorrectState('none');
+        setLastSubmittedGuess(null);
+      }, 1000); // Match the fade-out duration
+    }
   };
 
   return (
