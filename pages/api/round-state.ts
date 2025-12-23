@@ -5,6 +5,14 @@ import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 import { getEthUsdPrice } from '../../src/lib/prices';
 import { getTop10LockStatus } from '../../src/lib/top10-lock';
+import {
+  cacheAside,
+  CacheKeys,
+  CacheTTL,
+  checkRateLimit,
+  RateLimiters,
+} from '../../src/lib/redis';
+import { getActiveRound } from '../../src/lib/rounds';
 
 /**
  * GET /api/round-state
@@ -37,6 +45,18 @@ export default async function handler(
   }
 
   try {
+    // Milestone 9.0: Rate limiting (by IP)
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const rateCheck = await checkRateLimit(RateLimiters.general, `round-state:${clientIp}`);
+    if (!rateCheck.success) {
+      res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '60');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
       console.log('🎮 Dev mode: Returning dev round status with actual prize pool');
@@ -71,11 +91,33 @@ export default async function handler(
       return res.status(200).json(syntheticStatus);
     }
 
-    // Production mode: fetch from database
+    // Production mode: fetch from database with caching
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 
-    const roundStatus = await getActiveRoundStatus();
+    // Milestone 9.0: Get active round ID first for cache key
+    // We need to know the round ID to cache by round
+    const activeRound = await getActiveRound();
+    if (!activeRound) {
+      // No active round - fetch fresh (this will create one)
+      const roundStatus = await getActiveRoundStatus();
+      return res.status(200).json(roundStatus);
+    }
+
+    // Use cache-aside pattern for round state
+    // Cache is keyed by roundId, so round transitions automatically get fresh data
+    const roundStatus = await cacheAside<RoundStatus>(
+      CacheKeys.roundState(activeRound.id),
+      CacheTTL.roundState,
+      async () => {
+        console.log(`[round-state] Cache miss, fetching from DB for round ${activeRound.id}`);
+        return getActiveRoundStatus();
+      }
+    );
+
+    // Set cache headers for client-side caching
+    res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=10');
+
     return res.status(200).json(roundStatus);
   } catch (error: any) {
     console.error('Error in /api/round-state:', error);

@@ -11,6 +11,11 @@ import {
   weiToEthString,
   getPricingPhase,
 } from '../../src/lib/pack-pricing';
+import {
+  invalidateRoundStateCache,
+  checkRateLimit,
+  RateLimiters,
+} from '../../src/lib/redis';
 
 /**
  * POST /api/purchase-guess-pack
@@ -36,6 +41,17 @@ export default async function handler(
 
   try {
     const { fid, packCount } = req.body;
+
+    // Milestone 9.0: Rate limiting for pack purchases (by FID)
+    if (fid && typeof fid === 'number') {
+      const rateCheck = await checkRateLimit(RateLimiters.packPurchase, `pack:${fid}`);
+      if (!rateCheck.success) {
+        res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '10');
+        res.setHeader('X-RateLimit-Remaining', '0');
+        res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
+        return res.status(429).json({ error: 'Too many requests. Please wait before purchasing again.' });
+      }
+    }
 
     // Validate inputs
     if (!fid || typeof fid !== 'number') {
@@ -119,6 +135,14 @@ export default async function handler(
           pack_number: currentState.paidPacksPurchased + i + 1,
           total_packs_today: updatedState.paidPacksPurchased,
         },
+      });
+    }
+
+    // Milestone 9.0: Invalidate round state cache (prize pool changed)
+    if (activeRound?.id) {
+      console.log(`[Cache] Invalidating round-state cache after pack purchase for round ${activeRound.id}`);
+      invalidateRoundStateCache(activeRound.id).catch((err) => {
+        console.error('[Cache] Failed to invalidate after pack purchase:', err);
       });
     }
 
