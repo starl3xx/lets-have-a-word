@@ -62,6 +62,12 @@ export default async function handler(
     const config = getContractConfig();
     const contract = getJackpotManagerReadOnly();
 
+    // Normalize addresses with proper checksums (handles env vars with incorrect casing)
+    const operatorAddress = ethers.getAddress(config.operatorWallet);
+    const prizePoolAddress = ethers.getAddress(config.prizePoolWallet);
+    const creatorProfitAddress = ethers.getAddress(config.creatorProfitWallet);
+    const contractAddress = ethers.getAddress(config.jackpotManagerAddress);
+
     // Fetch all balances in parallel
     const [
       operatorBalance,
@@ -71,9 +77,9 @@ export default async function handler(
       pendingRefundsResult,
     ] = await Promise.all([
       // Operator wallet balance
-      provider.getBalance(config.operatorWallet),
+      provider.getBalance(operatorAddress),
       // Prize pool wallet balance (may be same as contract)
-      provider.getBalance(config.prizePoolWallet),
+      provider.getBalance(prizePoolAddress),
       // Current jackpot from contract
       contract.currentJackpot(),
       // Creator profit accumulated in contract
@@ -91,18 +97,18 @@ export default async function handler(
 
     const response: WalletBalancesResponse = {
       operatorWallet: {
-        address: config.operatorWallet,
+        address: operatorAddress,
         balanceEth: ethers.formatEther(operatorBalance),
         balanceWei: operatorBalance.toString(),
       },
       prizePool: {
-        address: config.prizePoolWallet,
+        address: prizePoolAddress,
         balanceEth: ethers.formatEther(prizePoolBalance),
         balanceWei: prizePoolBalance.toString(),
         currentJackpotEth: ethers.formatEther(currentJackpot),
       },
       creatorPool: {
-        address: config.creatorProfitWallet,
+        address: creatorProfitAddress,
         accumulatedEth: ethers.formatEther(creatorAccumulated),
         accumulatedWei: creatorAccumulated.toString(),
       },
@@ -110,7 +116,7 @@ export default async function handler(
         count: pendingRefunds.count,
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),
       },
-      contractAddress: config.jackpotManagerAddress,
+      contractAddress: contractAddress,
       lastUpdated: new Date().toISOString(),
     };
 
