@@ -94,7 +94,16 @@ export const redis = createRedisClient();
 // Cache Key Prefixes
 // ============================================================
 
-const CACHE_PREFIX = 'lhaw:';
+export const CACHE_PREFIX = 'lhaw:';
+
+/**
+ * Get the Redis client singleton
+ * Returns null if Redis is not configured
+ * Use this instead of accessing `redis` directly for clearer intent
+ */
+export function getRedisClient(): Redis | null {
+  return redis;
+}
 
 export const CacheKeys = {
   /** Round state for top ticker (includes roundId) */
