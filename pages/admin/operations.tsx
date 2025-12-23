@@ -561,8 +561,41 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
     <div style={styles.container}>
       {/* Header */}
       <header style={styles.header}>
-        <h1 style={styles.title}>Operations Dashboard</h1>
+        <div>
+          <h1 style={styles.title}>Operations Dashboard</h1>
+          <p style={{ fontSize: "13px", color: "#6b7280", margin: "4px 0 0 0" }}>
+            Milestone 9.5 — Kill Switch & Dead Day Controls
+          </p>
+        </div>
         <div style={styles.userInfo}>
+          <a
+            href="/admin/analytics"
+            style={{
+              padding: "8px 14px",
+              background: "#6366f1",
+              color: "white",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: 500,
+            }}
+          >
+            Analytics
+          </a>
+          <a
+            href="/admin/archive"
+            style={{
+              padding: "8px 14px",
+              background: "#6366f1",
+              color: "white",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: 500,
+            }}
+          >
+            Round Archive
+          </a>
           {user?.pfp_url && (
             <img
               src={user.pfp_url}
