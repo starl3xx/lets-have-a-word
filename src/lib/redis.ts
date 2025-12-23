@@ -520,6 +520,76 @@ export async function cacheAside<T>(
 }
 
 // ============================================================
+// Slow Query Tracking
+// ============================================================
+
+/** Default threshold for slow query logging (milliseconds) */
+const SLOW_QUERY_THRESHOLD_MS = 500;
+
+/**
+ * Track execution time of an async operation and report slow queries to Sentry
+ *
+ * @param operationName Descriptive name for the operation (e.g., "query:getActiveRound")
+ * @param fn The async function to execute
+ * @param thresholdMs Optional custom threshold (default 500ms)
+ * @returns The result of the function
+ */
+export async function trackSlowQuery<T>(
+  operationName: string,
+  fn: () => Promise<T>,
+  thresholdMs: number = SLOW_QUERY_THRESHOLD_MS
+): Promise<T> {
+  const start = Date.now();
+
+  try {
+    const result = await fn();
+    const duration = Date.now() - start;
+
+    if (duration >= thresholdMs) {
+      console.warn(`[SlowQuery] ${operationName} took ${duration}ms (threshold: ${thresholdMs}ms)`);
+
+      // Dynamic import Sentry to avoid circular dependencies
+      import('@sentry/nextjs').then((Sentry) => {
+        Sentry.captureMessage(`Slow query: ${operationName}`, {
+          level: 'warning',
+          tags: {
+            type: 'slow-query',
+            operation: operationName,
+          },
+          extra: {
+            durationMs: duration,
+            thresholdMs,
+          },
+        });
+      }).catch(() => {
+        // Sentry import failed, just log
+      });
+    } else if (duration > thresholdMs / 2) {
+      // Log but don't report queries approaching threshold
+      console.log(`[Query] ${operationName} took ${duration}ms`);
+    }
+
+    return result;
+  } catch (error) {
+    const duration = Date.now() - start;
+    console.error(`[Query] ${operationName} failed after ${duration}ms:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Create a slow query tracker with a specific threshold
+ * Useful for creating endpoint-specific trackers
+ *
+ * @param thresholdMs The threshold in milliseconds
+ * @returns A tracker function
+ */
+export function createSlowQueryTracker(thresholdMs: number) {
+  return <T>(operationName: string, fn: () => Promise<T>): Promise<T> =>
+    trackSlowQuery(operationName, fn, thresholdMs);
+}
+
+// ============================================================
 // Diagnostic Functions
 // ============================================================
 

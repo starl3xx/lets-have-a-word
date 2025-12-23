@@ -6,6 +6,7 @@ import { createCommitment, verifyCommit } from './commit-reveal';
 import { resolveRoundAndCreatePayouts } from './economics';
 import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
+import { trackSlowQuery } from './redis';
 
 /**
  * Options for creating a new round
@@ -101,31 +102,33 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
  * Get the current active round (latest unresolved round)
  */
 export async function getActiveRound(): Promise<Round | null> {
-  const result = await db
-    .select()
-    .from(rounds)
-    .where(isNull(rounds.resolvedAt))
-    .orderBy(desc(rounds.startedAt))
-    .limit(1);
+  return trackSlowQuery('query:getActiveRound', async () => {
+    const result = await db
+      .select()
+      .from(rounds)
+      .where(isNull(rounds.resolvedAt))
+      .orderBy(desc(rounds.startedAt))
+      .limit(1);
 
-  if (result.length === 0) {
-    return null;
-  }
+    if (result.length === 0) {
+      return null;
+    }
 
-  const round = result[0];
-  return {
-    id: round.id,
-    rulesetId: round.rulesetId,
-    answer: round.answer,
-    salt: round.salt,
-    commitHash: round.commitHash,
-    prizePoolEth: round.prizePoolEth,
-    seedNextRoundEth: round.seedNextRoundEth,
-    winnerFid: round.winnerFid,
-    referrerFid: round.referrerFid,
-    startedAt: round.startedAt,
-    resolvedAt: round.resolvedAt,
-  };
+    const round = result[0];
+    return {
+      id: round.id,
+      rulesetId: round.rulesetId,
+      answer: round.answer,
+      salt: round.salt,
+      commitHash: round.commitHash,
+      prizePoolEth: round.prizePoolEth,
+      seedNextRoundEth: round.seedNextRoundEth,
+      winnerFid: round.winnerFid,
+      referrerFid: round.referrerFid,
+      startedAt: round.startedAt,
+      resolvedAt: round.resolvedAt,
+    };
+  });
 }
 
 /**

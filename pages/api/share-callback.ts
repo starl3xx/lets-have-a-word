@@ -6,6 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { awardShareBonus, getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 
@@ -77,6 +78,15 @@ export default async function handler(
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[share-callback] Error details:', errorMessage);
+
+    // Report to Sentry with context
+    Sentry.captureException(error, {
+      tags: { endpoint: 'share-callback' },
+      extra: {
+        fid: req.body?.fid,
+        castHash: req.body?.castHash,
+      },
+    });
 
     return res.status(500).json({
       ok: false,
