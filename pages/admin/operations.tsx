@@ -268,6 +268,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [killSwitchConfirmText, setKillSwitchConfirmText] = useState("")
   const KILL_SWITCH_CONFIRM_PHRASE = "CANCEL ROUND"
 
+  // Copy feedback state
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -440,6 +443,120 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
     return new Date(dateStr).toLocaleString()
   }
 
+  const getRelativeTime = (dateStr?: string) => {
+    if (!dateStr) return null
+    const targetTime = new Date(dateStr).getTime()
+    const now = Date.now()
+    const diffMs = targetTime - now
+
+    if (diffMs <= 0) return 'now'
+
+    const diffMin = Math.round(diffMs / 60000)
+    if (diffMin < 1) return 'in <1 min'
+    if (diffMin === 1) return 'in ~1 min'
+    if (diffMin < 60) return `in ~${diffMin} min`
+
+    const diffHours = Math.round(diffMin / 60)
+    return `in ~${diffHours} hr`
+  }
+
+  const copyIncidentSummary = async () => {
+    if (!status) return
+
+    const lines: string[] = []
+    lines.push('=== LET\'S HAVE A WORD - INCIDENT SUMMARY ===')
+    lines.push('')
+
+    // Status
+    const statusLabels: Record<string, string> = {
+      'NORMAL': 'Normal Operations',
+      'KILL_SWITCH_ACTIVE': 'KILL SWITCH ACTIVE',
+      'DEAD_DAY_ACTIVE': 'Dead Day (Round Active)',
+      'PAUSED_BETWEEN_ROUNDS': 'Paused Between Rounds',
+    }
+    lines.push(`Status: ${statusLabels[status.status] || status.status}`)
+
+    // Active round
+    if (status.activeRoundId) {
+      lines.push(`Active Round: #${status.activeRoundId}`)
+    } else {
+      lines.push('Active Round: None')
+    }
+
+    // Kill switch details
+    if (status.killSwitch.enabled) {
+      lines.push('')
+      lines.push('--- Kill Switch ---')
+      if (status.killSwitch.activatedAt) {
+        lines.push(`Activated: ${formatDate(status.killSwitch.activatedAt)}`)
+      }
+      if (status.killSwitch.reason) {
+        lines.push(`Reason: ${status.killSwitch.reason}`)
+      }
+      if (status.killSwitch.roundId) {
+        lines.push(`Cancelled Round: #${status.killSwitch.roundId}`)
+      }
+
+      // Refund details
+      const cancelledRound = status.cancelledRounds.find(r => r.roundId === status.killSwitch.roundId)
+      if (cancelledRound?.refunds) {
+        const r = cancelledRound.refunds
+        lines.push('')
+        lines.push('--- Refund Progress ---')
+        lines.push(`Total: ${r.total} | Sent: ${r.sent} | In Progress: ${r.pending + r.processing} | Failed: ${r.failed}`)
+        lines.push(`Total ETH: ${parseFloat(r.totalAmountEth).toFixed(6)} ETH`)
+        if (cancelledRound.refundsCompletedAt) {
+          lines.push(`Completed: ${formatDate(cancelledRound.refundsCompletedAt)}`)
+        }
+      }
+    }
+
+    // Dead day details
+    if (status.deadDay.enabled) {
+      lines.push('')
+      lines.push('--- Dead Day ---')
+      if (status.deadDay.activatedAt) {
+        lines.push(`Activated: ${formatDate(status.deadDay.activatedAt)}`)
+      }
+      if (status.deadDay.reason) {
+        lines.push(`Reason: ${status.deadDay.reason}`)
+      }
+      if (status.deadDay.reopenAt) {
+        lines.push(`Scheduled Reopen: ${formatDate(status.deadDay.reopenAt)}`)
+      }
+    }
+
+    // Cron timing
+    if (status.refundCron && status.killSwitch.enabled) {
+      lines.push('')
+      lines.push('--- Refund Cron ---')
+      lines.push(`Last Run: ${status.refundCron.lastRun ? formatDate(status.refundCron.lastRun) : 'Never'}`)
+      lines.push(`Next Run: ${getRelativeTime(status.refundCron.nextRunEstimate) || formatDate(status.refundCron.nextRunEstimate)}`)
+    }
+
+    // Timestamp
+    lines.push('')
+    lines.push(`Generated: ${formatDate(status.timestamp)}`)
+
+    const summary = lines.join('\n')
+
+    try {
+      await navigator.clipboard.writeText(summary)
+      setCopyFeedback('Copied!')
+      setTimeout(() => setCopyFeedback(null), 2000)
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea')
+      textarea.value = summary
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setCopyFeedback('Copied!')
+      setTimeout(() => setCopyFeedback(null), 2000)
+    }
+  }
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -520,6 +637,12 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                       `Since ${formatDate(status.deadDay.activatedAt)}`}
                     {status.status === 'NORMAL' && 'All systems operational'}
                   </div>
+                  {/* Blast radius descriptor */}
+                  <div style={{ fontSize: '12px', fontStyle: 'italic', color: '#9ca3af', marginTop: '2px' }}>
+                    {status.status === 'KILL_SWITCH_ACTIVE' && 'All gameplay blocked, refunds processing'}
+                    {status.status === 'DEAD_DAY_ACTIVE' && 'Current round active, no new rounds after'}
+                    {status.status === 'PAUSED_BETWEEN_ROUNDS' && 'No active round, waiting for manual resume'}
+                  </div>
                 </div>
               </div>
               <div style={styles.infoRow}>
@@ -532,13 +655,28 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 <span style={styles.infoLabel}>Last Updated</span>
                 <span style={styles.infoValue}>{formatDate(status.timestamp)}</span>
               </div>
-              <button
-                onClick={fetchStatus}
-                style={{ ...styles.btnSecondary, marginTop: '12px' }}
-                disabled={loading}
-              >
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px', alignItems: 'center' }}>
+                <button
+                  onClick={fetchStatus}
+                  style={styles.btnSecondary}
+                  disabled={loading}
+                >
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </button>
+                {status.status !== 'NORMAL' && (
+                  <button
+                    onClick={copyIncidentSummary}
+                    style={{
+                      ...styles.btnSecondary,
+                      background: '#f0f9ff',
+                      borderColor: '#bae6fd',
+                      color: '#0369a1',
+                    }}
+                  >
+                    {copyFeedback || 'Copy incident summary'}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Kill Switch Card */}
@@ -655,7 +793,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span>Next run (est.):</span>
                               <span style={{ fontWeight: 500, color: '#475569' }}>
-                                {formatDate(status.refundCron.nextRunEstimate)}
+                                {getRelativeTime(status.refundCron.nextRunEstimate) || formatDate(status.refundCron.nextRunEstimate)}
                               </span>
                             </div>
                             {status.refundCron.lastResult && (
