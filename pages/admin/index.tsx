@@ -1,11 +1,11 @@
 /**
  * Unified Admin Dashboard
- * Combines Operations, Analytics, Archive, and Economics into a single tabbed interface
+ * Combines Operations, Analytics, Archive, Economics, and Wallet into a single tabbed interface
  *
  * Features:
- * - Tab Navigation with URL query params (?tab=operations|analytics|archive|economics)
+ * - Tab Navigation with URL query params (?tab=operations|analytics|archive|economics|wallet)
  * - Persistent status strip showing operational state across all tabs
- * - Keyboard shortcuts (1/2/3/4) for fast tab switching
+ * - Keyboard shortcuts (1/2/3/4/5) for fast tab switching
  */
 
 import React, { useState, useEffect, useCallback } from "react"
@@ -39,11 +39,16 @@ const EconomicsSection = dynamic(
   { ssr: false, loading: () => <SectionLoader name="Economics" /> }
 )
 
+const WalletSection = dynamic(
+  () => import("../../components/admin/WalletSection"),
+  { ssr: false, loading: () => <SectionLoader name="Wallet" /> }
+)
+
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = 'operations' | 'analytics' | 'archive' | 'economics'
+type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet'
 
 interface DashboardContentProps {
   user?: {
@@ -240,6 +245,7 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '2' },
   { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '3' },
   { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '4' },
+  { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '👛', shortcut: '5' },
 ]
 
 // =============================================================================
@@ -427,6 +433,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         case '4':
           handleTabChange('economics')
           break
+        case '5':
+          handleTabChange('wallet')
+          break
       }
     }
 
@@ -492,6 +501,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         {activeTab === 'analytics' && <AnalyticsSection user={user} />}
         {activeTab === 'archive' && <ArchiveSection user={user} />}
         {activeTab === 'economics' && <EconomicsSection user={user} />}
+        {activeTab === 'wallet' && <WalletSection user={user} />}
       </div>
     </div>
   )

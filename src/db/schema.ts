@@ -481,3 +481,36 @@ export const roundEconomicsConfig = pgTable('round_economics_config', {
 
 export type RoundEconomicsConfigRow = typeof roundEconomicsConfig.$inferSelect;
 export type RoundEconomicsConfigInsert = typeof roundEconomicsConfig.$inferInsert;
+
+/**
+ * Admin Wallet Actions Table
+ * Tracks all wallet-related admin actions for audit trail
+ */
+export type AdminWalletActionType =
+  | 'prize_pool_injection'
+  | 'creator_pool_withdrawal'
+  | 'refund_batch';
+
+export const adminWalletActions = pgTable('admin_wallet_actions', {
+  id: serial('id').primaryKey(),
+  actionType: varchar('action_type', { length: 50 }).notNull().$type<AdminWalletActionType>(),
+  amountEth: varchar('amount_eth', { length: 50 }).notNull(),
+  amountWei: varchar('amount_wei', { length: 78 }).notNull(),
+  fromAddress: varchar('from_address', { length: 42 }).notNull(),
+  toAddress: varchar('to_address', { length: 42 }).notNull(),
+  txHash: varchar('tx_hash', { length: 66 }),
+  status: varchar('status', { length: 20 }).notNull().default('pending').$type<'pending' | 'confirmed' | 'failed'>(),
+  initiatedByFid: integer('initiated_by_fid').notNull(),
+  initiatedByAddress: varchar('initiated_by_address', { length: 42 }).notNull(),
+  note: varchar('note', { length: 500 }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+}, (table) => ({
+  actionTypeIdx: index('admin_wallet_actions_type_idx').on(table.actionType),
+  createdAtIdx: index('admin_wallet_actions_created_at_idx').on(table.createdAt),
+  initiatedByIdx: index('admin_wallet_actions_initiated_by_idx').on(table.initiatedByFid),
+}));
+
+export type AdminWalletActionRow = typeof adminWalletActions.$inferSelect;
+export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
