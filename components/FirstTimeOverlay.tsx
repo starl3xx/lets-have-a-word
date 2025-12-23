@@ -181,10 +181,10 @@ export default function FirstTimeOverlay({
           <>
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-gray-900">
-                One last step
+                One last step!
               </h2>
               <p className="text-gray-600">
-                Add the app to play daily, track your progress, and never miss a round
+                Add the app to play daily, track global progress, and never miss a round
               </p>
             </div>
 
