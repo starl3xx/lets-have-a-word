@@ -37,16 +37,16 @@ function getDisplayContent(errorCode: string, reason?: string): {
   switch (errorCode) {
     case 'GAME_PAUSED_KILL_SWITCH':
       return {
-        title: 'Game Paused',
-        message: reason || 'The game has been temporarily paused. All paid pack purchases will be refunded. We apologize for any inconvenience.',
+        title: 'Round Cancelled',
+        message: 'This round was cancelled. All paid packs purchased this round will be refunded automatically.',
         icon: '\u26A0', // Warning sign
         bgColor: 'bg-amber-50 border-amber-200',
         textColor: 'text-amber-900',
       };
     case 'GAME_PAUSED_BETWEEN_ROUNDS':
       return {
-        title: 'Between Rounds',
-        message: 'The current round has ended. Please wait for the next round to start.',
+        title: 'Taking a Break',
+        message: "We're taking a short break. The next round will start soon.",
         icon: '\u23F3', // Hourglass
         bgColor: 'bg-blue-50 border-blue-200',
         textColor: 'text-blue-900',
@@ -98,11 +98,6 @@ export default function GamePausedBanner({ errorCode, reason, onDismiss }: Props
           <p className={`text-sm ${content.textColor} opacity-90 mt-1`}>
             {content.message}
           </p>
-          {errorCode === 'GAME_PAUSED_KILL_SWITCH' && (
-            <p className="text-xs text-amber-700 mt-2 font-medium">
-              Refunds will be processed automatically.
-            </p>
-          )}
         </div>
         {onDismiss && (
           <button

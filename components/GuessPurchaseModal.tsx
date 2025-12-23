@@ -195,8 +195,8 @@ export default function GuessPurchaseModal({
         const opError = parseOperationalError(data);
         if (opError.isOperational) {
           const message = opError.code === 'GAME_PAUSED_KILL_SWITCH'
-            ? 'Game is temporarily paused. Purchases are disabled. Any pending refunds will be processed automatically.'
-            : 'Game is between rounds. Please wait for the next round to start.';
+            ? 'This round was cancelled. All paid packs purchased this round will be refunded automatically.'
+            : "We're taking a short break. The next round will start soon.";
           throw new Error(message);
         }
         throw new Error(data.error || t('guessPack.purchaseFailed'));
