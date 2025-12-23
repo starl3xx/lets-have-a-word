@@ -479,13 +479,30 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             {/* Current Status Card */}
             <div style={styles.card}>
               <h2 style={styles.cardTitle}>Current Status</h2>
-              <div style={{ marginBottom: "16px" }}>
-                <span style={styles.statusBadge(status.status)}>
-                  {status.status === 'NORMAL' && 'Normal Operations'}
-                  {status.status === 'KILL_SWITCH_ACTIVE' && 'Kill Switch Active'}
-                  {status.status === 'DEAD_DAY_ACTIVE' && 'Dead Day (Round Active)'}
-                  {status.status === 'PAUSED_BETWEEN_ROUNDS' && 'Paused Between Rounds'}
+              <div style={{ marginBottom: "16px", display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>
+                  {status.status === 'NORMAL' && '🟢'}
+                  {status.status === 'KILL_SWITCH_ACTIVE' && '🔴'}
+                  {status.status === 'DEAD_DAY_ACTIVE' && '🟡'}
+                  {status.status === 'PAUSED_BETWEEN_ROUNDS' && '⏸️'}
                 </span>
+                <div>
+                  <span style={styles.statusBadge(status.status)}>
+                    {status.status === 'NORMAL' && 'Normal Operations'}
+                    {status.status === 'KILL_SWITCH_ACTIVE' && 'Kill Switch Active'}
+                    {status.status === 'DEAD_DAY_ACTIVE' && 'Dead Day (Round Active)'}
+                    {status.status === 'PAUSED_BETWEEN_ROUNDS' && 'Paused Between Rounds'}
+                  </span>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    {status.status === 'KILL_SWITCH_ACTIVE' && status.killSwitch.activatedAt &&
+                      `Since ${formatDate(status.killSwitch.activatedAt)}`}
+                    {status.status === 'DEAD_DAY_ACTIVE' && status.deadDay.activatedAt &&
+                      `Since ${formatDate(status.deadDay.activatedAt)}`}
+                    {status.status === 'PAUSED_BETWEEN_ROUNDS' && status.deadDay.activatedAt &&
+                      `Since ${formatDate(status.deadDay.activatedAt)}`}
+                    {status.status === 'NORMAL' && 'All systems operational'}
+                  </div>
+                </div>
               </div>
               <div style={styles.infoRow}>
                 <span style={styles.infoLabel}>Active Round</span>
@@ -522,6 +539,87 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                   <div style={styles.alert('warning')}>
                     Kill switch is currently active. All gameplay is blocked.
                   </div>
+
+                  {/* Refund Monitoring Panel */}
+                  {(() => {
+                    const cancelledRound = status.cancelledRounds.find(r => r.roundId === status.killSwitch.roundId)
+                    const refunds = cancelledRound?.refunds
+                    return refunds ? (
+                      <div style={{
+                        background: '#f0f9ff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        marginBottom: '16px',
+                      }}>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: '#0369a1', marginBottom: '12px' }}>
+                          📊 Refund Status — Round #{status.killSwitch.roundId}
+                        </div>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(4, 1fr)',
+                          gap: '12px',
+                          textAlign: 'center',
+                        }}>
+                          <div style={{ background: 'white', borderRadius: '6px', padding: '12px' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 700, color: '#16a34a' }}>
+                              {refunds.sent}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              Sent ✓
+                            </div>
+                          </div>
+                          <div style={{ background: 'white', borderRadius: '6px', padding: '12px' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 700, color: '#2563eb' }}>
+                              {refunds.pending + refunds.processing}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              In Progress
+                            </div>
+                          </div>
+                          <div style={{ background: 'white', borderRadius: '6px', padding: '12px' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 700, color: refunds.failed > 0 ? '#dc2626' : '#9ca3af' }}>
+                              {refunds.failed}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              Failed
+                            </div>
+                          </div>
+                          <div style={{ background: 'white', borderRadius: '6px', padding: '12px' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 700, color: '#111827' }}>
+                              {refunds.total}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              Total
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '8px 12px',
+                          background: 'white',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '13px',
+                        }}>
+                          <span style={{ color: '#6b7280' }}>Total ETH to Refund</span>
+                          <span style={{ fontWeight: 600 }}>{parseFloat(refunds.totalAmountEth).toFixed(6)} ETH</span>
+                        </div>
+                        {cancelledRound.refundsCompletedAt && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>
+                            ✓ All refunds completed at {formatDate(cancelledRound.refundsCompletedAt)}
+                          </div>
+                        )}
+                        {status.killSwitch.refundsRunning && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#2563eb' }}>
+                            ⏳ Refund processing in progress...
+                          </div>
+                        )}
+                      </div>
+                    ) : null
+                  })()}
+
                   <div style={styles.infoRow}>
                     <span style={styles.infoLabel}>Activated At</span>
                     <span style={styles.infoValue}>{formatDate(status.killSwitch.activatedAt)}</span>
@@ -534,12 +632,6 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                     <span style={styles.infoLabel}>Cancelled Round</span>
                     <span style={styles.infoValue}>
                       {status.killSwitch.roundId ? `#${status.killSwitch.roundId}` : '-'}
-                    </span>
-                  </div>
-                  <div style={styles.infoRow}>
-                    <span style={styles.infoLabel}>Refunds Processing</span>
-                    <span style={styles.infoValue}>
-                      {status.killSwitch.refundsRunning ? 'Yes' : 'No'}
                     </span>
                   </div>
                   <button
