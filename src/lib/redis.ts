@@ -26,14 +26,37 @@ import { Ratelimit } from '@upstash/ratelimit';
 // ============================================================
 
 /**
+ * Get Redis configuration from environment
+ * Supports both Upstash direct and Vercel KV naming conventions:
+ * - UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (Upstash direct)
+ * - KV_REST_API_URL / KV_REST_API_TOKEN (Vercel KV)
+ */
+function getRedisConfig(): { url: string; token: string } | null {
+  // Try Upstash direct naming first
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return {
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    };
+  }
+
+  // Try Vercel KV naming
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    return {
+      url: process.env.KV_REST_API_URL,
+      token: process.env.KV_REST_API_TOKEN,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Check if Redis is configured
- * Returns true if both URL and token are present
+ * Returns true if credentials are present (either naming convention)
  */
 export function isRedisConfigured(): boolean {
-  return !!(
-    process.env.UPSTASH_REDIS_REST_URL &&
-    process.env.UPSTASH_REDIS_REST_TOKEN
-  );
+  return getRedisConfig() !== null;
 }
 
 /**
@@ -41,15 +64,17 @@ export function isRedisConfigured(): boolean {
  * This allows the app to function without Redis (graceful degradation)
  */
 function createRedisClient(): Redis | null {
-  if (!isRedisConfigured()) {
+  const config = getRedisConfig();
+
+  if (!config) {
     console.log('[Redis] Not configured - caching disabled');
     return null;
   }
 
   try {
     const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      url: config.url,
+      token: config.token,
     });
     console.log('[Redis] Client initialized');
     return redis;
