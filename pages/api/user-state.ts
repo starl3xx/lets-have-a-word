@@ -6,6 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
 import type { GuessSourceState } from '../../src/types';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
@@ -258,6 +259,16 @@ export default async function handler(
 
     console.error('[user-state] Error message:', errorMessage);
     console.error('[user-state] Error stack:', errorStack);
+
+    // Milestone 9.2: Report to Sentry with context
+    Sentry.captureException(error, {
+      tags: { endpoint: 'user-state' },
+      extra: {
+        devFid: req.query?.devFid,
+        hasFrameMessage: !!req.query?.frameMessage,
+        walletAddress: req.query?.walletAddress,
+      },
+    });
 
     // Return detailed error information for debugging
     return res.status(500).json({

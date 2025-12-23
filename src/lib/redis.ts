@@ -111,6 +111,30 @@ export const CacheKeys = {
 
   /** Rate limit key for a specific identifier */
   rateLimit: (identifier: string) => `${CACHE_PREFIX}rate:${identifier}`,
+
+  // Milestone 9.2: Additional cache keys
+
+  /** Top guessers for a round */
+  topGuessers: (roundId: number) => `${CACHE_PREFIX}top-guessers:${roundId}`,
+
+  /** User state (per user, per day) */
+  userState: (fid: number, dateKey: string) => `${CACHE_PREFIX}user-state:${fid}:${dateKey}`,
+
+  /** User stats (per user) */
+  userStats: (fid: number) => `${CACHE_PREFIX}user-stats:${fid}`,
+
+  /** Archive list (paginated) */
+  archiveList: (limit: number, offset: number) => `${CACHE_PREFIX}archive:list:${limit}:${offset}`,
+
+  /** Archive round (immutable after resolution) */
+  archiveRound: (roundNumber: number) => `${CACHE_PREFIX}archive:round:${roundNumber}`,
+
+  /** Admin analytics (by type and optional params) */
+  adminAnalytics: (type: string, params?: string) =>
+    `${CACHE_PREFIX}admin:analytics:${type}${params ? `:${params}` : ''}`,
+
+  /** Guess pack pricing (based on current guess count tier) */
+  guessPackPricing: (roundId: number) => `${CACHE_PREFIX}pack-pricing:${roundId}`,
 } as const;
 
 // ============================================================
@@ -129,6 +153,29 @@ export const CacheTTL = {
 
   /** ETH price - longer TTL, updated less frequently */
   ethPrice: 60,
+
+  // Milestone 9.2: Additional TTLs
+
+  /** Top guessers - short TTL, changes with each guess */
+  topGuessers: 10,
+
+  /** User state - short TTL, invalidated on actions */
+  userState: 10,
+
+  /** User stats - medium TTL, less volatile */
+  userStats: 30,
+
+  /** Archive list - medium TTL, rarely changes */
+  archiveList: 60,
+
+  /** Archive round - long TTL (immutable data) */
+  archiveRound: 3600, // 1 hour (effectively permanent, data doesn't change)
+
+  /** Admin analytics - medium TTL for dashboards */
+  adminAnalytics: 60,
+
+  /** Guess pack pricing - short, changes with guess count */
+  guessPackPricing: 10,
 } as const;
 
 // ============================================================
@@ -286,6 +333,65 @@ export async function invalidateRoundStateCache(
   roundId: number
 ): Promise<void> {
   await cacheDel(CacheKeys.roundState(roundId));
+}
+
+/**
+ * Invalidate top guessers cache for a round
+ * Call this after any guess is submitted
+ *
+ * @param roundId Round ID
+ */
+export async function invalidateTopGuessersCache(
+  roundId: number
+): Promise<void> {
+  await cacheDel(CacheKeys.topGuessers(roundId));
+}
+
+/**
+ * Invalidate user state cache
+ * Call this after any user action (guess, purchase, share)
+ *
+ * @param fid User FID
+ */
+export async function invalidateUserStateCache(fid: number): Promise<void> {
+  // Get today's date key (YYYY-MM-DD in UTC)
+  const dateKey = new Date().toISOString().split('T')[0];
+  await cacheDel(CacheKeys.userState(fid, dateKey));
+}
+
+/**
+ * Invalidate user stats cache
+ * Call this after any stats-affecting action
+ *
+ * @param fid User FID
+ */
+export async function invalidateUserStatsCache(fid: number): Promise<void> {
+  await cacheDel(CacheKeys.userStats(fid));
+}
+
+/**
+ * Invalidate all user-related caches
+ * Call this after major user actions like guessing
+ *
+ * @param fid User FID
+ * @param roundId Current round ID (optional)
+ */
+export async function invalidateUserCaches(
+  fid: number,
+  roundId?: number
+): Promise<void> {
+  const dateKey = new Date().toISOString().split('T')[0];
+  const keys = [
+    CacheKeys.userState(fid, dateKey),
+    CacheKeys.userStats(fid),
+  ];
+
+  if (roundId) {
+    keys.push(CacheKeys.topGuessers(roundId));
+  }
+
+  console.log(`[Cache] Invalidating user ${fid} caches`);
+  await cacheDelMultiple(keys);
 }
 
 // ============================================================

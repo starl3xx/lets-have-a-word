@@ -11,6 +11,7 @@ import { guesses, rounds, users } from '../../../src/db/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface TopGuesser {
   fid: number;
@@ -177,46 +178,56 @@ export default async function handler(
       });
     }
 
-    // Get top 10 guessers for the current round
-    // Group by FID, count guesses, join with users for username
-    const [topGuessersData, uniqueCountResult] = await Promise.all([
-      db
-        .select({
-          fid: guesses.fid,
-          username: users.username,
-          guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
-        })
-        .from(guesses)
-        .leftJoin(users, eq(guesses.fid, users.fid))
-        .where(eq(guesses.roundId, currentRoundId))
-        .groupBy(guesses.fid, users.username)
-        .orderBy(desc(sql`count(${guesses.id})`))
-        .limit(10),
-      // Count total unique guessers
-      db
-        .select({
-          count: sql<number>`cast(count(distinct ${guesses.fid}) as int)`,
-        })
-        .from(guesses)
-        .where(eq(guesses.roundId, currentRoundId)),
-    ]);
+    // Milestone 9.2: Cache top guessers data
+    const cacheKey = CacheKeys.topGuessers(currentRoundId);
+    const cachedResponse = await cacheAside<TopGuessersResponse>(
+      cacheKey,
+      CacheTTL.topGuessers,
+      async () => {
+        // Get top 10 guessers for the current round
+        // Group by FID, count guesses, join with users for username
+        const [topGuessersData, uniqueCountResult] = await Promise.all([
+          db
+            .select({
+              fid: guesses.fid,
+              username: users.username,
+              guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+            })
+            .from(guesses)
+            .leftJoin(users, eq(guesses.fid, users.fid))
+            .where(eq(guesses.roundId, currentRoundId))
+            .groupBy(guesses.fid, users.username)
+            .orderBy(desc(sql`count(${guesses.id})`))
+            .limit(10),
+          // Count total unique guessers
+          db
+            .select({
+              count: sql<number>`cast(count(distinct ${guesses.fid}) as int)`,
+            })
+            .from(guesses)
+            .where(eq(guesses.roundId, currentRoundId)),
+        ]);
 
-    const uniqueGuessersCount = uniqueCountResult[0]?.count || 0;
+        const uniqueGuessersCount = uniqueCountResult[0]?.count || 0;
 
-    // Format response with profile picture URLs
-    const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
-      fid: g.fid,
-      username: g.username || `FID ${g.fid}`,
-      guessCount: Number(g.guessCount),
-      // Using Warpcast's avatar endpoint
-      pfpUrl: `https://warpcast.com/avatar/${g.fid}`,
-    }));
+        // Format response with profile picture URLs
+        const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
+          fid: g.fid,
+          username: g.username || `FID ${g.fid}`,
+          guessCount: Number(g.guessCount),
+          // Using Warpcast's avatar endpoint
+          pfpUrl: `https://warpcast.com/avatar/${g.fid}`,
+        }));
 
-    return res.status(200).json({
-      currentRoundId,
-      topGuessers,
-      uniqueGuessersCount,
-    });
+        return {
+          currentRoundId,
+          topGuessers,
+          uniqueGuessersCount,
+        };
+      }
+    );
+
+    return res.status(200).json(cachedResponse);
   } catch (error) {
     console.error('[round/top-guessers] Error fetching top guessers:', error);
     return res.status(500).json({ error: 'Failed to fetch top guessers' });
