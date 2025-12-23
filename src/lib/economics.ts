@@ -284,7 +284,7 @@ export async function resolveRoundAndCreatePayouts(
   // Get top 10 guessers (FIDs)
   const topGuesserFids = await getTop10Guessers(roundId, winnerFid);
 
-  // Build on-chain payout recipients
+  // Build onchain payout recipients
   const onChainPayouts: PayoutRecipient[] = [];
   const dbPayouts: RoundPayoutInsert[] = [];
 
@@ -340,7 +340,7 @@ export async function resolveRoundAndCreatePayouts(
 
     console.log(`[economics] Tiered top-guesser distribution:\n${formatPayoutsForLog(tieredPayouts)}`);
 
-    // Add to on-chain and DB payouts
+    // Add to onchain and DB payouts
     for (let i = 0; i < tieredPayouts.length; i++) {
       const { amountWei } = tieredPayouts[i];
       const { fid, wallet } = guesserWallets[i];
@@ -366,7 +366,7 @@ export async function resolveRoundAndCreatePayouts(
       amountEth: ethers.formatEther(toTopGuessersWei),
       role: 'top_guesser',
     });
-    // Update winner's on-chain payout
+    // Update winner's onchain payout
     onChainPayouts[0].amountWei += toTopGuessersWei;
   }
 
@@ -380,7 +380,7 @@ export async function resolveRoundAndCreatePayouts(
     });
   }
 
-  console.log(`[economics] Resolving round ${roundId} with on-chain payouts:`);
+  console.log(`[economics] Resolving round ${roundId} with onchain payouts:`);
   console.log(`  - Jackpot: ${jackpotEth} ETH`);
   console.log(`  - Winner (80%): ${ethers.formatEther(onChainPayouts[0].amountWei)} ETH`);
   if (hasReferrer) {
@@ -391,12 +391,12 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   }
 
-  // Execute on-chain payouts
+  // Execute onchain payouts
   try {
     const txHash = await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
-    console.log(`[economics] On-chain payouts executed: ${txHash}`);
+    console.log(`[economics] Onchain payouts executed: ${txHash}`);
   } catch (error) {
-    console.error(`[economics] CRITICAL: On-chain payout failed for round ${roundId}:`, error);
+    console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
     throw error; // Re-throw to prevent marking round as resolved
   }
 
