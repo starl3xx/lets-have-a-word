@@ -30,7 +30,7 @@ import { applyGameplayGuard } from '../../src/lib/operational-guard';
  * - fid: number - Farcaster ID
  * - packCount: number - Number of packs to purchase (1, 2, or 3)
  *
- * Note: In production, this would validate payment on-chain before awarding packs.
+ * Note: In production, this would validate payment onchain before awarding packs.
  * For now, it awards packs directly (payment validation to be added in Milestone 6.4).
  * The expected cost is calculated and returned for logging/verification purposes.
  */

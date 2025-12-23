@@ -7,7 +7,7 @@
  *
  * Key responsibilities:
  * - Call resolveRoundWithPayouts for multi-recipient prize distribution
- * - Track on-chain round state
+ * - Track onchain round state
  * - Verify contract state matches backend state
  */
 
@@ -316,7 +316,7 @@ export async function withdrawCreatorProfitOnChain(): Promise<string> {
 /**
  * Verify contract state matches expected state
  *
- * Used for consistency checks between backend and on-chain state.
+ * Used for consistency checks between backend and onchain state.
  *
  * @param expectedRound - Expected round number
  * @param expectedJackpotEth - Expected jackpot in ETH (string)

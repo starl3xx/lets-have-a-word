@@ -80,7 +80,7 @@ function getOperatorWallet(): Wallet {
 }
 
 /**
- * Send an on-chain ETH refund to a user's Farcaster custody address
+ * Send an onchain ETH refund to a user's Farcaster custody address
  *
  * @param fid - User's Farcaster ID
  * @param amountWei - Amount to refund in wei
@@ -326,8 +326,8 @@ export async function createRefundsForRound(
  * This is called by the cron job to process refunds.
  * Uses distributed locking to prevent concurrent processing.
  *
- * NOTE: In production, this would integrate with the on-chain payment system.
- * For now, it marks refunds as 'sent' immediately (simulating successful transfer).
+ * NOTE: Sends actual onchain ETH transfers from the operator wallet
+ * to each user's Farcaster custody address.
  */
 export async function processRefunds(roundId: number): Promise<RefundProcessingResult> {
   const result: RefundProcessingResult = {
@@ -379,7 +379,7 @@ export async function processRefunds(roundId: number): Promise<RefundProcessingR
           })
           .where(eq(refunds.id, refund.id));
 
-        // Send actual on-chain refund transaction
+        // Send actual onchain refund transaction
         const txHash = await sendRefundTransaction(refund.fid, refund.amountWei);
 
         // Mark as sent with real transaction hash
