@@ -36,6 +36,7 @@ interface WalletBalances {
     totalEth: string;
   };
   contractAddress: string;
+  contractError?: string; // Present if contract calls failed (e.g., not deployed)
   lastUpdated: string;
 }
 
@@ -856,6 +857,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
         ) : balancesLoading ? (
           <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading balances...</div>
         ) : balances ? (
+          <>
+          {balances.contractError && (
+            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
+              ⚠️ <strong>Contract unavailable:</strong> {balances.contractError}. Jackpot and creator pool values may not be accurate.
+            </div>
+          )}
           <div style={styles.grid4}>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Connected Wallet</div>
@@ -881,6 +888,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending</div>
             </div>
           </div>
+          </>
         ) : null}
       </div>
 

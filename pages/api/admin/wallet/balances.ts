@@ -34,6 +34,7 @@ export interface WalletBalancesResponse {
     totalEth: string;
   };
   contractAddress: string;
+  contractError?: string; // Present if contract calls failed
   lastUpdated: string;
 }
 
@@ -62,32 +63,40 @@ export default async function handler(
     const config = getContractConfig(); // Addresses are already checksummed
     const contract = getJackpotManagerReadOnly();
 
-    // Fetch all balances in parallel
-    const [
-      operatorBalance,
-      prizePoolBalance,
-      currentJackpot,
-      creatorAccumulated,
-      pendingRefundsResult,
-    ] = await Promise.all([
-      // Operator wallet balance
+    // Fetch wallet balances (these always work)
+    const [operatorBalance, prizePoolBalance] = await Promise.all([
       provider.getBalance(config.operatorWallet),
-      // Prize pool wallet balance (may be same as contract)
       provider.getBalance(config.prizePoolWallet),
-      // Current jackpot from contract
-      contract.currentJackpot(),
-      // Creator profit accumulated in contract
-      contract.creatorProfitAccumulated(),
-      // Pending refunds from database
-      db.select({
+    ]);
+
+    // Contract calls may fail if contract not deployed - handle gracefully
+    let currentJackpot: bigint = 0n;
+    let creatorAccumulated: bigint = 0n;
+    let contractError: string | null = null;
+
+    try {
+      [currentJackpot, creatorAccumulated] = await Promise.all([
+        contract.currentJackpot(),
+        contract.creatorProfitAccumulated(),
+      ]);
+    } catch (err) {
+      console.warn('[admin/wallet/balances] Contract calls failed (contract may not be deployed):', err);
+      contractError = 'Contract not deployed or not accessible';
+    }
+
+    // Database query for pending refunds
+    let pendingRefunds = { count: 0, totalEth: '0' };
+    try {
+      const pendingRefundsResult = await db.select({
         count: sql<number>`cast(count(*) as int)`,
         totalEth: sql<string>`coalesce(sum(cast(amount_eth as numeric)), 0)::text`,
       })
         .from(refunds)
-        .where(eq(refunds.status, 'pending')),
-    ]);
-
-    const pendingRefunds = pendingRefundsResult[0] || { count: 0, totalEth: '0' };
+        .where(eq(refunds.status, 'pending'));
+      pendingRefunds = pendingRefundsResult[0] || { count: 0, totalEth: '0' };
+    } catch (err) {
+      console.warn('[admin/wallet/balances] Refunds query failed:', err);
+    }
 
     const response: WalletBalancesResponse = {
       operatorWallet: {
@@ -111,6 +120,7 @@ export default async function handler(
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),
       },
       contractAddress: config.jackpotManagerAddress,
+      ...(contractError && { contractError }),
       lastUpdated: new Date().toISOString(),
     };
 
