@@ -19,6 +19,7 @@ import {
   MIN_USER_SCORE,
 } from '../../src/lib/user-quality';
 import { checkRateLimit, RateLimiters } from '../../src/lib/redis';
+import { applyGameplayGuard } from '../../src/lib/operational-guard';
 
 /**
  * POST /api/guess
@@ -85,6 +86,10 @@ export default async function handler(
       res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
       return res.status(429).json({ error: 'Too many guesses. Please slow down.' });
     }
+
+    // Milestone 9.5: Check operational guard (kill switch / dead day)
+    const guardBlocked = await applyGameplayGuard(req, res);
+    if (guardBlocked) return;
 
     // Debug: Log environment variables (Milestone 4.8)
     console.log('🔍 Environment check:', {

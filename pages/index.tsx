@@ -16,6 +16,8 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
+// Milestone 9.5: Game paused banner
+import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
 // Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
 // Uses 6500 which is the dev mode FID defined in daily-limits.ts
@@ -147,6 +149,12 @@ function GameContent() {
     markShareModalSeen,
     markPackModalSeen,
   } = useModalDecision();
+
+  // Milestone 9.5: Game paused/operational error state
+  const [operationalError, setOperationalError] = useState<{
+    code: string;
+    reason?: string;
+  } | null>(null);
 
 
   /**
@@ -721,9 +729,21 @@ function GameContent() {
       });
 
       if (!response.ok) {
-        // Try to get detailed error from response (available in dev mode)
+        // Try to get detailed error from response
         try {
           const errorData = await response.json();
+
+          // Milestone 9.5: Check for operational errors (kill switch, dead day)
+          const opError = parseOperationalError(errorData);
+          if (opError.isOperational) {
+            setOperationalError({
+              code: opError.code!,
+              reason: opError.reason,
+            });
+            setIsLoading(false);
+            return; // Don't throw, just show the banner
+          }
+
           if (errorData.devDetails) {
             console.error('API Error Details:', errorData.devDetails);
             console.error('API Error Stack:', errorData.devStack);
@@ -1093,6 +1113,15 @@ function GameContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Milestone 9.5: Game Paused Banner */}
+      {operationalError && (
+        <GamePausedBanner
+          errorCode={operationalError.code}
+          reason={operationalError.reason}
+          onDismiss={() => setOperationalError(null)}
+        />
+      )}
+
       {/* Top Ticker (Milestone 2.3, 5.4: clickable round number) */}
       <TopTicker
         onRoundClick={(roundId) => {

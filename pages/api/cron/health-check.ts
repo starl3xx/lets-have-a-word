@@ -4,6 +4,11 @@ import { db } from '../../../src/db';
 import { rounds } from '../../../src/db/schema';
 import { sql } from 'drizzle-orm';
 import { checkRedisHealth } from '../../../src/lib/redis';
+import {
+  checkDeadDayScheduledReopen,
+  disableDeadDay,
+  getDeadDayState,
+} from '../../../src/lib/operational';
 
 /**
  * GET /api/cron/health-check
@@ -113,6 +118,31 @@ export default async function handler(
     });
   }
 
+  // Milestone 9.5: Check for dead day scheduled reopen
+  let deadDayAutoReopened = false;
+  try {
+    const shouldReopen = await checkDeadDayScheduledReopen();
+    if (shouldReopen) {
+      const deadDayState = await getDeadDayState();
+      console.log(`[CRON] Dead day scheduled reopen time reached (${deadDayState.reopenAt}), disabling dead day`);
+
+      const result = await disableDeadDay({ adminFid: 0 }); // 0 = system/cron
+      if (result.success) {
+        deadDayAutoReopened = true;
+        console.log('[CRON] Dead day auto-disabled successfully');
+
+        Sentry.captureMessage('Dead day auto-disabled (scheduled reopen)', {
+          level: 'info',
+          tags: { cron: 'health-check', type: 'operational' },
+          extra: { reopenAt: deadDayState.reopenAt },
+        });
+      }
+    }
+  } catch (error) {
+    console.error('[CRON] Error checking dead day reopen:', error);
+    // Non-fatal, continue with health check
+  }
+
   // Overall health: database must be OK
   // Redis is optional (app works without it)
   results.overall = results.database.ok;
@@ -128,5 +158,6 @@ export default async function handler(
     timestamp: new Date().toISOString(),
     durationMs: duration,
     checks: results,
+    deadDayAutoReopened, // Milestone 9.5
   });
 }
