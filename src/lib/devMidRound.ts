@@ -15,21 +15,37 @@ import { createCommitment } from './commit-reveal';
 import { populateRoundSeedWords } from './wheel';
 
 /**
- * Helper to pick a random element from an array
+ * Simple seeded random number generator for consistent dev mode values
+ * Uses 10-minute bucket seeding so values stay stable during dev sessions
+ */
+function createSeededRng(): () => number {
+  const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000));
+  let seed = serverStartSeed * 8831; // Prime multiplier for variety
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+// Module-level seeded RNG for consistent random picks
+const rng = createSeededRng();
+
+/**
+ * Helper to pick a random element from an array (seeded for consistency)
  */
 function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[Math.floor(rng() * arr.length)];
 }
 
 /**
- * Helper to pick N random unique elements from an array
+ * Helper to pick N random unique elements from an array (seeded for consistency)
  */
 function pickMany<T>(arr: T[], count: number): T[] {
   const copy = [...arr];
   const result: T[] = [];
 
   while (copy.length > 0 && result.length < count) {
-    const idx = Math.floor(Math.random() * copy.length);
+    const idx = Math.floor(rng() * copy.length);
     result.push(copy.splice(idx, 1)[0]);
   }
 
@@ -115,8 +131,8 @@ export async function ensureDevMidRound(): Promise<void> {
   // Populate seed words for the wheel
   await populateRoundSeedWords(round.id);
 
-  // Generate 50-100 random wrong guesses
-  const numGuesses = 50 + Math.floor(Math.random() * 51); // 50-100
+  // Generate 50-100 wrong guesses (seeded for consistency)
+  const numGuesses = 50 + Math.floor(rng() * 51); // 50-100
   const wrongWords = pickMany(
     TEST_GUESS_WORDS.filter((w) => w !== answer),
     numGuesses

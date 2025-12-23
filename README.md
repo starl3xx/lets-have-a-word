@@ -11,11 +11,63 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 6.9b Complete
+## 🎯 Current Status: Milestone 8.1 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, and **fully on-chain prize distribution with tiered Top-10 payouts** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully on-chain prize distribution with tiered Top-10 payouts, and **rotating share templates with refined UI/UX** are fully implemented and production-ready:
 
-### ✅ Milestone 6.9b - Tiered Top-10 Guesser Payouts (Latest)
+### ✅ Milestone 8.1 - Rotating Share Copy Templates (Latest)
+
+Added variety to share prompts with rotating copy templates for incorrect guesses:
+
+- **Share Templates** (`src/lib/shareTemplates.ts`)
+  - 9 unique share copy templates with personality and urgency
+  - Uses `{WORD}` and `{JACKPOT}` placeholders for dynamic content
+  - Random template selected on modal mount (stable during session)
+  - All templates include game URL and emojis
+
+- **SharePromptModal Updates** (`components/SharePromptModal.tsx`)
+  - Fetches current prize pool from `/api/round-state` on mount
+  - Uses `useMemo` for stable random template selection
+  - Removed preview section for cleaner modal
+  - Simplified footer: "Share bonus can only be earned once per day"
+
+### ✅ Milestone 7.x - UI/UX Refinements
+
+Polished user interface with improved transitions, typography, and visual consistency:
+
+- **Archive Page Redesign** (`pages/archive/index.tsx`)
+  - Restyled to match RoundArchiveModal design
+  - Uses Söhne font family for consistency with admin pages
+  - Replaced inline styles with Tailwind classes
+  - StatChip components with pill-style badges
+  - Clean rounded-2xl cards and modern button styling
+
+- **Incorrect Guess Banner Timing** (`pages/index.tsx`, `components/ResultBanner.tsx`)
+  - Four-phase state machine: `none` | `active` | `faded` | `fading_out`
+  - Red state: 1.5s active duration
+  - Red-to-gray transition: 1s smooth color fade
+  - Gray state: 1.5s faded duration
+  - Fade out: 1s opacity transition to transparent
+  - Clears result on dismiss to prevent banner reverting to red
+
+- **GuessPurchaseModal Refinements** (`components/GuessPurchaseModal.tsx`)
+  - Moved pricing state label before pack options
+  - De-emphasized purchase limit indicator (smaller, muted text)
+  - Added reassurance microcopy: "Purchases contribute to the prize pool"
+  - Changed CTA from "Buy pack(s)" to "Buy guesses"
+  - Shows "Late round pricing (max)" for LATE_2 phase (1250+ guesses)
+
+- **Dev Mode Pricing Consistency** (`pages/api/guess-pack-pricing.ts`)
+  - Fixed inconsistency between TopTicker and GuessPurchaseModal in dev mode
+  - Pricing API now uses `getDevRoundStatus()` for cached random values
+  - Ensures consistent display values across all UI components
+
+- **ResultBanner Color Transitions** (`components/ResultBanner.tsx`)
+  - Smooth CSS transitions for border-color, background-color, and text color
+  - Faded state uses gray styling instead of red
+  - Configurable transition durations via inline styles
+
+### ✅ Milestone 6.9b - Tiered Top-10 Guesser Payouts
 
 Implemented fixed-percentage distribution for Top-10 guessers, replacing equal splits with a rank-based allocation:
 

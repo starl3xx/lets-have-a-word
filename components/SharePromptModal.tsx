@@ -1,32 +1,26 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
+import { getRandomTemplate, renderShareTemplate, GAME_URL } from '../src/lib/shareTemplates';
 
 interface SharePromptModalProps {
   fid: number | null;
-  guessResult?: SubmitGuessResult; // Optional - if not provided, use generic share text
+  guessResult?: SubmitGuessResult;
   onClose: () => void;
   onShareSuccess: () => void;
 }
 
 /**
  * SharePromptModal
- * Milestone 4.2, Updated Milestone 6.3
+ * Milestone 4.2, Updated Milestone 6.3, Updated Milestone 7.0
  *
  * Prompts user to share to Farcaster to earn +1 free guess.
- * - Shows after incorrect guesses (with guess context)
- * - Can also be triggered directly (without guess context)
- * - Only Farcaster users can claim share bonus
- * - Share bonus can only be earned once per day
  *
- * Updated spec:
- * - Title: "[Interjection] Want another guess?"
- * - Body: "Share your guess [WORD] to unlock +1 free guess today!"
- * - Primary button: "Share" with arch icon
- * - Secondary button: "Not now"
- * - Footer: "Share bonus can only be earned once per day (Farcaster only)"
+ * Milestone 7.0: Visual polish
+ * - Uses unified design token classes
+ * - Consistent button styling
  */
 export default function SharePromptModal({
   fid,
@@ -37,9 +31,32 @@ export default function SharePromptModal({
   const { t, getRandomInterjection } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
 
-  // Get random interjection once when modal mounts (memoized)
+  // Get random interjection once when modal mounts
   const interjection = useMemo(() => getRandomInterjection(), [getRandomInterjection]);
+
+  // Milestone 8.1: Select random share template once when modal mounts
+  // This ensures the template doesn't change during the share flow
+  const selectedTemplate = useMemo(() => getRandomTemplate(), []);
+
+  // Milestone 8.1: Fetch prize pool when modal mounts
+  useEffect(() => {
+    const fetchPrizePool = async () => {
+      try {
+        const response = await fetch('/api/round-state');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.prizePoolEth) {
+            setPrizePoolEth(data.prizePoolEth);
+          }
+        }
+      } catch (err) {
+        console.error('[SharePromptModal] Error fetching prize pool:', err);
+      }
+    };
+    fetchPrizePool();
+  }, []);
 
   /**
    * Get the guessed word from the result (if available)
@@ -75,8 +92,38 @@ export default function SharePromptModal({
   };
 
   /**
+   * Format jackpot ETH for display in share text
+   * Shows 4 decimal places for consistency
+   */
+  const formatJackpotEth = (eth: string | undefined): string => {
+    if (!eth) return '0.0000';
+    const num = parseFloat(eth);
+    if (isNaN(num)) return '0.0000';
+    return num.toFixed(4);
+  };
+
+  /**
+   * Get the share text using selected template
+   * Milestone 8.1: Uses rotating templates with dynamic values
+   */
+  const getShareText = (): string => {
+    const word = getGuessedWord();
+    const jackpot = formatJackpotEth(prizePoolEth);
+
+    // If we have a word (incorrect guess), use the rotating template
+    if (word) {
+      return renderShareTemplate(selectedTemplate, word, jackpot);
+    }
+
+    // Fallback for cases without a word
+    return `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\n${GAME_URL}`;
+  };
+
+  // Memoize the share text so it doesn't change during the modal session
+  const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
+
+  /**
    * Handle share button click
-   * Opens Farcaster composer with prefilled text
    */
   const handleShare = async () => {
     if (!fid) {
@@ -89,39 +136,16 @@ export default function SharePromptModal({
     setError(null);
 
     try {
-      // Build share text
-      const word = getGuessedWord();
-      const guessNumber = getGuessNumber();
-      const roundId = getRoundId();
-
-      let shareText: string;
-
-      if (word && guessNumber && roundId) {
-        // Context-rich share (after a guess)
-        shareText = `My guess "${word}" was #${guessNumber} in round #${roundId} of Let's Have A Word!\n\nEvery guess helps narrow the field — and one person wins the ETH jackpot! 🎯\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
-      } else if (word) {
-        // Share with word but limited context
-        shareText = `My guess "${word}" in Let's Have A Word!\n\nEvery guess helps narrow the field — and one person wins the ETH jackpot! 🎯\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
-      } else {
-        // Generic share text (Milestone 6.3 spec)
-        shareText = `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\nhttps://lets-have-a-word.vercel.app`;
-      }
-
       console.log('[SharePromptModal] Opening composer with text:', shareText);
 
-      // Open Farcaster composer with prefilled text
       const result = await sdk.actions.openUrl({
         url: `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}`,
       });
 
       console.log('[SharePromptModal] Composer result:', result);
 
-      // Note: Since we can't reliably detect if the cast was actually published
-      // (openUrl doesn't return cast hash), we'll give the benefit of the doubt
-      // and call the share callback after a brief delay
       setTimeout(async () => {
         try {
-          // Call share callback API
           const response = await fetch('/api/share-callback', {
             method: 'POST',
             headers: {
@@ -129,7 +153,7 @@ export default function SharePromptModal({
             },
             body: JSON.stringify({
               fid,
-              castHash: 'unknown', // We don't have access to the cast hash from openUrl
+              castHash: 'unknown',
             }),
           });
 
@@ -150,7 +174,7 @@ export default function SharePromptModal({
         } finally {
           setIsSharing(false);
         }
-      }, 2000); // 2 second delay to allow user to cast
+      }, 2000);
     } catch (err) {
       console.error('[SharePromptModal] Error opening composer:', err);
       setError('Failed to open share dialog');
@@ -162,11 +186,11 @@ export default function SharePromptModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5"
+        className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with interjection */}
@@ -178,11 +202,11 @@ export default function SharePromptModal({
             {word ? (
               <>
                 Share your guess <span className="font-bold">{word.toUpperCase()}</span> to unlock{' '}
-                <span className="font-bold text-green-600">+1 free guess</span> today!
+                <span className="font-bold text-success-600">+1 free guess</span> today!
               </>
             ) : (
               <>
-                Share to unlock <span className="font-bold text-green-600">+1 free guess</span> today!
+                Share to unlock <span className="font-bold text-success-600">+1 free guess</span> today!
               </>
             )}
           </p>
@@ -190,27 +214,20 @@ export default function SharePromptModal({
 
         {/* Error message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-sm text-red-600 text-center">{error}</p>
+          <div className="bg-error-50 border border-error-200 rounded-btn p-3">
+            <p className="text-sm text-error-700 text-center">{error}</p>
           </div>
         )}
 
         {/* Buttons */}
         <div className="flex flex-col gap-3">
-          {/* Primary CTA button - Share with arch icon */}
+          {/* Primary CTA button */}
           <button
             onClick={handleShare}
             disabled={isSharing}
-            className="w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-lg"
-            style={{
-              backgroundColor: isSharing ? '#9ca3af' : '#6A3CFF',
-            }}
-            onMouseEnter={(e) => {
-              if (!isSharing) e.currentTarget.style.backgroundColor = '#5A2CEF';
-            }}
-            onMouseLeave={(e) => {
-              if (!isSharing) e.currentTarget.style.backgroundColor = '#6A3CFF';
-            }}
+            className={`btn-accent w-full text-lg flex items-center justify-center gap-3 ${
+              isSharing ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />}
             <span>
@@ -218,11 +235,11 @@ export default function SharePromptModal({
             </span>
           </button>
 
-          {/* Secondary button - Not now */}
+          {/* Secondary button */}
           <button
             onClick={onClose}
             disabled={isSharing}
-            className="w-full py-3 px-6 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-secondary w-full"
           >
             {t('anotherGuess.notNow')}
           </button>

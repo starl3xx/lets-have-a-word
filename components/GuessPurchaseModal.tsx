@@ -1,15 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
 
 /**
- * Pack pricing info (fetched from API or fallback to defaults)
+ * Log analytics event (fire-and-forget)
+ */
+function logAnalytics(
+  eventType: string,
+  fid?: number | null,
+  data?: Record<string, any>
+) {
+  fetch('/api/analytics/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      eventType,
+      userId: fid?.toString(),
+      data,
+    }),
+  }).catch(() => {
+    // Silently ignore - analytics should never block UI
+  });
+}
+
+/**
+ * Pack pricing info (fetched from API)
+ * Milestone 7.1: Dynamic late-round pricing
  */
 interface PackOption {
   packCount: number;
   guessCount: number;
-  totalPrice: string;
+  totalPriceWei: string;
+  totalPriceEth: string;
 }
+
+/** Pricing phase from API */
+type PricingPhase = 'BASE' | 'LATE_1' | 'LATE_2';
 
 interface GuessPurchaseModalProps {
   fid: number | null;
@@ -19,10 +45,21 @@ interface GuessPurchaseModalProps {
 
 /**
  * GuessPurchaseModal
- * Milestone 6.3
+ * Milestone 6.3, Updated Milestone 7.0, 7.1, 7.5
  *
  * Modal for purchasing guess packs (3 guesses per pack).
- * Users can buy 1, 2, or 3 packs per day.
+ *
+ * Milestone 7.0: Visual polish
+ * - Uses unified design token classes
+ * - Consistent color palette
+ *
+ * Milestone 7.1: Dynamic late-round pricing
+ * - Price increases after 750 guesses (Top-10 lock)
+ *
+ * Milestone 7.5: Progressive pricing with minimal UI cues
+ * - Shows neutral state label ("Early round pricing" / "Late round pricing")
+ * - Early-round purchases show positive reinforcement message
+ * - Analytics events for pricing state tracking
  */
 export default function GuessPurchaseModal({
   fid,
@@ -31,11 +68,11 @@ export default function GuessPurchaseModal({
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
-  // Pack pricing options
+  // Pack pricing options (default values, updated from API)
   const [packOptions, setPackOptions] = useState<PackOption[]>([
-    { packCount: 1, guessCount: 3, totalPrice: '0.0003' },
-    { packCount: 2, guessCount: 6, totalPrice: '0.0006' },
-    { packCount: 3, guessCount: 9, totalPrice: '0.0009' },
+    { packCount: 1, guessCount: 3, totalPriceWei: '300000000000000', totalPriceEth: '0.0003' },
+    { packCount: 2, guessCount: 6, totalPriceWei: '600000000000000', totalPriceEth: '0.0006' },
+    { packCount: 3, guessCount: 9, totalPriceWei: '900000000000000', totalPriceEth: '0.0009' },
   ]);
 
   // State
@@ -47,6 +84,14 @@ export default function GuessPurchaseModal({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Milestone 7.1/7.5: Pricing state
+  const [pricingPhase, setPricingPhase] = useState<PricingPhase>('BASE');
+  const [isLateRoundPricing, setIsLateRoundPricing] = useState(false);
+
+  // Milestone 7.5: Track if early-round reinforcement was shown (for analytics)
+  const [showEarlyRoundReinforcement, setShowEarlyRoundReinforcement] = useState(false);
+  const reinforcementLoggedRef = useRef(false);
+
   // Fetch current purchase state and pricing
   useEffect(() => {
     const fetchPurchaseState = async () => {
@@ -57,7 +102,6 @@ export default function GuessPurchaseModal({
       }
 
       try {
-        // Fetch user's current daily state and pricing info
         const [stateResponse, pricingResponse] = await Promise.all([
           fetch(`/api/user-state?devFid=${fid}`),
           fetch('/api/guess-pack-pricing'),
@@ -76,10 +120,16 @@ export default function GuessPurchaseModal({
           if (pricingData.maxPacksPerDay) {
             setMaxPacksPerDay(pricingData.maxPacksPerDay);
           }
+          // Milestone 7.1: Update late-round pricing state
+          if (pricingData.pricingPhase) {
+            setPricingPhase(pricingData.pricingPhase);
+          }
+          if (typeof pricingData.isLateRoundPricing === 'boolean') {
+            setIsLateRoundPricing(pricingData.isLateRoundPricing);
+          }
         }
       } catch (err) {
         console.error('[GuessPurchaseModal] Error fetching state:', err);
-        // Continue with defaults - don't block the modal
       } finally {
         setIsLoading(false);
       }
@@ -91,11 +141,6 @@ export default function GuessPurchaseModal({
   // Calculate remaining packs allowed
   const remainingPacks = Math.max(0, maxPacksPerDay - packsPurchasedToday);
   const maxSelectablePacks = Math.min(3, remainingPacks);
-
-  // Get available pack options (filter by what's still purchasable)
-  const availableOptions = packOptions.filter(
-    (option) => option.packCount <= maxSelectablePacks
-  );
 
   // Get selected pack info
   const selectedOption = packOptions.find(
@@ -131,7 +176,6 @@ export default function GuessPurchaseModal({
     setError(null);
 
     try {
-      // Call the purchase API endpoint
       const response = await fetch('/api/purchase-guess-pack', {
         method: 'POST',
         headers: {
@@ -149,12 +193,32 @@ export default function GuessPurchaseModal({
         throw new Error(data.error || t('guessPack.purchaseFailed'));
       }
 
-      // Success!
       void haptics.packPurchased();
-      setSuccessMessage(t('guessPack.purchaseSuccess'));
+
+      // Milestone 7.5: Check pricing phase from response and show reinforcement
+      const purchasePricingPhase = data.pricingPhase || pricingPhase;
+      const isEarlyRound = purchasePricingPhase === 'BASE';
+
+      if (isEarlyRound) {
+        // Show early-round reinforcement message
+        setShowEarlyRoundReinforcement(true);
+        setSuccessMessage(null); // Don't show generic success, show reinforcement instead
+
+        // Log analytics event (once)
+        if (!reinforcementLoggedRef.current) {
+          reinforcementLoggedRef.current = true;
+          logAnalytics('early_round_pricing_reinforcement', fid, {
+            packCount: selectedPackCount,
+            pricingPhase: purchasePricingPhase,
+            totalPriceEth: selectedOption?.totalPriceEth,
+          });
+        }
+      } else {
+        setSuccessMessage(t('guessPack.purchaseSuccess'));
+      }
+
       setPacksPurchasedToday((prev) => prev + selectedPackCount);
 
-      // Notify parent after a short delay
       setTimeout(() => {
         onPurchaseSuccess(selectedPackCount);
         onClose();
@@ -170,11 +234,11 @@ export default function GuessPurchaseModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+        className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -193,6 +257,25 @@ export default function GuessPurchaseModal({
         {/* Main Content */}
         {!isLoading && (
           <>
+            {/* Pricing state label - shown before pack options for context */}
+            <div className={`rounded-btn px-3 py-1.5 text-center ${
+              isLateRoundPricing
+                ? 'bg-gray-100'
+                : 'bg-gray-50'
+            }`}>
+              <p className={`text-xs ${
+                isLateRoundPricing
+                  ? 'text-gray-600'
+                  : 'text-gray-500'
+              }`}>
+                {pricingPhase === 'BASE'
+                  ? 'Early round pricing'
+                  : pricingPhase === 'LATE_2'
+                  ? 'Late round pricing (max)'
+                  : 'Late round pricing'}
+              </p>
+            </div>
+
             {/* Pack Options */}
             <div className="space-y-3">
               {packOptions.map((option) => {
@@ -204,23 +287,23 @@ export default function GuessPurchaseModal({
                     key={option.packCount}
                     onClick={() => handleSelectPack(option.packCount)}
                     disabled={isDisabled || isPurchasing}
-                    className={`w-full p-4 rounded-xl border-2 transition-all flex items-center justify-between ${
+                    className={`w-full p-4 rounded-btn border-2 transition-all duration-fast flex items-center justify-between ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-brand bg-brand-50'
                         : isDisabled
                         ? 'border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed'
-                        : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-brand-50'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       {/* Radio indicator */}
                       <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          isSelected ? 'border-blue-500' : 'border-gray-300'
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors duration-fast ${
+                          isSelected ? 'border-brand' : 'border-gray-300'
                         }`}
                       >
                         {isSelected && (
-                          <div className="w-3 h-3 rounded-full bg-blue-500" />
+                          <div className="w-3 h-3 rounded-full bg-brand" />
                         )}
                       </div>
 
@@ -238,7 +321,7 @@ export default function GuessPurchaseModal({
                     {/* Price */}
                     <div className="text-right">
                       <p className="font-bold text-gray-900">
-                        {option.totalPrice} ETH
+                        {option.totalPriceEth} ETH
                       </p>
                     </div>
                   </button>
@@ -246,49 +329,58 @@ export default function GuessPurchaseModal({
               })}
             </div>
 
-            {/* Limit Indicator */}
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">
-                {t('guessPack.limitIndicator', { count: packsPurchasedToday })}
-              </p>
+            {/* Limit Indicator - de-emphasized */}
+            <p className="text-xs text-gray-400 text-center">
+              {t('guessPack.limitIndicator', { count: packsPurchasedToday })}
               {remainingPacks === 0 && (
-                <p className="text-sm text-orange-600 font-medium mt-1">
+                <span className="block text-warning-600 font-medium mt-0.5">
                   {t('guessPack.maxPacksReached')}
-                </p>
+                </span>
               )}
-            </div>
+            </p>
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm text-red-600 text-center">{error}</p>
+              <div className="bg-error-50 border border-error-200 rounded-btn p-3">
+                <p className="text-sm text-error-700 text-center">{error}</p>
               </div>
             )}
 
             {/* Success Message */}
             {successMessage && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-600 text-center">{successMessage}</p>
+              <div className="bg-success-50 border border-success-200 rounded-btn p-3">
+                <p className="text-sm text-success-700 text-center">{successMessage}</p>
+              </div>
+            )}
+
+            {/* Milestone 7.5: Early-round reinforcement message */}
+            {showEarlyRoundReinforcement && (
+              <div className="bg-success-50 border border-success-200 rounded-btn p-3">
+                <p className="text-sm text-success-700 text-center font-medium">
+                  Early-round pricing applied ✓
+                </p>
               </div>
             )}
 
             {/* Buttons */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <button
                 onClick={handlePurchase}
                 disabled={
                   isPurchasing ||
                   remainingPacks === 0 ||
                   !selectedOption ||
-                  !!successMessage
+                  !!successMessage ||
+                  showEarlyRoundReinforcement
                 }
-                className={`w-full py-4 px-6 rounded-xl font-bold text-white transition-all ${
+                className={`btn-primary-lg w-full ${
                   isPurchasing ||
                   remainingPacks === 0 ||
                   !selectedOption ||
-                  !!successMessage
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                  !!successMessage ||
+                  showEarlyRoundReinforcement
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
                 }`}
               >
                 {isPurchasing ? (
@@ -297,15 +389,20 @@ export default function GuessPurchaseModal({
                   t('guessPack.maxPacksReached')
                 ) : (
                   <>
-                    {t('guessPack.buyButton')} · {selectedOption?.totalPrice} ETH
+                    {t('guessPack.buyButton')} · {selectedOption?.totalPriceEth} ETH
                   </>
                 )}
               </button>
 
+              {/* Reassurance microcopy */}
+              <p className="text-xs text-gray-400 text-center">
+                {t('guessPack.jackpotNote')}
+              </p>
+
               <button
                 onClick={onClose}
                 disabled={isPurchasing}
-                className="w-full py-3 px-6 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50"
+                className="btn-secondary w-full"
               >
                 {t('common.cancel')}
               </button>

@@ -111,6 +111,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   const [containerHeight, setContainerHeight] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
+  const [hasCentered, setHasCentered] = useState(false); // Prevents flash of misaligned content
 
   // Track previous gapIndex to calculate jump distance
   const prevGapIndexRef = useRef<number | null>(null);
@@ -494,6 +495,14 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
       const isInitialPosition = centerIndex === -1 && prevGapIndex === null;
       animateScrollTo(targetScrollTop, rowDelta, isInitialPosition);
 
+      // Mark as centered after initial scroll (prevents flash of misaligned content)
+      if (!hasCentered) {
+        // Small delay to ensure scroll has taken effect before revealing
+        requestAnimationFrame(() => {
+          setHasCentered(true);
+        });
+      }
+
       // Dev-mode alignment validator
       if (process.env.NODE_ENV === 'development' && centerIndex === -1) {
         setTimeout(() => {
@@ -503,7 +512,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [centerIndex, gapIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, animateScrollTo]);
+  }, [centerIndex, gapIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, hasCentered, animateScrollTo]);
 
   /**
    * Initialize on mount - only after fonts are ready
@@ -839,6 +848,9 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
         pointerEvents: 'none',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        // Hide wheel until properly centered to prevent flash of misaligned content
+        opacity: hasCentered ? 1 : 0,
+        transition: 'opacity 150ms ease-out',
       }}
     >
       <style jsx>{`
