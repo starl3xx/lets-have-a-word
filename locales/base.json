@@ -60,13 +60,15 @@
     "stats": {
       "title": "",
       "referrals": "",
-      "ethEarned": ""
+      "ethEarned": "",
+      "ethEarnedHelper": ""
     },
     "howItWorks": {
       "title": "",
       "step1": "",
       "step2": "",
-      "step3": ""
+      "step3": "",
+      "step4": ""
     },
     "autoCopy": {
       "enabled": "",

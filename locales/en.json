@@ -86,13 +86,15 @@
     "stats": {
       "title": "Your referral stats",
       "referrals": "Referrals",
-      "ethEarned": "ETH earned"
+      "ethEarned": "ETH earned",
+      "ethEarnedHelper": "Paid only when a referred player wins a jackpot"
     },
     "howItWorks": {
       "title": "How referrals work",
-      "step1": "Share your link with friends",
-      "step2": "When they sign up and win a jackpot, you earn 10% of their winnings",
-      "step3": "You can track your referrals and earnings here"
+      "step1": "Share your unique referral link with friends",
+      "step2": "If anyone who added the app using your link <em>ever</em> finds the secret word and wins the jackpot, you automatically earn <strong>10%</strong> of the prize pool",
+      "step3": "Referral rewards are paid onchain at the same time as the jackpot",
+      "step4": "You can track your referrals and earnings here"
     },
     "autoCopy": {
       "enabled": "Auto-copy enabled",
