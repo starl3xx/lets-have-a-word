@@ -409,12 +409,14 @@ export async function resolveRoundAndCreatePayouts(
   }
 
   // Mark round as resolved
+  // Milestone 9.5: Also set status to 'resolved'
   await db
     .update(rounds)
     .set({
       resolvedAt: new Date(),
       winnerFid,
       referrerFid,
+      status: 'resolved',
     })
     .where(eq(rounds.id, roundId));
 

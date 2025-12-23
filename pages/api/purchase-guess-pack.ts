@@ -5,7 +5,7 @@ import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics'
 import { getActiveRound } from '../../src/lib/rounds';
 import { logXpEvent } from '../../src/lib/xp';
 import { db } from '../../src/db';
-import { guesses } from '../../src/db/schema';
+import { guesses, packPurchases } from '../../src/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   getTotalPackCostWei,
@@ -18,6 +18,7 @@ import {
   checkRateLimit,
   RateLimiters,
 } from '../../src/lib/redis';
+import { applyGameplayGuard } from '../../src/lib/operational-guard';
 
 /**
  * POST /api/purchase-guess-pack
@@ -54,6 +55,10 @@ export default async function handler(
         return res.status(429).json({ error: 'Too many requests. Please wait before purchasing again.' });
       }
     }
+
+    // Milestone 9.5: Check operational guard (kill switch / dead day)
+    const guardBlocked = await applyGameplayGuard(req, res);
+    if (guardBlocked) return;
 
     // Validate inputs
     if (!fid || typeof fid !== 'number') {
@@ -128,6 +133,28 @@ export default async function handler(
         total_guesses_in_round: totalGuessesInRound,
       },
     });
+
+    // Milestone 9.5: Record purchase for refund support
+    if (activeRound?.id) {
+      try {
+        await db.insert(packPurchases).values({
+          roundId: activeRound.id,
+          fid,
+          packCount,
+          totalPriceEth: expectedCostEth,
+          totalPriceWei: expectedCostWei.toString(),
+          pricingPhase,
+          totalGuessesAtPurchase: totalGuessesInRound,
+        });
+      } catch (purchaseLogError) {
+        // Don't fail the request if purchase logging fails
+        console.error('[purchase-guess-pack] Failed to log purchase for refund tracking:', purchaseLogError);
+        Sentry.captureException(purchaseLogError, {
+          tags: { endpoint: 'purchase-guess-pack', phase: 'refund-tracking' },
+          extra: { fid, packCount, roundId: activeRound.id },
+        });
+      }
+    }
 
     // Milestone 6.7: Award PACK_PURCHASE XP (+20 XP per pack, fire-and-forget)
     for (let i = 0; i < packCount; i++) {

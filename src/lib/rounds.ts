@@ -1,5 +1,5 @@
 import { db, rounds } from '../db';
-import { eq, isNull, desc } from 'drizzle-orm';
+import { eq, isNull, desc, and } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer } from './word-lists';
 import { createCommitment, verifyCommit } from './commit-reveal';
@@ -7,6 +7,7 @@ import { resolveRoundAndCreatePayouts } from './economics';
 import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 import { trackSlowQuery } from './redis';
+import { shouldBlockNewRoundCreation } from './operational-guard';
 
 /**
  * Options for creating a new round
@@ -100,13 +101,18 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 
 /**
  * Get the current active round (latest unresolved round)
+ *
+ * Milestone 9.5: Excludes cancelled rounds - a cancelled round is not active
  */
 export async function getActiveRound(): Promise<Round | null> {
   return trackSlowQuery('query:getActiveRound', async () => {
     const result = await db
       .select()
       .from(rounds)
-      .where(isNull(rounds.resolvedAt))
+      .where(and(
+        isNull(rounds.resolvedAt),
+        eq(rounds.status, 'active') // Exclude cancelled rounds
+      ))
       .orderBy(desc(rounds.startedAt))
       .limit(1);
 
@@ -134,8 +140,13 @@ export async function getActiveRound(): Promise<Round | null> {
 /**
  * Ensure there is an active round, creating one if necessary
  *
+ * Milestone 9.5: Will NOT create a new round if:
+ * - Kill switch is active
+ * - Dead day is enabled (current round finished, waiting to resume)
+ *
  * @param opts Optional configuration for round creation
  * @returns The active round (existing or newly created)
+ * @throws Error if new round creation is blocked by operational controls
  */
 export async function ensureActiveRound(opts?: CreateRoundOptions): Promise<Round> {
   const activeRound = await getActiveRound();
@@ -144,7 +155,16 @@ export async function ensureActiveRound(opts?: CreateRoundOptions): Promise<Roun
     return activeRound;
   }
 
-  // No active round exists, create one
+  // No active round exists - check if we can create one
+  const blocked = await shouldBlockNewRoundCreation();
+  if (blocked) {
+    throw new Error(
+      'Cannot create new round: Game is paused (kill switch or dead day active). ' +
+      'Please wait for the game to resume.'
+    );
+  }
+
+  // Create new round
   return createRound(opts);
 }
 
