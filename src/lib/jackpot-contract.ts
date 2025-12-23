@@ -74,6 +74,7 @@ export interface ContractConfig {
 
 /**
  * Get contract configuration from environment
+ * All addresses are normalized with proper EIP-55 checksums
  */
 export function getContractConfig(): ContractConfig {
   const jackpotManagerAddress = process.env.JACKPOT_MANAGER_ADDRESS;
@@ -82,11 +83,12 @@ export function getContractConfig(): ContractConfig {
     throw new Error('JACKPOT_MANAGER_ADDRESS not configured');
   }
 
+  // Normalize all addresses with proper checksums (handles env vars with incorrect casing)
   return {
-    jackpotManagerAddress,
-    prizePoolWallet: process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB',
-    operatorWallet: process.env.OPERATOR_WALLET || '0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38',
-    creatorProfitWallet: process.env.CREATOR_PROFIT_WALLET || '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223',
+    jackpotManagerAddress: ethers.getAddress(jackpotManagerAddress),
+    prizePoolWallet: ethers.getAddress(process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB'),
+    operatorWallet: ethers.getAddress(process.env.OPERATOR_WALLET || '0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38'),
+    creatorProfitWallet: ethers.getAddress(process.env.CREATOR_PROFIT_WALLET || '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223'),
   };
 }
 

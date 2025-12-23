@@ -59,14 +59,8 @@ export default async function handler(
     }
 
     const provider = getBaseProvider();
-    const config = getContractConfig();
+    const config = getContractConfig(); // Addresses are already checksummed
     const contract = getJackpotManagerReadOnly();
-
-    // Normalize addresses with proper checksums (handles env vars with incorrect casing)
-    const operatorAddress = ethers.getAddress(config.operatorWallet);
-    const prizePoolAddress = ethers.getAddress(config.prizePoolWallet);
-    const creatorProfitAddress = ethers.getAddress(config.creatorProfitWallet);
-    const contractAddress = ethers.getAddress(config.jackpotManagerAddress);
 
     // Fetch all balances in parallel
     const [
@@ -77,9 +71,9 @@ export default async function handler(
       pendingRefundsResult,
     ] = await Promise.all([
       // Operator wallet balance
-      provider.getBalance(operatorAddress),
+      provider.getBalance(config.operatorWallet),
       // Prize pool wallet balance (may be same as contract)
-      provider.getBalance(prizePoolAddress),
+      provider.getBalance(config.prizePoolWallet),
       // Current jackpot from contract
       contract.currentJackpot(),
       // Creator profit accumulated in contract
@@ -97,18 +91,18 @@ export default async function handler(
 
     const response: WalletBalancesResponse = {
       operatorWallet: {
-        address: operatorAddress,
+        address: config.operatorWallet,
         balanceEth: ethers.formatEther(operatorBalance),
         balanceWei: operatorBalance.toString(),
       },
       prizePool: {
-        address: prizePoolAddress,
+        address: config.prizePoolWallet,
         balanceEth: ethers.formatEther(prizePoolBalance),
         balanceWei: prizePoolBalance.toString(),
         currentJackpotEth: ethers.formatEther(currentJackpot),
       },
       creatorPool: {
-        address: creatorProfitAddress,
+        address: config.creatorProfitWallet,
         accumulatedEth: ethers.formatEther(creatorAccumulated),
         accumulatedWei: creatorAccumulated.toString(),
       },
@@ -116,7 +110,7 @@ export default async function handler(
         count: pendingRefunds.count,
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),
       },
-      contractAddress: contractAddress,
+      contractAddress: config.jackpotManagerAddress,
       lastUpdated: new Date().toISOString(),
     };
 
