@@ -180,7 +180,7 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
             label="share"
             value={share.total}
             isConsumed={shareConsumed}
-            color="#2563eb" // blue-600
+            color="#0891b2" // cyan-600 (social/sharing action)
           />
         )}
 
@@ -190,7 +190,7 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
             label="paid"
             value={paid.total}
             isConsumed={paidConsumed}
-            color="#2563eb" // blue-600
+            color="#d97706" // amber-600 (purchased with ETH)
           />
         )}
       </span>
