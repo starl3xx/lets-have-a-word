@@ -719,6 +719,17 @@ function GameContent() {
         requestBody.devFid = effectiveFid;
       }
 
+      // Extract referral parameter from URL (e.g., ?ref=12345)
+      // This is passed on every guess but only used for first-time user creation
+      const urlParams = new URLSearchParams(window.location.search);
+      const refParam = urlParams.get('ref');
+      if (refParam) {
+        const refFid = parseInt(refParam, 10);
+        if (!isNaN(refFid) && refFid > 0) {
+          requestBody.ref = refFid;
+        }
+      }
+
       // Call API
       const response = await fetch('/api/guess', {
         method: 'POST',
