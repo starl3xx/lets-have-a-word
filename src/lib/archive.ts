@@ -22,6 +22,7 @@ import {
   type RoundArchiveErrorInsert,
 } from '../db/schema';
 import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte } from 'drizzle-orm';
+import { trackSlowQuery } from './redis';
 
 /**
  * Data required to archive a round (can be passed explicitly or computed)
@@ -311,13 +312,15 @@ export async function syncAllRounds(): Promise<{
  * Get archived round by round number
  */
 export async function getArchivedRound(roundNumber: number): Promise<RoundArchiveRow | null> {
-  const [archived] = await db
-    .select()
-    .from(roundArchive)
-    .where(eq(roundArchive.roundNumber, roundNumber))
-    .limit(1);
+  return trackSlowQuery(`query:getArchivedRound:${roundNumber}`, async () => {
+    const [archived] = await db
+      .select()
+      .from(roundArchive)
+      .where(eq(roundArchive.roundNumber, roundNumber))
+      .limit(1);
 
-  return archived || null;
+    return archived || null;
+  });
 }
 
 /**
@@ -333,21 +336,23 @@ export async function getArchivedRounds(options: {
 }> {
   const { limit = 20, offset = 0, orderBy = 'desc' } = options;
 
-  const [totalResult] = await db
-    .select({ count: count() })
-    .from(roundArchive);
+  return trackSlowQuery(`query:getArchivedRounds:${limit}:${offset}`, async () => {
+    const [totalResult] = await db
+      .select({ count: count() })
+      .from(roundArchive);
 
-  const archivedRounds = await db
-    .select()
-    .from(roundArchive)
-    .orderBy(orderBy === 'desc' ? desc(roundArchive.roundNumber) : asc(roundArchive.roundNumber))
-    .limit(limit)
-    .offset(offset);
+    const archivedRounds = await db
+      .select()
+      .from(roundArchive)
+      .orderBy(orderBy === 'desc' ? desc(roundArchive.roundNumber) : asc(roundArchive.roundNumber))
+      .limit(limit)
+      .offset(offset);
 
-  return {
-    rounds: archivedRounds,
-    total: totalResult?.count ?? 0,
-  };
+    return {
+      rounds: archivedRounds,
+      total: totalResult?.count ?? 0,
+    };
+  });
 }
 
 /**
@@ -554,36 +559,38 @@ export interface ArchiveStats {
  * Get aggregate archive statistics
  */
 export async function getArchiveStats(): Promise<ArchiveStats> {
-  const result = await db.execute<{
-    total_rounds: string;
-    total_guesses_all_time: string;
-    unique_winners: string;
-    total_jackpot_distributed: string;
-    avg_guesses_per_round: string;
-    avg_players_per_round: string;
-    avg_round_length_minutes: string;
-  }>(sql`
-    SELECT
-      COUNT(*) as total_rounds,
-      COALESCE(SUM(total_guesses), 0) as total_guesses_all_time,
-      COUNT(DISTINCT winner_fid) as unique_winners,
-      COALESCE(SUM(final_jackpot_eth), 0) as total_jackpot_distributed,
-      COALESCE(AVG(total_guesses), 0) as avg_guesses_per_round,
-      COALESCE(AVG(unique_players), 0) as avg_players_per_round,
-      COALESCE(AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60), 0) as avg_round_length_minutes
-    FROM round_archive
-  `);
+  return trackSlowQuery('query:getArchiveStats', async () => {
+    const result = await db.execute<{
+      total_rounds: string;
+      total_guesses_all_time: string;
+      unique_winners: string;
+      total_jackpot_distributed: string;
+      avg_guesses_per_round: string;
+      avg_players_per_round: string;
+      avg_round_length_minutes: string;
+    }>(sql`
+      SELECT
+        COUNT(*) as total_rounds,
+        COALESCE(SUM(total_guesses), 0) as total_guesses_all_time,
+        COUNT(DISTINCT winner_fid) as unique_winners,
+        COALESCE(SUM(final_jackpot_eth), 0) as total_jackpot_distributed,
+        COALESCE(AVG(total_guesses), 0) as avg_guesses_per_round,
+        COALESCE(AVG(unique_players), 0) as avg_players_per_round,
+        COALESCE(AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60), 0) as avg_round_length_minutes
+      FROM round_archive
+    `);
 
-  const row = result[0];
-  return {
-    totalRounds: parseInt(row?.total_rounds ?? '0', 10),
-    totalGuessesAllTime: parseInt(row?.total_guesses_all_time ?? '0', 10),
-    uniqueWinners: parseInt(row?.unique_winners ?? '0', 10),
-    totalJackpotDistributed: row?.total_jackpot_distributed ?? '0',
-    avgGuessesPerRound: parseFloat(row?.avg_guesses_per_round ?? '0'),
-    avgPlayersPerRound: parseFloat(row?.avg_players_per_round ?? '0'),
-    avgRoundLengthMinutes: parseFloat(row?.avg_round_length_minutes ?? '0'),
-  };
+    const row = result[0];
+    return {
+      totalRounds: parseInt(row?.total_rounds ?? '0', 10),
+      totalGuessesAllTime: parseInt(row?.total_guesses_all_time ?? '0', 10),
+      uniqueWinners: parseInt(row?.unique_winners ?? '0', 10),
+      totalJackpotDistributed: row?.total_jackpot_distributed ?? '0',
+      avgGuessesPerRound: parseFloat(row?.avg_guesses_per_round ?? '0'),
+      avgPlayersPerRound: parseFloat(row?.avg_players_per_round ?? '0'),
+      avgRoundLengthMinutes: parseFloat(row?.avg_round_length_minutes ?? '0'),
+    };
+  });
 }
 
 /**

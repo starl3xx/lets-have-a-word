@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
 export interface JackpotDataPoint {
   day: string;
@@ -48,23 +49,31 @@ export default async function handler(
       return res.status(403).json({ error: 'Forbidden: Admin access required' });
     }
 
-    // Query jackpot growth view
-    const result = await db.execute<JackpotDataPoint>(
-      sql`SELECT * FROM view_jackpot_growth ORDER BY day DESC LIMIT 30`
+    // Cache jackpot data (60s TTL)
+    const cacheKey = CacheKeys.adminAnalytics('jackpot');
+    const serializedData = await cacheAside<JackpotDataPoint[]>(
+      cacheKey,
+      CacheTTL.adminAnalytics,
+      async () => {
+        // Query jackpot growth view
+        const result = await db.execute<JackpotDataPoint>(
+          sql`SELECT * FROM view_jackpot_growth ORDER BY day DESC LIMIT 30`
+        );
+
+        console.log('[analytics/jackpot] Raw result:', JSON.stringify(result).substring(0, 300));
+
+        // db.execute returns the array directly, not an object with rows property
+        const rows = Array.isArray(result) ? result : [];
+
+        // Ensure proper serialization
+        return rows.map(row => ({
+          day: row.day?.toString() || '',
+          round_id: row.round_id?.toString() || '',
+          jackpot_eth: row.jackpot_eth?.toString() || '0',
+          winner_fid: row.winner_fid !== null ? Number(row.winner_fid) : null
+        }));
+      }
     );
-
-    console.log('[analytics/jackpot] Raw result:', JSON.stringify(result).substring(0, 300));
-
-    // db.execute returns the array directly, not an object with rows property
-    const rows = Array.isArray(result) ? result : [];
-
-    // Ensure proper serialization
-    const serializedData = rows.map(row => ({
-      day: row.day?.toString() || '',
-      round_id: row.round_id?.toString() || '',
-      jackpot_eth: row.jackpot_eth?.toString() || '0',
-      winner_fid: row.winner_fid !== null ? Number(row.winner_fid) : null
-    }));
 
     console.log('[analytics/jackpot] Returning data:', JSON.stringify(serializedData).substring(0, 200));
     return res.status(200).json(serializedData);

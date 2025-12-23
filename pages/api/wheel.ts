@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { getActiveWheelData } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../src/lib/devGameState';
@@ -195,6 +196,9 @@ export default async function handler(
     return res.status(200).json(wheelData);
   } catch (error: any) {
     console.error('Error in /api/wheel:', error);
+    Sentry.captureException(error, {
+      tags: { endpoint: 'wheel' },
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
