@@ -445,6 +445,21 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
           {user && (
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <a
+                href="/admin/operations"
+                style={{
+                  padding: "8px 14px",
+                  background: "#dc2626",
+                  color: "white",
+                  borderRadius: "6px",
+                  textDecoration: "none",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  fontFamily,
+                }}
+              >
+                Operations
+              </a>
+              <a
                 href="/admin/archive"
                 style={{
                   padding: "8px 14px",
