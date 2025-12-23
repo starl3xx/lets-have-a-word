@@ -19,6 +19,7 @@ import {
   RateLimiters,
 } from '../../src/lib/redis';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
+import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 
 /**
  * POST /api/purchase-guess-pack
@@ -87,7 +88,12 @@ export default async function handler(
 
     // Get total guesses in current round for dynamic pricing
     let totalGuessesInRound = 0;
-    if (activeRound?.id) {
+    if (isDevModeEnabled()) {
+      // In dev mode, use the same display guess count shown in TopTicker
+      // This ensures pricing is consistent with what the user sees
+      const devStatus = await getDevRoundStatus();
+      totalGuessesInRound = devStatus.globalGuessCount;
+    } else if (activeRound?.id) {
       const [result] = await db
         .select({ count: sql<number>`cast(count(*) as int)` })
         .from(guesses)
