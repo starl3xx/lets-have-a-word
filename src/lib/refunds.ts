@@ -7,6 +7,7 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
+import { ethers, Wallet } from 'ethers';
 import { db } from '../db';
 import {
   packPurchases,
@@ -19,6 +20,8 @@ import {
 } from '../db/schema';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { acquireRefundLock, releaseRefundLock } from './operational';
+import { resolveWalletIdentity } from './wallet-identity';
+import { getBaseProvider } from './clankton';
 
 // ============================================================
 // Types
@@ -57,6 +60,105 @@ export interface RefundProcessingResult {
   sentCount: number;
   failedCount: number;
   errors: string[];
+}
+
+// ============================================================
+// On-chain Refund Transfer
+// ============================================================
+
+/**
+ * Get operator wallet for sending refunds
+ * Uses the same operator private key as jackpot contract operations
+ */
+function getOperatorWallet(): Wallet {
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+  if (!operatorPrivateKey) {
+    throw new Error('OPERATOR_PRIVATE_KEY not configured for refunds');
+  }
+  const provider = getBaseProvider();
+  return new Wallet(operatorPrivateKey, provider);
+}
+
+/**
+ * Send an on-chain ETH refund to a user's Farcaster custody address
+ *
+ * @param fid - User's Farcaster ID
+ * @param amountWei - Amount to refund in wei
+ * @returns Transaction hash if successful
+ * @throws Error if transaction fails
+ */
+async function sendRefundTransaction(
+  fid: number,
+  amountWei: string
+): Promise<string> {
+  // Resolve user's wallet address
+  const identity = await resolveWalletIdentity(fid);
+  if (!identity.isValid) {
+    throw new Error(`Cannot resolve wallet for FID ${fid}: ${identity.error}`);
+  }
+
+  const recipientAddress = identity.walletAddress;
+  const wallet = getOperatorWallet();
+  const amount = BigInt(amountWei);
+
+  // Check operator wallet balance
+  const balance = await wallet.provider!.getBalance(wallet.address);
+  if (balance < amount) {
+    throw new Error(
+      `Insufficient operator balance: ${ethers.formatEther(balance)} ETH, need ${ethers.formatEther(amount)} ETH`
+    );
+  }
+
+  console.log(
+    `[Refunds] Sending ${ethers.formatEther(amount)} ETH to FID ${fid} (${recipientAddress})`
+  );
+
+  // Send transaction
+  const tx = await wallet.sendTransaction({
+    to: recipientAddress,
+    value: amount,
+  });
+
+  console.log(`[Refunds] Transaction submitted: ${tx.hash}`);
+
+  // Wait for confirmation (1 block)
+  const receipt = await tx.wait(1);
+
+  if (!receipt || receipt.status !== 1) {
+    throw new Error(`Transaction failed: ${tx.hash}`);
+  }
+
+  console.log(
+    `[Refunds] Refund confirmed - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`
+  );
+
+  return tx.hash;
+}
+
+/**
+ * Check operator wallet balance for refunds
+ */
+export async function getOperatorBalanceForRefunds(): Promise<{
+  balanceEth: string;
+  balanceWei: string;
+  address: string;
+}> {
+  try {
+    const wallet = getOperatorWallet();
+    const balance = await wallet.provider!.getBalance(wallet.address);
+    return {
+      balanceEth: ethers.formatEther(balance),
+      balanceWei: balance.toString(),
+      address: wallet.address,
+    };
+  } catch (error) {
+    console.error('[Refunds] Failed to get operator balance:', error);
+    return {
+      balanceEth: '0',
+      balanceWei: '0',
+      address: 'unknown',
+    };
+  }
 }
 
 // ============================================================
@@ -277,20 +379,14 @@ export async function processRefunds(roundId: number): Promise<RefundProcessingR
           })
           .where(eq(refunds.id, refund.id));
 
-        // TODO: In production, this is where we would:
-        // 1. Look up user's wallet address
-        // 2. Submit on-chain transaction
-        // 3. Wait for confirmation
-        // 4. Record transaction hash
-        //
-        // For now, we simulate successful transfer
-        const simulatedTxHash = `0x${Buffer.from(`refund-${refund.id}-${Date.now()}`).toString('hex').slice(0, 64)}`;
+        // Send actual on-chain refund transaction
+        const txHash = await sendRefundTransaction(refund.fid, refund.amountWei);
 
-        // Mark as sent
+        // Mark as sent with real transaction hash
         await db.update(refunds)
           .set({
             status: 'sent' as RefundStatus,
-            refundTxHash: simulatedTxHash,
+            refundTxHash: txHash,
             sentAt: new Date(),
             updatedAt: new Date(),
           })
@@ -299,7 +395,7 @@ export async function processRefunds(roundId: number): Promise<RefundProcessingR
         result.sentCount++;
         result.totalProcessed++;
 
-        console.log(`[Refunds] Processed refund ${refund.id} for FID ${refund.fid}: ${refund.amountEth} ETH`);
+        console.log(`[Refunds] Refund ${refund.id} sent to FID ${refund.fid}: ${refund.amountEth} ETH (tx: ${txHash})`);
       } catch (refundError: any) {
         // Mark as failed
         const retryCount = (refund.retryCount || 0) + 1;
