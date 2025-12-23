@@ -19,6 +19,7 @@ import {
   getKillSwitchState,
   getDeadDayState,
   isRefundProcessingRunning,
+  getRefundCronTiming,
 } from '../../../../src/lib/operational';
 import { getRefundSummary } from '../../../../src/lib/refunds';
 import { db } from '../../../../src/db';
@@ -48,6 +49,7 @@ export default async function handler(
     const killSwitchState = await getKillSwitchState();
     const deadDayState = await getDeadDayState();
     const refundsRunning = await isRefundProcessingRunning();
+    const refundCronTiming = await getRefundCronTiming();
 
     // Get cancelled rounds with pending refunds
     const cancelledRounds = await db
@@ -87,6 +89,7 @@ export default async function handler(
       },
       deadDay: deadDayState,
       cancelledRounds: refundSummaries,
+      refundCron: refundCronTiming,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

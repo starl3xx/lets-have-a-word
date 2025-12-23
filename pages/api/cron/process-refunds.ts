@@ -8,7 +8,7 @@ import {
   createRefundsForRound,
   getRefundSummary,
 } from '../../../src/lib/refunds';
-import { isKillSwitchEnabled, getKillSwitchState } from '../../../src/lib/operational';
+import { isKillSwitchEnabled, getKillSwitchState, recordRefundCronRun } from '../../../src/lib/operational';
 
 /**
  * POST /api/cron/process-refunds
@@ -147,6 +147,14 @@ export default async function handler(
     const totalProcessed = results.reduce((sum, r) => sum + r.processed, 0);
     const totalSent = results.reduce((sum, r) => sum + r.sent, 0);
     const totalFailed = results.reduce((sum, r) => sum + r.failed, 0);
+
+    // Record cron run for monitoring
+    await recordRefundCronRun({
+      roundsProcessed: cancelledRounds.length,
+      totalSent,
+      totalFailed,
+      durationMs: duration,
+    });
 
     return res.status(200).json({
       ok: true,
