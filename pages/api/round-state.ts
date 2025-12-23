@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { getActiveRoundStatus } from '../../src/lib/wheel';
 import type { RoundStatus } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
@@ -121,6 +122,9 @@ export default async function handler(
     return res.status(200).json(roundStatus);
   } catch (error: any) {
     console.error('Error in /api/round-state:', error);
+    Sentry.captureException(error, {
+      tags: { endpoint: 'round-state' },
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

@@ -10,6 +10,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from '../me';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 import {
   runFairnessAudit,
   getRecentFairnessAlerts,

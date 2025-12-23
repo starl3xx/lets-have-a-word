@@ -10,6 +10,7 @@ import { db } from '../../../../src/db';
 import { analyticsEvents } from '../../../../src/db/schema';
 import { desc } from 'drizzle-orm';
 import { isAdminFid } from '../me';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
 export interface AnalyticsEvent {
   id: number;
