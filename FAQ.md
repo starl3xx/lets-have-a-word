@@ -26,10 +26,10 @@ Share your guess via Farcaster once per day to earn +1 free guess. The bonus is 
 
 ## How are paid guesses different?
 
-Paid guesses function the same as free guesses but:
+Paid guesses:
 - Cost ETH
 - Increase the global prize pool
-- Can be used at any point during the round
+- Can be used anytime within the daily window (until 11:00 UTC reset), even if a new round starts.
 
 ## How much do guess packs cost?
 

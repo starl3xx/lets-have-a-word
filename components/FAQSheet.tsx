@@ -109,11 +109,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How are paid guesses different?",
       answer: (
         <>
-          Paid guesses function the same as free guesses but:
+          Paid guesses:
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li>Cost ETH</li>
             <li>Increase the global prize pool</li>
-            <li>Can be used at any point during the round</li>
+            <li>Can be used anytime within the daily window (until 11:00 UTC reset), even if a new round starts.</li>
           </ul>
         </>
       ),
