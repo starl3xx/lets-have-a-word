@@ -230,14 +230,17 @@ export async function announceRoundStarted(round: RoundRow) {
   const jackpotUsd = estimateUsd(round.prizePoolEth);
   const commitHash = round.commitHash;
 
-  const text = `🔵 New round started on Let's Have A Word!
+  const text = `🔵 Round #${roundNumber} is live in @letshaveaword
 
-Round #${roundNumber} is live with a starting prize pool of ${jackpotEth} ETH (~$${jackpotUsd}).
+Starting jackpot: ${jackpotEth} ETH (~$${jackpotUsd}) 🎯
 
-Commitment hash: ${commitHash}
+The secret word is locked and committed onchain before the first guess 🔒
 
-The secret word is locked in. Verify anytime:
-https://www.letshaveaword.fun/verify?round=${roundNumber}`;
+→ Hash: ${commitHash}
+→ Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
+
+Guess wisely 👀
+https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
