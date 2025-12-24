@@ -31,6 +31,15 @@ Paid guesses function the same as free guesses but:
 - Increase the global prize pool
 - Can be used at any point during the round
 
+## How much do guess packs cost?
+
+Each pack contains 3 guesses and are priced as follows:
+- **0–749 total guesses** (early round): 0.00030 ETH
+- **750–1249 guesses** (late round): 0.00045 ETH
+- **1250+ guesses** (late round, max): 0.00060 ETH
+
+Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.
+
 ## How is the prize pool split?
 
 When a round is won, payouts are resolved atomically onchain in a single transaction:
