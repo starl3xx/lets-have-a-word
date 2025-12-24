@@ -31,9 +31,18 @@ Paid guesses function the same as free guesses but:
 - Increase the global prize pool
 - Can be used at any point during the round
 
-## How is the jackpot split?
+## How is the prize pool split?
 
-When someone wins: 80% goes to the winner, 10% goes to their referrer (if any), and the remaining 10% is split among that round's top 10 most active guessers. A small portion also seeds the next round's jackpot.
+When a round is won, payouts are resolved atomically onchain in a single transaction:
+- **80%** → Jackpot winner
+- **10%** → Top 10 early guessers
+- **10%** → Referrer (if one exists)
+
+If the winner *does not* have a referrer:
+- 7.5% is added to the Top 10 pool
+- 2.5% seeds the next round's prize pool
+
+Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
 
 ## What does "provably fair" mean?
 
