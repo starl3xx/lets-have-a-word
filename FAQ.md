@@ -44,9 +44,12 @@ Share your referral link with your Farcaster friends. If someone you referred ev
 
 ## Why can't I play? / What are the eligibility requirements?
 
-To prevent bot abuse, players must have a Neynar User Quality Score of at least 0.6. This score reflects your Farcaster reputation based on your onchain activity, social graph, and account history. If your score is too low, you'll see a message explaining why you can't submit guesses or purchase packs.
+To prevent bot abuse, players must meet a minimum **Neynar user score of 0.6 or higher.** This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
 
-To improve your score, engage authentically on Farcaster: follow and interact with real users, build your follower base organically, and participate in the community. Power badge holders and accounts with genuine activity tend to have higher scores.
+If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.
+
+Learn more about Neynar user scores and how to improve them:
+https://docs.neynar.com/docs/neynar-user-quality-score#faqs
 
 ## What happens to my unused guesses?
 
