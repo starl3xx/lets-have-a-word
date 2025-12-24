@@ -193,7 +193,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
-      question: "What does \"provably fair\" mean?",
+      question: "What does "provably fair" mean?",
       answer: (
         <>
           Before each round, the game commits onchain to the secret word using a cryptographic hash and hidden salt.
@@ -212,7 +212,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: "Share your referral link with your Farcaster friends. If someone you referred ever wins a jackpot, you’ll automatically receive 10% of their winnings. You can track your referral earnings in the Refer sheet.",
     },
     {
-      question: "Why can't I play? / What are the eligibility requirements?",
+      question: "Why can’t I play? / What are the eligibility requirements?",
       answer: (
         <>
           To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.6 or higher.</strong> This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
