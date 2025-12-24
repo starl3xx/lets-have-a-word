@@ -14,11 +14,11 @@ You can earn bonus free guesses by: (1) Holding 100M CLANKTON tokens (+2-3 guess
 
 ## What's the CLANKTON bonus?
 
-If you hold 100M CLANKTON tokens in your connected wallet, you get additional free guesses per day:
-- **+2 guesses/day** while CLANKTON market cap is below $250k
-- **+3 guesses/day** once market cap reaches $250k
+If you hold 100M [$CLANKTON](https://dexscreener.com/base/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07) in your connected wallet, you receive extra free guesses:
+- **+2 guesses/day** when $CLANKTON market cap is below $250K
+- **+3 guesses/day** when market cap is above $250K
 
-This bonus is automatically detected based on your **unified signer wallet** - the same wallet address used for CLANKTON balance checks, paid guess purchases, and jackpot payouts. Market cap is currently supplied via configuration and will be replaced with a live oracle in a future update.
+This is detected automatically when you connect. Market cap is updated every 15 minutes via live onchain oracle.
 
 ## How does the share bonus work?
 
