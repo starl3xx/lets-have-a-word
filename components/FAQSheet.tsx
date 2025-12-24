@@ -193,7 +193,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
-      question: "What does "provably fair" mean?",
+      question: 'What does "provably fair" mean?',
       answer: (
         <>
           Before each round, the game commits onchain to the secret word using a cryptographic hash and hidden salt.
