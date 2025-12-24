@@ -72,7 +72,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "What are free guesses?",
-      answer: "Every player gets 1 free guess per day. Free guesses don’t cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses are counted in Top 10 Early Guessers ranking. Free guesses reset daily at 11:00 UTC.",
+      answer: (<>Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses <strong>are</strong> counted in Top 10 Early Guessers ranking. Free guesses reset daily at 11:00 UTC.</>),
     },
     {
       question: "How do I get more guesses?",
@@ -80,8 +80,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         <>
           You can get more guesses by:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens</li>
             <li>Sharing your daily guess on Farcaster/Base</li>
+            <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens</li>
             <li>Buying guess packs (3 guesses per pack)</li>
           </ul>
           <p className="mt-2">You can buy up to 3 packs per day.</p>

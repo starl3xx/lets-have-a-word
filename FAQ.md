@@ -10,7 +10,7 @@ Every player gets 1 free guess per day. Free guesses don’t cost anything (obvs
 
 ## How do I get more guesses?
 
-You can earn bonus free guesses by: (1) Holding 100M CLANKTON tokens (+2-3 guesses/day depending on market cap), and (2) Sharing your daily guess on Farcaster (+1 guess/day). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
+You can earn bonus free guesses by: (1) Sharing your daily guess on Farcaster (+1 guess/day), and (2) Holding 100M CLANKTON tokens (+2-3 guesses/day depending on market cap). You can also purchase paid guess packs (3 guesses/pack, up to 3 packs/day).
 
 ## What’s the CLANKTON bonus?
 
