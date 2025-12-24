@@ -68,11 +68,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
   const FAQ_DATA: FAQItem[] = [
     {
       question: "How does the game work?",
-      answer: "Every Let's Have A Word! player worldwide is hunting the same secret 5-letter word. When someone guesses correctly, they win the ETH jackpot and a new round starts with a new secret word. The jackpot grows as players purchase guess packs.",
+      answer: "Every Let's Have A Word! player worldwide is hunting the same secret 5-letter word. Every incorrect guess helps everyone else by removing that word from play. When someone guesses correctly, they win the ETH jackpot, the prize pool is automatically distributed onchain, and a new round starts with a new secret word. The prize pool grows as players purchase guess packs.",
     },
     {
       question: "What are free guesses?",
-      answer: "Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses.",
+      answer: "Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses are counted in Top 10 Early Guessers ranking. Free guesses reset daily at 11:00 UTC.",
     },
     {
       question: "How do I get more guesses?",
@@ -109,30 +109,29 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How are paid guesses different?",
       answer: (
         <>
-          Paid guesses:
+          Paid guesses function the same as free guesses but:
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li>Cost ETH</li>
             <li>Increase the global prize pool</li>
             <li>Can be used at any point during the round</li>
-            <li>Fund all prize payouts</li>
           </ul>
         </>
       ),
     },
     {
-      question: "How is the jackpot split?",
+      question: "How is the prize pool split?",
       answer: (
         <>
           When a round is won, payouts are resolved atomically onchain in a single transaction:
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li><strong>80%</strong> → Jackpot winner</li>
-            <li><strong>10%</strong> → Top 10 guessers</li>
+            <li><strong>10%</strong> → Top 10 early guessers</li>
             <li><strong>10%</strong> → Referrer (if one exists)</li>
           </ul>
           <p className="mt-2">If the winner does not have a referrer:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>7.5% is added to the Top 10 pool</li>
-            <li>2.5% seeds the next round's jackpot</li>
+            <li>2.5% seeds the next round's prize pool</li>
           </ul>
           <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
         </>
@@ -210,7 +209,26 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "How do referrals work?",
-      answer: "Share your referral link with friends on Farcaster and Base. If someone you referred ever wins a jackpot, you automatically receive 10% of their winnings. You can track referral earnings in the Refer sheet.",
+      answer: "Share your referral link with your Farcaster friends. If someone you referred ever wins a jackpot, you'll automatically receive 10% of their winnings. You can track your referral earnings in the Refer sheet.",
+    },
+    {
+      question: "Why can't I play? / What are the eligibility requirements?",
+      answer: (
+        <>
+          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.6 or higher.</strong> This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+          <p className="mt-2">If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.</p>
+          <p className="mt-2">
+            <a
+              href="https://docs.neynar.com/docs/neynar-user-quality-score#faqs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-600 hover:text-accent-800 underline"
+            >
+              Learn more about Neynar user scores →
+            </a>
+          </p>
+        </>
+      ),
     },
     {
       question: "Can I see the word after someone wins?",
