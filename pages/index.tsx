@@ -1247,7 +1247,7 @@ function GameContent() {
 
             {/* Background blocker - prevents words from flashing behind input boxes */}
             <div
-              className="absolute left-0 right-0"
+              className="absolute inset-x-0 flex justify-center"
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',
@@ -1257,9 +1257,9 @@ function GameContent() {
               }}
             >
               <div
-                className="mx-auto"
                 style={{
-                  maxWidth: '21rem', // Slightly wider than 5 boxes + gaps (5*4rem + 4*0.5rem = 22rem)
+                  width: '21rem', // Match 5 boxes + gaps (5*4rem + 4*0.5rem = 22rem)
+                  maxWidth: 'calc(100% - 4rem)', // Respect px-8 padding
                   height: '100%',
                   backgroundColor: 'rgb(249, 250, 251)', // Match page background (bg-gray-50)
                   borderRadius: '1rem',
@@ -1269,7 +1269,7 @@ function GameContent() {
 
             {/* Fixed Layer: Input Boxes - always visible, always centered */}
             <div
-              className="absolute left-0 right-0 px-8"
+              className="absolute inset-x-0 flex justify-center px-8"
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',
