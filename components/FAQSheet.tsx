@@ -187,7 +187,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <ul className="list-disc list-inside space-y-1">
           <li>Free guesses reset daily at 11:00 UTC</li>
-          <li>Paid guess credits expire at the end of each day</li>
+          <li>Paid guess credits expire at the end of each day (11:00 UTC)</li>
           <li>If a round ends and a new round starts the same day, unused paid guesses carry over</li>
         </ul>
       ),

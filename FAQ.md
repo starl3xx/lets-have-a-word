@@ -74,7 +74,9 @@ https://docs.neynar.com/docs/neynar-user-quality-score#faqs
 
 ## What happens to my unused guesses?
 
-Free guess allocations reset daily at 11:00 UTC. Paid guess credits expire at the end of each day. If a round is won and a new round starts, any unused paid guess credits automatically carry over to the next round.
+- Free guesses reset daily at 11:00 UTC
+- Paid guess credits expire at the end of each day (11:00 UTC)
+- If a round ends and a new round starts the same day, unused paid guesses carry over
 
 ## Can I see the word after someone wins?
 
