@@ -234,7 +234,7 @@ export async function announceRoundStarted(round: RoundRow) {
 
 Starting jackpot: ${jackpotEth} ETH (~$${jackpotUsd}) 🎯
 
-The secret word is locked and committed onchain before the first guess 🔒
+The secret word is locked before the first guess 🔒
 
 → Hash: ${commitHash}
 → Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
