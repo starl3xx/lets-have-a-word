@@ -14,7 +14,7 @@ You can earn bonus free guesses by: (1) Holding 100M CLANKTON tokens (+2-3 guess
 
 ## What's the CLANKTON bonus?
 
-If you hold 100M [$CLANKTON](https://warpcast.com/~/token/eip155:8453/erc20:0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07) in your connected wallet, you receive extra free guesses:
+If you hold 100M [$CLANKTON](https://farcaster.xyz/~/token/eip155:8453/erc20:0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07) in your connected wallet, you receive extra free guesses:
 - **+2 guesses/day** when $CLANKTON market cap is below $250K
 - **+3 guesses/day** when market cap is above $250K
 
