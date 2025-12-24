@@ -26,7 +26,10 @@ Share your guess via Farcaster once per day to earn +1 free guess. The bonus is 
 
 ## How are paid guesses different?
 
-Paid guesses cost ETH and contribute to the global prize pool. You can buy up to 3 packs per day (3 guesses each). Paid guesses increase the jackpot for everyone.
+Paid guesses function the same as free guesses but:
+- Cost ETH
+- Increase the global prize pool
+- Can be used at any point during the round
 
 ## How is the jackpot split?
 
