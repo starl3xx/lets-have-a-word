@@ -42,6 +42,12 @@ When the round ends, @letshaveaword reveals the winning word and the salt, allow
 
 Share your referral link with your Farcaster friends. If someone you referred ever wins a jackpot, you'll automatically receive 10% of their winnings. You can track your referral earnings in the Refer sheet.
 
+## Why can't I play? / What are the eligibility requirements?
+
+To prevent bot abuse, players must have a Neynar User Quality Score of at least 0.6. This score reflects your Farcaster reputation based on your onchain activity, social graph, and account history. If your score is too low, you'll see a message explaining why you can't submit guesses or purchase packs.
+
+To improve your score, engage authentically on Farcaster: follow and interact with real users, build your follower base organically, and participate in the community. Power badge holders and accounts with genuine activity tend to have higher scores.
+
 ## What happens to my unused guesses?
 
 Free guess allocations reset daily at 11:00 UTC. Paid guess credits expire at the end of each day. Use them or lose them! If a round is won and a new round starts, any unused paid guess credits automatically carry over to the next round.
