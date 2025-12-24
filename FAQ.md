@@ -2,7 +2,7 @@
 
 ## How does the game work?
 
-Every *Let's Have A Word* player worldwide is hunting for the same 5-letter word. When someone guesses correctly, they win the accumulated ETH jackpot and a new round starts with a new word. The jackpot grows with every paid guess.
+Every **Let's Have A Word!** player worldwide is hunting the same secret 5-letter word. Every incorrect guess helps everyone else by removing that word from play. When someone guesses correctly, they win the ETH jackpot, the prize pool is automatically distributed onchain, and a new round starts with a new secret word. The prize pool grows as players purchase guess packs.
 
 ## What are free guesses?
 
