@@ -1,9 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { getActiveWheelData } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../src/lib/devGameState';
 import { getGuessWords } from '../../src/lib/word-lists';
 import type { WheelResponse, WheelWord, WheelWordStatus } from '../../src/types';
+import {
+  cacheAside,
+  CacheKeys,
+  CacheTTL,
+  checkRateLimit,
+  RateLimiters,
+} from '../../src/lib/redis';
+import { getActiveRound } from '../../src/lib/rounds';
 
 /**
  * GET /api/wheel
@@ -50,6 +59,18 @@ export default async function handler(
   }
 
   try {
+    // Milestone 9.0: Rate limiting (by IP)
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const rateCheck = await checkRateLimit(RateLimiters.general, `wheel:${clientIp}`);
+    if (!rateCheck.success) {
+      res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '60');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
     // Milestone 4.8: Check for dev mode first
     if (isDevModeEnabled()) {
       console.log('🎮 Dev mode: Returning wheel words with real DB statuses + seeded wrong words');
@@ -146,14 +167,38 @@ export default async function handler(
       });
     }
 
-    // Production mode: fetch from database
+    // Production mode: fetch from database with caching
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 
-    const wheelData = await getActiveWheelData();
+    // Milestone 9.0: Get active round ID for cache key
+    const activeRound = await getActiveRound();
+    if (!activeRound) {
+      // No active round - fetch fresh (this will create one)
+      const wheelData = await getActiveWheelData();
+      return res.status(200).json(wheelData);
+    }
+
+    // Use cache-aside pattern for wheel data
+    // Cache is keyed by roundId, invalidated on every guess
+    const wheelData = await cacheAside<WheelResponse>(
+      CacheKeys.wheel(activeRound.id),
+      CacheTTL.wheel,
+      async () => {
+        console.log(`[wheel] Cache miss, fetching from DB for round ${activeRound.id}`);
+        return getActiveWheelData();
+      }
+    );
+
+    // Set cache headers for client-side caching
+    res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=5');
+
     return res.status(200).json(wheelData);
   } catch (error: any) {
     console.error('Error in /api/wheel:', error);
+    Sentry.captureException(error, {
+      tags: { endpoint: 'wheel' },
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

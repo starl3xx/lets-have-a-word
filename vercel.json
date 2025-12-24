@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/oracle-update",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/health-check",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/archive-sync",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/process-refunds",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

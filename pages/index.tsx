@@ -16,6 +16,8 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
+// Milestone 9.5: Game paused banner
+import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
 // Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
 // Uses 6500 which is the dev mode FID defined in daily-limits.ts
@@ -147,6 +149,12 @@ function GameContent() {
     markShareModalSeen,
     markPackModalSeen,
   } = useModalDecision();
+
+  // Milestone 9.5: Game paused/operational error state
+  const [operationalError, setOperationalError] = useState<{
+    code: string;
+    reason?: string;
+  } | null>(null);
 
 
   /**
@@ -711,6 +719,17 @@ function GameContent() {
         requestBody.devFid = effectiveFid;
       }
 
+      // Extract referral parameter from URL (e.g., ?ref=12345)
+      // This is passed on every guess but only used for first-time user creation
+      const urlParams = new URLSearchParams(window.location.search);
+      const refParam = urlParams.get('ref');
+      if (refParam) {
+        const refFid = parseInt(refParam, 10);
+        if (!isNaN(refFid) && refFid > 0) {
+          requestBody.ref = refFid;
+        }
+      }
+
       // Call API
       const response = await fetch('/api/guess', {
         method: 'POST',
@@ -721,9 +740,21 @@ function GameContent() {
       });
 
       if (!response.ok) {
-        // Try to get detailed error from response (available in dev mode)
+        // Try to get detailed error from response
         try {
           const errorData = await response.json();
+
+          // Milestone 9.5: Check for operational errors (kill switch, dead day)
+          const opError = parseOperationalError(errorData);
+          if (opError.isOperational) {
+            setOperationalError({
+              code: opError.code!,
+              reason: opError.reason,
+            });
+            setIsLoading(false);
+            return; // Don't throw, just show the banner
+          }
+
           if (errorData.devDetails) {
             console.error('API Error Details:', errorData.devDetails);
             console.error('API Error Stack:', errorData.devStack);
@@ -1089,10 +1120,48 @@ function GameContent() {
     // Refetch user state to update guess counts
     setUserStateKey(prev => prev + 1);
     void haptics.packPurchased();
+
+    // Close share modal if open (user chose to buy packs instead of sharing)
+    if (showShareModal) {
+      setShowShareModal(false);
+      setPendingShareResult(null);
+    }
+
+    // Trigger the fade-out of the incorrect banner if showing
+    if (incorrectState === 'active' || incorrectState === 'faded') {
+      // Clear any existing timers to prevent conflicts
+      if (incorrectTimerRef.current) {
+        clearTimeout(incorrectTimerRef.current);
+        incorrectTimerRef.current = null;
+      }
+      if (fadedDismissTimerRef.current) {
+        clearTimeout(fadedDismissTimerRef.current);
+        fadedDismissTimerRef.current = null;
+      }
+      if (fadeoutTimerRef.current) {
+        clearTimeout(fadeoutTimerRef.current);
+        fadeoutTimerRef.current = null;
+      }
+
+      setIncorrectState('fading_out');
+      setTimeout(() => {
+        setIncorrectState('none');
+        setLastSubmittedGuess(null);
+      }, 1000); // Match the fade-out duration
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Milestone 9.5: Game Paused Banner */}
+      {operationalError && (
+        <GamePausedBanner
+          errorCode={operationalError.code}
+          reason={operationalError.reason}
+          onDismiss={() => setOperationalError(null)}
+        />
+      )}
+
       {/* Top Ticker (Milestone 2.3, 5.4: clickable round number) */}
       <TopTicker
         onRoundClick={(roundId) => {
@@ -1178,7 +1247,7 @@ function GameContent() {
 
             {/* Background blocker - prevents words from flashing behind input boxes */}
             <div
-              className="absolute left-0 right-0"
+              className="absolute inset-x-0 flex justify-center"
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',
@@ -1188,9 +1257,9 @@ function GameContent() {
               }}
             >
               <div
-                className="mx-auto"
                 style={{
-                  maxWidth: '21rem', // Slightly wider than 5 boxes + gaps (5*4rem + 4*0.5rem = 22rem)
+                  width: '21rem', // Match 5 boxes + gaps (5*4rem + 4*0.5rem = 22rem)
+                  maxWidth: 'calc(100% - 4rem)', // Respect px-8 padding
                   height: '100%',
                   backgroundColor: 'rgb(249, 250, 251)', // Match page background (bg-gray-50)
                   borderRadius: '1rem',
@@ -1200,7 +1269,7 @@ function GameContent() {
 
             {/* Fixed Layer: Input Boxes - always visible, always centered */}
             <div
-              className="absolute left-0 right-0 px-8"
+              className="absolute inset-x-0 flex justify-center px-8"
               style={{
                 top: '50%',
                 transform: 'translateY(-50%)',

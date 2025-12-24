@@ -30,11 +30,16 @@
 
 import type { AppProps } from 'next/app';
 import '../styles/globals.css';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function App({ Component, pageProps }: AppProps) {
-  // Minimal root app - no providers
+  // Minimal root app - ErrorBoundary for crash reporting to Sentry
   // Each page handles its own providers:
   // - Game page (/) has WagmiProvider + QueryClientProvider
   // - Admin analytics (/admin/analytics) has NeynarContextProvider
-  return <Component {...pageProps} />;
+  return (
+    <ErrorBoundary>
+      <Component {...pageProps} />
+    </ErrorBoundary>
+  );
 }

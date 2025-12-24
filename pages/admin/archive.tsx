@@ -313,6 +313,21 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
           {user && (
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <a
+                href="/admin/operations"
+                style={{
+                  padding: "8px 14px",
+                  background: "#dc2626",
+                  color: "white",
+                  borderRadius: "6px",
+                  textDecoration: "none",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  fontFamily,
+                }}
+              >
+                Operations
+              </a>
+              <a
                 href="/admin/analytics"
                 style={{
                   padding: "8px 14px",

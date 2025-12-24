@@ -7,7 +7,7 @@
  *
  * Key responsibilities:
  * - Call resolveRoundWithPayouts for multi-recipient prize distribution
- * - Track on-chain round state
+ * - Track onchain round state
  * - Verify contract state matches backend state
  */
 
@@ -74,6 +74,7 @@ export interface ContractConfig {
 
 /**
  * Get contract configuration from environment
+ * All addresses are normalized with proper EIP-55 checksums
  */
 export function getContractConfig(): ContractConfig {
   const jackpotManagerAddress = process.env.JACKPOT_MANAGER_ADDRESS;
@@ -82,11 +83,15 @@ export function getContractConfig(): ContractConfig {
     throw new Error('JACKPOT_MANAGER_ADDRESS not configured');
   }
 
+  // Helper to normalize addresses - lowercase first to avoid checksum validation errors
+  const normalizeAddress = (addr: string) => ethers.getAddress(addr.toLowerCase());
+
+  // Normalize all addresses with proper checksums (handles env vars with incorrect casing)
   return {
-    jackpotManagerAddress,
-    prizePoolWallet: process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB',
-    operatorWallet: process.env.OPERATOR_WALLET || '0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38',
-    creatorProfitWallet: process.env.CREATOR_PROFIT_WALLET || '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223',
+    jackpotManagerAddress: normalizeAddress(jackpotManagerAddress),
+    prizePoolWallet: normalizeAddress(process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB'),
+    operatorWallet: normalizeAddress(process.env.OPERATOR_WALLET || '0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38'),
+    creatorProfitWallet: normalizeAddress(process.env.CREATOR_PROFIT_WALLET || '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223'),
   };
 }
 
@@ -316,7 +321,7 @@ export async function withdrawCreatorProfitOnChain(): Promise<string> {
 /**
  * Verify contract state matches expected state
  *
- * Used for consistency checks between backend and on-chain state.
+ * Used for consistency checks between backend and onchain state.
  *
  * @param expectedRound - Expected round number
  * @param expectedJackpotEth - Expected jackpot in ETH (string)
