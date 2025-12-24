@@ -239,7 +239,7 @@ The secret word is locked and committed onchain before the first guess 🔒
 → Hash: ${commitHash}
 → Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
 
-Guess wisely 👀
+Happy hunting 👀
 https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
