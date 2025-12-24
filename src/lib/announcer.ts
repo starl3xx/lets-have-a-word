@@ -228,14 +228,16 @@ export async function announceRoundStarted(round: RoundRow) {
   const roundNumber = getRoundNumber(round);
   const jackpotEth = formatEth(round.prizePoolEth);
   const jackpotUsd = estimateUsd(round.prizePoolEth);
+  const commitHash = round.commitHash;
 
   const text = `🔵 New round started on Let's Have A Word!
 
-Round #${roundNumber} is live with a starting prize pool of ${jackpotEth} ETH (${jackpotUsd} USD est).
+Round #${roundNumber} is live with a starting prize pool of ${jackpotEth} ETH (~$${jackpotUsd}).
 
-One secret 5-letter word. Everyone gets daily guesses. One correct guess wins the jackpot.
+Commitment hash: ${commitHash}
 
-Play in the Farcaster mini app to join the round.`;
+The secret word is locked in. Verify anytime:
+https://www.letshaveaword.fun/verify?round=${roundNumber}`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
