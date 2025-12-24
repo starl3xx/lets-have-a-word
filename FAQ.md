@@ -6,7 +6,7 @@ Every **Let's Have A Word!** player worldwide is hunting the same secret 5-lette
 
 ## What are free guesses?
 
-Every player gets 1 free guess per day. Free guesses don't cost anything (duh) but still give you a chance to win the jackpot. Additional free guesses can be earned through bonuses.
+Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses **are** counted in Top 10 Early Guessers ranking.
 
 ## How do I get more guesses?
 
