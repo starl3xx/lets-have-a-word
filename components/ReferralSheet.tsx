@@ -297,21 +297,25 @@ export default function ReferralSheet({
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-accent-100">
-                  <p className="text-sm text-accent-700">{t('referral.stats.ethEarned')}</p>
+                  <p className="text-sm text-accent-700">{t('referral.stats.ethEarned')}<span className="text-accent-500">*</span></p>
                   <p className="text-3xl font-bold text-accent-900 tabular-nums">
                     {displayedEth}
                   </p>
                 </div>
               </div>
+              <p className="text-xs text-accent-600 mt-2">
+                <span className="text-accent-500">*</span> {t('referral.stats.ethEarnedHelper')}
+              </p>
             </div>
 
             {/* How it Works */}
             <div className="section-card bg-gray-50">
               <h3 className="text-sm font-semibold text-gray-900">{t('referral.howItWorks.title')}</h3>
-              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mt-2">
+              <ul className="list-disc list-inside text-sm text-gray-700 space-y-2 mt-2">
                 <li>{t('referral.howItWorks.step1')}</li>
-                <li>{t('referral.howItWorks.step2')}</li>
+                <li dangerouslySetInnerHTML={{ __html: t('referral.howItWorks.step2') }} />
                 <li>{t('referral.howItWorks.step3')}</li>
+                <li>{t('referral.howItWorks.step4')}</li>
               </ul>
             </div>
           </div>

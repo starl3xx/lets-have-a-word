@@ -20,6 +20,7 @@ import {
   weiToEthString,
   PRICE_RAMP_START_GUESSES,
 } from '../../../../src/lib/pack-pricing';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
 export interface PackPricingAnalytics {
   // Current state

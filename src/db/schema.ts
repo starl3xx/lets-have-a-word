@@ -38,6 +38,12 @@ export const users = pgTable('users', {
 }));
 
 /**
+ * Round Status Types
+ * Milestone 9.5: Kill switch and dead day support
+ */
+export type RoundStatus = 'active' | 'resolved' | 'cancelled';
+
+/**
  * Rounds Table
  * Stores each game round with commit-reveal data
  */
@@ -54,9 +60,17 @@ export const rounds = pgTable('rounds', {
   isDevTestRound: boolean('is_dev_test_round').default(false).notNull(), // Milestone 4.5: Mid-round test mode flag
   startedAt: timestamp('started_at').defaultNow().notNull(),
   resolvedAt: timestamp('resolved_at'), // null until someone wins
+  // Milestone 9.5: Kill switch fields
+  status: varchar('status', { length: 20 }).default('active').notNull().$type<RoundStatus>(),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelledReason: varchar('cancelled_reason', { length: 500 }),
+  cancelledBy: integer('cancelled_by'), // Admin FID who triggered kill switch
+  refundsStartedAt: timestamp('refunds_started_at'),
+  refundsCompletedAt: timestamp('refunds_completed_at'),
 }, (table) => ({
   commitHashIdx: index('rounds_commit_hash_idx').on(table.commitHash),
   winnerIdx: index('rounds_winner_fid_idx').on(table.winnerFid),
+  statusIdx: index('rounds_status_idx').on(table.status),
 }));
 
 /**
@@ -330,3 +344,173 @@ export const xpEvents = pgTable('xp_events', {
 
 export type XpEventRow = typeof xpEvents.$inferSelect;
 export type XpEventInsert = typeof xpEvents.$inferInsert;
+
+/**
+ * Pack Purchases Table
+ * Milestone 9.5: Track individual pack purchases for refund support
+ */
+export const packPurchases = pgTable('pack_purchases', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  fid: integer('fid').notNull(),
+  packCount: integer('pack_count').default(1).notNull(),
+  totalPriceEth: decimal('total_price_eth', { precision: 20, scale: 18 }).notNull(),
+  totalPriceWei: varchar('total_price_wei', { length: 78 }).notNull(),
+  pricingPhase: varchar('pricing_phase', { length: 20 }).notNull(), // 'BASE', 'LATE_1', 'LATE_2'
+  totalGuessesAtPurchase: integer('total_guesses_at_purchase').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('pack_purchases_round_idx').on(table.roundId),
+  fidIdx: index('pack_purchases_fid_idx').on(table.fid),
+  createdAtIdx: index('pack_purchases_created_at_idx').on(table.createdAt),
+}));
+
+export type PackPurchaseRow = typeof packPurchases.$inferSelect;
+export type PackPurchaseInsert = typeof packPurchases.$inferInsert;
+
+/**
+ * Refund Status Types
+ * Milestone 9.5: Kill switch refund tracking
+ */
+export type RefundStatus = 'pending' | 'processing' | 'sent' | 'failed';
+
+/**
+ * Refunds Table
+ * Milestone 9.5: Track refunds for cancelled rounds
+ */
+export const refunds = pgTable('refunds', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  fid: integer('fid').notNull(),
+  amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
+  amountWei: varchar('amount_wei', { length: 78 }).notNull(),
+  status: varchar('status', { length: 20 }).default('pending').notNull().$type<RefundStatus>(),
+  purchaseIds: integer('purchase_ids').array().notNull(), // Array of pack_purchases.id
+
+  // Transaction tracking
+  refundTxHash: varchar('refund_tx_hash', { length: 66 }),
+  sentAt: timestamp('sent_at'),
+  errorMessage: varchar('error_message', { length: 1000 }),
+  retryCount: integer('retry_count').default(0).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('refunds_round_idx').on(table.roundId),
+  fidIdx: index('refunds_fid_idx').on(table.fid),
+  statusIdx: index('refunds_status_idx').on(table.status),
+  roundFidUnique: unique('refunds_round_fid_unique').on(table.roundId, table.fid),
+}));
+
+export type RefundRow = typeof refunds.$inferSelect;
+export type RefundInsert = typeof refunds.$inferInsert;
+
+/**
+ * Operational Event Types
+ * Milestone 9.5: Audit logging for operational actions
+ */
+export type OperationalEventType =
+  | 'kill_switch_enabled'
+  | 'kill_switch_disabled'
+  | 'dead_day_enabled'
+  | 'dead_day_disabled'
+  | 'refunds_started'
+  | 'refunds_completed'
+  | 'round_cancelled'
+  | 'game_resumed';
+
+/**
+ * Operational Events Table
+ * Milestone 9.5: Audit log for kill switch and dead day actions
+ */
+export const operationalEvents = pgTable('operational_events', {
+  id: serial('id').primaryKey(),
+  eventType: varchar('event_type', { length: 50 }).notNull().$type<OperationalEventType>(),
+  roundId: integer('round_id').references(() => rounds.id),
+  triggeredBy: integer('triggered_by').notNull(), // Admin FID
+  reason: varchar('reason', { length: 500 }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  eventTypeIdx: index('operational_events_type_idx').on(table.eventType),
+  createdAtIdx: index('operational_events_created_at_idx').on(table.createdAt),
+}));
+
+export type OperationalEventRow = typeof operationalEvents.$inferSelect;
+export type OperationalEventInsert = typeof operationalEvents.$inferInsert;
+
+/**
+ * Round Economics Config Snapshots Table
+ * Stores the economics configuration active for each round
+ * Milestone 9.6: Economics dashboard improvements
+ */
+export interface RoundEconomicsConfigData {
+  // Top-10 cutoff threshold
+  top10CutoffGuesses: number;
+
+  // Pricing phase thresholds and prices
+  pricing: {
+    basePrice: string; // ETH
+    priceRampStart: number; // guesses
+    priceStepGuesses: number;
+    priceStepIncrease: string; // ETH
+    maxPrice: string; // ETH
+  };
+
+  // Pool split parameters
+  poolSplit: {
+    winnerPct: number;
+    top10Pct: number;
+    referrerPct: number;
+    seedPct: number;
+    creatorPct: number;
+    // Fallback when no referrer
+    fallbackTop10Pct: number;
+    fallbackSeedPct: number;
+  };
+}
+
+export const roundEconomicsConfig = pgTable('round_economics_config', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id).unique(),
+  config: jsonb('config').$type<RoundEconomicsConfigData>().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('round_economics_config_round_idx').on(table.roundId),
+}));
+
+export type RoundEconomicsConfigRow = typeof roundEconomicsConfig.$inferSelect;
+export type RoundEconomicsConfigInsert = typeof roundEconomicsConfig.$inferInsert;
+
+/**
+ * Admin Wallet Actions Table
+ * Tracks all wallet-related admin actions for audit trail
+ */
+export type AdminWalletActionType =
+  | 'prize_pool_injection'
+  | 'creator_pool_withdrawal'
+  | 'refund_batch';
+
+export const adminWalletActions = pgTable('admin_wallet_actions', {
+  id: serial('id').primaryKey(),
+  actionType: varchar('action_type', { length: 50 }).notNull().$type<AdminWalletActionType>(),
+  amountEth: varchar('amount_eth', { length: 50 }).notNull(),
+  amountWei: varchar('amount_wei', { length: 78 }).notNull(),
+  fromAddress: varchar('from_address', { length: 42 }).notNull(),
+  toAddress: varchar('to_address', { length: 42 }).notNull(),
+  txHash: varchar('tx_hash', { length: 66 }),
+  status: varchar('status', { length: 20 }).notNull().default('pending').$type<'pending' | 'confirmed' | 'failed'>(),
+  initiatedByFid: integer('initiated_by_fid').notNull(),
+  initiatedByAddress: varchar('initiated_by_address', { length: 42 }).notNull(),
+  note: varchar('note', { length: 500 }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+}, (table) => ({
+  actionTypeIdx: index('admin_wallet_actions_type_idx').on(table.actionType),
+  createdAtIdx: index('admin_wallet_actions_created_at_idx').on(table.createdAt),
+  initiatedByIdx: index('admin_wallet_actions_initiated_by_idx').on(table.initiatedByFid),
+}));
+
+export type AdminWalletActionRow = typeof adminWalletActions.$inferSelect;
+export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;

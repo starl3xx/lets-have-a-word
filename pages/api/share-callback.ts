@@ -6,8 +6,10 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { awardShareBonus, getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
+import { applyGameplayGuard } from '../../src/lib/operational-guard';
 
 export interface ShareCallbackResponse {
   ok: boolean;
@@ -22,6 +24,10 @@ export default async function handler(
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, message: 'Method not allowed' });
   }
+
+  // Milestone 9.5: Check operational guard (kill switch / dead day)
+  const guardBlocked = await applyGameplayGuard(req, res);
+  if (guardBlocked) return;
 
   console.log('[share-callback] API called with body:', req.body);
 
@@ -77,6 +83,15 @@ export default async function handler(
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[share-callback] Error details:', errorMessage);
+
+    // Report to Sentry with context
+    Sentry.captureException(error, {
+      tags: { endpoint: 'share-callback' },
+      extra: {
+        fid: req.body?.fid,
+        castHash: req.body?.castHash,
+      },
+    });
 
     return res.status(500).json({
       ok: false,

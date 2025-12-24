@@ -68,11 +68,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
   const FAQ_DATA: FAQItem[] = [
     {
       question: "How does the game work?",
-      answer: "Every Let's Have A Word! player worldwide is hunting the same secret 5-letter word. When someone guesses correctly, they win the ETH jackpot and a new round starts with a new secret word. The jackpot grows as players purchase guess packs.",
+      answer: (<>Every <strong>Let’s Have A Word!</strong> player worldwide is hunting the same secret 5-letter word. Every incorrect guess helps everyone else by removing that word from play. When someone guesses correctly, they win the ETH jackpot, the prize pool is automatically distributed onchain, and a new round starts with a new secret word. The prize pool grows as players purchase guess packs.</>),
     },
     {
       question: "What are free guesses?",
-      answer: "Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses.",
+      answer: (<>Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses <strong>are</strong> counted in Top 10 Early Guessers ranking. Free guesses reset daily at 11:00 UTC.</>),
     },
     {
       question: "How do I get more guesses?",
@@ -80,8 +80,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         <>
           You can get more guesses by:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens</li>
             <li>Sharing your daily guess on Farcaster/Base</li>
+            <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens</li>
             <li>Buying guess packs (3 guesses per pack)</li>
           </ul>
           <p className="mt-2">You can buy up to 3 packs per day.</p>
@@ -89,15 +89,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
-      question: "What's the CLANKTON bonus?",
+      question: "What’s the CLANKTON bonus?",
       answer: (
         <>
           If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> in your connected wallet, you receive extra free guesses:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>+2 guesses/day</strong> while CLANKTON market cap is below $250K</li>
-            <li><strong>+3 guesses/day</strong> once market cap reaches $250K</li>
+            <li><strong>+2 guesses/day</strong> when $CLANKTON market cap is below $250K</li>
+            <li><strong>+3 guesses/day</strong> when market cap is above $250K</li>
           </ul>
-          <p className="mt-2">This is detected automatically when you connect. Market cap is currently config-based and will move to a live oracle later.</p>
+          <p className="mt-2">This is detected automatically when you connect. Market cap is updated every 15 minutes via live onchain oracle.</p>
         </>
       ),
     },
@@ -113,28 +113,27 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li>Cost ETH</li>
             <li>Increase the global prize pool</li>
-            <li>Can be used at any point during the round</li>
-            <li>Fund all prize payouts</li>
+            <li>Can be used anytime within the daily window (until 11:00 UTC reset), even if a new round starts</li>
           </ul>
         </>
       ),
     },
     {
-      question: "How is the jackpot split?",
+      question: "How is the prize pool split?",
       answer: (
         <>
           When a round is won, payouts are resolved atomically onchain in a single transaction:
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li><strong>80%</strong> → Jackpot winner</li>
-            <li><strong>10%</strong> → Top 10 guessers</li>
+            <li><strong>10%</strong> → Top 10 early guessers</li>
             <li><strong>10%</strong> → Referrer (if one exists)</li>
           </ul>
-          <p className="mt-2">If the winner does not have a referrer:</p>
+          <p className="mt-2">If the winner <em>does not</em> have a referrer:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>7.5% is added to the Top 10 pool</li>
-            <li>2.5% seeds the next round's jackpot</li>
+            <li>2.5% seeds the next round’s prize pool</li>
           </ul>
-          <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
+          <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as “no referrer.”</p>
         </>
       ),
     },
@@ -173,11 +172,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How much do guess packs cost?",
       answer: (
         <>
-          Each pack contains 3 guesses.
+          Each pack contains 3 guesses and are priced as follows:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>0–749 total guesses</strong> in the round: 0.00030 ETH</li>
-            <li><strong>750–1249 guesses</strong> (mid round): 0.00045 ETH</li>
-            <li><strong>1250+ guesses</strong> (late round, capped): 0.00060 ETH</li>
+            <li><strong>0–749 total guesses</strong> (early round): 0.00030 ETH</li>
+            <li><strong>750–1249 guesses</strong> (late round): 0.00045 ETH</li>
+            <li><strong>1250+ guesses</strong> (late round, max): 0.00060 ETH</li>
           </ul>
           <p className="mt-2">Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.</p>
         </>
@@ -188,13 +187,13 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <ul className="list-disc list-inside space-y-1">
           <li>Free guesses reset daily at 11:00 UTC</li>
-          <li>Paid guess credits expire at the end of each day</li>
+          <li>Paid guess credits expire at the end of each day (11:00 UTC)</li>
           <li>If a round ends and a new round starts the same day, unused paid guesses carry over</li>
         </ul>
       ),
     },
     {
-      question: "What does \"provably fair\" mean?",
+      question: 'What does "provably fair" mean?',
       answer: (
         <>
           Before each round, the game commits onchain to the secret word using a cryptographic hash and hidden salt.
@@ -210,7 +209,26 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "How do referrals work?",
-      answer: "Share your referral link with friends on Farcaster and Base. If someone you referred ever wins a jackpot, you automatically receive 10% of their winnings. You can track referral earnings in the Refer sheet.",
+      answer: "Share your referral link with your Farcaster friends. If someone you referred ever wins a jackpot, you’ll automatically receive 10% of their winnings. You can track your referral earnings in the Refer sheet.",
+    },
+    {
+      question: "Why can’t I play? / What are the eligibility requirements?",
+      answer: (
+        <>
+          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.6 or higher.</strong> This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+          <p className="mt-2">If your score is below the required threshold, you won’t be able to submit guesses or purchase packs, and you’ll see a message explaining the restriction.</p>
+          <p className="mt-2">
+            <a
+              href="https://docs.neynar.com/docs/neynar-user-quality-score#faqs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-600 hover:text-accent-800 underline"
+            >
+              Learn more about Neynar user scores →
+            </a>
+          </p>
+        </>
+      ),
     },
     {
       question: "Can I see the word after someone wins?",
@@ -223,11 +241,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "What is XP for?",
-      answer: "XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don't really know yet, tbh.",
+      answer: "XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don’t really know yet, tbh.",
     },
     {
       question: "Can I play outside of Farcaster?",
-      answer: "Let's Have A Word! uses the Farcaster stack. You can play in Farcaster clients and the Base app, which shares the same identity and wallet infrastructure. Standalone web play isn't supported yet. A standalone web version may be explored later.",
+      answer: (<><strong>Let’s Have A Word!</strong> uses the Farcaster stack. You can play in Farcaster clients and the Base app, which shares the same identity and wallet infrastructure. Standalone web play isn’t supported yet. A standalone web version may be explored later.</>),
     },
   ];
 

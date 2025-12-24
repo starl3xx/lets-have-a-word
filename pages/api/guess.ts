@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { ensureActiveRound } from '../../src/lib/rounds';
 import { verifyFrameMessage, verifySigner } from '../../src/lib/farcaster';
 import { upsertUserFromFarcaster } from '../../src/lib/users';
@@ -17,6 +18,8 @@ import {
   INSUFFICIENT_USER_SCORE_ERROR,
   MIN_USER_SCORE,
 } from '../../src/lib/user-quality';
+import { checkRateLimit, RateLimiters } from '../../src/lib/redis';
+import { applyGameplayGuard } from '../../src/lib/operational-guard';
 
 /**
  * POST /api/guess
@@ -70,6 +73,23 @@ export default async function handler(
 
   try {
     const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
+
+    // Milestone 9.0: Rate limiting for guesses (by IP, then by FID once authenticated)
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const rateLimitIdentifier = devFid ? `guess:fid:${devFid}` : `guess:ip:${clientIp}`;
+    const rateCheck = await checkRateLimit(RateLimiters.guess, rateLimitIdentifier);
+    if (!rateCheck.success) {
+      res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '30');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
+      return res.status(429).json({ error: 'Too many guesses. Please slow down.' });
+    }
+
+    // Milestone 9.5: Check operational guard (kill switch / dead day)
+    const guardBlocked = await applyGameplayGuard(req, res);
+    if (guardBlocked) return;
 
     // Debug: Log environment variables (Milestone 4.8)
     console.log('🔍 Environment check:', {
@@ -240,6 +260,10 @@ export default async function handler(
       signerWallet = farcasterContext.signerWallet;
       spamScore = farcasterContext.spamScore;
 
+      // Milestone 9.2: Set Sentry user context for error tracking
+      Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+      Sentry.setTag('wallet', signerWallet || 'unknown');
+
       // Parse referral parameter
       const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
 
@@ -291,6 +315,17 @@ export default async function handler(
   } catch (error: any) {
     console.error('Error in /api/guess:', error);
     console.error('Error stack:', error.stack);
+
+    // Milestone 9.2: Report to Sentry with context
+    Sentry.captureException(error, {
+      tags: { endpoint: 'guess' },
+      extra: {
+        word: req.body?.word,
+        hasFrameMessage: !!req.body?.frameMessage,
+        hasSignerUuid: !!req.body?.signerUuid,
+        devMode: isDevModeEnabled(),
+      },
+    });
 
     // In dev mode, return more detailed error info
     if (isDevModeEnabled()) {

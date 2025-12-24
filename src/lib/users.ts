@@ -29,7 +29,21 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
   const { fid, signerWallet, spamScore, referrerFid } = params;
 
   // Validate referrer (cannot refer yourself)
-  const validReferrerFid = referrerFid && referrerFid !== fid ? referrerFid : null;
+  let validReferrerFid = referrerFid && referrerFid !== fid ? referrerFid : null;
+
+  // Verify the referrer actually exists in our database
+  if (validReferrerFid) {
+    const referrerExists = await db
+      .select({ fid: users.fid })
+      .from(users)
+      .where(eq(users.fid, validReferrerFid))
+      .limit(1);
+
+    if (referrerExists.length === 0) {
+      console.warn(`⚠️ Ignoring invalid referrer FID ${validReferrerFid} - user does not exist`);
+      validReferrerFid = null;
+    }
+  }
 
   // Check if user already exists
   const existingUser = await db

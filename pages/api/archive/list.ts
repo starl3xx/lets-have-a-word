@@ -14,6 +14,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getArchivedRounds, getArchiveStats } from '../../../src/lib/archive';
 import type { RoundArchiveRow } from '../../../src/db/schema';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface ArchiveListResponse {
   rounds: RoundArchiveRow[];
@@ -46,25 +47,35 @@ export default async function handler(
     const orderBy = (req.query.order as 'asc' | 'desc') === 'asc' ? 'asc' : 'desc';
     const includeStats = req.query.stats === 'true';
 
-    // Get archived rounds
-    const { rounds, total } = await getArchivedRounds({ limit, offset, orderBy });
+    // Cache key includes pagination params
+    const cacheKey = CacheKeys.archiveList(limit, offset);
+    const cachedResponse = await cacheAside<ArchiveListResponse>(
+      cacheKey,
+      CacheTTL.archiveList,
+      async () => {
+        // Get archived rounds
+        const { rounds, total } = await getArchivedRounds({ limit, offset, orderBy });
 
-    // Serialize decimal/date values
-    const serializedRounds = rounds.map(serializeArchiveRow);
+        // Serialize decimal/date values
+        const serializedRounds = rounds.map(serializeArchiveRow);
 
-    // Optionally include stats
-    let stats;
-    if (includeStats) {
-      stats = await getArchiveStats();
-    }
+        // Optionally include stats
+        let stats;
+        if (includeStats) {
+          stats = await getArchiveStats();
+        }
 
-    return res.status(200).json({
-      rounds: serializedRounds,
-      total,
-      limit,
-      offset,
-      stats,
-    });
+        return {
+          rounds: serializedRounds,
+          total,
+          limit,
+          offset,
+          stats,
+        };
+      }
+    );
+
+    return res.status(200).json(cachedResponse);
   } catch (error) {
     console.error('[api/archive/list] Error:', error);
     return res.status(500).json({ error: 'Internal server error' });

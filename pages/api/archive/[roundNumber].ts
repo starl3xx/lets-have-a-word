@@ -10,6 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getArchivedRound, getRoundGuessDistribution } from '../../../src/lib/archive';
 import type { RoundArchiveRow } from '../../../src/db/schema';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface ArchiveDetailResponse {
   round: RoundArchiveRow | null;
@@ -40,22 +41,36 @@ export default async function handler(
       return res.status(400).json({ error: 'Invalid round number' });
     }
 
-    const round = await getArchivedRound(roundNum);
+    // Use cache for immutable archive data (1 hour TTL)
+    const cacheKey = CacheKeys.archiveRound(roundNum);
+    const cachedRound = await cacheAside<ArchiveDetailResponse>(
+      cacheKey,
+      CacheTTL.archiveRound,
+      async () => {
+        const round = await getArchivedRound(roundNum);
 
-    if (!round) {
+        if (!round) {
+          return { round: null };
+        }
+
+        // Serialize decimal/date values
+        const serialized = serializeArchiveRow(round);
+
+        // Optionally include guess distribution
+        let distribution;
+        if (includeDistribution) {
+          distribution = await getRoundGuessDistribution(roundNum);
+        }
+
+        return { round: serialized, distribution };
+      }
+    );
+
+    if (!cachedRound.round) {
       return res.status(404).json({ error: `Round ${roundNum} not found in archive` });
     }
 
-    // Serialize decimal/date values
-    const serialized = serializeArchiveRow(round);
-
-    // Optionally include guess distribution
-    let distribution;
-    if (includeDistribution) {
-      distribution = await getRoundGuessDistribution(roundNum);
-    }
-
-    return res.status(200).json({ round: serialized, distribution });
+    return res.status(200).json(cachedRound);
   } catch (error) {
     console.error('[api/archive/[roundNumber]] Error:', error);
     return res.status(500).json({ error: 'Internal server error' });

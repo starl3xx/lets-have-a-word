@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
+import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
 export interface DAUDataPoint {
   day: string;
@@ -55,21 +56,29 @@ export default async function handler(
       return res.status(403).json({ error: `Forbidden: FID ${fid} is not an admin. Set LHAW_ADMIN_USER_IDS environment variable.` });
     }
 
-    // Query DAU view
-    const result = await db.execute<DAUDataPoint>(
-      sql`SELECT * FROM view_dau ORDER BY day DESC LIMIT 30`
+    // Milestone 9.2: Cache DAU data (60s TTL)
+    const cacheKey = CacheKeys.adminAnalytics('dau');
+    const serializedData = await cacheAside<DAUDataPoint[]>(
+      cacheKey,
+      CacheTTL.adminAnalytics,
+      async () => {
+        // Query DAU view
+        const result = await db.execute<DAUDataPoint>(
+          sql`SELECT * FROM view_dau ORDER BY day DESC LIMIT 30`
+        );
+
+        console.log('[analytics/dau] Raw result:', JSON.stringify(result).substring(0, 300));
+
+        // db.execute returns the array directly, not an object with rows property
+        const rows = Array.isArray(result) ? result : [];
+
+        // Ensure proper serialization
+        return rows.map(row => ({
+          day: row.day?.toString() || '',
+          active_users: Number(row.active_users) || 0
+        }));
+      }
     );
-
-    console.log('[analytics/dau] Raw result:', JSON.stringify(result).substring(0, 300));
-
-    // db.execute returns the array directly, not an object with rows property
-    const rows = Array.isArray(result) ? result : [];
-
-    // Ensure proper serialization
-    const serializedData = rows.map(row => ({
-      day: row.day?.toString() || '',
-      active_users: Number(row.active_users) || 0
-    }));
 
     console.log('[analytics/dau] Returning data:', JSON.stringify(serializedData).substring(0, 200));
     return res.status(200).json(serializedData);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
+import { parseOperationalError } from './GamePausedBanner';
 
 /**
  * Log analytics event (fire-and-forget)
@@ -190,6 +191,14 @@ export default function GuessPurchaseModal({
       const data = await response.json();
 
       if (!response.ok) {
+        // Milestone 9.5: Check for operational errors
+        const opError = parseOperationalError(data);
+        if (opError.isOperational) {
+          const message = opError.code === 'GAME_PAUSED_KILL_SWITCH'
+            ? 'This round was cancelled. All paid packs purchased this round will be refunded automatically.'
+            : "We're taking a short break. The next round will start soon.";
+          throw new Error(message);
+        }
         throw new Error(data.error || t('guessPack.purchaseFailed'));
       }
 
