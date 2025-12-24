@@ -29,7 +29,7 @@ Share your guess on Farcaster or Base once per day to earn +1 free guess. The bo
 Paid guesses:
 - Cost ETH
 - Increase the global prize pool
-- Can be used anytime within the daily window (until 11:00 UTC reset), even if a new round starts.
+- Can be used anytime within the daily window (until 11:00 UTC reset), even if a new round starts
 
 ## How much do guess packs cost?
 
