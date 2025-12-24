@@ -94,10 +94,10 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         <>
           If you hold 100M <ClanktonLink>CLANKTON</ClanktonLink> in your connected wallet, you receive extra free guesses:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>+2 guesses/day</strong> while CLANKTON market cap is below $250K</li>
-            <li><strong>+3 guesses/day</strong> once market cap reaches $250K</li>
+            <li><strong>+2 guesses/day</strong> when $CLANKTON market cap is below $250K</li>
+            <li><strong>+3 guesses/day</strong> when market cap is above $250K</li>
           </ul>
-          <p className="mt-2">This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.</p>
+          <p className="mt-2">This is detected automatically when you connect. Market cap is updated every 15 minutes via live onchain oracle.</p>
         </>
       ),
     },
@@ -172,11 +172,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How much do guess packs cost?",
       answer: (
         <>
-          Each pack contains 3 guesses.
+          Each pack contains 3 guesses and are priced as follows:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>0–749 total guesses</strong> in the round: 0.00030 ETH</li>
-            <li><strong>750–1249 guesses</strong> (mid round): 0.00045 ETH</li>
-            <li><strong>1250+ guesses</strong> (late round, capped): 0.00060 ETH</li>
+            <li><strong>0–749 total guesses</strong> (early round): 0.00030 ETH</li>
+            <li><strong>750–1249 guesses</strong> (late round): 0.00045 ETH</li>
+            <li><strong>1250+ guesses</strong> (late round, max): 0.00060 ETH</li>
           </ul>
           <p className="mt-2">Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.</p>
         </>

@@ -22,7 +22,7 @@ This is detected automatically when you connect. Market cap is updated every 15 
 
 ## How does the share bonus work?
 
-Share your guess via Farcaster once per day to earn +1 free guess. The bonus is applied automatically after you cast.
+Share your guess on Farcaster or Base once per day to earn +1 free guess. The bonus is applied automatically after you cast.
 
 ## How are paid guesses different?
 
@@ -74,7 +74,7 @@ https://docs.neynar.com/docs/neynar-user-quality-score#faqs
 
 ## What happens to my unused guesses?
 
-Free guess allocations reset daily at 11:00 UTC. Paid guess credits expire at the end of each day. Use them or lose them! If a round is won and a new round starts, any unused paid guess credits automatically carry over to the next round.
+Free guess allocations reset daily at 11:00 UTC. Paid guess credits expire at the end of each day. If a round is won and a new round starts, any unused paid guess credits automatically carry over to the next round.
 
 ## Can I see the word after someone wins?
 
@@ -82,10 +82,8 @@ Yes! When a round is won, the answer is revealed to everyone by @letshaveaword. 
 
 ## What is XP for?
 
-XP is currently being tracked but has no gameplay effect yet. Future updates may add leaderboards, progression systems, or XP-based rewards. Who knows!
+XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don't really know yet, tbh.
 
 ## Can I play outside of Farcaster?
 
-Not yet. Let's Have A Word is Farcaster-only for now. The game uses your Farcaster identity, signer wallet, spam score, and referral graph to keep the game fair and to prevent bot abuse. Therefore, the game only works when launched inside a Farcaster client.
-
-I (@starl3xx) may explore a standalone web version later, but the current experience and security model are built specifically for Farcaster's ecosystem.
+Let's Have A Word! uses the Farcaster stack. You can play in Farcaster clients and the Base app, which shares the same identity and wallet infrastructure. Standalone web play isn't supported yet. A standalone web version may be explored later.
