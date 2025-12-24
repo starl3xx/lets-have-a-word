@@ -297,15 +297,15 @@ export default function ReferralSheet({
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-accent-100">
-                  <p className="text-sm text-accent-700">{t('referral.stats.ethEarned')}</p>
+                  <p className="text-sm text-accent-700">{t('referral.stats.ethEarned')}<span className="text-accent-500">*</span></p>
                   <p className="text-3xl font-bold text-accent-900 tabular-nums">
                     {displayedEth}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('referral.stats.ethEarnedHelper')}
-                  </p>
                 </div>
               </div>
+              <p className="text-xs text-accent-600 mt-2">
+                <span className="text-accent-500">*</span> {t('referral.stats.ethEarnedHelper')}
+              </p>
             </div>
 
             {/* How it Works */}
