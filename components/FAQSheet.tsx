@@ -128,7 +128,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>10%</strong> → Top 10 early guessers</li>
             <li><strong>10%</strong> → Referrer (if one exists)</li>
           </ul>
-          <p className="mt-2">If the winner does not have a referrer:</p>
+          <p className="mt-2">If the winner <em>does not</em> have a referrer:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>7.5% is added to the Top 10 pool</li>
             <li>2.5% seeds the next round’s prize pool</li>
