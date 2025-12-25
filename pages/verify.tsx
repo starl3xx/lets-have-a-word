@@ -23,6 +23,8 @@ interface VerificationResult {
   roundNumber?: number;
   roundStatus?: 'resolved' | 'active' | 'cancelled';
   commitHash?: string;
+  onChainCommitHash?: string; // On-chain commitment hash (if available)
+  hasOnChainCommitment?: boolean;
   revealedWord?: string;
   revealedSalt?: string;
   computedHash?: string;
@@ -95,6 +97,8 @@ export default function VerifyPage() {
           roundNumber: roundData.roundNumber,
           roundStatus: roundData.status,
           commitHash: roundData.commitHash,
+          onChainCommitHash: roundData.onChainCommitHash,
+          hasOnChainCommitment: roundData.hasOnChainCommitment,
           roundStartedAt: roundData.roundStartedAt,
         });
         return;
@@ -107,6 +111,8 @@ export default function VerifyPage() {
           roundNumber: roundData.roundNumber,
           roundStatus: roundData.status,
           commitHash: roundData.commitHash,
+          onChainCommitHash: roundData.onChainCommitHash,
+          hasOnChainCommitment: roundData.hasOnChainCommitment,
           roundStartedAt: roundData.roundStartedAt,
           roundEndedAt: roundData.roundEndedAt,
           errorMessage: 'Round was cancelled before reveal.',
@@ -128,6 +134,8 @@ export default function VerifyPage() {
           roundNumber: roundData.roundNumber,
           roundStatus: roundData.status,
           commitHash: roundData.commitHash,
+          onChainCommitHash: roundData.onChainCommitHash,
+          hasOnChainCommitment: roundData.hasOnChainCommitment,
           revealedWord: roundData.revealedWord,
           revealedSalt: roundData.revealedSalt,
           computedHash,
@@ -328,13 +336,22 @@ export default function VerifyPage() {
 
                     {result.commitHash && (
                       <DataRow
-                        label="Committed hash"
+                        label="Committed hash (Database)"
                         value={result.commitHash}
                         onCopy={() => copyToClipboard(result.commitHash!, 'commitHash')}
                         copied={copied === 'commitHash'}
                         mono
                       />
                     )}
+
+                    {/* On-chain commitment status */}
+                    <OnChainCommitmentStatus
+                      hasOnChainCommitment={result.hasOnChainCommitment}
+                      onChainCommitHash={result.onChainCommitHash}
+                      dbCommitHash={result.commitHash}
+                      onCopy={(hash) => copyToClipboard(hash, 'onChainHash')}
+                      copied={copied === 'onChainHash'}
+                    />
 
                     {result.roundStartedAt && (
                       <DataRow
@@ -349,11 +366,20 @@ export default function VerifyPage() {
                 {(result.status === 'verified' || result.status === 'mismatch') && (
                   <div className="space-y-3">
                     <DataRow
-                      label="Committed hash"
+                      label="Committed hash (Database)"
                       value={result.commitHash!}
                       onCopy={() => copyToClipboard(result.commitHash!, 'commitHash')}
                       copied={copied === 'commitHash'}
                       mono
+                    />
+
+                    {/* On-chain commitment status */}
+                    <OnChainCommitmentStatus
+                      hasOnChainCommitment={result.hasOnChainCommitment}
+                      onChainCommitHash={result.onChainCommitHash}
+                      dbCommitHash={result.commitHash}
+                      onCopy={(hash) => copyToClipboard(hash, 'onChainHash')}
+                      copied={copied === 'onChainHash'}
                     />
 
                     <DataRow
@@ -517,6 +543,85 @@ function DataRow({
         {onCopy && (
           <button
             onClick={onCopy}
+            className="flex-shrink-0 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+          >
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * On-Chain Commitment Status Component
+ * Shows whether the round has an on-chain commitment and if it matches the database
+ */
+function OnChainCommitmentStatus({
+  hasOnChainCommitment,
+  onChainCommitHash,
+  dbCommitHash,
+  onCopy,
+  copied,
+}: {
+  hasOnChainCommitment?: boolean;
+  onChainCommitHash?: string;
+  dbCommitHash?: string;
+  onCopy?: (hash: string) => void;
+  copied?: boolean;
+}) {
+  // No on-chain commitment (legacy round or contract not deployed)
+  if (!hasOnChainCommitment || !onChainCommitHash) {
+    return (
+      <div className="bg-gray-100 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-sm">⚡</span>
+          <div>
+            <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-0.5">
+              On-chain commitment
+            </div>
+            <div className="text-sm text-gray-500">
+              Not available for this round
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normalize hashes for comparison (remove 0x prefix if present, lowercase)
+  const normalizedOnChain = onChainCommitHash.replace(/^0x/i, '').toLowerCase();
+  const normalizedDb = (dbCommitHash || '').toLowerCase();
+  const hashesMatch = normalizedOnChain === normalizedDb;
+
+  return (
+    <div className={`rounded-xl px-4 py-3 ${hashesMatch ? 'bg-green-50' : 'bg-red-50'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={hashesMatch ? 'text-green-600' : 'text-red-600'}>
+              {hashesMatch ? '⛓️ ✓' : '⛓️ ✗'}
+            </span>
+            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+              On-chain commitment (Base)
+            </div>
+          </div>
+          <div className="font-mono text-sm break-all text-gray-900">
+            {onChainCommitHash}
+          </div>
+          {hashesMatch ? (
+            <div className="text-xs text-green-600 mt-1 font-medium">
+              ✓ Matches database commitment — immutably recorded on Base blockchain
+            </div>
+          ) : (
+            <div className="text-xs text-red-600 mt-1 font-medium">
+              ✗ Does NOT match database commitment — potential integrity issue!
+            </div>
+          )}
+        </div>
+        {onCopy && (
+          <button
+            onClick={() => onCopy(onChainCommitHash)}
             className="flex-shrink-0 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
           >
             {copied ? 'Copied!' : 'Copy'}

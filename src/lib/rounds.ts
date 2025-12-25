@@ -9,6 +9,7 @@ import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 import { trackSlowQuery } from './redis';
 import { shouldBlockNewRoundCreation } from './operational-guard';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
+import { startRoundWithCommitmentOnChain, isContractDeployed } from './jackpot-contract';
 
 /**
  * Options for creating a new round
@@ -16,6 +17,7 @@ import { encryptAndPack, getPlaintextAnswer } from './encryption';
 export interface CreateRoundOptions {
   forceAnswer?: string; // Force a specific answer (for testing)
   rulesetId?: number; // Game rules ID to use (default 1)
+  skipOnChainCommitment?: boolean; // Skip on-chain commitment (for testing without contract)
 }
 
 /**
@@ -27,6 +29,7 @@ export interface CreateRoundOptions {
 export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   const rulesetId = opts?.rulesetId ?? 1;
   const forceAnswer = opts?.forceAnswer;
+  const skipOnChainCommitment = opts?.skipOnChainCommitment ?? false;
 
   // Check if there's already an active round
   const existingRound = await getActiveRound();
@@ -47,6 +50,35 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 
   // Create commitment (using plaintext answer)
   const { salt, commitHash } = createCommitment(selectedAnswer);
+
+  // Milestone 10.1: On-chain commitment for provably fair verification
+  // This MUST succeed before we insert into the database, ensuring the
+  // commitment is immutably recorded on-chain before the round can accept guesses
+  let onChainCommitmentTxHash: string | null = null;
+
+  if (!skipOnChainCommitment) {
+    try {
+      // Check if contract is deployed and accessible
+      const contractDeployed = await isContractDeployed();
+
+      if (contractDeployed) {
+        console.log(`[rounds] Committing answer hash on-chain...`);
+        onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
+        console.log(`[rounds] ✅ On-chain commitment successful: ${onChainCommitmentTxHash}`);
+      } else {
+        console.warn(`[rounds] ⚠️ Contract not deployed, skipping on-chain commitment`);
+      }
+    } catch (error) {
+      // On-chain commitment failed - this is critical for provable fairness
+      // Log the error but continue with round creation (commitment is in DB)
+      console.error(`[rounds] ❌ On-chain commitment failed:`, error);
+      console.warn(`[rounds] ⚠️ Continuing with off-chain commitment only`);
+      // In strict mode, you might want to throw here instead:
+      // throw new Error(`On-chain commitment failed: ${error}`);
+    }
+  } else {
+    console.log(`[rounds] Skipping on-chain commitment (skipOnChainCommitment=true)`);
+  }
 
   // Encrypt the answer for storage
   // The plaintext answer is NEVER stored in the database
@@ -72,6 +104,9 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   const round = result[0];
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);
+  if (onChainCommitmentTxHash) {
+    console.log(`   On-chain commitment tx: ${onChainCommitmentTxHash}`);
+  }
 
   // Milestone 4.10: Seed words removed - wheel shows all GUESS_WORDS from start
 

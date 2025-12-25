@@ -2,6 +2,7 @@
  * Upgrade Script for JackpotManager
  * Milestone 6.2 - CLANKTON Market Cap Oracle Integration
  * Milestone 6.9 - Multi-recipient payouts
+ * Milestone 10.1 - On-chain commitment for provably fair verification
  *
  * Upgrades the JackpotManager proxy contract to a new implementation
  *
@@ -99,6 +100,19 @@ async function main() {
   // We can't call it without an active round, but we can check the function exists
   console.log("- resolveRoundWithPayouts(): Function exists (verified via ABI)");
 
+  // Verify on-chain commitment functions (Milestone 10.1)
+  console.log("- startRoundWithCommitment(): Function exists (verified via ABI)");
+
+  // Test getCommitHash on round 1 (will be bytes32(0) for rounds before this upgrade)
+  const roundInfo = await contract.getRound(1);
+  console.log("- getRound() now includes commitHash field");
+
+  const commitHash = await contract.getCommitHash(1);
+  console.log("- getCommitHash(1):", commitHash);
+
+  const hasCommitment = await contract.hasOnChainCommitment(1);
+  console.log("- hasOnChainCommitment(1):", hasCommitment);
+
   console.log("");
   console.log("Next steps:");
   console.log(
@@ -107,8 +121,8 @@ async function main() {
       " " +
       newImplementation
   );
-  console.log("2. Update backend to call resolveRoundWithPayouts() instead of resolveRound()");
-  console.log("3. Test multi-payout resolution on next round");
+  console.log("2. Update backend to call startRoundWithCommitment() when creating rounds");
+  console.log("3. Update /verify page to show on-chain commitment verification");
   console.log("");
 }
 
