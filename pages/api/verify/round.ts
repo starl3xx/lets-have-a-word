@@ -24,6 +24,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { rounds, roundArchive } from '../../../src/db/schema';
 import { eq, desc, isNotNull, and } from 'drizzle-orm';
+import { getPlaintextAnswer } from '../../../src/lib/encryption';
 
 export interface VerifyRoundResponse {
   roundNumber: number;
@@ -139,7 +140,7 @@ export default async function handler(
         roundNumber: roundData.id,
         status: 'resolved',
         commitHash: roundData.commitHash,
-        revealedWord: roundData.answer,
+        revealedWord: getPlaintextAnswer(roundData.answer), // Decrypt for reveal
         revealedSalt: roundData.salt,
         roundStartedAt: roundData.startedAt.toISOString(),
         roundEndedAt: roundData.resolvedAt!.toISOString(),

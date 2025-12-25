@@ -15,6 +15,7 @@ import { db } from '../db';
 import { announcerEvents, rounds, roundPayouts, users } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
+import { getPlaintextAnswer } from './encryption';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -323,7 +324,7 @@ export async function announceRoundResolved(
   totalGuesses: number
 ) {
   const roundNumber = getRoundNumber(round);
-  const answer = round.answer.toUpperCase(); // Always ALL CAPS
+  const answer = getPlaintextAnswer(round.answer).toUpperCase(); // Decrypt and uppercase
   const answerHash = round.commitHash;
   const salt = round.salt;
   const jackpotEth = formatEth(round.prizePoolEth);
