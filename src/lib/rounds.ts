@@ -8,6 +8,7 @@ import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 import { trackSlowQuery } from './redis';
 import { shouldBlockNewRoundCreation } from './operational-guard';
+import { encryptAndPack, getPlaintextAnswer } from './encryption';
 
 /**
  * Options for creating a new round
@@ -44,15 +45,19 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     throw new Error(`Invalid answer word: ${selectedAnswer}`);
   }
 
-  // Create commitment
+  // Create commitment (using plaintext answer)
   const { salt, commitHash } = createCommitment(selectedAnswer);
 
-  // Insert round into database
+  // Encrypt the answer for storage
+  // The plaintext answer is NEVER stored in the database
+  const encryptedAnswer = encryptAndPack(selectedAnswer);
+
+  // Insert round into database with encrypted answer
   const result = await db
     .insert(rounds)
     .values({
       rulesetId,
-      answer: selectedAnswer,
+      answer: encryptedAnswer, // Encrypted: iv:tag:ciphertext
       salt,
       commitHash,
       prizePoolEth: '0',
@@ -87,7 +92,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   return {
     id: round.id,
     rulesetId: round.rulesetId,
-    answer: round.answer,
+    answer: getPlaintextAnswer(round.answer), // Decrypt for internal use
     salt: round.salt,
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
@@ -124,7 +129,7 @@ export async function getActiveRound(): Promise<Round | null> {
     return {
       id: round.id,
       rulesetId: round.rulesetId,
-      answer: round.answer,
+      answer: getPlaintextAnswer(round.answer), // Decrypt for internal use
       salt: round.salt,
       commitHash: round.commitHash,
       prizePoolEth: round.prizePoolEth,
@@ -192,7 +197,7 @@ export async function getRoundById(roundId: number): Promise<Round | null> {
   return {
     id: round.id,
     rulesetId: round.rulesetId,
-    answer: round.answer,
+    answer: getPlaintextAnswer(round.answer), // Decrypt for internal use
     salt: round.salt,
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
