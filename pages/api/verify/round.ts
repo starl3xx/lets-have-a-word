@@ -1,6 +1,7 @@
 /**
  * Verification Data API
  * Milestone 10: Provably Fair Verification
+ * Milestone 10.1: On-chain commitment verification
  *
  * Returns the data needed to verify a round's commit-reveal fairness.
  *
@@ -13,6 +14,8 @@
  *   roundNumber: number,
  *   status: 'resolved' | 'active' | 'cancelled',
  *   commitHash: string,
+ *   onChainCommitHash?: string, // On-chain commitment hash (if available)
+ *   hasOnChainCommitment: boolean,
  *   revealedWord?: string,      // Only if revealed
  *   revealedSalt?: string,      // Only if revealed
  *   roundStartedAt: string,
@@ -25,11 +28,14 @@ import { db } from '../../../src/db';
 import { rounds, roundArchive } from '../../../src/db/schema';
 import { eq, desc, isNotNull, and } from 'drizzle-orm';
 import { getPlaintextAnswer } from '../../../src/lib/encryption';
+import { getCommitHashOnChain, hasOnChainCommitment as checkOnChainCommitment, isContractDeployed } from '../../../src/lib/jackpot-contract';
 
 export interface VerifyRoundResponse {
   roundNumber: number;
   status: 'resolved' | 'active' | 'cancelled';
   commitHash: string;
+  onChainCommitHash?: string; // On-chain commitment hash (null if no on-chain commitment)
+  hasOnChainCommitment: boolean;
   revealedWord?: string;
   revealedSalt?: string;
   roundStartedAt: string;
@@ -103,6 +109,22 @@ export default async function handler(
       });
     }
 
+    // Milestone 10.1: Fetch on-chain commitment data
+    let onChainCommitHash: string | null = null;
+    let hasOnChainCommit = false;
+
+    try {
+      const contractDeployed = await isContractDeployed();
+      if (contractDeployed) {
+        // Get on-chain commitment hash
+        onChainCommitHash = await getCommitHashOnChain(roundNumber);
+        hasOnChainCommit = onChainCommitHash !== null;
+      }
+    } catch (error) {
+      // Log but don't fail - on-chain data is supplementary
+      console.error('[api/verify/round] Failed to fetch on-chain commitment:', error);
+    }
+
     // Also check archive for additional data (timestamps may differ)
     const [archivedRound] = await db
       .select()
@@ -117,6 +139,8 @@ export default async function handler(
         status: 'resolved',
         // Use the ORIGINAL commitHash that was stored before the round started
         commitHash: roundData.commitHash,
+        onChainCommitHash: onChainCommitHash || undefined,
+        hasOnChainCommitment: hasOnChainCommit,
         revealedWord: archivedRound.targetWord,
         revealedSalt: archivedRound.salt,
         roundStartedAt: archivedRound.startTime.toISOString(),
@@ -140,6 +164,8 @@ export default async function handler(
         roundNumber: roundData.id,
         status: 'resolved',
         commitHash: roundData.commitHash,
+        onChainCommitHash: onChainCommitHash || undefined,
+        hasOnChainCommitment: hasOnChainCommit,
         revealedWord: getPlaintextAnswer(roundData.answer), // Decrypt for reveal
         revealedSalt: roundData.salt,
         roundStartedAt: roundData.startedAt.toISOString(),
@@ -152,6 +178,8 @@ export default async function handler(
       roundNumber: roundData.id,
       status,
       commitHash: roundData.commitHash,
+      onChainCommitHash: onChainCommitHash || undefined,
+      hasOnChainCommitment: hasOnChainCommit,
       roundStartedAt: roundData.startedAt.toISOString(),
       roundEndedAt: roundData.cancelledAt?.toISOString(),
     });

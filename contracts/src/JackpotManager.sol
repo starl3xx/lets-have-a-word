@@ -96,6 +96,7 @@ contract JackpotManager is
         uint256 startedAt;
         uint256 resolvedAt;
         bool isActive;
+        bytes32 commitHash; // SHA-256 hash of (salt || answer) for provably fair verification
     }
 
     // ============ Events ============
@@ -104,6 +105,14 @@ contract JackpotManager is
     event RoundStarted(
         uint256 indexed roundNumber,
         uint256 startingJackpot,
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when a new round starts with on-chain commitment (provably fair)
+    event RoundStartedWithCommitment(
+        uint256 indexed roundNumber,
+        uint256 startingJackpot,
+        bytes32 indexed commitHash,
         uint256 timestamp
     );
 
@@ -198,6 +207,7 @@ contract JackpotManager is
     error ArrayLengthMismatch();
     error PayoutsExceedJackpot();
     error TooManyRecipients();
+    error InvalidCommitHash();
 
     // ============ Modifiers ============
 
@@ -250,17 +260,18 @@ contract JackpotManager is
 
     /**
      * @notice Seeds the jackpot for a new or existing round
-     * @dev Only callable by operator. If no round is active, starts a new round.
+     * @dev Only callable by operator. If no round is active, starts a new round WITHOUT commitment.
+     * @dev For provably fair rounds, use seedJackpot first then startRoundWithCommitment separately.
      */
     function seedJackpot() external payable onlyOperator {
         if (msg.value == 0) revert InsufficientPayment();
 
         currentJackpot += msg.value;
 
-        // If no active round, start one if we meet minimum seed
+        // If no active round, start one if we meet minimum seed (legacy mode without commitment)
         if (currentRound == 0 || !rounds[currentRound].isActive) {
             if (currentJackpot >= MINIMUM_SEED) {
-                _startNewRound();
+                _startNewRound(bytes32(0));
             }
         }
 
@@ -404,12 +415,36 @@ contract JackpotManager is
     /**
      * @notice Starts a new round after the previous one is resolved
      * @dev Requires minimum seed to be met. Called by operator.
+     * @dev DEPRECATED: Use startRoundWithCommitment for provably fair rounds
      */
     function startNextRound() external onlyOperator {
         if (currentRound > 0 && rounds[currentRound].isActive) revert RoundAlreadyActive();
         if (currentJackpot < MINIMUM_SEED) revert InsufficientSeed();
 
-        _startNewRound();
+        _startNewRound(bytes32(0));
+    }
+
+    /**
+     * @notice Starts a new round with on-chain commitment for provably fair verification
+     * @dev Requires minimum seed to be met. Called by operator.
+     * @param _commitHash SHA-256 hash of (salt || answer) - committed before any guesses
+     *
+     * The commitment scheme works as follows:
+     * 1. Backend generates random salt (32 bytes) and selects answer word
+     * 2. Backend computes commitHash = SHA-256(salt || answer)
+     * 3. Backend calls this function with commitHash (stored immutably on-chain)
+     * 4. Round plays out - players make guesses
+     * 5. When round resolves, backend reveals salt and answer
+     * 6. Anyone can verify: SHA-256(salt || answer) == on-chain commitHash
+     *
+     * This proves the answer was locked before any guesses were made.
+     */
+    function startRoundWithCommitment(bytes32 _commitHash) external onlyOperator {
+        if (currentRound > 0 && rounds[currentRound].isActive) revert RoundAlreadyActive();
+        if (currentJackpot < MINIMUM_SEED) revert InsufficientSeed();
+        if (_commitHash == bytes32(0)) revert InvalidCommitHash();
+
+        _startNewRound(_commitHash);
     }
 
     // ============ Player Functions ============
@@ -563,6 +598,25 @@ contract JackpotManager is
         return currentJackpot >= MINIMUM_SEED;
     }
 
+    /**
+     * @notice Get the on-chain commitment hash for a round
+     * @dev Returns bytes32(0) for rounds created before on-chain commitment was implemented
+     * @param _roundNumber The round number to query
+     * @return The SHA-256 commitment hash (salt || answer)
+     */
+    function getCommitHash(uint256 _roundNumber) external view returns (bytes32) {
+        return rounds[_roundNumber].commitHash;
+    }
+
+    /**
+     * @notice Check if a round has an on-chain commitment
+     * @param _roundNumber The round number to query
+     * @return True if the round has a non-zero commitment hash
+     */
+    function hasOnChainCommitment(uint256 _roundNumber) external view returns (bool) {
+        return rounds[_roundNumber].commitHash != bytes32(0);
+    }
+
     // ============ Oracle Functions (Milestone 6.2) ============
 
     /**
@@ -639,8 +693,9 @@ contract JackpotManager is
 
     /**
      * @notice Internal function to start a new round
+     * @param _commitHash SHA-256 commitment hash (bytes32(0) for legacy rounds without commitment)
      */
-    function _startNewRound() internal {
+    function _startNewRound(bytes32 _commitHash) internal {
         currentRound++;
 
         rounds[currentRound] = Round({
@@ -651,10 +706,16 @@ contract JackpotManager is
             winnerPayout: 0,
             startedAt: block.timestamp,
             resolvedAt: 0,
-            isActive: true
+            isActive: true,
+            commitHash: _commitHash
         });
 
-        emit RoundStarted(currentRound, currentJackpot, block.timestamp);
+        // Emit appropriate event based on whether commitment was provided
+        if (_commitHash != bytes32(0)) {
+            emit RoundStartedWithCommitment(currentRound, currentJackpot, _commitHash, block.timestamp);
+        } else {
+            emit RoundStarted(currentRound, currentJackpot, block.timestamp);
+        }
     }
 
     /**
