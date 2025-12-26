@@ -234,10 +234,14 @@ export default function VerifyPage() {
             <h1 className="text-2xl font-bold text-gray-900">
               Verify fairness
             </h1>
-            <p className="text-sm text-gray-500 mt-2 max-w-lg">
-              Before each round, a commitment hash is published. After the round ends,
-              the word and salt are revealed. You can verify that the revealed values
-              match the original commitment.
+            <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
+              Before each round starts, the game locks in the secret word by publishing a cryptographic commitment.
+            </p>
+            <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
+              When the round ends, the word and salt are revealed so anyone can verify the game was fair — no changes, no tricks.
+            </p>
+            <p className="text-xs text-gray-400 mt-2">
+              Verification is optional, but always available.
             </p>
           </div>
         </div>
@@ -273,6 +277,9 @@ export default function VerifyPage() {
                   Specific round
                 </button>
               </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Check the most recent round, or look up any past round by number.
+              </p>
 
               {/* Round Input (only shown for specific mode) */}
               {verifyMode === 'specific' && (
@@ -304,7 +311,7 @@ export default function VerifyPage() {
                     Verifying...
                   </span>
                 ) : (
-                  'Verify'
+                  'Verify round'
                 )}
               </button>
             </div>
@@ -442,35 +449,82 @@ export default function VerifyPage() {
           <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-4 py-4">
               <h3 className="font-semibold text-gray-900 mb-2">
-                Want to verify manually?
+                Want to double-check it yourself?
               </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                The commitment hash is computed as:
+              <p className="text-sm text-gray-500 mb-4">
+                If you'd like to independently confirm the result using your own tools, here's exactly how the commitment is computed.
               </p>
-              <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700 mb-3">
-                SHA256(salt + word)
-              </code>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>• <strong>Salt:</strong> 64-character hex string (random per round)</li>
-                <li>• <strong>Word:</strong> 5-letter answer (lowercase)</li>
-                <li>• <strong>Concatenation:</strong> Direct string concatenation (no separator)</li>
-                <li>• <strong>Hash output:</strong> 64-character hex string</li>
-              </ul>
-              <p className="text-sm text-gray-400 mt-3">
-                Example in terminal: <code className="bg-gray-100 px-1 rounded">echo -n "{'<salt><word>'}" | sha256sum</code>
-              </p>
+
+              {/* Commitment formula */}
+              <div className="mb-4">
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
+                  Commitment formula
+                </div>
+                <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700">
+                  SHA256(salt + word)
+                </code>
+                <p className="text-xs text-gray-400 mt-2">
+                  The salt and word are combined into a single string, then hashed using SHA-256.
+                </p>
+              </div>
+
+              {/* Inputs */}
+              <div className="mb-4">
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
+                  Inputs
+                </div>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• <strong>Salt:</strong> A random 64-character hex string, generated before the round starts</li>
+                  <li>• <strong>Word:</strong> The 5-letter answer (lowercase)</li>
+                </ul>
+              </div>
+
+              {/* How it's combined */}
+              <div className="mb-4">
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
+                  How it's combined
+                </div>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• The salt comes first</li>
+                  <li>• The word comes immediately after</li>
+                  <li>• No separator or whitespace</li>
+                </ul>
+              </div>
+
+              {/* Output */}
+              <div className="mb-4">
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
+                  Output
+                </div>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• A 64-character hex hash that was published before guessing began</li>
+                </ul>
+              </div>
+
+              {/* Terminal example */}
+              <div className="pt-3 border-t border-gray-100">
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
+                  Example (terminal)
+                </div>
+                <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700">
+                  echo -n "{'<salt><word>'}" | sha256sum
+                </code>
+                <p className="text-xs text-gray-400 mt-2">
+                  The output should exactly match the commitment hash published for that round.
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Smart Contract Link */}
+          {/* Onchain Record */}
           <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-4 py-4">
               <h3 className="font-semibold text-gray-900 mb-2">
-                Smart contract
+                Onchain record
               </h3>
               <p className="text-sm text-gray-500 mb-3">
-                The game's smart contract is deployed on Base and verified on BaseScan.
-                All onchain commitments are immutably recorded there.
+                The game's smart contract lives on Base and is publicly verified on BaseScan.
+                All commitments are written onchain and cannot be altered after the round begins.
               </p>
               <a
                 href={BASESCAN_URL}
@@ -485,6 +539,25 @@ export default function VerifyPage() {
               </a>
               <p className="text-xs text-gray-400 mt-2 font-mono break-all">
                 {CONTRACT_ADDRESS}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Immutable, public, and timestamped
+              </p>
+            </div>
+          </div>
+
+          {/* Why This Matters */}
+          <div className="mt-6 bg-blue-50 rounded-2xl border border-blue-100 overflow-hidden">
+            <div className="px-4 py-4">
+              <h3 className="font-semibold text-blue-900 mb-2">
+                Why this matters
+              </h3>
+              <p className="text-sm text-blue-700 leading-relaxed">
+                The commitment is published before any guesses are made.
+                The word and salt are revealed after the round ends.
+              </p>
+              <p className="text-sm text-blue-700 mt-2 leading-relaxed">
+                This guarantees the word can't be changed mid-round and anyone can verify the result forever.
               </p>
             </div>
           </div>
