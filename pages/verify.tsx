@@ -27,7 +27,7 @@ interface VerificationResult {
   roundNumber?: number;
   roundStatus?: 'resolved' | 'active' | 'cancelled';
   commitHash?: string;
-  onChainCommitHash?: string; // On-chain commitment hash (if available)
+  onChainCommitHash?: string; // Onchain commitment hash (if available)
   hasOnChainCommitment?: boolean;
   revealedWord?: string;
   revealedSalt?: string;
@@ -352,7 +352,7 @@ export default function VerifyPage() {
                       />
                     )}
 
-                    {/* On-chain commitment status */}
+                    {/* Onchain commitment status */}
                     <OnChainCommitmentStatus
                       hasOnChainCommitment={result.hasOnChainCommitment}
                       onChainCommitHash={result.onChainCommitHash}
@@ -381,7 +381,7 @@ export default function VerifyPage() {
                       mono
                     />
 
-                    {/* On-chain commitment status */}
+                    {/* Onchain commitment status */}
                     <OnChainCommitmentStatus
                       hasOnChainCommitment={result.hasOnChainCommitment}
                       onChainCommitHash={result.onChainCommitHash}
@@ -676,7 +676,7 @@ function OnChainCommitmentStatus({
           <span className="text-gray-400 text-sm">⚡</span>
           <div>
             <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-0.5">
-              On-chain commitment
+              Onchain commitment
             </div>
             <div className="text-sm text-gray-500">
               Not available for this round
@@ -701,7 +701,7 @@ function OnChainCommitmentStatus({
               {hashesMatch ? '⛓️ ✓' : '⛓️ ✗'}
             </span>
             <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
-              On-chain commitment (Base)
+              Onchain commitment (Base)
             </div>
           </div>
           <div className="font-mono text-sm break-all text-gray-900">

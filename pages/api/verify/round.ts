@@ -1,7 +1,7 @@
 /**
  * Verification Data API
  * Milestone 10: Provably Fair Verification
- * Milestone 10.1: On-chain commitment verification
+ * Milestone 10.1: Onchain commitment verification
  *
  * Returns the data needed to verify a round's commit-reveal fairness.
  *
@@ -14,7 +14,7 @@
  *   roundNumber: number,
  *   status: 'resolved' | 'active' | 'cancelled',
  *   commitHash: string,
- *   onChainCommitHash?: string, // On-chain commitment hash (if available)
+ *   onChainCommitHash?: string, // Onchain commitment hash (if available)
  *   hasOnChainCommitment: boolean,
  *   revealedWord?: string,      // Only if revealed
  *   revealedSalt?: string,      // Only if revealed
@@ -34,7 +34,7 @@ export interface VerifyRoundResponse {
   roundNumber: number;
   status: 'resolved' | 'active' | 'cancelled';
   commitHash: string;
-  onChainCommitHash?: string; // On-chain commitment hash (null if no onchain commitment)
+  onChainCommitHash?: string; // Onchain commitment hash (null if no onchain commitment)
   hasOnChainCommitment: boolean;
   revealedWord?: string;
   revealedSalt?: string;
