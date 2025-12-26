@@ -27,7 +27,7 @@ const NODE_ENV = process.env.NODE_ENV;
 
 // Milestone thresholds
 export const JACKPOT_MILESTONES = [0.1, 0.25, 0.5, 1.0]; // ETH
-export const GUESS_MILESTONES = [100, 500, 1000, 5000, 10000];
+export const GUESS_MILESTONES = [1000, 2000, 3000, 4000];
 
 // Startup validation (fail fast in production if misconfigured)
 if (NODE_ENV === 'production' && ANNOUNCER_ENABLED === 'true') {
@@ -446,13 +446,14 @@ export async function checkAndAnnounceGuessMilestones(
     if (guessCount >= milestone) {
       const milestoneKey = `guesses_${milestone}`;
 
-      const text = `🎯 Guess milestone on Let's Have A Word!
+      const text = `🎯 Guess milestone in Let's Have A Word!
 
-Round #${roundNumber} just crossed ${milestone.toLocaleString()} total guesses.
+Round #${roundNumber} just crossed ${milestone.toLocaleString()} global guesses.
 
-Every wrong guess eliminates one more word from the global pool. One correct guess wins the jackpot.
+Every wrong guess removes one word from the shared global pool.
+One correct guess wins the jackpot 👀
 
-Jump in via the Farcaster mini app.`;
+https://www.letshaveaword.fun`;
 
       await recordAndCastAnnouncerEvent({
         eventType: 'guess_milestone',
