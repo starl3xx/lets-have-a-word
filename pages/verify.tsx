@@ -13,8 +13,12 @@ import Link from 'next/link';
 import Head from 'next/head';
 import type { VerifyRoundResponse, VerifyRoundErrorResponse } from './api/verify/round';
 
-// Söhne font family
-const FONT_FAMILY = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
+// Söhne font family (registered as 'Soehne' in globals.css)
+const FONT_FAMILY = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
+
+// Smart contract addresses on Base
+const CONTRACT_ADDRESS = '0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5';
+const BASESCAN_URL = `https://basescan.org/address/${CONTRACT_ADDRESS}`;
 
 type VerificationStatus = 'idle' | 'loading' | 'verified' | 'mismatch' | 'pending' | 'error';
 
@@ -454,6 +458,33 @@ export default function VerifyPage() {
               </ul>
               <p className="text-sm text-gray-400 mt-3">
                 Example in terminal: <code className="bg-gray-100 px-1 rounded">echo -n "{'<salt><word>'}" | sha256sum</code>
+              </p>
+            </div>
+          </div>
+
+          {/* Smart Contract Link */}
+          <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-4">
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Smart contract
+              </h3>
+              <p className="text-sm text-gray-500 mb-3">
+                The game's smart contract is deployed on Base and verified on BaseScan.
+                All onchain commitments are immutably recorded there.
+              </p>
+              <a
+                href={BASESCAN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                <span>View on BaseScan</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+              <p className="text-xs text-gray-400 mt-2 font-mono break-all">
+                {CONTRACT_ADDRESS}
               </p>
             </div>
           </div>
