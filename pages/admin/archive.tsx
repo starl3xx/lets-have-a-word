@@ -16,7 +16,7 @@ import { AnalyticsChart } from "../../components/admin/AnalyticsChart"
 // Dynamically import the auth wrapper (client-only)
 const AdminAuthWrapper = dynamic(
   () => import("../../components/admin/AdminAuthWrapper").then(m => m.AdminAuthWrapper),
-  { ssr: false, loading: () => <div style={{ padding: 24, fontFamily: 'Söhne, system-ui, sans-serif' }}>Loading...</div> }
+  { ssr: false, loading: () => <div style={{ padding: 24, fontFamily: 'Soehne, system-ui, sans-serif' }}>Loading...</div> }
 )
 
 // =============================================================================
@@ -80,7 +80,7 @@ interface ArchiveError {
 // Styling Constants (Söhne typography - matches analytics page)
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+const fontFamily = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   page: {
