@@ -402,13 +402,23 @@ export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
       const milestoneEth = formatEth(milestone);
       const milestoneUsd = estimateUsd(milestone);
 
-      const text = `💰 Jackpot milestone on Let's Have A Word!
+      // Use different template for 1.0 ETH milestone
+      const text = milestone >= 1.0
+        ? `🚨 Prize pool just crossed ${milestoneEth} ETH (~$${milestoneUsd}) in Let's Have A Word!
 
-Round #${roundNumber} prize pool just passed ${milestoneEth} ETH (${milestoneUsd} USD est).
+Round #${roundNumber} is getting serious 👀
 
-One player will hit the secret word and take it all. Every wrong guess helps everyone else.
+One correct guess is all it takes ↓
+https://www.letshaveaword.fun`
+        : `🔥 Jackpot milestone in Let's Have A Word!
 
-Play now in the Farcaster mini app.`;
+Round #${roundNumber} prize pool just passed ${milestoneEth} ETH (~$${milestoneUsd}) 🎯
+
+One secret word. One winner.
+Every wrong guess narrows the field 👀
+
+Play now ↓
+https://www.letshaveaword.fun`;
 
       await recordAndCastAnnouncerEvent({
         eventType: 'jackpot_milestone',
