@@ -178,9 +178,10 @@ export default function ReferralSheet({
         }),
       }).catch(() => {});
 
-      const castText = `Trying to crack the secret word on @letshaveaword.\n\n` +
-        `Every wrong guess helps everyone. One correct guess wins the ETH jackpot.\n\n` +
-        `Play with my link ${referralData.referralLink}`;
+      const castText = `I'm hunting for the secret word in @letshaveaword 👀\n\n` +
+        `Every wrong guess shrinks the field\n` +
+        `One correct guess wins the ETH jackpot 🎯\n\n` +
+        `Play with my link ↓ ${referralData.referralLink}`;
 
       await sdk.actions.composeCast({
         text: castText,
