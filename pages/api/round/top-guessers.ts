@@ -8,9 +8,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds, users } from '../../../src/db/schema';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, lte } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
+import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface TopGuesser {
@@ -186,6 +187,8 @@ export default async function handler(
       async () => {
         // Get top 10 guessers for the current round
         // Group by FID, count guesses, join with users for username
+        // Only count guesses from the first 750 (Top-10 eligible guesses)
+        // This ensures the leaderboard shows accurate counts even after lock
         const [topGuessersData, uniqueCountResult] = await Promise.all([
           db
             .select({
@@ -195,7 +198,12 @@ export default async function handler(
             })
             .from(guesses)
             .leftJoin(users, eq(guesses.fid, users.fid))
-            .where(eq(guesses.roundId, currentRoundId))
+            .where(
+              and(
+                eq(guesses.roundId, currentRoundId),
+                lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES)
+              )
+            )
             .groupBy(guesses.fid, users.username)
             .orderBy(desc(sql`count(${guesses.id})`))
             .limit(10),
