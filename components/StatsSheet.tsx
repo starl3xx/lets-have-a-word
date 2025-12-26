@@ -74,9 +74,9 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       const castText = `My Let's Have A Word! stats:\n\n` +
         `🎯 ${stats.guessesAllTime} total guesses (${stats.paidGuessesAllTime} paid)\n` +
         `🏆 ${stats.jackpotsWon} jackpots won\n` +
-        `🔝 ${stats.topGuesserPlacements} top 10 placements\n` +
+        `🔝 ${stats.topGuesserPlacements} Top 10 early guessers\n` +
         `🤝 ${stats.referralWins} referral wins\n` +
-        `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH all-time\n` +
+        `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH earned\n` +
         `⚡ ${xp.toLocaleString()} XP\n\n` +
         `@letshaveaword`;
 
