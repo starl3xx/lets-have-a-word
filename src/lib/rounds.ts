@@ -17,7 +17,7 @@ import { startRoundWithCommitmentOnChain, isContractDeployed } from './jackpot-c
 export interface CreateRoundOptions {
   forceAnswer?: string; // Force a specific answer (for testing)
   rulesetId?: number; // Game rules ID to use (default 1)
-  skipOnChainCommitment?: boolean; // Skip on-chain commitment (for testing without contract)
+  skipOnChainCommitment?: boolean; // Skip onchain commitment (for testing without contract)
 }
 
 /**
@@ -53,7 +53,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 
   // Milestone 10.1: On-chain commitment for provably fair verification
   // This MUST succeed before we insert into the database, ensuring the
-  // commitment is immutably recorded on-chain before the round can accept guesses
+  // commitment is immutably recorded onchain before the round can accept guesses
   let onChainCommitmentTxHash: string | null = null;
 
   if (!skipOnChainCommitment) {
@@ -62,11 +62,11 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       const contractDeployed = await isContractDeployed();
 
       if (contractDeployed) {
-        console.log(`[rounds] Committing answer hash on-chain...`);
+        console.log(`[rounds] Committing answer hash onchain...`);
         onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
         console.log(`[rounds] ✅ On-chain commitment successful: ${onChainCommitmentTxHash}`);
       } else {
-        console.warn(`[rounds] ⚠️ Contract not deployed, skipping on-chain commitment`);
+        console.warn(`[rounds] ⚠️ Contract not deployed, skipping onchain commitment`);
       }
     } catch (error) {
       // On-chain commitment failed - this is critical for provable fairness
@@ -77,7 +77,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       // throw new Error(`On-chain commitment failed: ${error}`);
     }
   } else {
-    console.log(`[rounds] Skipping on-chain commitment (skipOnChainCommitment=true)`);
+    console.log(`[rounds] Skipping onchain commitment (skipOnChainCommitment=true)`);
   }
 
   // Encrypt the answer for storage

@@ -100,7 +100,7 @@ async function main() {
   // We can't call it without an active round, but we can check the function exists
   console.log("- resolveRoundWithPayouts(): Function exists (verified via ABI)");
 
-  // Verify on-chain commitment functions (Milestone 10.1)
+  // Verify onchain commitment functions (Milestone 10.1)
   console.log("- startRoundWithCommitment(): Function exists (verified via ABI)");
 
   // Test getCommitHash on round 1 (will be bytes32(0) for rounds before this upgrade)
@@ -122,7 +122,7 @@ async function main() {
       newImplementation
   );
   console.log("2. Update backend to call startRoundWithCommitment() when creating rounds");
-  console.log("3. Update /verify page to show on-chain commitment verification");
+  console.log("3. Update /verify page to show onchain commitment verification");
   console.log("");
 }
 
