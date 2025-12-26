@@ -11,11 +11,56 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 9.6 Complete
+## 🎯 Current Status: Milestone 10 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully on-chain prize distribution with tiered Top-10 payouts, rotating share templates, **operational controls (kill switch, dead day)**, and **enhanced economics dashboard with targets and comparison mode** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully on-chain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, **and provably fair onchain commitment with public verification** are fully implemented and production-ready:
 
-### ✅ Milestone 9.6 - Economics Dashboard Enhancements (Latest)
+### ✅ Milestone 10 - Provably Fair Onchain Commitment (Latest)
+
+Enhanced provable fairness with onchain commitment and a public verification page:
+
+- **Onchain Commitment** (`src/lib/jackpot-contract.ts`)
+  - Each round's answer hash is written to the JackpotManager smart contract before guessing begins
+  - Uses `startRoundWithCommitment(bytes32 commitHash)` to immutably record on Base
+  - Commitment is timestamped and cannot be altered after round starts
+  - New contract functions: `getCommitHash(roundNumber)`, `hasOnChainCommitment(roundNumber)`
+
+- **Public Verification Page** (`pages/verify.tsx`)
+  - Available at `/verify` for anyone to verify round fairness
+  - Shows committed hash (database), onchain commitment (Base), revealed word, salt
+  - Computes SHA256(salt + word) client-side and compares to committed hash
+  - Deep linking support: `/verify?round=42` to verify specific rounds
+  - Educational content explaining commit-reveal cryptography
+  - Direct link to smart contract on BaseScan
+
+- **Column-Level Encryption** (`src/lib/encryption.ts`)
+  - Round answers encrypted at rest using AES-256-GCM
+  - Key derived from `ANSWER_ENCRYPTION_KEY` environment variable
+  - Format: `iv:authTag:ciphertext` (all hex-encoded)
+  - Plaintext answer NEVER stored in database
+
+- **Cryptographic Randomness** (`src/lib/word-lists.ts`)
+  - Word selection uses `crypto.randomInt()` for unpredictable answers
+  - Replaces `Math.random()` with cryptographically secure alternative
+
+- **Updated Announcer Templates** (`src/lib/announcer.ts`)
+  - Round start: Includes shortened hash and verify link
+  - Round complete: Includes verify link, cleaner format
+  - Jackpot milestones: 0.1/0.25/0.5 ETH (🔥) and 1.0 ETH (🚨) templates
+  - Guess milestones: Now at 1K, 2K, 3K, 4K (was 100, 500, 1K, 5K, 10K)
+  - Referral wins: Updated copy with direct link
+
+- **Smart Contract Upgrade**
+  - JackpotManager upgraded via UUPS proxy pattern
+  - New implementation: `0x9166977F2096524eb5704830EEd40900Be9c51ee`
+  - Proxy address: `0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`
+  - Verified on BaseScan and Sourcify
+
+- **Environment Configuration**
+  - `ANSWER_ENCRYPTION_KEY` - 32-byte hex key for answer encryption (required)
+  - Existing: `OPERATOR_PRIVATE_KEY` for contract interactions
+
+### ✅ Milestone 9.6 - Economics Dashboard Enhancements
 
 Enhanced the Economics tab with decision-oriented features for comparing metrics over time:
 
@@ -684,22 +729,25 @@ Automated Farcaster announcements for round updates, milestones, and jackpot not
 - **Announcement Types**
   1. **Round Started** - Posted when a new round is created
      - Displays round number and starting prize pool
-     - Invites players to join the mini app
+     - Shows shortened commitment hash (first 10 + last 4 chars)
+     - Links to `/verify?round=N` for verification
+     - Confirms word is "locked onchain"
   2. **Round Resolved** - Posted when someone wins the jackpot
-     - Shows winning word, jackpot amount, winner's payout
-     - Displays top 10 guesser payout split
-     - Includes commit-reveal hash + salt for verification
-     - Notes referrer earnings (if applicable)
-     - Announces total guess count
-  3. **Jackpot Milestones** - Posted when prize pool crosses thresholds (0.1, 0.25, 0.5, 1.0 ETH)
-     - Real-time jackpot growth announcements
-     - Encourages participation
-  4. **Guess Milestones** - Posted when total guesses cross thresholds (100, 500, 1k, 5k, 10k)
-     - Community engagement tracking
-     - Shows game activity level
+     - Shows winning word, jackpot amount, winner mention
+     - Displays top 10 early guessers with payout split
+     - Links to `/verify?round=N` for verification
+     - Notes referrer earnings inline (if applicable)
+     - "New round starts soon" teaser
+  3. **Jackpot Milestones** - Posted when prize pool crosses thresholds
+     - 0.1, 0.25, 0.5 ETH: 🔥 template ("One secret word. One winner.")
+     - 1.0 ETH: 🚨 urgent template ("is getting serious")
+     - Includes USD estimate
+  4. **Guess Milestones** - Posted at 1K, 2K, 3K, 4K guesses
+     - "Every wrong guess removes one word from the shared global pool"
+     - Direct link to game
   5. **Referral Win** - Posted when a winner had a referrer
-     - Highlights successful referral earnings (10% of jackpot)
-     - Encourages referral program participation
+     - Highlights referrer earnings
+     - "Share your link. You can win even when your friends do"
      - Threaded as reply to round resolved announcement
 
 - **Database Schema**
@@ -2025,11 +2073,24 @@ This prevents players from avoiding referral links to maximize their payout and 
 
 ### Provable Fairness
 
-Each round uses commit-reveal:
-1. Backend chooses answer + random salt
-2. Publishes `H(salt||answer)` before round starts
-3. On resolution, reveals `salt` and `answer`
-4. Anyone can verify: `H(salt||answer) === commit_hash`
+Each round uses commit-reveal with onchain commitment:
+1. Backend chooses answer (cryptographically random) + random salt
+2. Computes `H(salt||answer)` commitment hash
+3. Writes commitment to JackpotManager smart contract on Base (immutable, timestamped)
+4. Stores commitment in database (redundant backup)
+5. On resolution, reveals `salt` and `answer`
+6. Anyone can verify at `/verify`:
+   - `H(salt||answer) === commit_hash` (computed client-side)
+   - Onchain commitment matches database commitment
+   - Commitment was recorded before round started
+
+**Verification Page**: `/verify` allows anyone to independently verify any round's fairness.
+
+**Security Layers**:
+- Answer encrypted at rest (AES-256-GCM)
+- Cryptographic word selection (`crypto.randomInt()`)
+- Immutable onchain commitment
+- Public verification interface
 
 ### User Quality Gating (Milestone 5.3)
 
@@ -2132,10 +2193,10 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 The game automatically posts announcements to Farcaster from the official **@letshaveaword** account (FID 1477413).
 
 - **What Gets Announced:**
-  - **Round Started** - When a new round begins
-  - **Round Resolved** - When someone wins, including commit-reveal data for verification
-  - **Jackpot Milestones** - When prize pool reaches 0.1, 0.25, 0.5, 1.0 ETH
-  - **Guess Milestones** - When total guesses reach 100, 500, 1k, 5k, 10k
+  - **Round Started** - When a new round begins (includes shortened hash and verify link)
+  - **Round Resolved** - When someone wins (includes verify link, top 10 early guessers)
+  - **Jackpot Milestones** - When prize pool reaches 0.1, 0.25, 0.5 ETH (🔥) or 1.0 ETH (🚨)
+  - **Guess Milestones** - When total guesses reach 1K, 2K, 3K, 4K
   - **Referral Wins** - When a winner's referrer earns 10% of the jackpot
 
 - **Dev Mode Safety:**
