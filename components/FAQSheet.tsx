@@ -211,7 +211,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "How do referrals work?",
-      answer: "Share your referral link with your Farcaster friends. If someone you referred ever wins a jackpot, you’ll automatically receive 10% of their winnings. You can track your referral earnings in the Refer sheet.",
+      answer: "Share your unique referral link with friends or on the timeline. If anyone who joins using your link ever wins a jackpot, you'll automatically receive 10% of that round's prize pool. You can track your referrals and earnings in the Refer sheet.",
     },
     {
       question: "Why can’t I play? / What are the eligibility requirements?",
