@@ -89,7 +89,13 @@ https://docs.neynar.com/docs/neynar-user-quality-score#faqs
 
 ## Can I see the word after someone wins?
 
-Yes! When a round is won, the answer is revealed to everyone by @letshaveaword. You can also view past winning words and their cryptographic proofs.
+**Yes**. When a round is won, the secret word is revealed publicly by @letshaveaword
+
+You can view all past winning words, round details, and payouts in the Round Archive:
+https://www.letshaveaword.fun/archive
+
+You can also independently verify each round's cryptographic commitment and reveal at:
+https://www.letshaveaword.fun/verify
 
 ## What is XP for?
 
