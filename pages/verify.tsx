@@ -238,10 +238,7 @@ export default function VerifyPage() {
               Before each round starts, the game locks in the secret word by publishing a cryptographic commitment.
             </p>
             <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
-              When the round ends, the word and salt are revealed so anyone can verify the game was fair. No changes, no tricks.
-            </p>
-            <p className="text-xs text-gray-400 mt-2">
-              Verification is optional, but always available.
+              When the round ends, the word and salt are revealed so anyone can verify the game was fair.
             </p>
           </div>
         </div>
@@ -468,9 +465,6 @@ export default function VerifyPage() {
               </a>
               <p className="text-xs text-gray-400 mt-2 font-mono break-all">
                 {CONTRACT_ADDRESS}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Immutable, public, and timestamped
               </p>
             </div>
           </div>
