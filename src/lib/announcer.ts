@@ -328,9 +328,13 @@ export async function announceRoundResolved(
 ) {
   const roundNumber = getRoundNumber(round);
   const answer = getPlaintextAnswer(round.answer).toUpperCase(); // Decrypt and uppercase
-  const answerHash = round.commitHash;
-  const salt = round.salt;
+  const commitHash = round.commitHash;
   const jackpotEth = formatEth(round.prizePoolEth);
+
+  // Shorten hash for display: first 10 chars + last 4 chars
+  const shortHash = commitHash.length > 16
+    ? `${commitHash.slice(0, 10)}...${commitHash.slice(-4)}`
+    : commitHash;
 
   // Find winner payout and fetch username
   const winnerPayout = payouts.find(p => p.role === 'winner');
@@ -362,19 +366,19 @@ export async function announceRoundResolved(
     referrerLine = `\n\n${winnerMention}'s referrer ${referrerUsername} earned ${referrerPayoutEth} ETH for bringing them into the game. 🫂`;
   }
 
-  const text = `🎉 Round #${roundNumber} is over on Let's Have A Word!
+  const text = `🎉 Round #${roundNumber} is complete in Let's Have A Word!
 
 After ${totalGuesses.toLocaleString()} global guesses, ${winnerMention} found the secret word ${answer} and won the ${jackpotEth} ETH jackpot! 🏆 Congrats!${referrerLine}
 
-This round's top 10 guessers by volume also take home a share of ${topTenPayoutEth} ETH: ${topTenMentions} 🙌
+Top 10 early guessers also shared ${topTenPayoutEth} ETH:
+${topTenMentions} 🙌
 
-Secret word commit–reveal:
-→ Hash: ${answerHash}
-→ Salt: ${salt}
+Provably fair:
+→ Hash: ${shortHash}
+→ Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
 
-Anyone can recompute hash(answer + salt) and confirm it matches the onchain commitment.
-
-New round starts soon! One word, one jackpot. 💰`;
+New round starts soon 👀
+https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
