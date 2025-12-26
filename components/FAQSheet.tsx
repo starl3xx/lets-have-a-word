@@ -240,8 +240,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Can I see the word after someone wins?",
       answer: (
         <>
-          Yes. When a round is won, the answer is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>.
-          <p className="mt-2">Past winning words and cryptographic proofs are also available.</p>
+          <strong>Yes</strong>. When a round is won, the secret word is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>
+          <p className="mt-2">
+            You can view all past winning words, round details, and payouts in the{" "}
+            <a href="https://www.letshaveaword.fun/archive" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Round Archive</a>.
+          </p>
+          <p className="mt-2">
+            You can also independently verify each round's cryptographic commitment and reveal at{" "}
+            <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">letshaveaword.fun/verify</a>.
+          </p>
         </>
       ),
     },
