@@ -11,6 +11,7 @@
  * Performance: Uses Set for O(1) lookup instead of O(n) includes()
  */
 
+import { randomInt } from 'crypto';
 import { WORDS } from '../data/guess_words_clean';
 import type { WordLists } from '../types';
 
@@ -122,8 +123,12 @@ export function validateWordLists(): void {
 /**
  * Get a random answer word
  * Milestone 7.1: Uses unified WORDS list
+ *
+ * Uses crypto.randomInt() for cryptographically secure random selection,
+ * ensuring the word choice cannot be predicted even with knowledge of
+ * the algorithm and timing.
  */
 export function getRandomAnswerWord(): string {
-  const index = Math.floor(Math.random() * WORDS.length);
+  const index = randomInt(WORDS.length);
   return WORDS[index];
 }
