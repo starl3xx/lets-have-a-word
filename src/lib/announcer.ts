@@ -228,19 +228,22 @@ function getRoundNumber(round: RoundRow): number {
 export async function announceRoundStarted(round: RoundRow) {
   const roundNumber = getRoundNumber(round);
   const jackpotEth = formatEth(round.prizePoolEth);
-  const jackpotUsd = estimateUsd(round.prizePoolEth);
   const commitHash = round.commitHash;
+  // Shorten hash for display: first 10 chars + last 4 chars
+  const shortHash = commitHash.length > 16
+    ? `${commitHash.slice(0, 10)}...${commitHash.slice(-4)}`
+    : commitHash;
 
   const text = `🔵 Round #${roundNumber} is live in @letshaveaword
 
-Starting jackpot: ${jackpotEth} ETH (~$${jackpotUsd}) 🎯
+Starting jackpot: ${jackpotEth} ETH 🎯
 
-The secret word is locked before the first guess 🔒
+The secret word is locked onchain 🔒
 
-→ Hash: ${commitHash}
+→ Hash: ${shortHash}
 → Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
 
-Happy hunting 👀
+Happy hunting 🕵️‍♂️
 https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
