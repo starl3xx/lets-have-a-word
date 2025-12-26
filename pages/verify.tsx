@@ -555,7 +555,7 @@ function DataRow({
 
 /**
  * On-Chain Commitment Status Component
- * Shows whether the round has an on-chain commitment and if it matches the database
+ * Shows whether the round has an onchain commitment and if it matches the database
  */
 function OnChainCommitmentStatus({
   hasOnChainCommitment,
@@ -570,7 +570,7 @@ function OnChainCommitmentStatus({
   onCopy?: (hash: string) => void;
   copied?: boolean;
 }) {
-  // No on-chain commitment (legacy round or contract not deployed)
+  // No onchain commitment (legacy round or contract not deployed)
   if (!hasOnChainCommitment || !onChainCommitHash) {
     return (
       <div className="bg-gray-100 rounded-xl px-4 py-3">

@@ -10,7 +10,7 @@
  * - Call resolveRoundWithPayouts for multi-recipient prize distribution
  * - Track onchain round state
  * - Verify contract state matches backend state
- * - Start rounds with on-chain commitment for provably fair verification
+ * - Start rounds with onchain commitment for provably fair verification
  */
 
 import { ethers, Contract, Wallet } from 'ethers';
@@ -308,9 +308,9 @@ export async function startNextRoundOnChain(): Promise<string> {
 }
 
 /**
- * Start a new round with on-chain commitment for provably fair verification
+ * Start a new round with onchain commitment for provably fair verification
  *
- * This function commits the SHA-256 hash of (salt || answer) on-chain before any
+ * This function commits the SHA-256 hash of (salt || answer) onchain before any
  * guesses can be made, proving the answer was locked before the round started.
  *
  * @param commitHash - SHA-256 hash of (salt || answer) as hex string (64 chars, no 0x prefix)
@@ -323,7 +323,7 @@ export async function startRoundWithCommitmentOnChain(commitHash: string): Promi
   // If it doesn't start with 0x, add it
   const bytes32Hash = commitHash.startsWith('0x') ? commitHash : `0x${commitHash}`;
 
-  console.log(`[CONTRACT] Starting round with on-chain commitment`);
+  console.log(`[CONTRACT] Starting round with onchain commitment`);
   console.log(`[CONTRACT] Commit hash: ${bytes32Hash}`);
 
   const tx = await contract.startRoundWithCommitment(bytes32Hash);
@@ -336,7 +336,7 @@ export async function startRoundWithCommitmentOnChain(commitHash: string): Promi
 }
 
 /**
- * Get the on-chain commitment hash for a round
+ * Get the onchain commitment hash for a round
  *
  * @param roundNumber - The round number to query
  * @returns The commitment hash as hex string (with 0x prefix), or null if no commitment
@@ -356,7 +356,7 @@ export async function getCommitHashOnChain(roundNumber: number): Promise<string 
 }
 
 /**
- * Check if a round has an on-chain commitment
+ * Check if a round has an onchain commitment
  *
  * @param roundNumber - The round number to query
  * @returns True if the round has a non-zero commitment hash

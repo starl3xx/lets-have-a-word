@@ -34,7 +34,7 @@ export interface VerifyRoundResponse {
   roundNumber: number;
   status: 'resolved' | 'active' | 'cancelled';
   commitHash: string;
-  onChainCommitHash?: string; // On-chain commitment hash (null if no on-chain commitment)
+  onChainCommitHash?: string; // On-chain commitment hash (null if no onchain commitment)
   hasOnChainCommitment: boolean;
   revealedWord?: string;
   revealedSalt?: string;
@@ -109,20 +109,20 @@ export default async function handler(
       });
     }
 
-    // Milestone 10.1: Fetch on-chain commitment data
+    // Milestone 10.1: Fetch onchain commitment data
     let onChainCommitHash: string | null = null;
     let hasOnChainCommit = false;
 
     try {
       const contractDeployed = await isContractDeployed();
       if (contractDeployed) {
-        // Get on-chain commitment hash
+        // Get onchain commitment hash
         onChainCommitHash = await getCommitHashOnChain(roundNumber);
         hasOnChainCommit = onChainCommitHash !== null;
       }
     } catch (error) {
-      // Log but don't fail - on-chain data is supplementary
-      console.error('[api/verify/round] Failed to fetch on-chain commitment:', error);
+      // Log but don't fail - onchain data is supplementary
+      console.error('[api/verify/round] Failed to fetch onchain commitment:', error);
     }
 
     // Also check archive for additional data (timestamps may differ)

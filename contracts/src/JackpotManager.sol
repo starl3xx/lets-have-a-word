@@ -108,7 +108,7 @@ contract JackpotManager is
         uint256 timestamp
     );
 
-    /// @notice Emitted when a new round starts with on-chain commitment (provably fair)
+    /// @notice Emitted when a new round starts with onchain commitment (provably fair)
     event RoundStartedWithCommitment(
         uint256 indexed roundNumber,
         uint256 startingJackpot,
@@ -425,17 +425,17 @@ contract JackpotManager is
     }
 
     /**
-     * @notice Starts a new round with on-chain commitment for provably fair verification
+     * @notice Starts a new round with onchain commitment for provably fair verification
      * @dev Requires minimum seed to be met. Called by operator.
      * @param _commitHash SHA-256 hash of (salt || answer) - committed before any guesses
      *
      * The commitment scheme works as follows:
      * 1. Backend generates random salt (32 bytes) and selects answer word
      * 2. Backend computes commitHash = SHA-256(salt || answer)
-     * 3. Backend calls this function with commitHash (stored immutably on-chain)
+     * 3. Backend calls this function with commitHash (stored immutably onchain)
      * 4. Round plays out - players make guesses
      * 5. When round resolves, backend reveals salt and answer
-     * 6. Anyone can verify: SHA-256(salt || answer) == on-chain commitHash
+     * 6. Anyone can verify: SHA-256(salt || answer) == onchain commitHash
      *
      * This proves the answer was locked before any guesses were made.
      */
@@ -599,8 +599,8 @@ contract JackpotManager is
     }
 
     /**
-     * @notice Get the on-chain commitment hash for a round
-     * @dev Returns bytes32(0) for rounds created before on-chain commitment was implemented
+     * @notice Get the onchain commitment hash for a round
+     * @dev Returns bytes32(0) for rounds created before onchain commitment was implemented
      * @param _roundNumber The round number to query
      * @return The SHA-256 commitment hash (salt || answer)
      */
@@ -609,7 +609,7 @@ contract JackpotManager is
     }
 
     /**
-     * @notice Check if a round has an on-chain commitment
+     * @notice Check if a round has an onchain commitment
      * @param _roundNumber The round number to query
      * @return True if the round has a non-zero commitment hash
      */
