@@ -30,7 +30,7 @@
 - **Secret Word**: Each round has a hidden 5-letter word
 - **Collaborative Elimination**: Wrong guesses are shared publicly, helping everyone
 - **Single Winner**: First person to guess correctly wins the entire prize pool
-- **Commit-Reveal**: Answer is stored as a cryptographic hash to prevent cheating
+- **Provably Fair**: Answer hash committed onchain before guessing begins, verifiable at `/verify`
 
 ### Key Differentiators
 - **Social Deduction**: Wrong guesses benefit everyone
@@ -64,11 +64,11 @@ Each player gets a daily allocation of guesses:
 - **10%**: Top 10 guessers that round (split equally)
 
 ### Round Lifecycle
-1. **Round Creation**: New round starts with commit hash of answer
+1. **Round Creation**: Answer selected (cryptographically random), hash committed onchain
 2. **Guessing Phase**: Players submit guesses (valid 5-letter words only)
 3. **Wrong Guesses**: Added to public wheel, visible to all players
-4. **Correct Guess**: Round ends, winner determined, payouts processed
-5. **Resolution**: Answer revealed, new round starts with seed from previous
+4. **Correct Guess**: Round ends, winner determined, payouts processed onchain
+5. **Resolution**: Answer + salt revealed, verifiable at `/verify?round=N`
 
 ### Word Validation
 - Must be exactly **5 letters**
@@ -1107,11 +1107,11 @@ await sdk.actions.openUrl({
 - Announcer bot account: @letshaveaword (FID 1477413)
 - Neynar signer integration
 - Automated announcements:
-  - postRoundStarted() - New round notifications
-  - postRoundResolved() - Winner announcements with commit-reveal verification
-  - postMilestoneJackpot() - Prize pool milestones (0.1, 0.25, 0.5, 1.0 ETH)
-  - postMilestoneGuesses() - Guess count milestones (100, 500, 1k, 5k, 10k)
-  - postReferralWin() - Referral bonus highlights (threaded reply)
+  - announceRoundStarted() - New round with hash and verify link
+  - announceRoundResolved() - Winner with verify link and top 10 early guessers
+  - checkAndAnnounceJackpotMilestones() - Prize pool milestones (0.1, 0.25, 0.5, 1.0 ETH)
+  - checkAndAnnounceGuessMilestones() - Guess count milestones (1K, 2K, 3K, 4K)
+  - announceReferralWin() - Referral bonus highlights (threaded reply)
 - Dev mode safety: announcements disabled when NODE_ENV !== 'production'
 - Idempotent via announcer_events table
 
@@ -1683,6 +1683,64 @@ const SHARE_TEMPLATES = [
 - `components/admin/EconomicsSection.tsx` - Updated UI with all new sections
 - `src/db/schema.ts` - Added `roundEconomicsConfig` table and types
 - `migrations/0010_economics_config_snapshots.sql` - New migration
+
+### Milestone 10: Provably Fair Onchain Commitment
+- **Status**: ✅ Complete
+- **Goal**: Enhance provable fairness with onchain commitment and public verification
+
+#### Onchain Commitment
+- Each round's answer hash written to JackpotManager smart contract on Base
+- `startRoundWithCommitment(bytes32 commitHash)` called before round accepts guesses
+- Commitment immutably recorded with blockchain timestamp
+- New contract view functions: `getCommitHash(roundNumber)`, `hasOnChainCommitment(roundNumber)`
+- Smart contract upgraded via UUPS proxy pattern
+- Implementation: `0x9166977F2096524eb5704830EEd40900Be9c51ee`
+- Proxy: `0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`
+
+#### Public Verification Page (`/verify`)
+- Anyone can verify any round's fairness at `/verify`
+- Shows: committed hash (database), onchain commitment (Base), revealed word, salt
+- Client-side SHA256(salt + word) computation and comparison
+- Deep linking: `/verify?round=42` for specific rounds
+- Educational content explaining commit-reveal cryptography
+- Direct link to smart contract on BaseScan
+- Söhne typography consistent with main app
+
+#### Column-Level Encryption
+- Round answers encrypted at rest using AES-256-GCM
+- Key from `ANSWER_ENCRYPTION_KEY` environment variable (32-byte hex)
+- Storage format: `iv:authTag:ciphertext` (hex-encoded)
+- Plaintext answer NEVER stored in database
+- Module: `src/lib/encryption.ts`
+
+#### Cryptographic Randomness
+- Word selection uses `crypto.randomInt()` instead of `Math.random()`
+- Cryptographically secure, unpredictable answer selection
+- Module: `src/lib/word-lists.ts`
+
+#### Updated Announcer Templates
+All announcement formats updated with new copy:
+- **Round Started**: Shortened hash (first 10 + last 4 chars), verify link, "locked onchain"
+- **Round Complete**: Verify link, "top 10 early guessers", cleaner format
+- **Jackpot Milestones**:
+  - 0.1/0.25/0.5 ETH: 🔥 "One secret word. One winner."
+  - 1.0 ETH: 🚨 "is getting serious"
+- **Guess Milestones**: Now at 1K, 2K, 3K, 4K (was 100, 500, 1K, 5K, 10K)
+- **Referral Wins**: "Share your link. You can win even when your friends do"
+
+#### Files Added/Modified
+- `pages/verify.tsx` - Public verification page
+- `pages/api/verify/round.ts` - Verification data API
+- `src/lib/encryption.ts` - Column-level encryption module
+- `src/lib/jackpot-contract.ts` - Onchain commitment functions
+- `src/lib/rounds.ts` - Integration with onchain commitment
+- `src/lib/word-lists.ts` - Cryptographic randomness
+- `src/lib/announcer.ts` - Updated announcement templates
+- `contracts/src/JackpotManager.sol` - Commitment storage and view functions
+
+#### Environment Configuration
+- `ANSWER_ENCRYPTION_KEY` - 32-byte hex key for answer encryption (required)
+- `OPERATOR_PRIVATE_KEY` - For contract interactions (existing)
 
 ### Planned / Future Enhancements
 - **Status**: Wishlist
