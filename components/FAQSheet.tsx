@@ -162,7 +162,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Rank #3: 14%</li>
             <li>Rank #4: 11%</li>
             <li>Rank #5: 10%</li>
-            <li>Ranks #6–#10: 6% each</li>
+            <li>Ranks #6–10: 6% each</li>
           </ul>
           <p className="mt-2">This distribution is fixed and always applies when a round is resolved, scaling proportionally with the total Top 10 pool.</p>
         </>
