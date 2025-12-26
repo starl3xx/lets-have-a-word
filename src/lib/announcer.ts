@@ -15,6 +15,7 @@ import { db } from '../db';
 import { announcerEvents, rounds, roundPayouts, users } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
+import { getPlaintextAnswer } from './encryption';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -26,7 +27,7 @@ const NODE_ENV = process.env.NODE_ENV;
 
 // Milestone thresholds
 export const JACKPOT_MILESTONES = [0.1, 0.25, 0.5, 1.0]; // ETH
-export const GUESS_MILESTONES = [100, 500, 1000, 5000, 10000];
+export const GUESS_MILESTONES = [1000, 2000, 3000, 4000];
 
 // Startup validation (fail fast in production if misconfigured)
 if (NODE_ENV === 'production' && ANNOUNCER_ENABLED === 'true') {
@@ -227,15 +228,23 @@ function getRoundNumber(round: RoundRow): number {
 export async function announceRoundStarted(round: RoundRow) {
   const roundNumber = getRoundNumber(round);
   const jackpotEth = formatEth(round.prizePoolEth);
-  const jackpotUsd = estimateUsd(round.prizePoolEth);
+  const commitHash = round.commitHash;
+  // Shorten hash for display: first 10 chars + last 4 chars
+  const shortHash = commitHash.length > 16
+    ? `${commitHash.slice(0, 10)}...${commitHash.slice(-4)}`
+    : commitHash;
 
-  const text = `🔵 New round started on Let's Have A Word!
+  const text = `🔵 Round #${roundNumber} is live in @letshaveaword
 
-Round #${roundNumber} is live with a starting prize pool of ${jackpotEth} ETH (${jackpotUsd} USD est).
+Starting prize pool: ${jackpotEth} ETH 🎯
 
-One secret 5-letter word. Everyone gets daily guesses. One correct guess wins the jackpot.
+The secret word is locked onchain 🔒
 
-Play in the Farcaster mini app to join the round.`;
+→ Hash: ${shortHash}
+→ Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
+
+Happy hunting 🕵️‍♂️
+https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
@@ -318,10 +327,14 @@ export async function announceRoundResolved(
   totalGuesses: number
 ) {
   const roundNumber = getRoundNumber(round);
-  const answer = round.answer.toUpperCase(); // Always ALL CAPS
-  const answerHash = round.commitHash;
-  const salt = round.salt;
+  const answer = getPlaintextAnswer(round.answer).toUpperCase(); // Decrypt and uppercase
+  const commitHash = round.commitHash;
   const jackpotEth = formatEth(round.prizePoolEth);
+
+  // Shorten hash for display: first 10 chars + last 4 chars
+  const shortHash = commitHash.length > 16
+    ? `${commitHash.slice(0, 10)}...${commitHash.slice(-4)}`
+    : commitHash;
 
   // Find winner payout and fetch username
   const winnerPayout = payouts.find(p => p.role === 'winner');
@@ -353,19 +366,19 @@ export async function announceRoundResolved(
     referrerLine = `\n\n${winnerMention}'s referrer ${referrerUsername} earned ${referrerPayoutEth} ETH for bringing them into the game. 🫂`;
   }
 
-  const text = `🎉 Round #${roundNumber} is over on Let's Have A Word!
+  const text = `🎉 Round #${roundNumber} is complete in Let's Have A Word!
 
 After ${totalGuesses.toLocaleString()} global guesses, ${winnerMention} found the secret word ${answer} and won the ${jackpotEth} ETH jackpot! 🏆 Congrats!${referrerLine}
 
-This round's top 10 guessers by volume also take home a share of ${topTenPayoutEth} ETH: ${topTenMentions} 🙌
+Top 10 early guessers also shared ${topTenPayoutEth} ETH:
+${topTenMentions} 🙌
 
-Secret word commit–reveal:
-→ Hash: ${answerHash}
-→ Salt: ${salt}
+Provably fair:
+→ Hash: ${shortHash}
+→ Verify anytime: https://www.letshaveaword.fun/verify?round=${roundNumber}
 
-Anyone can recompute hash(answer + salt) and confirm it matches the onchain commitment.
-
-New round starts soon! One word, one jackpot. 💰`;
+New round starts soon 👀
+https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
@@ -389,13 +402,23 @@ export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
       const milestoneEth = formatEth(milestone);
       const milestoneUsd = estimateUsd(milestone);
 
-      const text = `💰 Jackpot milestone on Let's Have A Word!
+      // Use different template for 1.0 ETH milestone
+      const text = milestone >= 1.0
+        ? `🚨 Prize pool just crossed ${milestoneEth} ETH (~$${milestoneUsd}) in Let's Have A Word!
 
-Round #${roundNumber} prize pool just passed ${milestoneEth} ETH (${milestoneUsd} USD est).
+Round #${roundNumber} is getting serious 👀
 
-One player will hit the secret word and take it all. Every wrong guess helps everyone else.
+One correct guess is all it takes ↓
+https://www.letshaveaword.fun`
+        : `🔥 Jackpot milestone in Let's Have A Word!
 
-Play now in the Farcaster mini app.`;
+Round #${roundNumber} prize pool just passed ${milestoneEth} ETH (~$${milestoneUsd}) 🎯
+
+One secret word. One winner.
+Every wrong guess narrows the field 👀
+
+Play now ↓
+https://www.letshaveaword.fun`;
 
       await recordAndCastAnnouncerEvent({
         eventType: 'jackpot_milestone',
@@ -423,13 +446,14 @@ export async function checkAndAnnounceGuessMilestones(
     if (guessCount >= milestone) {
       const milestoneKey = `guesses_${milestone}`;
 
-      const text = `🎯 Guess milestone on Let's Have A Word!
+      const text = `🎯 Guess milestone in Let's Have A Word!
 
-Round #${roundNumber} just crossed ${milestone.toLocaleString()} total guesses.
+Round #${roundNumber} just crossed ${milestone.toLocaleString()} global guesses.
 
-Every wrong guess eliminates one more word from the global pool. One correct guess wins the jackpot.
+Every wrong guess removes one word from the shared global pool.
+One correct guess wins the jackpot 👀
 
-Jump in via the Farcaster mini app.`;
+https://www.letshaveaword.fun`;
 
       await recordAndCastAnnouncerEvent({
         eventType: 'guess_milestone',
@@ -458,11 +482,12 @@ export async function announceReferralWin(
 
   const text = `🤝 Referral win on Let's Have A Word!
 
-In Round #${roundNumber}, the jackpot winner came in through a referral.
+In Round #${roundNumber}, the jackpot winner joined through a referral
 
-Their referrer earned ${referrerPayoutEth} ETH just for inviting a friend to play.
+Their referrer earned ${referrerPayoutEth} ETH just for inviting a friend to play!
 
-Play daily, share your link, and you might win even when your friends do.`;
+Share your link. You can win even when your friends do 👀
+https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'referral_win',

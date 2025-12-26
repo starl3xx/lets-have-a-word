@@ -50,7 +50,7 @@ export type RoundStatus = 'active' | 'resolved' | 'cancelled';
 export const rounds = pgTable('rounds', {
   id: serial('id').primaryKey(),
   rulesetId: integer('ruleset_id').notNull().references(() => gameRules.id),
-  answer: varchar('answer', { length: 5 }).notNull(), // The correct word
+  answer: varchar('answer', { length: 100 }).notNull(), // Encrypted answer (iv:tag:ciphertext) or legacy plaintext
   salt: varchar('salt', { length: 64 }).notNull(), // Random salt for hashing
   commitHash: varchar('commit_hash', { length: 64 }).notNull(), // H(salt||answer)
   prizePoolEth: decimal('prize_pool_eth', { precision: 20, scale: 18 }).default('0').notNull(),
@@ -262,7 +262,7 @@ export type AnalyticsEventInsert = typeof analyticsEvents.$inferInsert;
 export const roundArchive = pgTable('round_archive', {
   id: serial('id').primaryKey(),
   roundNumber: integer('round_number').notNull().unique(), // Maps to rounds.id
-  targetWord: varchar('target_word', { length: 5 }).notNull(),
+  targetWord: varchar('target_word', { length: 100 }).notNull(), // Plaintext answer (revealed after round ends)
   seedEth: decimal('seed_eth', { precision: 20, scale: 18 }).notNull(), // Starting prize pool (seed from previous round)
   finalJackpotEth: decimal('final_jackpot_eth', { precision: 20, scale: 18 }).notNull(),
   totalGuesses: integer('total_guesses').notNull(),

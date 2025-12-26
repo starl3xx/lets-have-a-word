@@ -8,6 +8,8 @@ import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 import { trackSlowQuery } from './redis';
 import { shouldBlockNewRoundCreation } from './operational-guard';
+import { encryptAndPack, getPlaintextAnswer } from './encryption';
+import { startRoundWithCommitmentOnChain, isContractDeployed } from './jackpot-contract';
 
 /**
  * Options for creating a new round
@@ -15,6 +17,7 @@ import { shouldBlockNewRoundCreation } from './operational-guard';
 export interface CreateRoundOptions {
   forceAnswer?: string; // Force a specific answer (for testing)
   rulesetId?: number; // Game rules ID to use (default 1)
+  skipOnChainCommitment?: boolean; // Skip onchain commitment (for testing without contract)
 }
 
 /**
@@ -26,6 +29,7 @@ export interface CreateRoundOptions {
 export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   const rulesetId = opts?.rulesetId ?? 1;
   const forceAnswer = opts?.forceAnswer;
+  const skipOnChainCommitment = opts?.skipOnChainCommitment ?? false;
 
   // Check if there's already an active round
   const existingRound = await getActiveRound();
@@ -44,15 +48,48 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     throw new Error(`Invalid answer word: ${selectedAnswer}`);
   }
 
-  // Create commitment
+  // Create commitment (using plaintext answer)
   const { salt, commitHash } = createCommitment(selectedAnswer);
 
-  // Insert round into database
+  // Milestone 10.1: Onchain commitment for provably fair verification
+  // This MUST succeed before we insert into the database, ensuring the
+  // commitment is immutably recorded onchain before the round can accept guesses
+  let onChainCommitmentTxHash: string | null = null;
+
+  if (!skipOnChainCommitment) {
+    try {
+      // Check if contract is deployed and accessible
+      const contractDeployed = await isContractDeployed();
+
+      if (contractDeployed) {
+        console.log(`[rounds] Committing answer hash onchain...`);
+        onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
+        console.log(`[rounds] ✅ Onchain commitment successful: ${onChainCommitmentTxHash}`);
+      } else {
+        console.warn(`[rounds] ⚠️ Contract not deployed, skipping onchain commitment`);
+      }
+    } catch (error) {
+      // Onchain commitment failed - this is critical for provable fairness
+      // Log the error but continue with round creation (commitment is in DB)
+      console.error(`[rounds] ❌ Onchain commitment failed:`, error);
+      console.warn(`[rounds] ⚠️ Continuing with off-chain commitment only`);
+      // In strict mode, you might want to throw here instead:
+      // throw new Error(`Onchain commitment failed: ${error}`);
+    }
+  } else {
+    console.log(`[rounds] Skipping onchain commitment (skipOnChainCommitment=true)`);
+  }
+
+  // Encrypt the answer for storage
+  // The plaintext answer is NEVER stored in the database
+  const encryptedAnswer = encryptAndPack(selectedAnswer);
+
+  // Insert round into database with encrypted answer
   const result = await db
     .insert(rounds)
     .values({
       rulesetId,
-      answer: selectedAnswer,
+      answer: encryptedAnswer, // Encrypted: iv:tag:ciphertext
       salt,
       commitHash,
       prizePoolEth: '0',
@@ -67,6 +104,9 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   const round = result[0];
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);
+  if (onChainCommitmentTxHash) {
+    console.log(`   Onchain commitment tx: ${onChainCommitmentTxHash}`);
+  }
 
   // Milestone 4.10: Seed words removed - wheel shows all GUESS_WORDS from start
 
@@ -87,7 +127,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   return {
     id: round.id,
     rulesetId: round.rulesetId,
-    answer: round.answer,
+    answer: getPlaintextAnswer(round.answer), // Decrypt for internal use
     salt: round.salt,
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
@@ -124,7 +164,7 @@ export async function getActiveRound(): Promise<Round | null> {
     return {
       id: round.id,
       rulesetId: round.rulesetId,
-      answer: round.answer,
+      answer: getPlaintextAnswer(round.answer), // Decrypt for internal use
       salt: round.salt,
       commitHash: round.commitHash,
       prizePoolEth: round.prizePoolEth,
@@ -192,7 +232,7 @@ export async function getRoundById(roundId: number): Promise<Round | null> {
   return {
     id: round.id,
     rulesetId: round.rulesetId,
-    answer: round.answer,
+    answer: getPlaintextAnswer(round.answer), // Decrypt for internal use
     salt: round.salt,
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,

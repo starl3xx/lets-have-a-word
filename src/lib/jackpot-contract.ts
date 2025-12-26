@@ -2,6 +2,7 @@
  * JackpotManager Contract Integration
  * Milestone 6.1 - Smart Contract Specification
  * Milestone 6.9 - Multi-recipient payouts
+ * Milestone 10.1 - Onchain commitment for provably fair verification
  *
  * Backend utilities for interacting with the JackpotManager smart contract on Base.
  *
@@ -9,6 +10,7 @@
  * - Call resolveRoundWithPayouts for multi-recipient prize distribution
  * - Track onchain round state
  * - Verify contract state matches backend state
+ * - Start rounds with onchain commitment for provably fair verification
  */
 
 import { ethers, Contract, Wallet } from 'ethers';
@@ -28,9 +30,13 @@ const JACKPOT_MANAGER_ABI = [
   'function prizePoolWallet() view returns (address)',
   'function isMinimumSeedMet() view returns (bool)',
   'function getCurrentRoundInfo() view returns (uint256 roundNumber, uint256 jackpot, bool isActive, uint256 startedAt)',
-  'function getRound(uint256 roundNumber) view returns (tuple(uint256 roundNumber, uint256 startingJackpot, uint256 finalJackpot, address winner, uint256 winnerPayout, uint256 startedAt, uint256 resolvedAt, bool isActive))',
+  'function getRound(uint256 roundNumber) view returns (tuple(uint256 roundNumber, uint256 startingJackpot, uint256 finalJackpot, address winner, uint256 winnerPayout, uint256 startedAt, uint256 resolvedAt, bool isActive, bytes32 commitHash))',
   'function getPlayerGuessCount(address player) view returns (uint256)',
   'function creatorProfitAccumulated() view returns (uint256)',
+
+  // Onchain commitment functions (Milestone 10.1)
+  'function getCommitHash(uint256 roundNumber) view returns (bytes32)',
+  'function hasOnChainCommitment(uint256 roundNumber) view returns (bool)',
 
   // Market cap oracle functions (Milestone 6.2)
   'function clanktonMarketCapUsd() view returns (uint256)',
@@ -47,12 +53,14 @@ const JACKPOT_MANAGER_ABI = [
   'function resolveRound(address winner)',
   'function resolveRoundWithPayouts(address[] recipients, uint256[] amounts, uint256 seedForNextRound)',
   'function startNextRound()',
+  'function startRoundWithCommitment(bytes32 commitHash)',
   'function purchaseGuesses(address player, uint256 quantity) payable',
   'function withdrawCreatorProfit()',
   'function updateClanktonMarketCap(uint256 marketCapUsd)',
 
   // Events
   'event RoundStarted(uint256 indexed roundNumber, uint256 startingJackpot, uint256 timestamp)',
+  'event RoundStartedWithCommitment(uint256 indexed roundNumber, uint256 startingJackpot, bytes32 indexed commitHash, uint256 timestamp)',
   'event RoundResolved(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 winnerPayout, uint256 timestamp)',
   'event RoundResolvedWithPayouts(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 totalPaidOut, uint256 seedForNextRound, uint256 recipientCount, uint256 timestamp)',
   'event PayoutSent(uint256 indexed roundNumber, address indexed recipient, uint256 amount, uint256 index)',
@@ -280,14 +288,15 @@ export async function seedJackpotOnChain(amountEth: string): Promise<string> {
 }
 
 /**
- * Start next round on smart contract
+ * Start next round on smart contract (legacy - without commitment)
  *
+ * @deprecated Use startRoundWithCommitmentOnChain for provably fair rounds
  * @returns Transaction hash
  */
 export async function startNextRoundOnChain(): Promise<string> {
   const contract = getJackpotManagerWithOperator();
 
-  console.log(`[CONTRACT] Starting next round`);
+  console.log(`[CONTRACT] Starting next round (legacy - no commitment)`);
 
   const tx = await contract.startNextRound();
   console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
@@ -296,6 +305,65 @@ export async function startNextRoundOnChain(): Promise<string> {
   console.log(`[CONTRACT] Next round started - Block: ${receipt.blockNumber}`);
 
   return tx.hash;
+}
+
+/**
+ * Start a new round with onchain commitment for provably fair verification
+ *
+ * This function commits the SHA-256 hash of (salt || answer) onchain before any
+ * guesses can be made, proving the answer was locked before the round started.
+ *
+ * @param commitHash - SHA-256 hash of (salt || answer) as hex string (64 chars, no 0x prefix)
+ * @returns Transaction hash
+ */
+export async function startRoundWithCommitmentOnChain(commitHash: string): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+
+  // Ensure commitHash is properly formatted as bytes32
+  // If it doesn't start with 0x, add it
+  const bytes32Hash = commitHash.startsWith('0x') ? commitHash : `0x${commitHash}`;
+
+  console.log(`[CONTRACT] Starting round with onchain commitment`);
+  console.log(`[CONTRACT] Commit hash: ${bytes32Hash}`);
+
+  const tx = await contract.startRoundWithCommitment(bytes32Hash);
+  console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Round started with commitment - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Get the onchain commitment hash for a round
+ *
+ * @param roundNumber - The round number to query
+ * @returns The commitment hash as hex string (with 0x prefix), or null if no commitment
+ */
+export async function getCommitHashOnChain(roundNumber: number): Promise<string | null> {
+  const contract = getJackpotManagerReadOnly();
+
+  const commitHash = await contract.getCommitHash(roundNumber);
+
+  // bytes32(0) means no commitment
+  const zeroHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  if (commitHash === zeroHash) {
+    return null;
+  }
+
+  return commitHash;
+}
+
+/**
+ * Check if a round has an onchain commitment
+ *
+ * @param roundNumber - The round number to query
+ * @returns True if the round has a non-zero commitment hash
+ */
+export async function hasOnChainCommitment(roundNumber: number): Promise<boolean> {
+  const contract = getJackpotManagerReadOnly();
+  return await contract.hasOnChainCommitment(roundNumber);
 }
 
 /**
