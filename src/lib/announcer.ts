@@ -236,7 +236,7 @@ export async function announceRoundStarted(round: RoundRow) {
 
   const text = `🔵 Round #${roundNumber} is live in @letshaveaword
 
-Starting jackpot: ${jackpotEth} ETH 🎯
+Starting prize pool: ${jackpotEth} ETH 🎯
 
 The secret word is locked onchain 🔒
 
