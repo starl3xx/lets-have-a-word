@@ -23,6 +23,7 @@ import {
 } from '../db/schema';
 import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte } from 'drizzle-orm';
 import { trackSlowQuery } from './redis';
+import { getPlaintextAnswer } from './encryption';
 
 /**
  * Data required to archive a round (can be passed explicitly or computed)
@@ -216,9 +217,10 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     }
 
     // Create archive record
+    // Decrypt the answer for storage in archive (revealed after round ends)
     const archiveData: RoundArchiveInsert = {
       roundNumber: roundId,
-      targetWord: round.answer,
+      targetWord: getPlaintextAnswer(round.answer),
       seedEth,
       finalJackpotEth: round.prizePoolEth,
       totalGuesses,
@@ -443,8 +445,8 @@ export async function getArchiveDebugInfo(roundNumber: number): Promise<{
     if (archived.uniquePlayers !== raw.uniquePlayers) {
       discrepancies.push(`uniquePlayers: archived=${archived.uniquePlayers}, raw=${raw.uniquePlayers}`);
     }
-    if (archived.targetWord !== round.answer) {
-      discrepancies.push(`targetWord: archived=${archived.targetWord}, raw=${round.answer}`);
+    if (archived.targetWord !== getPlaintextAnswer(round.answer)) {
+      discrepancies.push(`targetWord: archived=${archived.targetWord}, raw=${getPlaintextAnswer(round.answer)}`);
     }
     if (archived.finalJackpotEth !== round.prizePoolEth) {
       discrepancies.push(`finalJackpotEth: archived=${archived.finalJackpotEth}, raw=${round.prizePoolEth}`);

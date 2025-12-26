@@ -196,14 +196,16 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: 'What does "provably fair" mean?',
       answer: (
         <>
-          Before each round, the game commits onchain to the secret word using a cryptographic hash and hidden salt.
-          <p className="mt-2">When the round ends:</p>
+          Before each round begins, Let's Have A Word <strong>commits onchain</strong> to the secret word using a cryptographic hash and hidden salt.
+          <p className="mt-2">This commitment guarantees that the <strong>word cannot be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. The word is only revealed after someone finds it.</p>
+          <p className="mt-2">When a round ends:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>The word and salt are revealed</li>
+            <li>The secret word and salt are revealed by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink></li>
             <li>Anyone can recompute the hash</li>
-            <li>Anyone can verify the answer was fixed from the start</li>
+            <li>Anyone can verify the answer was fixed from the very start</li>
           </ul>
-          <p className="mt-2">This commit–reveal process makes every round verifiable and fair.</p>
+          <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
+          <p className="mt-2">This commit–reveal process makes every round transparent, verifiable, and fair.</p>
         </>
       ),
     },

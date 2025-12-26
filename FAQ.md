@@ -53,11 +53,20 @@ If the winner *does not* have a referrer:
 
 Self-referrals are blocked. Null or zero referrers are treated as “no referrer.”
 
-## What does “provably fair” mean?
+## What does "provably fair" mean?
 
-Before each round, the game commits to the secret answer by publishing a cryptographic hash of the word (combined with a hidden salt) onchain. This hash proves the answer was fixed from the start and cannot be changed after guesses begin.
+Before each round begins, Let's Have A Word **commits onchain** to the secret word using a cryptographic hash and hidden salt.
 
-When the round ends, @letshaveaword reveals the winning word and the salt, allowing anyone to recompute the hash themselves and verify it matches the original onchain commitment. This “commit–reveal” process makes every round transparently and mathematically fair.
+This commitment guarantees that the **word cannot be changed mid-round** — not by the game, not by the creator, not by anyone. Importantly, **the creator does not know the secret word while the round is live**. The word is only revealed after someone finds it.
+
+When a round ends:
+- The secret word and salt are revealed by @letshaveaword
+- Anyone can recompute the hash
+- Anyone can verify the answer was fixed from the very start
+
+You don't have to trust this; you can verify every round yourself at https://www.letshaveaword.fun/verify
+
+This commit–reveal process makes every round transparent, verifiable, and fair.
 
 ## How do referrals work?
 

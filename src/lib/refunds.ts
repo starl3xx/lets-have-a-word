@@ -63,7 +63,7 @@ export interface RefundProcessingResult {
 }
 
 // ============================================================
-// On-chain Refund Transfer
+// Onchain Refund Transfer
 // ============================================================
 
 /**
