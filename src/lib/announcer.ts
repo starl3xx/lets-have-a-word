@@ -482,11 +482,12 @@ export async function announceReferralWin(
 
   const text = `🤝 Referral win on Let's Have A Word!
 
-In Round #${roundNumber}, the jackpot winner came in through a referral.
+In Round #${roundNumber}, the jackpot winner joined through a referral
 
-Their referrer earned ${referrerPayoutEth} ETH just for inviting a friend to play.
+Their referrer earned ${referrerPayoutEth} ETH just for inviting a friend to play!
 
-Play daily, share your link, and you might win even when your friends do.`;
+Share your link. You can win even when your friends do 👀
+https://www.letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'referral_win',
