@@ -2,7 +2,7 @@
  * JackpotManager Contract Integration
  * Milestone 6.1 - Smart Contract Specification
  * Milestone 6.9 - Multi-recipient payouts
- * Milestone 10.1 - On-chain commitment for provably fair verification
+ * Milestone 10.1 - Onchain commitment for provably fair verification
  *
  * Backend utilities for interacting with the JackpotManager smart contract on Base.
  *
@@ -34,7 +34,7 @@ const JACKPOT_MANAGER_ABI = [
   'function getPlayerGuessCount(address player) view returns (uint256)',
   'function creatorProfitAccumulated() view returns (uint256)',
 
-  // On-chain commitment functions (Milestone 10.1)
+  // Onchain commitment functions (Milestone 10.1)
   'function getCommitHash(uint256 roundNumber) view returns (bytes32)',
   'function hasOnChainCommitment(uint256 roundNumber) view returns (bool)',
 

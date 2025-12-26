@@ -51,7 +51,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   // Create commitment (using plaintext answer)
   const { salt, commitHash } = createCommitment(selectedAnswer);
 
-  // Milestone 10.1: On-chain commitment for provably fair verification
+  // Milestone 10.1: Onchain commitment for provably fair verification
   // This MUST succeed before we insert into the database, ensuring the
   // commitment is immutably recorded onchain before the round can accept guesses
   let onChainCommitmentTxHash: string | null = null;
@@ -64,17 +64,17 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       if (contractDeployed) {
         console.log(`[rounds] Committing answer hash onchain...`);
         onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
-        console.log(`[rounds] ✅ On-chain commitment successful: ${onChainCommitmentTxHash}`);
+        console.log(`[rounds] ✅ Onchain commitment successful: ${onChainCommitmentTxHash}`);
       } else {
         console.warn(`[rounds] ⚠️ Contract not deployed, skipping onchain commitment`);
       }
     } catch (error) {
-      // On-chain commitment failed - this is critical for provable fairness
+      // Onchain commitment failed - this is critical for provable fairness
       // Log the error but continue with round creation (commitment is in DB)
-      console.error(`[rounds] ❌ On-chain commitment failed:`, error);
+      console.error(`[rounds] ❌ Onchain commitment failed:`, error);
       console.warn(`[rounds] ⚠️ Continuing with off-chain commitment only`);
       // In strict mode, you might want to throw here instead:
-      // throw new Error(`On-chain commitment failed: ${error}`);
+      // throw new Error(`Onchain commitment failed: ${error}`);
     }
   } else {
     console.log(`[rounds] Skipping onchain commitment (skipOnChainCommitment=true)`);
@@ -105,7 +105,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);
   if (onChainCommitmentTxHash) {
-    console.log(`   On-chain commitment tx: ${onChainCommitmentTxHash}`);
+    console.log(`   Onchain commitment tx: ${onChainCommitmentTxHash}`);
   }
 
   // Milestone 4.10: Seed words removed - wheel shows all GUESS_WORDS from start

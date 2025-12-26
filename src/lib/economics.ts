@@ -12,7 +12,7 @@ import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 
 /**
  * Economics Module - Milestone 3.1
- * Milestone 6.9 - On-chain multi-recipient payouts
+ * Milestone 6.9 - Onchain multi-recipient payouts
  *
  * Handles jackpot splits, seed accumulation, and payouts
  */
@@ -204,7 +204,7 @@ async function allocateToSeedAndCreator(
 }
 
 /**
- * Resolve round and create payouts (Milestone 6.9 - On-chain multi-recipient)
+ * Resolve round and create payouts (Milestone 6.9 - Onchain multi-recipient)
  *
  * Jackpot split:
  * - 80% to winner (always)

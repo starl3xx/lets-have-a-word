@@ -2,7 +2,7 @@
  * Upgrade Script for JackpotManager
  * Milestone 6.2 - CLANKTON Market Cap Oracle Integration
  * Milestone 6.9 - Multi-recipient payouts
- * Milestone 10.1 - On-chain commitment for provably fair verification
+ * Milestone 10.1 - Onchain commitment for provably fair verification
  *
  * Upgrades the JackpotManager proxy contract to a new implementation
  *
