@@ -263,7 +263,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             {/* Coming Soon Message */}
             <div className="section-card bg-brand-50 border-2 border-brand-200">
               <h3 className="text-base font-semibold text-brand-900 text-center">
-                Coming Soon
+                Coming soon?
               </h3>
               <div className="text-sm text-brand-700 space-y-2">
                 <p>
@@ -290,15 +290,12 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 <li><strong>+10 XP</strong> — Daily participation (first guess)</li>
                 <li><strong>+10 XP</strong> — CLANKTON holder daily bonus</li>
                 <li><strong>+15 XP</strong> — Consecutive day streak</li>
-                <li><strong>+15 XP</strong> — Sharing to Farcaster</li>
+                <li><strong>+15 XP</strong> — Sharing to Farcaster/Base</li>
                 <li><strong>+20 XP</strong> — Referred user makes first guess</li>
                 <li><strong>+20 XP</strong> — Buying a guess pack</li>
                 <li><strong>+50 XP</strong> — Top 10 guesser placement</li>
                 <li><strong>+2,500 XP</strong> — Winning the jackpot</li>
               </ul>
-              <p className="text-sm text-gray-500 italic pt-2">
-                Keep playing to build up your XP before the progression system launches!
-              </p>
             </div>
           </div>
         )}
