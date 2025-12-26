@@ -238,7 +238,7 @@ export default function VerifyPage() {
               Before each round starts, the game locks in the secret word by publishing a cryptographic commitment.
             </p>
             <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
-              When the round ends, the word and salt are revealed so anyone can verify the game was fair — no changes, no tricks.
+              When the round ends, the word and salt are revealed so anyone can verify the game was fair. No changes, no tricks.
             </p>
             <p className="text-xs text-gray-400 mt-2">
               Verification is optional, but always available.
@@ -445,6 +445,52 @@ export default function VerifyPage() {
             )}
           </div>
 
+          {/* Onchain Record */}
+          <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-4">
+              <h3 className="font-semibold text-gray-900 mb-2">
+                Onchain record
+              </h3>
+              <p className="text-sm text-gray-500 mb-3">
+                The game's smart contract lives on Base and is publicly verified on BaseScan.
+                All commitments are written onchain and cannot be altered after the round begins.
+              </p>
+              <a
+                href={BASESCAN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                <span>View on BaseScan</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+              <p className="text-xs text-gray-400 mt-2 font-mono break-all">
+                {CONTRACT_ADDRESS}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Immutable, public, and timestamped
+              </p>
+            </div>
+          </div>
+
+          {/* Why This Matters */}
+          <div className="mt-6 bg-blue-50 rounded-2xl border border-blue-100 overflow-hidden">
+            <div className="px-4 py-4">
+              <h3 className="font-semibold text-blue-900 mb-2">
+                Why this matters
+              </h3>
+              <p className="text-sm text-blue-700 leading-relaxed">
+                The commitment is published before any guesses are made.
+                The word and salt are revealed after the round ends.
+              </p>
+              <p className="text-sm text-blue-700 mt-2 leading-relaxed">
+                This guarantees the word can't be changed mid-round and anyone can verify the result forever.
+              </p>
+            </div>
+          </div>
+
           {/* Manual Verification Info */}
           <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-4 py-4">
@@ -513,52 +559,6 @@ export default function VerifyPage() {
                   The output should exactly match the commitment hash published for that round.
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* Onchain Record */}
-          <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-4">
-              <h3 className="font-semibold text-gray-900 mb-2">
-                Onchain record
-              </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                The game's smart contract lives on Base and is publicly verified on BaseScan.
-                All commitments are written onchain and cannot be altered after the round begins.
-              </p>
-              <a
-                href={BASESCAN_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
-              >
-                <span>View on BaseScan</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-              <p className="text-xs text-gray-400 mt-2 font-mono break-all">
-                {CONTRACT_ADDRESS}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Immutable, public, and timestamped
-              </p>
-            </div>
-          </div>
-
-          {/* Why This Matters */}
-          <div className="mt-6 bg-blue-50 rounded-2xl border border-blue-100 overflow-hidden">
-            <div className="px-4 py-4">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                Why this matters
-              </h3>
-              <p className="text-sm text-blue-700 leading-relaxed">
-                The commitment is published before any guesses are made.
-                The word and salt are revealed after the round ends.
-              </p>
-              <p className="text-sm text-blue-700 mt-2 leading-relaxed">
-                This guarantees the word can't be changed mid-round and anyone can verify the result forever.
-              </p>
             </div>
           </div>
         </div>
