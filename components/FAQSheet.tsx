@@ -141,7 +141,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do Top 10 rewards work?",
       answer: (
         <>
-          Top 10 rewards are based on early participation in each round.
+          Top 10 rewards are based on <strong>early participation</strong> in each round.
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li>Only the first 750 guesses in a round are eligible for Top 10 ranking</li>
             <li>After guess #750, Top 10 locks</li>
