@@ -74,9 +74,9 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       const castText = `My Let's Have A Word! stats:\n\n` +
         `🎯 ${stats.guessesAllTime} total guesses (${stats.paidGuessesAllTime} paid)\n` +
         `🏆 ${stats.jackpotsWon} jackpots won\n` +
-        `🔝 ${stats.topGuesserPlacements} top 10 placements\n` +
+        `🔝 ${stats.topGuesserPlacements} Top 10 early guessers\n` +
         `🤝 ${stats.referralWins} referral wins\n` +
-        `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH all-time\n` +
+        `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH earned\n` +
         `⚡ ${xp.toLocaleString()} XP\n\n` +
         `@letshaveaword`;
 
@@ -160,21 +160,16 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.free')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.freeGuessesAllTime}</p>
                 </div>
-                <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
+                <div className="bg-white rounded-lg p-3 text-center border border-gray-100" title="CLANKTON holder bonus + share bonus">
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.bonus')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.bonusGuessesAllTime}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">CLANKTON + share</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.paid')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.paidGuessesAllTime}</p>
                 </div>
               </div>
-              {stats.medianGuessesToSolve !== null && (
-                <div className="bg-white rounded-lg p-3 text-center mt-2 border border-gray-100">
-                  <p className="text-xs text-gray-600">{t('stats.guessDistribution.median')}</p>
-                  <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.medianGuessesToSolve}</p>
-                </div>
-              )}
             </div>
 
             {/* Guesses per Round Histogram */}
@@ -250,7 +245,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
             {/* Share Stats Button */}
             <button onClick={handleShareStats} className="btn-accent w-full flex items-center justify-center gap-2">
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
+              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
               {t('stats.shareButton')}
             </button>
 
@@ -263,7 +258,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             {/* Coming Soon Message */}
             <div className="section-card bg-brand-50 border-2 border-brand-200">
               <h3 className="text-base font-semibold text-brand-900 text-center">
-                Coming Soon
+                Coming soon?
               </h3>
               <div className="text-sm text-brand-700 space-y-2">
                 <p>
@@ -290,15 +285,12 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 <li><strong>+10 XP</strong> — Daily participation (first guess)</li>
                 <li><strong>+10 XP</strong> — CLANKTON holder daily bonus</li>
                 <li><strong>+15 XP</strong> — Consecutive day streak</li>
-                <li><strong>+15 XP</strong> — Sharing to Farcaster</li>
+                <li><strong>+15 XP</strong> — Sharing to Farcaster/Base</li>
                 <li><strong>+20 XP</strong> — Referred user makes first guess</li>
                 <li><strong>+20 XP</strong> — Buying a guess pack</li>
                 <li><strong>+50 XP</strong> — Top 10 guesser placement</li>
                 <li><strong>+2,500 XP</strong> — Winning the jackpot</li>
               </ul>
-              <p className="text-sm text-gray-500 italic pt-2">
-                Keep playing to build up your XP before the progression system launches!
-              </p>
             </div>
           </div>
         )}

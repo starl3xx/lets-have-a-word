@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   getOrCreateDailyState,
   submitGuessWithDailyLimits,
@@ -9,6 +9,7 @@ import {
   getTodayUTC,
   DAILY_LIMITS_RULES,
 } from '../lib/daily-limits';
+import * as economyConfig from '../../config/economy';
 import { createRound, resolveRound } from '../lib/rounds';
 import { db } from '../db';
 import { dailyGuessState } from '../db/schema';
@@ -458,6 +459,151 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
 
       // Clean up
       await resolveRound(testRoundId, 99999);
+    });
+  });
+
+  /**
+   * CLANKTON Tier Upgrade Tests
+   * Milestone 5.4c: Market cap tier upgrade mid-day
+   *
+   * These tests verify that CLANKTON holders get upgraded from 2→3 free guesses
+   * when the market cap crosses $250K during the day.
+   */
+  describe('CLANKTON Tier Upgrade Mid-Day', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should upgrade CLANKTON holder from 2 to 3 guesses when tier increases mid-day', async () => {
+      // Simulate LOW tier (mcap < $250K) - holder gets 2 bonus guesses
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+
+      // Create a daily state with CLANKTON bonus at LOW tier
+      // We'll manually insert a row to simulate an existing holder
+      const [initialState] = await db
+        .insert(dailyGuessState)
+        .values({
+          fid: testFid,
+          date: testDate,
+          freeAllocatedBase: 1,
+          freeAllocatedClankton: 2, // LOW tier
+          freeAllocatedShareBonus: 0,
+          freeUsed: 0,
+          paidGuessCredits: 0,
+          paidPacksPurchased: 0,
+          hasSharedToday: false,
+        })
+        .returning();
+
+      expect(initialState.freeAllocatedClankton).toBe(2);
+      expect(getFreeGuessesRemaining(initialState)).toBe(3); // 1 base + 2 CLANKTON
+
+      // Now simulate market cap crossing $250K (HIGH tier)
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+
+      // User opens app again - should get upgraded
+      const upgradedState = await getOrCreateDailyState(testFid, testDate);
+
+      expect(upgradedState.freeAllocatedClankton).toBe(3); // Upgraded!
+      expect(getFreeGuessesRemaining(upgradedState)).toBe(4); // 1 base + 3 CLANKTON
+    });
+
+    it('should NOT downgrade CLANKTON holder if market cap drops below threshold', async () => {
+      // Start with HIGH tier (mcap >= $250K)
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+
+      // Create a daily state with CLANKTON bonus at HIGH tier
+      const [initialState] = await db
+        .insert(dailyGuessState)
+        .values({
+          fid: testFid,
+          date: testDate,
+          freeAllocatedBase: 1,
+          freeAllocatedClankton: 3, // HIGH tier
+          freeAllocatedShareBonus: 0,
+          freeUsed: 0,
+          paidGuessCredits: 0,
+          paidPacksPurchased: 0,
+          hasSharedToday: false,
+        })
+        .returning();
+
+      expect(initialState.freeAllocatedClankton).toBe(3);
+
+      // Simulate market cap dropping below $250K (LOW tier)
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+
+      // User opens app again - should NOT be downgraded
+      const state = await getOrCreateDailyState(testFid, testDate);
+
+      expect(state.freeAllocatedClankton).toBe(3); // Still 3, not downgraded
+      expect(getFreeGuessesRemaining(state)).toBe(4); // 1 base + 3 CLANKTON
+    });
+
+    it('should not affect non-CLANKTON holders when tier changes', async () => {
+      // Simulate LOW tier
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+
+      // Create a daily state for non-holder
+      const [initialState] = await db
+        .insert(dailyGuessState)
+        .values({
+          fid: testFid,
+          date: testDate,
+          freeAllocatedBase: 1,
+          freeAllocatedClankton: 0, // NOT a holder
+          freeAllocatedShareBonus: 0,
+          freeUsed: 0,
+          paidGuessCredits: 0,
+          paidPacksPurchased: 0,
+          hasSharedToday: false,
+        })
+        .returning();
+
+      expect(initialState.freeAllocatedClankton).toBe(0);
+
+      // Simulate market cap crossing $250K (HIGH tier)
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+
+      // User opens app again - should NOT get any bonus (not a holder)
+      const state = await getOrCreateDailyState(testFid, testDate);
+
+      expect(state.freeAllocatedClankton).toBe(0); // Still 0
+      expect(getFreeGuessesRemaining(state)).toBe(1); // Just 1 base
+    });
+
+    it('should upgrade holder who already used some guesses', async () => {
+      // Simulate LOW tier initially
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+
+      // Create a daily state with CLANKTON bonus, some guesses used
+      const [initialState] = await db
+        .insert(dailyGuessState)
+        .values({
+          fid: testFid,
+          date: testDate,
+          freeAllocatedBase: 1,
+          freeAllocatedClankton: 2, // LOW tier
+          freeAllocatedShareBonus: 0,
+          freeUsed: 2, // Used 2 guesses already
+          paidGuessCredits: 0,
+          paidPacksPurchased: 0,
+          hasSharedToday: false,
+        })
+        .returning();
+
+      // Originally had 3 total (1 base + 2 CLANKTON), used 2, so 1 remaining
+      expect(getFreeGuessesRemaining(initialState)).toBe(1);
+
+      // Simulate market cap crossing $250K (HIGH tier)
+      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+
+      // User opens app again - should get upgraded
+      const upgradedState = await getOrCreateDailyState(testFid, testDate);
+
+      expect(upgradedState.freeAllocatedClankton).toBe(3); // Upgraded!
+      // Now has 4 total (1 base + 3 CLANKTON), used 2, so 2 remaining
+      expect(getFreeGuessesRemaining(upgradedState)).toBe(2);
     });
   });
 });

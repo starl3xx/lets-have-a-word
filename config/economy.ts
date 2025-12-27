@@ -35,7 +35,7 @@ export const CLANKTON_BONUS_GUESSES_TIER_HIGH = 3;
 /**
  * Current CLANKTON market cap in USD
  * Set via environment variable CLANKTON_MARKET_CAP_USD
- * Will be replaced with live oracle in future milestone
+ * Updated by live oracle via cron job
  */
 export const CLANKTON_MARKET_CAP_USD = Number(
   process.env.CLANKTON_MARKET_CAP_USD ?? '0'
