@@ -63,7 +63,7 @@ Top 10 rewards are based on **early participation** in each round.
 
 This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.
 
-**Even if you don't win the jackpot, heavy participation can still pay.**
+**Even if you don’t win the jackpot, heavy participation can still pay.**
 
 ## How are Top 10 rewards split?
 
@@ -80,7 +80,7 @@ This distribution is fixed and always applies when a round is resolved, scaling 
 
 ## What does "provably fair" mean?
 
-Before each round begins, Let's Have A Word **commits onchain** to the secret word using a cryptographic hash and hidden salt.
+Before each round begins, Let’s Have A Word **commits onchain** to the secret word using a cryptographic hash and hidden salt.
 
 This commitment guarantees that the **word cannot be changed mid-round** — not by the game, not by the creator, not by anyone. Importantly, **the creator does not know the secret word while the round is live**. The word is only revealed after someone finds it.
 
@@ -89,15 +89,15 @@ When a round ends:
 - Anyone can recompute the hash
 - Anyone can verify the answer was fixed from the very start
 
-You don't have to trust this; you can verify every round yourself at https://www.letshaveaword.fun/verify
+You don’t have to trust this; you can verify every round yourself at https://www.letshaveaword.fun/verify
 
 This commit–reveal process makes every round transparent, verifiable, and fair.
 
 ## How do referrals work?
 
-Share your unique referral link with friends or on the timeline. If anyone who joins using your link *ever* wins a jackpot, you'll automatically receive **10% of that round's prize pool**. You can track your referrals and earnings in the Refer sheet.
+Share your unique referral link with friends or on the timeline. If anyone who joins using your link *ever* wins a jackpot, you’ll automatically receive **10% of that round’s prize pool**. You can track your referrals and earnings in the Refer sheet.
 
-## Why can't I play? / What are the eligibility requirements?
+## Why can’t I play? / What are the eligibility requirements?
 
 To prevent bot abuse, players must meet a minimum **Neynar user score of 0.6 or higher.** This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
 
@@ -119,7 +119,7 @@ https://docs.neynar.com/docs/neynar-user-quality-score#faqs
 You can view all past winning words, round details, and payouts in the Round Archive:
 https://www.letshaveaword.fun/archive
 
-You can also independently verify each round's cryptographic commitment and reveal at:
+You can also independently verify each round’s cryptographic commitment and reveal at:
 https://www.letshaveaword.fun/verify
 
 ## What is XP for?
