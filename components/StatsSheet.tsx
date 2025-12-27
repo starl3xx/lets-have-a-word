@@ -250,7 +250,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
             {/* Share Stats Button */}
             <button onClick={handleShareStats} className="btn-accent w-full flex items-center justify-center gap-2">
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
+              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
               {t('stats.shareButton')}
             </button>
 
