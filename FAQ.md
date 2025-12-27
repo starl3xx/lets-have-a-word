@@ -65,6 +65,19 @@ This incentivizes early guess purchasing during the high-uncertainty phase of th
 
 **Even if you don't win the jackpot, heavy participation can still pay.**
 
+## How are Top 10 rewards split?
+
+The Top 10 pool is split using fixed percentages that scale with the prize size:
+
+- Rank #1: 19%
+- Rank #2: 16%
+- Rank #3: 14%
+- Rank #4: 11%
+- Rank #5: 10%
+- Ranks #6–10: 6% each
+
+This distribution is fixed and always applies when a round is resolved, scaling proportionally with the total Top 10 pool.
+
 ## What does "provably fair" mean?
 
 Before each round begins, Let's Have A Word **commits onchain** to the secret word using a cryptographic hash and hidden salt.
