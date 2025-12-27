@@ -220,7 +220,7 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
  * Used to verify share bonus eligibility
  *
  * @param fid - Farcaster ID of the user
- * @param gameUrl - The game URL that should appear in the cast (e.g., lhaw.xyz)
+ * @param gameUrl - The game URL that should appear in the cast (e.g., letshaveaword.fun)
  * @param lookbackMinutes - How far back to search for casts (default: 10 minutes)
  * @returns The cast hash if found, null otherwise
  */
