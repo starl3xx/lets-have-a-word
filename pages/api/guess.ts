@@ -18,8 +18,13 @@ import {
   INSUFFICIENT_USER_SCORE_ERROR,
   MIN_USER_SCORE,
 } from '../../src/lib/user-quality';
-import { checkRateLimit, RateLimiters } from '../../src/lib/redis';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
+import {
+  checkGuessRateLimit,
+  checkDuplicateGuess,
+  extractRequestMetadata,
+} from '../../src/lib/rateLimit';
+import { AppErrorCodes } from '../../src/lib/appErrors';
 
 /**
  * POST /api/guess
@@ -74,17 +79,21 @@ export default async function handler(
   try {
     const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
 
-    // Milestone 9.0: Rate limiting for guesses (by IP, then by FID once authenticated)
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-      req.socket.remoteAddress ||
-      'unknown';
-    const rateLimitIdentifier = devFid ? `guess:fid:${devFid}` : `guess:ip:${clientIp}`;
-    const rateCheck = await checkRateLimit(RateLimiters.guess, rateLimitIdentifier);
-    if (!rateCheck.success) {
-      res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '30');
-      res.setHeader('X-RateLimit-Remaining', '0');
-      res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
-      return res.status(429).json({ error: 'Too many guesses. Please slow down.' });
+    // Extract request metadata for rate limiting
+    const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
+    const rateLimitFid = devFid || metadataFid;
+
+    // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
+    // Runs BEFORE any DB operations to fail fast and cheap
+    const rateCheck = await checkGuessRateLimit(rateLimitFid, ip, userAgent);
+    if (!rateCheck.allowed) {
+      res.setHeader('Retry-After', rateCheck.retryAfterSeconds?.toString() || '10');
+      return res.status(429).json({
+        ok: false,
+        error: AppErrorCodes.RATE_LIMITED,
+        message: 'Too fast — try again in a moment',
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      });
     }
 
     // Milestone 9.5: Check operational guard (kill switch / dead day)
@@ -293,6 +302,20 @@ export default async function handler(
           } as any);
         }
       }
+    }
+
+    // Milestone 9.6: Check for duplicate submission (same FID + same word within 10s)
+    // This catches accidental double-submits and flaky network retries
+    const duplicateCheck = await checkDuplicateGuess(fid, normalizedWord);
+    if (duplicateCheck.isDuplicate) {
+      console.log(`📝 Duplicate guess ignored: FID=${fid}, word=${normalizedWord}`);
+      // Return a soft success - don't penalize the user, don't consume credits
+      // The guess was already processed, so we return as if it succeeded
+      return res.status(200).json({
+        status: 'duplicate_ignored',
+        message: 'Guess already submitted',
+        word: normalizedWord,
+      } as any);
     }
 
     // Submit the guess with daily limits enforcement (Milestone 2.2)

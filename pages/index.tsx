@@ -744,6 +744,20 @@ function GameContent() {
         try {
           const errorData = await response.json();
 
+          // Milestone 9.6: Handle rate limiting gracefully (calm, non-punitive)
+          if (response.status === 429 || errorData.error === 'RATE_LIMITED') {
+            console.log('[Guess] Rate limited - showing brief message');
+            // Return a soft result - don't throw, don't disrupt UI
+            const rateLimitResult: SubmitGuessResult = {
+              status: 'rate_limited',
+              message: errorData.message || 'Too fast — try again in a moment',
+              retryAfterSeconds: errorData.retryAfterSeconds,
+            };
+            setResult(rateLimitResult);
+            setIsLoading(false);
+            return; // Don't throw, just set result and return
+          }
+
           // Milestone 9.5: Check for operational errors (kill switch, dead day)
           const opError = parseOperationalError(errorData);
           if (opError.isOperational) {
@@ -1066,6 +1080,19 @@ function GameContent() {
           variant: 'warning',
           message: 'This round is already over. A new round will start soon.',
         };
+
+      // Milestone 9.6: Rate limiting - calm, non-punitive message
+      case 'rate_limited':
+        return {
+          variant: 'warning',
+          message: result.message || 'Too fast — try again in a moment',
+        };
+
+      // Milestone 9.6: Duplicate submission - silently absorbed, no banner
+      case 'duplicate_ignored':
+        // Return null to show no banner - the guess was already processed
+        // This prevents confusing the user with double feedback
+        return null;
     }
 
     return null;
