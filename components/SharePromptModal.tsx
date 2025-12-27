@@ -229,7 +229,7 @@ export default function SharePromptModal({
               isSharing ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
-            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />}
+            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />}
             <span>
               {isSharing ? t('shareForGuess.sharing') : t('shareForGuess.ctaButton')}
             </span>

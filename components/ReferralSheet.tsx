@@ -269,7 +269,7 @@ export default function ReferralSheet({
                   onClick={handleShare}
                   className="btn-accent flex-1 flex items-center justify-center gap-2 py-3"
                 >
-                  <img src="/FC-arch-icon.png" alt="Farcaster" className="w-4 h-4" />
+                  <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
                   {t('referral.shareLink')}
                 </button>
 

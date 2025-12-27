@@ -175,7 +175,7 @@ export default function WinnerShareCard({
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5A2CEF'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6A3CFF'}
             >
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-5 h-5" />
+              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
               <span>{t('winner.shareOnFarcaster')}</span>
             </button>
 
