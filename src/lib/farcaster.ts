@@ -226,7 +226,7 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
  */
 export async function verifyRecentShareCast(
   fid: number,
-  gameUrl: string = 'lhaw.xyz',
+  gameUrl: string = 'letshaveaword.fun',
   lookbackMinutes: number = 10
 ): Promise<{ castHash: string; text: string } | null> {
   if (!NEYNAR_API_KEY) {
