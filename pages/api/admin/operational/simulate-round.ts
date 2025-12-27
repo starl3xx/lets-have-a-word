@@ -7,6 +7,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { isAdminFid } from '../me';
 import { createRound, getActiveRound, getRoundById } from '../../../../src/lib/rounds';
 import { submitGuess } from '../../../../src/lib/guesses';
 import { getGuessWords } from '../../../../src/lib/word-lists';
@@ -43,19 +44,6 @@ interface FakeUser {
   username: string;
   walletAddress: string;
 }
-
-// =============================================================================
-// Dev FID Authorization
-// =============================================================================
-
-const AUTHORIZED_FIDS = [
-  12345, // Local dev
-  856764, // Celine (@celinechanged)
-  6596, // Keir (@superkeyra)
-  389273, // LHAW (@letshaveaword)
-  389648, // Starlexx (@starl3xx)
-  1477413, // Bot (@letshaveaword's bot signer)
-];
 
 // =============================================================================
 // Fake User Management
@@ -236,9 +224,9 @@ export default async function handler(
 
   const { devFid, answer, numGuesses = 20, numUsers = 5, skipOnchain = true, dryRun = false } = req.body;
 
-  // Authorize
-  if (!devFid || !AUTHORIZED_FIDS.includes(devFid)) {
-    return res.status(403).json({ error: 'Unauthorized' });
+  // Authorize using centralized admin check
+  if (!devFid || !isAdminFid(devFid)) {
+    return res.status(403).json({ error: 'Admin access required' });
   }
 
   // Validate answer if provided

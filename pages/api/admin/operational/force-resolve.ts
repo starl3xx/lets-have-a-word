@@ -6,22 +6,10 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { isAdminFid } from '../me';
 import { getActiveRound, getRoundById } from '../../../../src/lib/rounds';
 import { submitGuess } from '../../../../src/lib/guesses';
 import { db, users } from '../../../../src/db';
-
-// =============================================================================
-// Dev FID Authorization
-// =============================================================================
-
-const AUTHORIZED_FIDS = [
-  12345, // Local dev
-  856764, // Celine (@celinechanged)
-  6596, // Keir (@superkeyra)
-  389273, // LHAW (@letshaveaword)
-  389648, // Starlexx (@starl3xx)
-  1477413, // Bot (@letshaveaword's bot signer)
-];
 
 // Use a high FID to avoid conflicts with real users
 const FORCE_RESOLVE_FID = 9999999;
@@ -40,9 +28,9 @@ export default async function handler(
 
   const { devFid } = req.body;
 
-  // Authorize
-  if (!devFid || !AUTHORIZED_FIDS.includes(devFid)) {
-    return res.status(403).json({ error: 'Unauthorized' });
+  // Authorize using centralized admin check
+  if (!devFid || !isAdminFid(devFid)) {
+    return res.status(403).json({ error: 'Admin access required' });
   }
 
   try {
