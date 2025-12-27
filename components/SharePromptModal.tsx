@@ -292,7 +292,7 @@ export default function SharePromptModal({
                   ? 'Checking...'
                   : t('shareForGuess.sharing')
                 : hasOpenedComposer
-                  ? 'Check Again'
+                  ? 'Check again'
                   : t('shareForGuess.ctaButton')}
             </span>
           </button>
