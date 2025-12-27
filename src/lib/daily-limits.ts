@@ -22,6 +22,8 @@ import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes
 import {
   getClanktonHolderBonusGuesses,
   CLANKTON_MARKET_CAP_USD,
+  CLANKTON_BONUS_GUESSES_TIER_HIGH,
+  CLANKTON_BONUS_GUESSES_TIER_LOW,
 } from '../../config/economy';
 import {
   logXpEvent,
@@ -162,7 +164,31 @@ export async function getOrCreateDailyState(
     .limit(1);
 
   if (existing.length > 0) {
-    return existing[0];
+    const state = existing[0];
+
+    // Milestone 5.4c upgrade: If CLANKTON holder and market cap tier increased mid-day,
+    // upgrade their allocation. We only upgrade (2→3), never downgrade.
+    // This ensures "if mcap >= $250K at any point in a day, holders get 3 free"
+    if (state.freeAllocatedClankton > 0) {
+      const currentTierGuesses = getClanktonHolderBonusGuesses();
+      if (currentTierGuesses > state.freeAllocatedClankton) {
+        const [upgraded] = await db
+          .update(dailyGuessState)
+          .set({
+            freeAllocatedClankton: currentTierGuesses,
+            updatedAt: new Date(),
+          })
+          .where(eq(dailyGuessState.id, state.id))
+          .returning();
+
+        console.log(
+          `🚀 [CLANKTON] Upgraded FID ${fid} bonus: ${state.freeAllocatedClankton} → ${currentTierGuesses} guesses (mcap tier increased)`
+        );
+        return upgraded;
+      }
+    }
+
+    return state;
   }
 
   // Create new state for today
@@ -317,12 +343,9 @@ export async function canBuyAnotherPack(
 }
 
 /**
- * Award a paid guess pack (stub for Milestone 3.1)
+ * Award a paid guess pack
  * Increments pack count and adds paid guess credits
- *
- * In Milestone 3.1, this will also:
- * - Accept payment (ETH)
- * - Split funds into prize pool and next round seed
+ * Payment processing handled by purchase flow before calling this
  */
 export async function awardPaidPack(
   fid: number,
@@ -356,11 +379,10 @@ export async function awardPaidPack(
 }
 
 /**
- * Award share bonus (stub for Milestone 4.2)
+ * Award share bonus
  * Gives user +1 free guess for sharing a cast
  * Can only be awarded once per day
- *
- * In Milestone 4.2, this will be called when Neynar confirms a share
+ * Called when Neynar confirms a share via webhook
  */
 export async function awardShareBonus(
   fid: number,

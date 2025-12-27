@@ -18,7 +18,8 @@
     "generate-dictionaries": "tsx src/scripts/filter-existing-dictionaries.ts",
     "generate-dictionaries:wordnik": "tsx src/scripts/generate-wordnik-dictionaries.ts",
     "oracle:cron": "tsx src/scripts/oracle-cron.ts",
-    "create-round": "tsx src/scripts/create-round.ts"
+    "create-round": "tsx src/scripts/create-round.ts",
+    "simulate-round": "tsx src/scripts/simulate-round.ts"
   },
   "keywords": [
     "farcaster",

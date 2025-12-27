@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { db } from '../../../src/db';
-import { guesses, rounds, roundPayouts, users } from '../../../src/db/schema';
+import { guesses, rounds, roundPayouts, users, dailyGuessState } from '../../../src/db/schema';
 import { eq, and, sql, count } from 'drizzle-orm';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
@@ -143,9 +143,19 @@ export default async function handler(
 
         // Milestone 6.3: Calculate new stats
 
-        // Free guesses (not paid, not bonus) - approximation since we track isPaid
-        const freeGuessesAllTime = guessesAllTime - paidGuessesAllTime;
-        const bonusGuessesAllTime = 0; // TODO: Track separately in future
+        // Sum bonus guesses from daily state (CLANKTON + share bonus)
+        const bonusStats = await db
+          .select({
+            clanktonTotal: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedClankton}), 0)`,
+            shareBonusTotal: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedShareBonus}), 0)`,
+          })
+          .from(dailyGuessState)
+          .where(eq(dailyGuessState.fid, fid));
+
+        const bonusGuessesAllTime = Number(bonusStats[0]?.clanktonTotal || 0) + Number(bonusStats[0]?.shareBonusTotal || 0);
+
+        // Free guesses = total - paid - bonus
+        const freeGuessesAllTime = Math.max(0, guessesAllTime - paidGuessesAllTime - bonusGuessesAllTime);
 
         // Guesses per round histogram (last 10 rounds for this user)
         const guessHistogram = await db

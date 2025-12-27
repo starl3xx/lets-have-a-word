@@ -94,6 +94,41 @@ export const AnalyticsEventTypes = {
 
   // Milestone 7.5: Pricing State Events
   EARLY_ROUND_PRICING_REINFORCEMENT: 'early_round_pricing_reinforcement',
+
+  // Error & Recovery Events (Bad State Handling)
+  // API Failures
+  API_FAILURE_ROUND_STATE: 'api_failure_round_state',
+  API_FAILURE_USER_STATE: 'api_failure_user_state',
+  API_FAILURE_WHEEL: 'api_failure_wheel',
+  API_FAILURE_GUESS: 'api_failure_guess',
+  API_FAILURE_SHARE: 'api_failure_share',
+  API_FAILURE_PURCHASE: 'api_failure_purchase',
+  API_FAILURE_ARCHIVE: 'api_failure_archive',
+
+  // External Service Failures
+  PRICE_USD_UNAVAILABLE: 'price_usd_unavailable',
+  COINGECKO_RATE_LIMITED: 'coingecko_rate_limited',
+  WALLET_READ_FAILED: 'wallet_read_failed',
+  RPC_FAILED: 'rpc_failed',
+  NEYNAR_API_FAILED: 'neynar_api_failed',
+
+  // Game State Issues
+  ROUND_STALE_DETECTED: 'round_stale_detected',
+  ROUND_STALE_RECOVERY_SUCCESS: 'round_stale_recovery_success',
+  ROUND_STALE_RECOVERY_FAILED: 'round_stale_recovery_failed',
+  ROUND_CLOSED_ON_GUESS: 'round_closed_on_guess',
+
+  // Purchase Issues
+  PURCHASE_TX_REJECTED: 'purchase_tx_rejected',
+  PURCHASE_TX_TIMEOUT: 'purchase_tx_timeout',
+  PURCHASE_CREDITS_DELAYED: 'purchase_credits_delayed',
+
+  // Share Issues
+  SHARE_BONUS_FAILED: 'share_bonus_failed',
+  FARCASTER_CONTEXT_MISSING: 'farcaster_context_missing',
+
+  // Top-10 Lock Event
+  TOP10_LOCK_REACHED: 'top10_lock_reached',
 } as const;
 
 export type AnalyticsEventType = typeof AnalyticsEventTypes[keyof typeof AnalyticsEventTypes];
