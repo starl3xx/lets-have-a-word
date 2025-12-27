@@ -72,7 +72,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "What are free guesses?",
-      answer: (<>Every player gets 1 free guess per day. Free guesses don't cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses <strong>are</strong> counted in Top 10 Early Guessers ranking. Free guesses reset daily at 11:00 UTC.</>),
+      answer: (<>Every player gets 1 free guess per day. Free guesses don’t cost anything (obvs) but can still win the jackpot. You can earn additional free guesses through bonuses. Free guesses <strong>are</strong> counted in Top 10 Early Guessers ranking. Free guesses reset daily at 11:00 UTC.</>),
     },
     {
       question: "How do I get more guesses?",
@@ -148,7 +148,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking</li>
           </ul>
           <p className="mt-2">This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.</p>
-          <p className="mt-2"><strong>Even if you don't win the jackpot, heavy participation can still pay.</strong></p>
+          <p className="mt-2"><strong>Even if you don’t win the jackpot, heavy participation can still pay.</strong></p>
         </>
       ),
     },
@@ -197,7 +197,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: 'What does "provably fair" mean?',
       answer: (
         <>
-          Before each round begins, Let's Have A Word <strong>commits onchain</strong> to the secret word using a cryptographic hash and hidden salt.
+          Before each round begins, Let’s Have A Word <strong>commits onchain</strong> to the secret word using a cryptographic hash and hidden salt.
           <p className="mt-2">This commitment guarantees that the <strong>word cannot be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. The word is only revealed after someone finds it.</p>
           <p className="mt-2">When a round ends:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
@@ -205,7 +205,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Anyone can recompute the hash</li>
             <li>Anyone can verify the answer was fixed from the very start</li>
           </ul>
-          <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
+          <p className="mt-2">You don’t have to trust this; you can verify every round yourself at <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
           <p className="mt-2">This commit–reveal process makes every round transparent, verifiable, and fair.</p>
         </>
       ),
@@ -214,7 +214,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do referrals work?",
       answer: (
         <>
-          Share your unique referral link with friends or on the timeline. If anyone who joins using your link <em>ever</em> wins a jackpot, you'll automatically receive <strong>10% of that round's prize pool</strong>. You can track your referrals and earnings in the Refer sheet.
+          Share your unique referral link with friends or on the timeline. If anyone who joins using your link <em>ever</em> wins a jackpot, you’ll automatically receive <strong>10% of that round’s prize pool</strong>. You can track your referrals and earnings in the Refer sheet.
         </>
       ),
     },
@@ -247,7 +247,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <a href="https://www.letshaveaword.fun/archive" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Round Archive</a>.
           </p>
           <p className="mt-2">
-            You can also independently verify each round's cryptographic commitment and reveal at{" "}
+            You can also independently verify each round’s cryptographic commitment and reveal at{" "}
             <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">letshaveaword.fun/verify</a>.
           </p>
         </>
