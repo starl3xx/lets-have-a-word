@@ -512,7 +512,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [centerIndex, gapIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, hasCentered, animateScrollTo]);
+  }, [centerIndex, gapIndex, gapTopOffset, GAP_HEIGHT, isInitialized, fontsReady, hasCentered, animateScrollTo, containerHeight]);
 
   /**
    * Initialize on mount - only after fonts are ready
