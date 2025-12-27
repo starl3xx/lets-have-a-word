@@ -82,7 +82,9 @@ export type SubmitGuessResult =
   | { status: 'already_guessed_word'; word: string }
   | { status: 'incorrect'; word: string; totalGuessesForUserThisRound: number }
   | { status: 'correct'; word: string; roundId: number; winnerFid: number }
-  | { status: 'no_guesses_left_today' }; // Milestone 2.2: Daily limits enforced
+  | { status: 'no_guesses_left_today' } // Milestone 2.2: Daily limits enforced
+  | { status: 'duplicate_ignored'; word: string; message: string } // Milestone 9.6: Idempotent duplicate handling
+  | { status: 'rate_limited'; message: string; retryAfterSeconds?: number }; // Milestone 9.6: Rate limit soft block
 
 /**
  * Submit Guess Parameters

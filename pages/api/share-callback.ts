@@ -10,6 +10,12 @@ import * as Sentry from '@sentry/nextjs';
 import { awardShareBonus, getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
+import {
+  checkShareRateLimit,
+  logShareReplay,
+  extractRequestMetadata,
+} from '../../src/lib/rateLimit';
+import { AppErrorCodes } from '../../src/lib/appErrors';
 
 export interface ShareCallbackResponse {
   ok: boolean;
@@ -23,6 +29,22 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, message: 'Method not allowed' });
+  }
+
+  // Extract request metadata for rate limiting
+  const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
+  const rateLimitFid = req.body?.fid || metadataFid;
+
+  // Milestone 9.6: Rate limiting (6 requests per 60 seconds)
+  const rateCheck = await checkShareRateLimit(rateLimitFid, ip, userAgent);
+  if (!rateCheck.allowed) {
+    res.setHeader('Retry-After', rateCheck.retryAfterSeconds?.toString() || '60');
+    return res.status(429).json({
+      ok: false,
+      error: AppErrorCodes.RATE_LIMITED,
+      message: 'Too many share requests — try again in a moment',
+      retryAfterSeconds: rateCheck.retryAfterSeconds,
+    } as any);
   }
 
   // Milestone 9.5: Check operational guard (kill switch / dead day)
@@ -49,10 +71,14 @@ export default async function handler(
     const updated = await awardShareBonus(fid);
 
     if (!updated) {
-      // User already claimed share bonus today
-      console.log(`[share-callback] FID ${fid} already claimed share bonus today`);
+      // User already claimed share bonus today - this is idempotent, not an error
+      // Log replay for visibility but return success (non-punitive)
+      console.log(`[share-callback] FID ${fid} already claimed share bonus today (replay)`);
+      logShareReplay(fid);
+
+      // Return ok: true with a calm message - replays are not errors
       return res.status(200).json({
-        ok: false,
+        ok: true,
         message: 'Share bonus already claimed today',
       });
     }

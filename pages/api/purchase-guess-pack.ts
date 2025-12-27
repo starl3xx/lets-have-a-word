@@ -15,10 +15,13 @@ import {
 import {
   invalidateRoundStateCache,
   invalidateUserCaches,
-  checkRateLimit,
-  RateLimiters,
 } from '../../src/lib/redis';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
+import {
+  checkPurchaseRateLimit,
+  extractRequestMetadata,
+} from '../../src/lib/rateLimit';
+import { AppErrorCodes } from '../../src/lib/appErrors';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 
 /**
@@ -43,19 +46,24 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Extract request metadata for rate limiting
+  const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
+  const rateLimitFid = req.body?.fid || metadataFid;
+
+  // Milestone 9.6: Conservative rate limiting (4 requests per 5 minutes)
+  const rateCheck = await checkPurchaseRateLimit(rateLimitFid, ip, userAgent);
+  if (!rateCheck.allowed) {
+    res.setHeader('Retry-After', rateCheck.retryAfterSeconds?.toString() || '300');
+    return res.status(429).json({
+      ok: false,
+      error: AppErrorCodes.RATE_LIMITED,
+      message: 'Too many purchase requests — please wait a moment',
+      retryAfterSeconds: rateCheck.retryAfterSeconds,
+    });
+  }
+
   try {
     const { fid, packCount } = req.body;
-
-    // Milestone 9.0: Rate limiting for pack purchases (by FID)
-    if (fid && typeof fid === 'number') {
-      const rateCheck = await checkRateLimit(RateLimiters.packPurchase, `pack:${fid}`);
-      if (!rateCheck.success) {
-        res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '10');
-        res.setHeader('X-RateLimit-Remaining', '0');
-        res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
-        return res.status(429).json({ error: 'Too many requests. Please wait before purchasing again.' });
-      }
-    }
 
     // Milestone 9.5: Check operational guard (kill switch / dead day)
     const guardBlocked = await applyGameplayGuard(req, res);
