@@ -1127,28 +1127,25 @@ function GameContent() {
       setPendingShareResult(null);
     }
 
-    // Trigger the fade-out of the incorrect banner if showing
-    if (incorrectState === 'active' || incorrectState === 'faded') {
-      // Clear any existing timers to prevent conflicts
-      if (incorrectTimerRef.current) {
-        clearTimeout(incorrectTimerRef.current);
-        incorrectTimerRef.current = null;
-      }
-      if (fadedDismissTimerRef.current) {
-        clearTimeout(fadedDismissTimerRef.current);
-        fadedDismissTimerRef.current = null;
-      }
-      if (fadeoutTimerRef.current) {
-        clearTimeout(fadeoutTimerRef.current);
-        fadeoutTimerRef.current = null;
-      }
-
-      setIncorrectState('fading_out');
-      setTimeout(() => {
-        setIncorrectState('none');
-        setLastSubmittedGuess(null);
-      }, 1000); // Match the fade-out duration
+    // Clear any existing incorrect banner timers to prevent conflicts
+    // Note: We unconditionally clear timers and state to avoid stale closure issues
+    // (the modal may hold an old callback where incorrectState is stale)
+    if (incorrectTimerRef.current) {
+      clearTimeout(incorrectTimerRef.current);
+      incorrectTimerRef.current = null;
     }
+    if (fadedDismissTimerRef.current) {
+      clearTimeout(fadedDismissTimerRef.current);
+      fadedDismissTimerRef.current = null;
+    }
+    if (fadeoutTimerRef.current) {
+      clearTimeout(fadeoutTimerRef.current);
+      fadeoutTimerRef.current = null;
+    }
+
+    // Immediately dismiss the incorrect banner (no fade needed - user took action)
+    setIncorrectState('none');
+    setLastSubmittedGuess(null);
   };
 
   return (
