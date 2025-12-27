@@ -160,9 +160,10 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.free')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.freeGuessesAllTime}</p>
                 </div>
-                <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
+                <div className="bg-white rounded-lg p-3 text-center border border-gray-100" title="CLANKTON holder bonus + share bonus">
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.bonus')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.bonusGuessesAllTime}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">CLANKTON + share</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.paid')}</p>
