@@ -317,12 +317,9 @@ export async function canBuyAnotherPack(
 }
 
 /**
- * Award a paid guess pack (stub for Milestone 3.1)
+ * Award a paid guess pack
  * Increments pack count and adds paid guess credits
- *
- * In Milestone 3.1, this will also:
- * - Accept payment (ETH)
- * - Split funds into prize pool and next round seed
+ * Payment processing handled by purchase flow before calling this
  */
 export async function awardPaidPack(
   fid: number,
@@ -356,11 +353,10 @@ export async function awardPaidPack(
 }
 
 /**
- * Award share bonus (stub for Milestone 4.2)
+ * Award share bonus
  * Gives user +1 free guess for sharing a cast
  * Can only be awarded once per day
- *
- * In Milestone 4.2, this will be called when Neynar confirms a share
+ * Called when Neynar confirms a share via webhook
  */
 export async function awardShareBonus(
   fid: number,

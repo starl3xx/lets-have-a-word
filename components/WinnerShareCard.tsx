@@ -1,7 +1,160 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
+
+/**
+ * Generate winner share card as canvas and trigger download
+ */
+async function generateShareCardImage(
+  winnerWord: string,
+  roundId: number,
+  jackpotEth: string
+): Promise<void> {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas context');
+
+  // Card dimensions (optimized for social sharing)
+  const width = 600;
+  const height = 800;
+  canvas.width = width;
+  canvas.height = height;
+
+  // Background gradient (purple to indigo)
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#9333ea'); // purple-600
+  gradient.addColorStop(0.5, '#7e22ce'); // purple-700
+  gradient.addColorStop(1, '#4338ca'); // indigo-700
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  // Dot pattern overlay
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  for (let x = 0; x < width; x += 30) {
+    for (let y = 0; y < height; y += 30) {
+      ctx.beginPath();
+      ctx.arc(x + 15, y + 15, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Round number badge (top left)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+  const badgeText = `Round #${roundId}`;
+  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+  const badgeWidth = ctx.measureText(badgeText).width + 24;
+  roundedRect(ctx, 24, 24, badgeWidth, 36, 18);
+  ctx.fill();
+  ctx.fillStyle = 'white';
+  ctx.fillText(badgeText, 36, 48);
+
+  // Celebration emoji
+  ctx.font = '100px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎉', width / 2, 180);
+
+  // "Congratulations!" text
+  ctx.font = 'bold 42px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  ctx.fillText('Congratulations!', width / 2, 260);
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Winning word container
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+  roundedRect(ctx, 50, 300, width - 100, 140, 16);
+  ctx.fill();
+
+  // "You found the word" label
+  ctx.font = '18px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.fillText('You found the word', width / 2, 345);
+
+  // Winning word
+  ctx.font = 'bold 56px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'white';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  ctx.letterSpacing = '0.15em';
+  ctx.fillText(winnerWord.toUpperCase(), width / 2, 410);
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Jackpot container (gold gradient)
+  const jackpotGradient = ctx.createLinearGradient(50, 480, width - 50, 580);
+  jackpotGradient.addColorStop(0, '#facc15'); // yellow-400
+  jackpotGradient.addColorStop(1, '#f97316'); // orange-500
+  ctx.fillStyle = jackpotGradient;
+  roundedRect(ctx, 50, 480, width - 100, 120, 16);
+  ctx.fill();
+
+  // "Jackpot Won" label
+  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#713f12'; // yellow-900
+  ctx.fillText('Jackpot Won', width / 2, 525);
+
+  // Jackpot amount
+  const jackpotDisplay = parseFloat(jackpotEth).toFixed(4);
+  ctx.font = 'bold 48px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`${jackpotDisplay} ETH`, width / 2, 575);
+
+  // Branding footer
+  ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillText("Let's Have A Word", width / 2, 700);
+
+  ctx.font = '16px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.fillText('lets-have-a-word.vercel.app', width / 2, 730);
+
+  // Convert to blob and download
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => {
+      if (b) resolve(b);
+      else reject(new Error('Failed to create image blob'));
+    }, 'image/png');
+  });
+
+  // Create download link
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `winner-round-${roundId}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Helper to draw rounded rectangles
+ */
+function roundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
 
 interface WinnerShareCardProps {
   winnerWord: string;
@@ -89,12 +242,20 @@ export default function WinnerShareCard({
   };
 
   /**
-   * Handle save/download share card (placeholder for future canvas export)
+   * Handle save/download share card as PNG image
    */
-  const handleSaveCard = () => {
+  const handleSaveCard = async () => {
     void haptics.cardSaved();
-    // TODO: Implement canvas-based share card export
-    console.log('[WinnerShareCard] Save card triggered');
+    setError(null);
+
+    try {
+      console.log('[WinnerShareCard] Generating share card image...');
+      await generateShareCardImage(winnerWord, roundId, jackpotEth);
+      console.log('[WinnerShareCard] Share card downloaded successfully');
+    } catch (err) {
+      console.error('[WinnerShareCard] Error generating share card:', err);
+      setError('Failed to generate share card');
+    }
   };
 
   return (
@@ -187,6 +348,15 @@ export default function WinnerShareCard({
             >
               <span className="text-xl">𝕏</span>
               <span>{t('winner.shareOnX')}</span>
+            </button>
+
+            {/* Save Image Button */}
+            <button
+              onClick={handleSaveCard}
+              className="w-full py-3 px-6 rounded-xl font-semibold text-white/90 bg-white/10 hover:bg-white/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <span>📥</span>
+              <span>Save Image</span>
             </button>
           </div>
 
