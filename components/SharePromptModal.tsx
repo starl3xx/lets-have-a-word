@@ -122,10 +122,54 @@ export default function SharePromptModal({
   // Memoize the share text so it doesn't change during the modal session
   const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
 
+  // State for verification flow
+  const [hasOpenedComposer, setHasOpenedComposer] = useState(false);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const MAX_VERIFICATION_ATTEMPTS = 5;
+
   /**
-   * Handle share button click
+   * Verify the cast was posted
    */
-  const handleShare = async () => {
+  const verifyShare = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/share-callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fid }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.verified !== false) {
+        console.log('[SharePromptModal] Share bonus awarded!', data);
+        void haptics.shareCompleted();
+        onShareSuccess();
+        onClose();
+        return true;
+      } else if (data.verified === false) {
+        // Cast not found yet - can retry
+        console.log('[SharePromptModal] Cast not verified yet:', data.message);
+        return false;
+      } else if (data.message?.includes('already claimed')) {
+        // Already has bonus - close modal
+        console.log('[SharePromptModal] Already claimed today');
+        onClose();
+        return true;
+      } else {
+        setError(data.message || 'Failed to verify share');
+        return false;
+      }
+    } catch (err) {
+      console.error('[SharePromptModal] Error verifying share:', err);
+      setError('Failed to verify share');
+      return false;
+    }
+  };
+
+  /**
+   * Handle opening the share composer
+   */
+  const handleOpenComposer = async () => {
     if (!fid) {
       setError('Unable to share: Not authenticated');
       return;
@@ -138,47 +182,57 @@ export default function SharePromptModal({
     try {
       console.log('[SharePromptModal] Opening composer with text:', shareText);
 
-      const result = await sdk.actions.openUrl({
+      await sdk.actions.openUrl({
         url: `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}`,
       });
 
-      console.log('[SharePromptModal] Composer result:', result);
+      console.log('[SharePromptModal] Composer opened');
+      setHasOpenedComposer(true);
 
+      // Wait for cast to propagate then verify
       setTimeout(async () => {
-        try {
-          const response = await fetch('/api/share-callback', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fid,
-              castHash: 'unknown',
-            }),
-          });
-
-          const data = await response.json();
-
-          if (data.ok) {
-            console.log('[SharePromptModal] Share bonus awarded!', data);
-            void haptics.shareCompleted();
-            onShareSuccess();
-            onClose();
-          } else {
-            console.log('[SharePromptModal] Share bonus not awarded:', data.message);
-            setError(data.message || t('shareForGuess.alreadyClaimed'));
-          }
-        } catch (err) {
-          console.error('[SharePromptModal] Error calling share callback:', err);
-          setError('Failed to verify share');
-        } finally {
-          setIsSharing(false);
+        setVerificationAttempts(1);
+        const verified = await verifyShare();
+        if (!verified) {
+          setError("We couldn't find your cast yet. Click 'Check Again' after posting.");
         }
-      }, 2000);
+        setIsSharing(false);
+      }, 4000);
     } catch (err) {
       console.error('[SharePromptModal] Error opening composer:', err);
       setError('Failed to open share dialog');
       setIsSharing(false);
+    }
+  };
+
+  /**
+   * Handle retry verification
+   */
+  const handleRetryVerification = async () => {
+    if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+      setError('Maximum attempts reached. Please try again later.');
+      return;
+    }
+
+    setIsSharing(true);
+    setError(null);
+    setVerificationAttempts((prev) => prev + 1);
+
+    const verified = await verifyShare();
+    if (!verified && verificationAttempts < MAX_VERIFICATION_ATTEMPTS - 1) {
+      setError("Cast not found yet. Make sure you posted, then try again.");
+    }
+    setIsSharing(false);
+  };
+
+  /**
+   * Main share handler - either opens composer or retries verification
+   */
+  const handleShare = async () => {
+    if (hasOpenedComposer) {
+      await handleRetryVerification();
+    } else {
+      await handleOpenComposer();
     }
   };
 
@@ -229,9 +283,17 @@ export default function SharePromptModal({
               isSharing ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
-            {!isSharing && <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />}
+            {!isSharing && !hasOpenedComposer && (
+              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+            )}
             <span>
-              {isSharing ? t('shareForGuess.sharing') : t('shareForGuess.ctaButton')}
+              {isSharing
+                ? hasOpenedComposer
+                  ? 'Checking...'
+                  : t('shareForGuess.sharing')
+                : hasOpenedComposer
+                  ? 'Check Again'
+                  : t('shareForGuess.ctaButton')}
             </span>
           </button>
 
