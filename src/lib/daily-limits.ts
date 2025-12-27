@@ -22,6 +22,8 @@ import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes
 import {
   getClanktonHolderBonusGuesses,
   CLANKTON_MARKET_CAP_USD,
+  CLANKTON_BONUS_GUESSES_TIER_HIGH,
+  CLANKTON_BONUS_GUESSES_TIER_LOW,
 } from '../../config/economy';
 import {
   logXpEvent,
@@ -162,7 +164,31 @@ export async function getOrCreateDailyState(
     .limit(1);
 
   if (existing.length > 0) {
-    return existing[0];
+    const state = existing[0];
+
+    // Milestone 5.4c upgrade: If CLANKTON holder and market cap tier increased mid-day,
+    // upgrade their allocation. We only upgrade (2→3), never downgrade.
+    // This ensures "if mcap >= $250K at any point in a day, holders get 3 free"
+    if (state.freeAllocatedClankton > 0) {
+      const currentTierGuesses = getClanktonHolderBonusGuesses();
+      if (currentTierGuesses > state.freeAllocatedClankton) {
+        const [upgraded] = await db
+          .update(dailyGuessState)
+          .set({
+            freeAllocatedClankton: currentTierGuesses,
+            updatedAt: new Date(),
+          })
+          .where(eq(dailyGuessState.id, state.id))
+          .returning();
+
+        console.log(
+          `🚀 [CLANKTON] Upgraded FID ${fid} bonus: ${state.freeAllocatedClankton} → ${currentTierGuesses} guesses (mcap tier increased)`
+        );
+        return upgraded;
+      }
+    }
+
+    return state;
   }
 
   // Create new state for today
