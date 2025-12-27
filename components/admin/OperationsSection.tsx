@@ -225,6 +225,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [simUsers, setSimUsers] = useState("5")
   const [simSkipOnchain, setSimSkipOnchain] = useState(true)
   const [simLoading, setSimLoading] = useState(false)
+  const [forceResolveLoading, setForceResolveLoading] = useState(false)
   const [simResult, setSimResult] = useState<{
     success: boolean;
     message: string;
@@ -548,6 +549,38 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setError(err.message)
     } finally {
       setSimLoading(false)
+    }
+  }
+
+  const handleForceResolve = async () => {
+    if (!user?.fid) return
+
+    if (!confirm('Are you sure you want to force-resolve the active round? This will end the round immediately.')) {
+      return
+    }
+
+    try {
+      setForceResolveLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/admin/operational/force-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ devFid: user.fid }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Force resolve failed')
+      }
+
+      setSuccess(`Round ${data.roundId} resolved. Answer was: ${data.answer}`)
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setForceResolveLoading(false)
     }
   }
 
@@ -1142,9 +1175,29 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             </div>
 
             {status?.activeRoundId && (
-              <div style={styles.alert('warning')}>
-                An active round exists (Round #{status.activeRoundId}).
-                Resolve or wait for it to complete before running a simulation.
+              <div style={{
+                ...styles.alert('warning'),
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span>
+                  An active round exists (Round #{status.activeRoundId}).
+                  Resolve it first to run a simulation.
+                </span>
+                <button
+                  onClick={handleForceResolve}
+                  style={{
+                    ...styles.btnDanger,
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    marginLeft: '12px',
+                    flexShrink: 0,
+                  }}
+                  disabled={forceResolveLoading}
+                >
+                  {forceResolveLoading ? 'Resolving...' : 'Force Resolve'}
+                </button>
               </div>
             )}
 
