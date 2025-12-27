@@ -51,7 +51,19 @@ If the winner *does not* have a referrer:
 - 7.5% is added to the Top 10 pool
 - 2.5% seeds the next round’s prize pool
 
-Self-referrals are blocked. Null or zero referrers are treated as “no referrer.”
+Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
+
+## How do Top 10 rewards work?
+
+Top 10 rewards are based on **early participation** in each round.
+
+- Only the first 750 guesses in a round are eligible for Top 10 ranking
+- After guess #750, Top 10 locks
+- Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking
+
+This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.
+
+**Even if you don't win the jackpot, heavy participation can still pay.**
 
 ## What does "provably fair" mean?
 

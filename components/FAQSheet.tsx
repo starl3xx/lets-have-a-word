@@ -148,6 +148,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking</li>
           </ul>
           <p className="mt-2">This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.</p>
+          <p className="mt-2"><strong>Even if you don't win the jackpot, heavy participation can still pay.</strong></p>
         </>
       ),
     },
