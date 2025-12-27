@@ -215,4 +215,80 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
   }
 }
 
+/**
+ * Verify that a user recently cast content mentioning the game
+ * Used to verify share bonus eligibility
+ *
+ * @param fid - Farcaster ID of the user
+ * @param gameUrl - The game URL that should appear in the cast (e.g., lhaw.xyz)
+ * @param lookbackMinutes - How far back to search for casts (default: 10 minutes)
+ * @returns The cast hash if found, null otherwise
+ */
+export async function verifyRecentShareCast(
+  fid: number,
+  gameUrl: string = 'lhaw.xyz',
+  lookbackMinutes: number = 10
+): Promise<{ castHash: string; text: string } | null> {
+  if (!NEYNAR_API_KEY) {
+    console.warn('[verifyRecentShareCast] NEYNAR_API_KEY not set, cannot verify cast');
+    return null;
+  }
+
+  try {
+    // Get user's recent casts using Neynar feed API
+    const response = await neynarClient.fetchFeed({
+      feedType: 'filter',
+      filterType: 'fids',
+      fids: [fid],
+      limit: 20, // Check last 20 casts
+    });
+
+    if (!response.casts || response.casts.length === 0) {
+      console.log(`[verifyRecentShareCast] No casts found for FID ${fid}`);
+      return null;
+    }
+
+    const cutoffTime = new Date(Date.now() - lookbackMinutes * 60 * 1000);
+
+    // Look for a cast containing the game URL within the time window
+    for (const cast of response.casts) {
+      const castTime = new Date(cast.timestamp);
+
+      // Skip casts older than the lookback window
+      if (castTime < cutoffTime) {
+        continue;
+      }
+
+      // Check if cast text contains the game URL (case-insensitive)
+      const textLower = (cast.text || '').toLowerCase();
+      if (textLower.includes(gameUrl.toLowerCase()) || textLower.includes("let's have a word")) {
+        console.log(`[verifyRecentShareCast] Found valid share cast for FID ${fid}: ${cast.hash}`);
+        return {
+          castHash: cast.hash,
+          text: cast.text || '',
+        };
+      }
+
+      // Also check embeds for the game URL
+      if (cast.embeds) {
+        for (const embed of cast.embeds) {
+          if ('url' in embed && embed.url?.toLowerCase().includes(gameUrl.toLowerCase())) {
+            console.log(`[verifyRecentShareCast] Found valid share cast (via embed) for FID ${fid}: ${cast.hash}`);
+            return {
+              castHash: cast.hash,
+              text: cast.text || '',
+            };
+          }
+        }
+      }
+    }
+
+    console.log(`[verifyRecentShareCast] No matching cast found for FID ${fid} in last ${lookbackMinutes} minutes`);
+    return null;
+  } catch (error) {
+    console.error(`[verifyRecentShareCast] Error verifying cast for FID ${fid}:`, error);
+    return null;
+  }
+}
+
 export { neynarClient };
