@@ -80,9 +80,9 @@ export default async function handler(
     }
 
     // Milestone 9.6: Actually verify the cast exists on Farcaster
-    // Look for a cast mentioning lhaw.xyz in the last 10 minutes
+    // Look for a cast mentioning letshaveaword.fun in the last 10 minutes
     console.log(`[share-callback] Verifying cast for FID ${fid}...`);
-    const verifiedCast = await verifyRecentShareCast(fid, 'lhaw.xyz', 10);
+    const verifiedCast = await verifyRecentShareCast(fid, 'letshaveaword.fun', 10);
 
     if (!verifiedCast) {
       // Cast not found - could be timing issue or user didn't actually post

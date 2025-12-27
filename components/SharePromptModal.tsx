@@ -194,7 +194,7 @@ export default function SharePromptModal({
         setVerificationAttempts(1);
         const verified = await verifyShare();
         if (!verified) {
-          setError("We couldn't find your cast yet. Click 'Check Again' after posting.");
+          setError("Couldn't find your cast yet.");
         }
         setIsSharing(false);
       }, 4000);
@@ -220,7 +220,7 @@ export default function SharePromptModal({
 
     const verified = await verifyShare();
     if (!verified && verificationAttempts < MAX_VERIFICATION_ATTEMPTS - 1) {
-      setError("Cast not found yet. Make sure you posted, then try again.");
+      setError("Couldn't find your cast yet.");
     }
     setIsSharing(false);
   };
