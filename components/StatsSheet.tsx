@@ -169,12 +169,6 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.paidGuessesAllTime}</p>
                 </div>
               </div>
-              {stats.medianGuessesToSolve !== null && (
-                <div className="bg-white rounded-lg p-3 text-center mt-2 border border-gray-100">
-                  <p className="text-xs text-gray-600">{t('stats.guessDistribution.median')}</p>
-                  <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.medianGuessesToSolve}</p>
-                </div>
-              )}
             </div>
 
             {/* Guesses per Round Histogram */}
