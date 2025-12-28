@@ -68,43 +68,26 @@ interface FakeUser {
 
 const FAKE_FID_BASE = 9000000;
 
-// Use a prefix that creates valid non-precompile addresses
-// Precompiles are 0x01-0x09, so we use 0xDEAD as prefix
-const FAKE_WALLET_PREFIX = 'DEAD';
-
 function generateFakeUsers(count: number): FakeUser[] {
   const fakeUsers: FakeUser[] = [];
-  console.log(`[simulate] Generating ${count} fake users with FAKE_WALLET_PREFIX="${FAKE_WALLET_PREFIX}"`);
+  console.log(`[simulate] Generating ${count} fake users with random wallets`);
 
   for (let i = 0; i < count; i++) {
-    // Generate addresses like 0xdead000000000000000000000000000000000001
-    // IMPORTANT: Must be all lowercase before ethers.getAddress() to avoid checksum errors
-    const hexSuffix = (i + 1).toString(16).padStart(36, '0');
-    const rawAddress = `0x${FAKE_WALLET_PREFIX}${hexSuffix}`.toLowerCase();
+    // Use ethers.Wallet.createRandom() to generate guaranteed valid addresses
+    // This completely avoids manual hex string construction and checksum issues
+    const randomWallet = ethers.Wallet.createRandom();
+    const walletAddress = randomWallet.address; // Already properly checksummed
 
-    console.log(`[simulate] User ${i}: raw="${rawAddress}"`);
-
-    // ethers.getAddress() will convert all-lowercase to proper EIP-55 checksum
-    const checksumAddress = ethers.getAddress(rawAddress);
-
-    console.log(`[simulate] User ${i}: checksum="${checksumAddress}"`);
+    console.log(`[simulate] User ${i}: wallet="${walletAddress}"`);
 
     fakeUsers.push({
       fid: FAKE_FID_BASE + i,
       username: `sim_user_${i}`,
-      walletAddress: checksumAddress,
+      walletAddress,
     });
   }
 
-  // Validate all addresses before returning
-  console.log(`[simulate] Validating ${fakeUsers.length} fake user addresses...`);
-  for (const user of fakeUsers) {
-    if (!ethers.isAddress(user.walletAddress)) {
-      throw new Error(`Generated invalid address for ${user.username}: ${user.walletAddress}`);
-    }
-  }
-  console.log(`[simulate] All fake user addresses validated successfully`);
-
+  console.log(`[simulate] Generated ${fakeUsers.length} fake users with valid addresses`);
   return fakeUsers;
 }
 
