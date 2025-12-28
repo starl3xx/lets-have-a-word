@@ -37,6 +37,17 @@ export function getBaseProvider(): ethers.Provider {
 }
 
 /**
+ * Get Base Sepolia RPC provider
+ * For testnet simulations and testing
+ *
+ * @returns Ethers provider for Base Sepolia network
+ */
+export function getSepoliaProvider(): ethers.Provider {
+  const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
+  return new ethers.JsonRpcProvider(rpcUrl);
+}
+
+/**
  * Check if wallet has CLANKTON bonus
  * Milestone 4.1: Onchain balance verification
  *

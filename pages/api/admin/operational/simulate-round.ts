@@ -13,7 +13,8 @@ import { submitGuess } from '../../../../src/lib/guesses';
 import { getGuessWords } from '../../../../src/lib/word-lists';
 import { db, users, dailyGuessState } from '../../../../src/db';
 import { eq } from 'drizzle-orm';
-import { purchaseGuessesOnChain } from '../../../../src/lib/jackpot-contract';
+import { purchaseGuessesOnSepolia } from '../../../../src/lib/jackpot-contract';
+import { setSepoliaSimulationMode } from '../../../../src/lib/economics';
 import { isDevModeEnabled, getDevFixedSolution } from '../../../../src/lib/devGameState';
 
 // Base pack price for simulation (0.0003 ETH)
@@ -120,120 +121,130 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
   log('Starting round simulation...');
   log(`Config: answer=${config.answer || '(random)'}, guesses=${config.numGuesses}, users=${config.numUsers}, skipOnchain=${config.skipOnchain}`);
 
-  if (config.dryRun) {
-    log('DRY RUN MODE - No changes will be made');
-    return {
-      success: true,
-      message: 'Dry run completed - no changes made',
-      dryRun: true,
-      logs,
-    };
-  }
+  // Enable Sepolia simulation mode for all contract operations
+  setSepoliaSimulationMode(true);
+  log('Sepolia simulation mode: ENABLED');
 
-  // Sepolia simulation bypasses active round check - it's independent of production state
-  log('Sepolia simulation - bypassing active round check');
+  try {
+    if (config.dryRun) {
+      log('DRY RUN MODE - No changes will be made');
+      return {
+        success: true,
+        message: 'Dry run completed - no changes made',
+        dryRun: true,
+        logs,
+      };
+    }
 
-  // Dev mode check: if dev mode is enabled, submitGuess uses fixed solution (CRANE)
-  // So we need to force the round answer to match, or the winning guess will fail
-  let effectiveAnswer = config.answer;
-  if (isDevModeEnabled()) {
-    const devSolution = getDevFixedSolution();
-    log(`Dev mode enabled - forcing answer to "${devSolution}" (submitGuess uses fixed solution)`);
-    effectiveAnswer = devSolution;
-  }
+    // Sepolia simulation bypasses active round check - it's independent of production state
+    log('Sepolia simulation - bypassing active round check');
 
-  // Generate fake users
-  const fakeUsers = generateFakeUsers(config.numUsers);
-  await ensureFakeUsersExist(fakeUsers);
-  log(`Created ${fakeUsers.length} fake users (FIDs ${FAKE_FID_BASE} - ${FAKE_FID_BASE + fakeUsers.length - 1})`);
+    // Dev mode check: if dev mode is enabled, submitGuess uses fixed solution (CRANE)
+    // So we need to force the round answer to match, or the winning guess will fail
+    let effectiveAnswer = config.answer;
+    if (isDevModeEnabled()) {
+      const devSolution = getDevFixedSolution();
+      log(`Dev mode enabled - forcing answer to "${devSolution}" (submitGuess uses fixed solution)`);
+      effectiveAnswer = devSolution;
+    }
 
-  // Create round (bypass active round check for Sepolia simulation)
-  log('Creating new round...');
-  const round = await createRound({
-    forceAnswer: effectiveAnswer,
-    skipOnChainCommitment: config.skipOnchain,
-    skipActiveRoundCheck: true,
-  });
+    // Generate fake users
+    const fakeUsers = generateFakeUsers(config.numUsers);
+    await ensureFakeUsersExist(fakeUsers);
+    log(`Created ${fakeUsers.length} fake users (FIDs ${FAKE_FID_BASE} - ${FAKE_FID_BASE + fakeUsers.length - 1})`);
 
-  log(`Round created: ID=${round.id}, Answer=${round.answer}`);
+    // Create round (bypass active round check for Sepolia simulation)
+    log('Creating new round...');
+    const round = await createRound({
+      forceAnswer: effectiveAnswer,
+      skipOnChainCommitment: config.skipOnchain,
+      skipActiveRoundCheck: true,
+    });
 
-  // Prepare wrong guesses
-  const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
-  log(`Selected ${wrongWords.length} wrong words to guess`);
+    log(`Round created: ID=${round.id}, Answer=${round.answer}`);
 
-  // Simulate wrong guesses with onchain pack purchases
-  let guessCount = 0;
-  let paidGuessCount = 0;
-  for (const word of wrongWords) {
-    const user = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
-    const isPaidGuess = Math.random() > 0.7; // ~30% paid guesses
+    // Prepare wrong guesses
+    const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
+    log(`Selected ${wrongWords.length} wrong words to guess`);
 
-    // For paid guesses, execute onchain purchase first
-    // CRITICAL: Only mark as paid in DB if onchain purchase succeeds
-    // This prevents DB/contract balance mismatch
-    let actuallyPaid = false;
-    if (isPaidGuess) {
-      try {
-        await purchaseGuessesOnChain(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
-        actuallyPaid = true;
-        paidGuessCount++;
-        log(`Onchain purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
-      } catch (err: any) {
-        log(`Warning: Onchain purchase failed for ${user.username}: ${err.message}`);
-        log(`  → Submitting as free guess to maintain DB/contract sync`);
+    // Simulate wrong guesses with onchain pack purchases
+    let guessCount = 0;
+    let paidGuessCount = 0;
+    for (const word of wrongWords) {
+      const user = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
+      const isPaidGuess = Math.random() > 0.7; // ~30% paid guesses
+
+      // For paid guesses, execute onchain purchase on Sepolia first
+      // CRITICAL: Only mark as paid in DB if onchain purchase succeeds
+      // This prevents DB/contract balance mismatch
+      let actuallyPaid = false;
+      if (isPaidGuess) {
+        try {
+          await purchaseGuessesOnSepolia(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
+          actuallyPaid = true;
+          paidGuessCount++;
+          log(`Sepolia purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
+        } catch (err: any) {
+          log(`Warning: Sepolia purchase failed for ${user.username}: ${err.message}`);
+          log(`  → Submitting as free guess to maintain DB/contract sync`);
+        }
+      }
+
+      await submitGuess({
+        fid: user.fid,
+        word,
+        isPaidGuess: actuallyPaid, // Only paid if onchain succeeded
+      });
+      guessCount++;
+
+      if (guessCount % 10 === 0) {
+        log(`Progress: ${guessCount}/${wrongWords.length} guesses submitted (${paidGuessCount} paid)`);
       }
     }
 
-    await submitGuess({
-      fid: user.fid,
-      word,
-      isPaidGuess: actuallyPaid, // Only paid if onchain succeeded
+    log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} onchain purchases)`);
+
+    // Winning guess
+    const winner = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
+    log(`Submitting winning guess from ${winner.username} (FID ${winner.fid})`);
+
+    const winResult = await submitGuess({
+      fid: winner.fid,
+      word: round.answer,
+      isPaidGuess: false,
     });
-    guessCount++;
 
-    if (guessCount % 10 === 0) {
-      log(`Progress: ${guessCount}/${wrongWords.length} guesses submitted (${paidGuessCount} paid)`);
+    if (winResult.status === 'correct') {
+      log(`Round resolved! Winner: FID ${winResult.winnerFid}`);
+    } else {
+      log(`Unexpected result: ${winResult.status}`);
     }
+
+    // Get final round state
+    const finalRound = await getRoundById(round.id);
+
+    // Cleanup
+    await cleanupFakeUsers(fakeUsers);
+    log('Cleaned up fake user daily states');
+
+    log('Simulation complete!');
+
+    return {
+      success: true,
+      message: `Simulation complete. Round ${round.id} resolved with winner FID ${winResult.winnerFid || winner.fid}`,
+      roundId: round.id,
+      answer: round.answer,
+      totalGuesses: guessCount + 1,
+      winnerFid: winResult.winnerFid || winner.fid,
+      commitHash: round.commitHash,
+      salt: round.salt,
+      logs,
+    };
+  } finally {
+    // Always disable Sepolia mode when simulation ends
+    setSepoliaSimulationMode(false);
+    log('Sepolia simulation mode: DISABLED');
   }
-
-  log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} onchain purchases)`);
-
-  // Winning guess
-  const winner = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
-  log(`Submitting winning guess from ${winner.username} (FID ${winner.fid})`);
-
-  const winResult = await submitGuess({
-    fid: winner.fid,
-    word: round.answer,
-    isPaidGuess: false,
-  });
-
-  if (winResult.status === 'correct') {
-    log(`Round resolved! Winner: FID ${winResult.winnerFid}`);
-  } else {
-    log(`Unexpected result: ${winResult.status}`);
-  }
-
-  // Get final round state
-  const finalRound = await getRoundById(round.id);
-
-  // Cleanup
-  await cleanupFakeUsers(fakeUsers);
-  log('Cleaned up fake user daily states');
-
-  log('Simulation complete!');
-
-  return {
-    success: true,
-    message: `Simulation complete. Round ${round.id} resolved with winner FID ${winResult.winnerFid || winner.fid}`,
-    roundId: round.id,
-    answer: round.answer,
-    totalGuesses: guessCount + 1,
-    winnerFid: winResult.winnerFid || winner.fid,
-    commitHash: round.commitHash,
-    salt: round.salt,
-    logs,
-  };
 }
 
 // =============================================================================

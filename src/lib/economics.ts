@@ -5,10 +5,29 @@ import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
 import { awardTopTenGuesserXp } from './xp';
 import { ethers } from 'ethers';
-import { resolveRoundWithPayoutsOnChain, getCurrentJackpotOnChain, type PayoutRecipient } from './jackpot-contract';
+import {
+  resolveRoundWithPayoutsOnChain,
+  resolveRoundWithPayoutsOnSepolia,
+  getCurrentJackpotOnChain,
+  getCurrentJackpotOnSepolia,
+  type PayoutRecipient,
+} from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+
+// Global flag for Sepolia simulation mode
+// When true, contract queries use Sepolia RPC instead of mainnet
+let sepoliaSimulationMode = false;
+
+export function setSepoliaSimulationMode(enabled: boolean): void {
+  sepoliaSimulationMode = enabled;
+  console.log(`[economics] Sepolia simulation mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+}
+
+export function isSepoliaSimulationMode(): boolean {
+  return sepoliaSimulationMode;
+}
 
 /**
  * Economics Module - Milestone 3.1
@@ -29,7 +48,10 @@ const SEED_CAP_ETH = '0.03'; // 0.03 ETH cap for seed accumulation (updated from
  * @returns The synced prize pool amount in ETH
  */
 export async function syncPrizePoolFromContract(roundId: number): Promise<string> {
-  const contractJackpot = await getCurrentJackpotOnChain();
+  // Use Sepolia or mainnet based on simulation mode
+  const contractJackpot = sepoliaSimulationMode
+    ? await getCurrentJackpotOnSepolia()
+    : await getCurrentJackpotOnChain();
 
   await db
     .update(rounds)
@@ -80,10 +102,13 @@ export async function applyPaidGuessEconomicEffects(
   }
 
   // CRITICAL: Sync prize pool from contract (single source of truth)
+  // Use Sepolia or mainnet based on simulation mode
   let newPrizePool: string;
   try {
-    newPrizePool = await getCurrentJackpotOnChain();
-    console.log(`[economics] Synced prize pool from contract: ${newPrizePool} ETH`);
+    newPrizePool = sepoliaSimulationMode
+      ? await getCurrentJackpotOnSepolia()
+      : await getCurrentJackpotOnChain();
+    console.log(`[economics] Synced prize pool from contract${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${newPrizePool} ETH`);
   } catch (error) {
     // Fallback to local calculation if contract query fails
     console.warn(`[economics] Failed to sync from contract, using local calculation:`, error);
@@ -280,18 +305,20 @@ export async function resolveRoundAndCreatePayouts(
 
   // CRITICAL: Use actual contract balance for payouts, not DB value
   // This prevents payout failures when DB and contract are out of sync
-  // (e.g., Sepolia simulations, failed onchain purchases, etc.)
+  // Use Sepolia or mainnet based on simulation mode
   let jackpotEth: number;
   let jackpotWei: bigint;
 
   try {
-    const contractJackpotEth = await getCurrentJackpotOnChain();
+    const contractJackpotEth = sepoliaSimulationMode
+      ? await getCurrentJackpotOnSepolia()
+      : await getCurrentJackpotOnChain();
     jackpotEth = parseFloat(contractJackpotEth);
     jackpotWei = ethers.parseEther(contractJackpotEth);
 
     const dbJackpotEth = parseFloat(round.prizePoolEth);
     if (Math.abs(jackpotEth - dbJackpotEth) > 0.0001) {
-      console.warn(`[economics] ⚠️ Jackpot mismatch: DB=${dbJackpotEth} ETH, Contract=${jackpotEth} ETH`);
+      console.warn(`[economics] ⚠️ Jackpot mismatch: DB=${dbJackpotEth} ETH, Contract${sepoliaSimulationMode ? ' (Sepolia)' : ''}=${jackpotEth} ETH`);
       console.warn(`[economics] Using contract balance for payouts to prevent CALL_EXCEPTION`);
     }
   } catch (error) {
@@ -446,10 +473,12 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   }
 
-  // Execute onchain payouts
+  // Execute onchain payouts (use Sepolia or mainnet based on simulation mode)
   try {
-    const txHash = await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
-    console.log(`[economics] Onchain payouts executed: ${txHash}`);
+    const txHash = sepoliaSimulationMode
+      ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
+      : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
+    console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${txHash}`);
   } catch (error) {
     console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
     throw error; // Re-throw to prevent marking round as resolved
