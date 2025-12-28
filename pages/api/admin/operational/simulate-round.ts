@@ -20,6 +20,8 @@ import {
   getSepoliaContractBalance,
   getSepoliaRoundInfo,
   resolveSepoliaPreviousRound,
+  getSepoliaMinimumSeed,
+  seedJackpotOnSepolia,
 } from '../../../../src/lib/jackpot-contract';
 import { ethers } from 'ethers';
 import { setSepoliaSimulationMode, setSkipOnchainResolution } from '../../../../src/lib/economics';
@@ -226,19 +228,43 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
 
       // Now start a fresh round (only if we didn't fail to resolve)
       if (!sepoliaJackpotMismatch) {
-        log('Starting fresh round on Sepolia contract...');
+        // Check if minimum seed is met, if not seed the jackpot
         try {
-          const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
-          log(`Sepolia round started: ${txHash}`);
-          sepoliaRoundStarted = true;
+          const minimumSeed = await getSepoliaMinimumSeed();
+          const currentJackpot = await getCurrentJackpotOnSepolia();
+          const currentJackpotWei = ethers.parseEther(currentJackpot);
 
-          // Re-check state after starting round
-          const newRoundInfo = await getSepoliaRoundInfo();
-          const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
-          log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
+          log(`Minimum seed required: ${ethers.formatEther(minimumSeed)} ETH`);
+          log(`Current jackpot: ${currentJackpot} ETH`);
+
+          if (currentJackpotWei < minimumSeed) {
+            const seedAmount = ethers.formatEther(minimumSeed);
+            log(`Seeding jackpot with ${seedAmount} ETH...`);
+            const seedTxHash = await seedJackpotOnSepolia(seedAmount);
+            log(`✅ Jackpot seeded: ${seedTxHash}`);
+          }
         } catch (err: any) {
-          log(`❌ Failed to start Sepolia round: ${err.message}`);
-          log(`   → Continuing with DB-only simulation (all onchain operations will be skipped).`);
+          log(`❌ Failed to check/seed minimum: ${err.message}`);
+          log(`   → Continuing with DB-only simulation.`);
+          sepoliaJackpotMismatch = true;
+        }
+
+        // Start the round if we haven't hit an error
+        if (!sepoliaJackpotMismatch) {
+          log('Starting fresh round on Sepolia contract...');
+          try {
+            const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+            log(`Sepolia round started: ${txHash}`);
+            sepoliaRoundStarted = true;
+
+            // Re-check state after starting round
+            const newRoundInfo = await getSepoliaRoundInfo();
+            const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
+            log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
+          } catch (err: any) {
+            log(`❌ Failed to start Sepolia round: ${err.message}`);
+            log(`   → Continuing with DB-only simulation (all onchain operations will be skipped).`);
+          }
         }
       }
     } else {
