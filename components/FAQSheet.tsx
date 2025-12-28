@@ -82,11 +82,11 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           <strong>Yes.</strong> When a round is won, the secret word is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>.
           <p className="mt-2">
             You can view all past winning words, round details, and payouts in the{" "}
-            <a href="https://www.letshaveaword.fun/archive" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">Round Archive</a>.
+            <a href="https://letshaveaword.fun/archive" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">Round Archive</a>.
           </p>
           <p className="mt-2">
             You can also independently verify each round's cryptographic commitment and reveal at{" "}
-            <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a>.
+            <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a>.
           </p>
         </>
       ),
@@ -103,7 +103,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Anyone can recompute the hash</li>
             <li>Anyone can verify the answer was fixed from the very start</li>
           </ul>
-          <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://www.letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
+          <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
           <p className="mt-2">This commit–reveal process makes every round transparent, verifiable, and fair.</p>
         </>
       ),
