@@ -223,7 +223,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [simAnswer, setSimAnswer] = useState("")
   const [simGuesses, setSimGuesses] = useState("20")
   const [simUsers, setSimUsers] = useState("5")
-  const [simSkipOnchain, setSimSkipOnchain] = useState(true)
   const [simLoading, setSimLoading] = useState(false)
   const [forceResolveLoading, setForceResolveLoading] = useState(false)
   const [simResult, setSimResult] = useState<{
@@ -529,7 +528,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           answer: simAnswer || undefined,
           numGuesses: parseInt(simGuesses, 10) || 20,
           numUsers: parseInt(simUsers, 10) || 5,
-          skipOnchain: simSkipOnchain,
+          skipOnchain: false,
           dryRun,
         }),
       })
@@ -1133,23 +1132,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 />
                 <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
                   Number of fake users (1-10)
-                </div>
-              </div>
-              <div>
-                <label style={styles.label}>Skip On-chain</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={simSkipOnchain}
-                    onChange={(e) => setSimSkipOnchain(e.target.checked)}
-                    style={{ width: '18px', height: '18px' }}
-                  />
-                  <span style={{ fontSize: '14px', color: '#374151' }}>
-                    Skip on-chain commitment
-                  </span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                  Enable for testing without contract calls
                 </div>
               </div>
             </div>
