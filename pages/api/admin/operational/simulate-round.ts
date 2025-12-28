@@ -18,8 +18,10 @@ import {
   startRoundWithCommitmentOnSepolia,
   getCurrentJackpotOnSepolia,
   getSepoliaContractBalance,
+  getSepoliaRoundInfo,
 } from '../../../../src/lib/jackpot-contract';
-import { setSepoliaSimulationMode } from '../../../../src/lib/economics';
+import { ethers } from 'ethers';
+import { setSepoliaSimulationMode, setSkipOnchainResolution } from '../../../../src/lib/economics';
 import { isDevModeEnabled, getDevFixedSolution } from '../../../../src/lib/devGameState';
 
 // Base pack price for simulation (0.0003 ETH)
@@ -159,12 +161,29 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     log(`Created ${fakeUsers.length} fake users (FIDs ${FAKE_FID_BASE} - ${FAKE_FID_BASE + fakeUsers.length - 1})`);
 
     // Log Sepolia contract state before starting
+    let sepoliaHasActiveRound = false;
+    let sepoliaJackpotMismatch = false;
     try {
-      const sepoliaJackpot = await getCurrentJackpotOnSepolia();
+      const roundInfo = await getSepoliaRoundInfo();
       const sepoliaBalance = await getSepoliaContractBalance();
+      const jackpotEth = ethers.formatEther(roundInfo.jackpot);
+
       log(`Sepolia contract state BEFORE:`);
-      log(`  - Internal jackpot: ${sepoliaJackpot} ETH`);
+      log(`  - Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
+      log(`  - Internal jackpot: ${jackpotEth} ETH`);
       log(`  - Actual balance: ${sepoliaBalance} ETH`);
+
+      sepoliaHasActiveRound = roundInfo.isActive;
+
+      const balanceNum = parseFloat(sepoliaBalance);
+      const jackpotNum = parseFloat(jackpotEth);
+      if (roundInfo.isActive && balanceNum < jackpotNum * 0.9) {
+        sepoliaJackpotMismatch = true;
+        log(`⚠️  WARNING: Jackpot/balance mismatch detected!`);
+        log(`   The contract's internal jackpot (${jackpotEth} ETH) is higher than its balance (${sepoliaBalance} ETH).`);
+        log(`   This can happen when previous simulations failed to resolve.`);
+        log(`   Resolution will fail because the contract validates against its internal jackpot.`);
+      }
     } catch (err: any) {
       log(`Warning: Could not query Sepolia state: ${err.message}`);
     }
@@ -181,18 +200,39 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
 
     // Start a fresh round on Sepolia contract
     // This is critical: we need a clean round state for the simulation to resolve properly
+    let sepoliaRoundStarted = false;
     if (!config.skipOnchain) {
+      if (sepoliaHasActiveRound) {
+        log(`⚠️  Sepolia already has an active round - attempting to start new round anyway...`);
+        log(`   (This will fail if the current round hasn't been resolved)`);
+      }
+
       log('Starting fresh round on Sepolia contract...');
       try {
         const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
         log(`Sepolia round started: ${txHash}`);
+        sepoliaRoundStarted = true;
+
+        // Re-check state after starting round
+        const newRoundInfo = await getSepoliaRoundInfo();
+        const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
+        log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
       } catch (err: any) {
-        log(`Warning: Failed to start Sepolia round: ${err.message}`);
-        log(`  → Continuing with existing Sepolia round state (may cause issues)`);
+        log(`❌ Failed to start Sepolia round: ${err.message}`);
+        if (sepoliaJackpotMismatch) {
+          log(`   → Cannot proceed with onchain simulation due to jackpot/balance mismatch.`);
+          log(`   → The Sepolia contract needs manual intervention (resolve existing round or redeploy).`);
+          log(`   → Continuing with DB-only simulation (onchain resolution will be skipped).`);
+        } else {
+          log(`   → Continuing with existing Sepolia round state.`);
+        }
       }
     } else {
       log('Skipping Sepolia round start (skipOnchain=true)');
     }
+
+    // If we have a jackpot mismatch and couldn't start a new round, skip onchain operations
+    const skipOnchainResolution = sepoliaJackpotMismatch && !sepoliaRoundStarted;
 
     // Prepare wrong guesses
     const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
@@ -201,9 +241,14 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     // Simulate wrong guesses with onchain pack purchases
     let guessCount = 0;
     let paidGuessCount = 0;
+
+    if (skipOnchainResolution) {
+      log(`⚠️  Skipping onchain purchases due to contract state issues`);
+    }
+
     for (const word of wrongWords) {
       const user = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
-      const isPaidGuess = Math.random() > 0.7; // ~30% paid guesses
+      const isPaidGuess = !skipOnchainResolution && Math.random() > 0.7; // ~30% paid guesses (skip if mismatch)
 
       // For paid guesses, execute onchain purchase on Sepolia first
       // CRITICAL: Only mark as paid in DB if onchain purchase succeeds
@@ -235,16 +280,31 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
 
     log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} onchain purchases)`);
 
-    // Log Sepolia contract state before resolution
-    try {
-      const sepoliaJackpot = await getCurrentJackpotOnSepolia();
-      const sepoliaBalance = await getSepoliaContractBalance();
-      log(`Sepolia contract state BEFORE RESOLUTION:`);
-      log(`  - Internal jackpot: ${sepoliaJackpot} ETH`);
-      log(`  - Actual balance: ${sepoliaBalance} ETH`);
-      log(`  - Will use: ${parseFloat(sepoliaBalance) < parseFloat(sepoliaJackpot) ? sepoliaBalance : sepoliaJackpot} ETH for payouts`);
-    } catch (err: any) {
-      log(`Warning: Could not query Sepolia state: ${err.message}`);
+    // If we're skipping onchain resolution, set the skip flag
+    // This will cause the resolution to create DB payouts but skip onchain transaction
+    if (skipOnchainResolution) {
+      log(`⚠️  Setting skipOnchainResolution flag (contract state issues)`);
+      setSkipOnchainResolution(true);
+    } else {
+      // Log Sepolia contract state before resolution
+      try {
+        const sepoliaJackpot = await getCurrentJackpotOnSepolia();
+        const sepoliaBalance = await getSepoliaContractBalance();
+        log(`Sepolia contract state BEFORE RESOLUTION:`);
+        log(`  - Internal jackpot: ${sepoliaJackpot} ETH`);
+        log(`  - Actual balance: ${sepoliaBalance} ETH`);
+
+        // Check if we can actually resolve
+        const balanceNum = parseFloat(sepoliaBalance);
+        const jackpotNum = parseFloat(sepoliaJackpot);
+        if (balanceNum < jackpotNum * 0.95) {
+          log(`⚠️  Balance is less than jackpot - resolution will likely fail!`);
+          log(`   Setting skipOnchainResolution flag.`);
+          setSkipOnchainResolution(true);
+        }
+      } catch (err: any) {
+        log(`Warning: Could not query Sepolia state: ${err.message}`);
+      }
     }
 
     // Winning guess
@@ -284,9 +344,11 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
       logs,
     };
   } finally {
-    // Always disable Sepolia mode when simulation ends
+    // Always reset flags when simulation ends
     setSepoliaSimulationMode(false);
+    setSkipOnchainResolution(false);
     log('Sepolia simulation mode: DISABLED');
+    log('Skip onchain resolution: RESET');
   }
 }
 
