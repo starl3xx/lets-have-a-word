@@ -61,6 +61,8 @@ interface OperationalStatus {
 
 interface ContractNetworkState {
   network: 'mainnet' | 'sepolia'
+  contractAddress: string
+  rpcUrl: string
   roundNumber: number
   isActive: boolean
   internalJackpot: string
@@ -1218,6 +1220,18 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   ) : (
                     <>
                       <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Contract</span>
+                        <span style={{ ...styles.infoValue, fontSize: '10px', fontFamily: 'monospace' }}>
+                          {contractState.mainnet.contractAddress?.slice(0, 10)}...{contractState.mainnet.contractAddress?.slice(-8)}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>RPC</span>
+                        <span style={{ ...styles.infoValue, fontSize: '10px' }}>
+                          {contractState.mainnet.rpcUrl?.includes('sepolia') ? '⚠️ SEPOLIA!' : contractState.mainnet.rpcUrl?.replace('https://', '')}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
                         <span style={styles.infoLabel}>Round</span>
                         <span style={styles.infoValue}>
                           #{contractState.mainnet.roundNumber} {contractState.mainnet.isActive ? '(active)' : '(inactive)'}
@@ -1277,6 +1291,18 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   ) : (
                     <>
                       <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Contract</span>
+                        <span style={{ ...styles.infoValue, fontSize: '10px', fontFamily: 'monospace' }}>
+                          {contractState.sepolia.contractAddress?.slice(0, 10)}...{contractState.sepolia.contractAddress?.slice(-8)}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>RPC</span>
+                        <span style={{ ...styles.infoValue, fontSize: '10px' }}>
+                          {contractState.sepolia.rpcUrl?.replace('https://', '')}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
                         <span style={styles.infoLabel}>Round</span>
                         <span style={styles.infoValue}>
                           #{contractState.sepolia.roundNumber} {contractState.sepolia.isActive ? '(active)' : '(inactive)'}
@@ -1322,6 +1348,26 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 </div>
               </div>
             ) : null}
+
+            {/* Warning if same contract address used for both networks */}
+            {contractState?.mainnet.contractAddress &&
+             contractState?.sepolia.contractAddress &&
+             contractState.mainnet.contractAddress === contractState.sepolia.contractAddress && (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: '#991b1b',
+              }}>
+                <strong>⚠️ Configuration Warning:</strong> Both networks are using the same contract address!
+                <br />
+                Set <code style={{ background: '#fee2e2', padding: '2px 4px', borderRadius: '4px' }}>SEPOLIA_JACKPOT_MANAGER_ADDRESS</code> in
+                your environment to point to a separate Sepolia contract.
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
               <button

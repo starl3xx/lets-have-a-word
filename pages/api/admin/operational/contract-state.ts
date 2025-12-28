@@ -20,10 +20,14 @@ import {
   getSepoliaRoundInfo,
   getContractRoundInfo,
   resolveSepoliaPreviousRound,
+  getContractConfig,
+  getSepoliaContractConfig,
 } from '../../../../src/lib/jackpot-contract';
 
 interface ContractState {
   network: 'mainnet' | 'sepolia';
+  contractAddress: string;
+  rpcUrl: string;
   roundNumber: number;
   isActive: boolean;
   internalJackpot: string;
@@ -38,6 +42,9 @@ interface ContractState {
 }
 
 async function getMainnetState(): Promise<ContractState> {
+  const config = getContractConfig();
+  const rpcUrl = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
+
   try {
     const [roundInfo, internalJackpot, actualBalance] = await Promise.all([
       getContractRoundInfo(),
@@ -55,6 +62,8 @@ async function getMainnetState(): Promise<ContractState> {
 
     return {
       network: 'mainnet',
+      contractAddress: config.jackpotManagerAddress,
+      rpcUrl,
       roundNumber: Number(roundInfo.roundNumber),
       isActive: roundInfo.isActive,
       internalJackpot,
@@ -70,6 +79,8 @@ async function getMainnetState(): Promise<ContractState> {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       network: 'mainnet',
+      contractAddress: config.jackpotManagerAddress,
+      rpcUrl,
       roundNumber: 0,
       isActive: false,
       internalJackpot: '0',
@@ -86,6 +97,9 @@ async function getMainnetState(): Promise<ContractState> {
 }
 
 async function getSepoliaState(): Promise<ContractState> {
+  const config = getSepoliaContractConfig();
+  const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
+
   try {
     const [roundInfo, internalJackpot, actualBalance] = await Promise.all([
       getSepoliaRoundInfo(),
@@ -103,6 +117,8 @@ async function getSepoliaState(): Promise<ContractState> {
 
     return {
       network: 'sepolia',
+      contractAddress: config.jackpotManagerAddress,
+      rpcUrl,
       roundNumber: Number(roundInfo.roundNumber),
       isActive: roundInfo.isActive,
       internalJackpot,
@@ -118,6 +134,8 @@ async function getSepoliaState(): Promise<ContractState> {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       network: 'sepolia',
+      contractAddress: config.jackpotManagerAddress,
+      rpcUrl,
       roundNumber: 0,
       isActive: false,
       internalJackpot: '0',
