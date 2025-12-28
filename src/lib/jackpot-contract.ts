@@ -290,12 +290,46 @@ export async function resolveRoundWithPayoutsOnChain(
     throw new Error('At least one payout recipient (winner) is required');
   }
 
+  // Get contract with operator signer
+  const contract = getJackpotManagerWithOperator();
+
+  // Pre-flight check: verify contract state before attempting resolution
+  console.log(`[CONTRACT] Pre-flight contract state check...`);
+  const roundInfo = await getContractRoundInfo();
+  const actualBalance = await getMainnetContractBalance();
+
+  console.log(`[CONTRACT] Contract state:`);
+  console.log(`  - Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
+  console.log(`  - Internal jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+  console.log(`  - Actual balance: ${actualBalance} ETH`);
+
+  if (!roundInfo.isActive) {
+    throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active.`);
+  }
+
+  // Calculate total payout + seed and compare to contract jackpot
+  const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+  const totalResolveWei = totalPayoutsWei + seedForNextRoundWei;
+  const contractJackpotWei = roundInfo.jackpot;
+
+  console.log(`[CONTRACT] Payout validation:`);
+  console.log(`  - Total payouts: ${ethers.formatEther(totalPayoutsWei)} ETH`);
+  console.log(`  - Seed for next: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+  console.log(`  - Total resolve: ${ethers.formatEther(totalResolveWei)} ETH`);
+  console.log(`  - Contract jackpot: ${ethers.formatEther(contractJackpotWei)} ETH`);
+
+  if (totalResolveWei !== contractJackpotWei) {
+    const diff = totalResolveWei > contractJackpotWei
+      ? totalResolveWei - contractJackpotWei
+      : contractJackpotWei - totalResolveWei;
+    console.error(`[CONTRACT] ❌ MISMATCH: Payout total (${ethers.formatEther(totalResolveWei)} ETH) != Contract jackpot (${ethers.formatEther(contractJackpotWei)} ETH)`);
+    console.error(`[CONTRACT] Difference: ${ethers.formatEther(diff)} ETH`);
+    throw new Error(`CRITICAL: Payout math mismatch on mainnet. Trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH. Aborting to prevent fund loss.`);
+  }
+
   // Extract arrays for contract call
   const recipients = payouts.map(p => p.address);
   const amounts = payouts.map(p => p.amountWei);
-
-  // Get contract with operator signer
-  const contract = getJackpotManagerWithOperator();
 
   // Log payout details
   console.log(`[CONTRACT] Resolving round with ${payouts.length} payouts:`);
