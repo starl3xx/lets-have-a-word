@@ -850,3 +850,20 @@ export async function seedJackpotOnSepolia(amountEth: string): Promise<string> {
 
   return tx.hash;
 }
+
+/**
+ * Start next round on Sepolia (uses contract balance, no commitment hash)
+ */
+export async function startNextRoundOnSepolia(): Promise<string> {
+  const contract = getSepoliaJackpotManagerWithOperator();
+
+  console.log(`[SEPOLIA] Starting next round (using contract balance)`);
+
+  const tx = await contract.startNextRound();
+  console.log(`[SEPOLIA] Start round transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Round started - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
