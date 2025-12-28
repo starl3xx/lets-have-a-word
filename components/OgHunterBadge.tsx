@@ -42,7 +42,7 @@ export default function OgHunterBadge({
         className={`${sizeClasses[size]} bg-purple-100 rounded-full flex items-center justify-center`}
         title={showTooltip ? undefined : 'OG Hunter'}
       >
-        <span role="img" aria-label="OG Hunter">🎯</span>
+        <span role="img" aria-label="OG Hunter">🕵️‍♂️</span>
       </div>
 
       {/* Tooltip */}
@@ -106,7 +106,7 @@ export const BADGE_CONFIG: Record<BadgeType, {
   bgColor: string;
 }> = {
   OG_HUNTER: {
-    icon: '🎯',
+    icon: '🕵️‍♂️',
     label: 'OG Hunter',
     bgColor: 'bg-purple-100',
   },

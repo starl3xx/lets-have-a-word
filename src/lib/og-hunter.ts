@@ -58,7 +58,11 @@ export function getShareUrl(): string {
  * Get canonical share text for OG Hunter campaign
  */
 export function getShareText(): string {
-  return `I'm an OG Hunter for Let's Have A Word! 🎯\n\nJoin the hunt before launch and earn your badge:\n${getShareUrl()}`;
+  return `I'm becoming an OG Hunter for @letshaveaword! 🕵️‍♂️
+
+Add the mini app + share a cast before launch to earn a permanent badge and 500 XP 🏆
+
+https://www.letshaveaword.fun`;
 }
 
 /**

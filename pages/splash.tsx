@@ -218,6 +218,13 @@ export default function SplashPage() {
       >
         {/* Hero Section */}
         <div className="px-4 pt-12 pb-8 text-center">
+          {/* App Icon */}
+          <img
+            src="https://letshaveaword.fun/LHAW-icon.png"
+            alt="Let's Have A Word"
+            className="w-14 h-14 rounded-xl mx-auto mb-4"
+          />
+
           <div className="inline-block mb-4 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
             Prelaunch Campaign
           </div>
@@ -227,7 +234,7 @@ export default function SplashPage() {
           </h1>
 
           <p className="text-gray-600 max-w-md mx-auto">
-            Join before launch to earn your exclusive badge and 500 XP. Limited to prelaunch participants only.
+            A social word game where everyone guesses together. Join before launch to earn your exclusive badge and 500 XP.
           </p>
         </div>
 
@@ -305,7 +312,7 @@ function AwardedState({ status }: { status: OgHunterStatus }) {
       <div className="bg-white rounded-xl border border-green-100 p-4">
         <div className="flex items-center justify-center gap-3">
           <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-            <span className="text-xl">🎯</span>
+            <span className="text-xl">🕵️‍♂️</span>
           </div>
           <div className="text-left">
             <div className="font-semibold text-gray-900">OG Hunter Badge</div>
@@ -360,7 +367,7 @@ function ChecklistState({
             <div>
               <h3 className="font-semibold text-gray-900">Complete these steps</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Both steps required to earn your badge
+                Both steps required to earn your badge and help kick off the first round
               </p>
             </div>
             <button
@@ -442,7 +449,7 @@ function ChecklistState({
                 )}
               </div>
               <p className="text-sm text-gray-500 mt-0.5">
-                Cast about OG Hunter to spread the word
+                Share the game so more players can join the first round and guess together
               </p>
 
               {!sharedCast && (
@@ -489,7 +496,7 @@ function ChecklistState({
       <div className="bg-purple-50 rounded-2xl border border-purple-100 p-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-            <span className="text-2xl">🎯</span>
+            <span className="text-2xl">🕵️‍♂️</span>
           </div>
           <div>
             <div className="font-semibold text-purple-900">OG Hunter Badge</div>
