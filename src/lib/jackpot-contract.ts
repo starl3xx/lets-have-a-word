@@ -731,12 +731,21 @@ export async function verifyPurchaseTransaction(
 // =============================================================================
 
 /**
- * Get current jackpot amount from Sepolia contract
+ * Get current jackpot amount from Sepolia contract (formatted ETH string)
  */
 export async function getCurrentJackpotOnSepolia(): Promise<string> {
   const contract = getSepoliaJackpotManagerReadOnly();
   const jackpot = await contract.currentJackpot();
   return ethers.formatEther(jackpot);
+}
+
+/**
+ * Get current jackpot amount from Sepolia contract (raw wei bigint)
+ * Use this for calculations to avoid precision loss from ETH string round-trip
+ */
+export async function getCurrentJackpotOnSepoliaWei(): Promise<bigint> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  return await contract.currentJackpot();
 }
 
 /**
@@ -841,6 +850,25 @@ export async function resolveRoundWithPayoutsOnSepolia(
     console.log(`  - ${payout.role}${payout.fid ? ` (FID ${payout.fid})` : ''}: ${payout.address} -> ${ethers.formatEther(payout.amountWei)} ETH`);
   }
   console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+
+  // Try static call first to get better error messages
+  try {
+    console.log(`[SEPOLIA] Testing with static call...`);
+    await contract.resolveRoundWithPayouts.staticCall(recipients, amounts, seedForNextRoundWei);
+    console.log(`[SEPOLIA] Static call succeeded, proceeding with transaction...`);
+  } catch (staticErr: any) {
+    // Re-query contract state to see what changed
+    console.error(`[SEPOLIA] Static call FAILED - re-checking contract state...`);
+    const freshRoundInfo = await getSepoliaRoundInfo();
+    console.error(`[SEPOLIA] Current state:`);
+    console.error(`  - Round #${freshRoundInfo.roundNumber}, Active: ${freshRoundInfo.isActive}`);
+    console.error(`  - Internal jackpot: ${ethers.formatEther(freshRoundInfo.jackpot)} ETH`);
+    console.error(`  - Our total: ${ethers.formatEther(totalResolveWei)} ETH`);
+    console.error(`  - Difference: ${ethers.formatEther(freshRoundInfo.jackpot - totalResolveWei)} ETH`);
+
+    const errMsg = staticErr.reason || staticErr.message || 'Unknown error';
+    throw new Error(`Contract rejected resolution: ${errMsg}. Contract jackpot: ${ethers.formatEther(freshRoundInfo.jackpot)} ETH, Our total: ${ethers.formatEther(totalResolveWei)} ETH`);
+  }
 
   const tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei);
   console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
