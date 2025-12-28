@@ -792,17 +792,14 @@ export async function startRoundWithCommitmentOnSepolia(commitHash: string): Pro
 /**
  * Resolve previous Sepolia round by paying out full jackpot to operator
  * Used to clear stale rounds before starting a new simulation
+ *
+ * Uses the simpler resolveRound(winner) function which pays 100% to the winner
  */
 export async function resolveSepoliaPreviousRound(): Promise<string> {
   const roundInfo = await getSepoliaRoundInfo();
 
   if (!roundInfo.isActive) {
     throw new Error('No active round to resolve');
-  }
-
-  const jackpotWei = roundInfo.jackpot;
-  if (jackpotWei === 0n) {
-    throw new Error('Jackpot is zero, nothing to resolve');
   }
 
   // Get operator address from wallet
@@ -814,15 +811,16 @@ export async function resolveSepoliaPreviousRound(): Promise<string> {
   const operatorAddress = wallet.address;
 
   console.log(`[SEPOLIA] Resolving previous round #${roundInfo.roundNumber}`);
-  console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(jackpotWei)} ETH -> Operator: ${operatorAddress}`);
+  console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+  console.log(`[SEPOLIA] Using resolveRound() to pay winner: ${operatorAddress}`);
 
-  // Pay full jackpot to operator, 0 seed for next round
-  const payouts: PayoutRecipient[] = [{
-    address: operatorAddress,
-    amountWei: jackpotWei,
-    role: 'operator_reclaim',
-    fid: null,
-  }];
+  // Use the simpler resolveRound(winner) function
+  const contract = getSepoliaJackpotManagerWithOperator();
+  const tx = await contract.resolveRound(operatorAddress);
+  console.log(`[SEPOLIA] Resolve transaction submitted: ${tx.hash}`);
 
-  return resolveRoundWithPayoutsOnSepolia(payouts, 0n);
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
 }
