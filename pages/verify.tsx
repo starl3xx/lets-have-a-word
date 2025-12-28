@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
+import sdk from '@farcaster/miniapp-sdk';
 import type { VerifyRoundResponse, VerifyRoundErrorResponse } from './api/verify/round';
 
 // Söhne font family (registered as 'Soehne' in globals.css)
@@ -452,17 +453,15 @@ export default function VerifyPage() {
                 The game's smart contract lives on Base and is publicly verified on BaseScan.
                 All commitments are written onchain and cannot be altered after the round begins.
               </p>
-              <a
-                href={BASESCAN_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => sdk.actions.openUrl(BASESCAN_URL)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
               >
                 <span>View on BaseScan</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
-              </a>
+              </button>
               <p className="text-xs text-gray-400 mt-2 font-mono break-all">
                 {CONTRACT_ADDRESS}
               </p>

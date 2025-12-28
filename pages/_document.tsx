@@ -3,7 +3,7 @@ import { Html, Head, Main, NextScript } from 'next/document';
 // Farcaster Mini App embed metadata (must be stringified JSON)
 const fcFrameEmbed = JSON.stringify({
   version: "1",
-  imageUrl: "https://letshaveaword.fun/LHAW-hero.png",
+  imageUrl: "https://letshaveaword.fun/LHAW-hero3.png",
   button: {
     title: "Play now",
     action: {
