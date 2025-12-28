@@ -23,20 +23,24 @@ import {
 } from '../../src/lib/rateLimit';
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
+import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
 
 /**
  * POST /api/purchase-guess-pack
- * Milestone 6.3, Updated Milestone 7.1
+ * Milestone 6.3, Updated Milestone 6.4, 7.1
  *
- * Process guess pack purchase with dynamic late-round pricing.
+ * Process guess pack purchase with onchain verification and dynamic late-round pricing.
+ *
+ * Milestone 6.4 Flow:
+ * 1. Frontend initiates wallet transaction via wagmi useWriteContract
+ * 2. User signs transaction in their wallet
+ * 3. Frontend waits for tx confirmation, then calls this API with txHash
+ * 4. This API verifies the transaction onchain before awarding packs
  *
  * Body:
  * - fid: number - Farcaster ID
  * - packCount: number - Number of packs to purchase (1, 2, or 3)
- *
- * Note: In production, this would validate payment onchain before awarding packs.
- * For now, it awards packs directly (payment validation to be added in Milestone 6.4).
- * The expected cost is calculated and returned for logging/verification purposes.
+ * - txHash: string - On-chain transaction hash to verify
  */
 export default async function handler(
   req: NextApiRequest,
@@ -63,7 +67,7 @@ export default async function handler(
   }
 
   try {
-    const { fid, packCount } = req.body;
+    const { fid, packCount, txHash } = req.body;
 
     // Milestone 9.5: Check operational guard (kill switch / dead day)
     const guardBlocked = await applyGameplayGuard(req, res);
@@ -76,6 +80,23 @@ export default async function handler(
 
     if (!packCount || typeof packCount !== 'number' || packCount < 1 || packCount > 3) {
       return res.status(400).json({ error: 'Invalid pack count. Must be 1, 2, or 3.' });
+    }
+
+    // Milestone 6.4: Require onchain transaction hash
+    if (!txHash || typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+      return res.status(400).json({ error: 'Invalid transaction hash. Must provide valid onchain txHash.' });
+    }
+
+    // Check if txHash has already been used (prevent double-claiming)
+    const existingPurchase = await db
+      .select({ id: packPurchases.id })
+      .from(packPurchases)
+      .where(eq(packPurchases.txHash, txHash))
+      .limit(1);
+
+    if (existingPurchase.length > 0) {
+      console.warn(`[purchase-guess-pack] Duplicate txHash attempt: ${txHash} (FID ${fid})`);
+      return res.status(400).json({ error: 'Transaction already used for a purchase.' });
     }
 
     // Get current daily state
@@ -126,6 +147,29 @@ export default async function handler(
       },
     });
 
+    // Milestone 6.4: Verify onchain transaction before awarding packs
+    const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
+    const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
+
+    if (!verification.valid) {
+      console.error(`[purchase-guess-pack] On-chain verification failed: ${verification.error}`, {
+        txHash,
+        fid,
+        packCount,
+        expectedQuantity: totalGuesses,
+      });
+      return res.status(400).json({
+        error: `Transaction verification failed: ${verification.error}`,
+      });
+    }
+
+    console.log(`[purchase-guess-pack] On-chain verification passed for txHash ${txHash}`, {
+      player: verification.player,
+      quantity: verification.quantity,
+      ethAmount: verification.ethAmount,
+      roundNumber: verification.roundNumber,
+    });
+
     // Award packs one by one (for proper tracking)
     let updatedState = currentState;
     for (let i = 0; i < packCount; i++) {
@@ -145,27 +189,30 @@ export default async function handler(
         expected_cost_wei: expectedCostWei.toString(),
         expected_cost_eth: expectedCostEth,
         total_guesses_in_round: totalGuessesInRound,
+        tx_hash: txHash, // Milestone 6.4
+        verified_eth_amount: verification.ethAmount,
       },
     });
 
-    // Milestone 9.5: Record purchase for refund support
+    // Milestone 6.4/9.5: Record purchase with txHash for verification and refund support
     if (activeRound?.id) {
       try {
         await db.insert(packPurchases).values({
           roundId: activeRound.id,
           fid,
           packCount,
-          totalPriceEth: expectedCostEth,
+          totalPriceEth: verification.ethAmount || expectedCostEth, // Use actual from tx
           totalPriceWei: expectedCostWei.toString(),
           pricingPhase,
           totalGuessesAtPurchase: totalGuessesInRound,
+          txHash, // Milestone 6.4: Store verified txHash
         });
       } catch (purchaseLogError) {
         // Don't fail the request if purchase logging fails
         console.error('[purchase-guess-pack] Failed to log purchase for refund tracking:', purchaseLogError);
         Sentry.captureException(purchaseLogError, {
           tags: { endpoint: 'purchase-guess-pack', phase: 'refund-tracking' },
-          extra: { fid, packCount, roundId: activeRound.id },
+          extra: { fid, packCount, roundId: activeRound.id, txHash },
         });
       }
     }
@@ -194,9 +241,10 @@ export default async function handler(
     }
 
     console.log(
-      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${expectedCostEth} ETH (${pricingPhase}). ` +
+      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${verification.ethAmount || expectedCostEth} ETH (${pricingPhase}). ` +
       `Total today: ${updatedState.paidPacksPurchased}/${DAILY_LIMITS_RULES.maxPaidPacksPerDay}. ` +
-      `Credits: ${updatedState.paidGuessCredits}`
+      `Credits: ${updatedState.paidGuessCredits}. ` +
+      `TxHash: ${txHash}`
     );
 
     return res.status(200).json({
@@ -209,6 +257,9 @@ export default async function handler(
       expectedCostWei: expectedCostWei.toString(),
       expectedCostEth,
       pricingPhase,
+      // Milestone 6.4: Include verified transaction info
+      txHash,
+      verifiedEthAmount: verification.ethAmount,
     });
   } catch (error) {
     console.error('[purchase-guess-pack] Error:', error);
@@ -219,6 +270,7 @@ export default async function handler(
       extra: {
         fid: req.body?.fid,
         packCount: req.body?.packCount,
+        txHash: req.body?.txHash,
       },
     });
 

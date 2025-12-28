@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useAccount } from 'wagmi';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
 import { parseOperationalError } from './GamePausedBanner';
+import { usePurchaseGuesses } from '../src/hooks/usePurchaseGuesses';
 
 /**
  * Log analytics event (fire-and-forget)
@@ -69,6 +71,19 @@ export default function GuessPurchaseModal({
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
+  // Wagmi hooks for onchain purchase
+  const { address: walletAddress, isConnected } = useAccount();
+  const {
+    purchaseGuesses,
+    isPending: isTxPending,
+    isConfirming: isTxConfirming,
+    isSuccess: isTxSuccess,
+    isError: isTxError,
+    error: txError,
+    txHash,
+    reset: resetTx,
+  } = usePurchaseGuesses();
+
   // Pack pricing options (default values, updated from API)
   const [packOptions, setPackOptions] = useState<PackOption[]>([
     { packCount: 1, guessCount: 3, totalPriceWei: '300000000000000', totalPriceEth: '0.0003' },
@@ -92,6 +107,65 @@ export default function GuessPurchaseModal({
   // Milestone 7.5: Track if early-round reinforcement was shown (for analytics)
   const [showEarlyRoundReinforcement, setShowEarlyRoundReinforcement] = useState(false);
   const reinforcementLoggedRef = useRef(false);
+
+  // Milestone 6.4: Handle transaction success - verify on backend
+  useEffect(() => {
+    if (isTxSuccess && txHash && fid) {
+      // Transaction confirmed onchain, now verify and record on backend
+      const verifyPurchase = async () => {
+        try {
+          const response = await fetch('/api/purchase-guess-pack', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fid,
+              packCount: selectedPackCount,
+              txHash, // Send txHash for onchain verification
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to verify purchase');
+          }
+
+          void haptics.packPurchased();
+
+          // Show success
+          const purchasePricingPhase = data.pricingPhase || pricingPhase;
+          if (purchasePricingPhase === 'BASE') {
+            setShowEarlyRoundReinforcement(true);
+          } else {
+            setSuccessMessage(t('guessPack.purchaseSuccess'));
+          }
+
+          setPacksPurchasedToday((prev) => prev + selectedPackCount);
+
+          setTimeout(() => {
+            onPurchaseSuccess(selectedPackCount);
+            onClose();
+          }, 1500);
+        } catch (err) {
+          console.error('[GuessPurchaseModal] Verify error:', err);
+          setError(err instanceof Error ? err.message : 'Failed to verify purchase');
+        } finally {
+          setIsPurchasing(false);
+        }
+      };
+
+      verifyPurchase();
+    }
+  }, [isTxSuccess, txHash, fid, selectedPackCount, pricingPhase, t, onPurchaseSuccess, onClose]);
+
+  // Handle transaction error
+  useEffect(() => {
+    if (isTxError && txError) {
+      setError(txError.message || 'Transaction failed');
+      setIsPurchasing(false);
+      void haptics.inputBecameInvalid();
+    }
+  }, [isTxError, txError]);
 
   // Fetch current purchase state and pricing
   useEffect(() => {
@@ -159,11 +233,22 @@ export default function GuessPurchaseModal({
   };
 
   /**
-   * Handle purchase
+   * Handle purchase - Milestone 6.4: On-chain pack purchase
+   *
+   * Flow:
+   * 1. User clicks Buy -> initiate wallet transaction
+   * 2. User signs tx in wallet
+   * 3. Wait for tx confirmation (handled by useEffect above)
+   * 4. Verify on backend and award packs
    */
   const handlePurchase = async () => {
     if (!fid) {
       setError(t('guessPack.connectWallet'));
+      return;
+    }
+
+    if (!isConnected || !walletAddress) {
+      setError('Wallet not connected. Please connect your wallet.');
       return;
     }
 
@@ -172,72 +257,40 @@ export default function GuessPurchaseModal({
       return;
     }
 
+    if (!selectedOption) {
+      setError('Please select a pack option');
+      return;
+    }
+
     void haptics.buttonTapMinor();
     setIsPurchasing(true);
     setError(null);
+    resetTx(); // Reset any previous transaction state
+
+    // Log analytics - purchase initiated
+    logAnalytics('guess_pack_purchase_initiated', fid, {
+      packCount: selectedPackCount,
+      totalPriceEth: selectedOption.totalPriceEth,
+      pricingPhase,
+      walletAddress,
+    });
+
+    // Initiate onchain transaction
+    // Total guesses = packCount * 3 (3 guesses per pack)
+    const totalGuesses = selectedPackCount * 3;
 
     try {
-      const response = await fetch('/api/purchase-guess-pack', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fid,
-          packCount: selectedPackCount,
-        }),
+      purchaseGuesses({
+        playerAddress: walletAddress as `0x${string}`,
+        quantity: totalGuesses,
+        totalPriceEth: selectedOption.totalPriceEth,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Milestone 9.5: Check for operational errors
-        const opError = parseOperationalError(data);
-        if (opError.isOperational) {
-          const message = opError.code === 'GAME_PAUSED_KILL_SWITCH'
-            ? 'This round was cancelled. All paid packs purchased this round will be refunded automatically.'
-            : "We're taking a short break. The next round will start soon.";
-          throw new Error(message);
-        }
-        throw new Error(data.error || t('guessPack.purchaseFailed'));
-      }
-
-      void haptics.packPurchased();
-
-      // Milestone 7.5: Check pricing phase from response and show reinforcement
-      const purchasePricingPhase = data.pricingPhase || pricingPhase;
-      const isEarlyRound = purchasePricingPhase === 'BASE';
-
-      if (isEarlyRound) {
-        // Show early-round reinforcement message
-        setShowEarlyRoundReinforcement(true);
-        setSuccessMessage(null); // Don't show generic success, show reinforcement instead
-
-        // Log analytics event (once)
-        if (!reinforcementLoggedRef.current) {
-          reinforcementLoggedRef.current = true;
-          logAnalytics('early_round_pricing_reinforcement', fid, {
-            packCount: selectedPackCount,
-            pricingPhase: purchasePricingPhase,
-            totalPriceEth: selectedOption?.totalPriceEth,
-          });
-        }
-      } else {
-        setSuccessMessage(t('guessPack.purchaseSuccess'));
-      }
-
-      setPacksPurchasedToday((prev) => prev + selectedPackCount);
-
-      setTimeout(() => {
-        onPurchaseSuccess(selectedPackCount);
-        onClose();
-      }, 1500);
+      // Transaction handling continues in useEffect hooks above
     } catch (err) {
-      console.error('[GuessPurchaseModal] Purchase error:', err);
+      console.error('[GuessPurchaseModal] Purchase initiation error:', err);
       setError(err instanceof Error ? err.message : t('guessPack.purchaseFailed'));
-      void haptics.inputBecameInvalid();
-    } finally {
       setIsPurchasing(false);
+      void haptics.inputBecameInvalid();
     }
   };
 
@@ -377,6 +430,8 @@ export default function GuessPurchaseModal({
                 onClick={handlePurchase}
                 disabled={
                   isPurchasing ||
+                  isTxPending ||
+                  isTxConfirming ||
                   remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage ||
@@ -384,6 +439,8 @@ export default function GuessPurchaseModal({
                 }
                 className={`btn-primary-lg w-full ${
                   isPurchasing ||
+                  isTxPending ||
+                  isTxConfirming ||
                   remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage ||
@@ -392,7 +449,11 @@ export default function GuessPurchaseModal({
                     : ''
                 }`}
               >
-                {isPurchasing ? (
+                {isTxPending ? (
+                  'Confirm in wallet...'
+                ) : isTxConfirming ? (
+                  'Confirming...'
+                ) : isPurchasing ? (
                   t('guessPack.buyButtonLoading')
                 ) : remainingPacks === 0 ? (
                   t('guessPack.maxPacksReached')
