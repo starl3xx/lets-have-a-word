@@ -96,6 +96,12 @@ const DEBUG_SLOW_MODE = typeof window !== 'undefined' &&
   process.env.NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW === 'true';
 const DEBUG_DURATION_MULTIPLIER = 3; // Slow down animations 3x in debug mode
 
+// Pre-computed transition duration for CSS (avoids recalculation per word)
+const TRANSITION_DURATION_MS = DEBUG_SLOW_MODE
+  ? CSS_TRANSITION_DURATION * DEBUG_DURATION_MULTIPLIER
+  : CSS_TRANSITION_DURATION;
+const WORD_TRANSITION = `transform ${TRANSITION_DURATION_MS}ms ease-out, opacity ${TRANSITION_DURATION_MS}ms ease-out, filter ${TRANSITION_DURATION_MS}ms ease-out`;
+
 /**
  * Check if user prefers reduced motion
  */
@@ -131,25 +137,48 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
   }, []);
 
   /**
-   * Binary search to find alphabetical center index (Performance optimization for 10,516 words)
-   * Milestone 4.5 used findIndex O(n), now O(log n)
+   * Pre-computed letter index map for O(1) alphabet jumps
+   * Maps each letter (A-Z) to the index of its first word
+   * Used for instant single-letter positioning without binary search
+   */
+  const letterIndexMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (let i = 0; i < words.length; i++) {
+      const firstLetter = words[i].word[0].toUpperCase();
+      if (!(firstLetter in map)) {
+        map[firstLetter] = i;
+      }
+    }
+    return map;
+  }, [words]);
+
+  /**
+   * Find alphabetical center index with optimized lookup
+   * - Single letter: O(1) via letterIndexMap
+   * - Multiple letters: O(log n) binary search
    */
   const getCenterIndex = useCallback((): number => {
     if (!deferredGuess || deferredGuess.length === 0 || words.length === 0) {
       return -1;
     }
 
-    // Normalize to lowercase for alphabetical comparison
-    const normalizedGuess = deferredGuess.toLowerCase();
+    const normalizedGuess = deferredGuess.toUpperCase();
 
-    // Binary search for first word >= deferredGuess
+    // O(1) lookup for single letter using pre-computed map
+    if (normalizedGuess.length === 1) {
+      const index = letterIndexMap[normalizedGuess];
+      return index !== undefined ? index : words.length - 1;
+    }
+
+    // O(log n) binary search for multi-letter queries
+    const lowerGuess = normalizedGuess.toLowerCase();
     let left = 0;
     let right = words.length - 1;
     let result = words.length - 1;
 
     while (left <= right) {
       const mid = Math.floor((left + right) / 2);
-      if (words[mid].word.toLowerCase() >= normalizedGuess) {
+      if (words[mid].word.toLowerCase() >= lowerGuess) {
         result = mid;
         right = mid - 1;
       } else {
@@ -158,7 +187,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
     }
 
     return result;
-  }, [deferredGuess, words]);
+  }, [deferredGuess, words, letterIndexMap]);
 
   const centerIndex = getCenterIndex();
 
@@ -811,7 +840,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
             />
           )}
           <div
-            className="absolute w-full text-center transition-all ease-out flex items-center justify-center"
+            className="absolute w-full text-center ease-out flex items-center justify-center"
             style={{
               top: `${topOffset + gapOffset}px`,
               height: `${ITEM_HEIGHT}px`, // FIXED height to prevent font-load misalignment
@@ -825,8 +854,8 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
               textShadow: style.textShadow,
               filter: style.filter,
               pointerEvents: 'none',
-              // Milestone 6.4: Optimized animation settings
-              transitionDuration: `${DEBUG_SLOW_MODE ? CSS_TRANSITION_DURATION * DEBUG_DURATION_MULTIPLIER : CSS_TRANSITION_DURATION}ms`,
+              // Optimized: specific transitions instead of transition-all
+              transition: WORD_TRANSITION,
               willChange: 'transform, opacity, filter',
             }}
           >
