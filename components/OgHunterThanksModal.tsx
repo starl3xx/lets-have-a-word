@@ -159,7 +159,7 @@ export default function OgHunterThanksModal({
                   <span className="text-2xl">🏆</span>
                 </div>
                 <div>
-                  <div className="font-semibold text-purple-900">OG Hunter Badge</div>
+                  <div className="font-semibold text-purple-900">OG Hunter badge</div>
                   <div className="text-sm text-purple-600">+500 XP</div>
                 </div>
               </div>
