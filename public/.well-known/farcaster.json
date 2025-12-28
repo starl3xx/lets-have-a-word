@@ -28,5 +28,10 @@
     "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot",
     "ogImageUrl": "https://www.letshaveaword.fun/LHAW-hero.png",
     "castShareUrl": "https://warpcast.com/~/compose?text=I%E2%80%99m+playing+%40letshaveaword+%E2%80%94+a+global+word+game+where+one+player+wins+the+ETH+jackpot+%F0%9F%91%80"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjY1MDAsInR5cGUiOiJhdXRoIiwia2V5IjoiMHgzQ2VlNjMwMDc1REM1ODZENUJGZEZBODFGM2EyZDc3OTgwRjBkMjIzIn0",
+    "payload": "eyJkb21haW4iOiJodHRwczovL3d3dy5sZXRzaGF2ZWF3b3JkLmZ1biJ9",
+    "signature": "j7vUAU9nGS1OpKfK5qtYHl1BfRLFb+6wGbTj9mO2fkp/hNRO2vsPeX95ixtM+/CW6S1n9tF47186nIUCFqiUPRs="
   }
 }
