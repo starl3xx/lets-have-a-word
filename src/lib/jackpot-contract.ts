@@ -824,3 +824,29 @@ export async function resolveSepoliaPreviousRound(): Promise<string> {
 
   return tx.hash;
 }
+
+/**
+ * Get minimum seed required on Sepolia contract
+ */
+export async function getSepoliaMinimumSeed(): Promise<bigint> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  return await contract.MINIMUM_SEED();
+}
+
+/**
+ * Seed jackpot on Sepolia contract
+ */
+export async function seedJackpotOnSepolia(amountEth: string): Promise<string> {
+  const contract = getSepoliaJackpotManagerWithOperator();
+  const amountWei = ethers.parseEther(amountEth);
+
+  console.log(`[SEPOLIA] Seeding jackpot with ${amountEth} ETH`);
+
+  const tx = await contract.seedJackpot({ value: amountWei });
+  console.log(`[SEPOLIA] Seed transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Jackpot seeded - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
