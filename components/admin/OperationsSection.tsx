@@ -219,6 +219,23 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Copy feedback state
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
 
+  // Simulation states
+  const [simAnswer, setSimAnswer] = useState("")
+  const [simGuesses, setSimGuesses] = useState("20")
+  const [simUsers, setSimUsers] = useState("5")
+  const [simSkipOnchain, setSimSkipOnchain] = useState(true)
+  const [simLoading, setSimLoading] = useState(false)
+  const [forceResolveLoading, setForceResolveLoading] = useState(false)
+  const [simResult, setSimResult] = useState<{
+    success: boolean;
+    message: string;
+    roundId?: number;
+    answer?: string;
+    totalGuesses?: number;
+    winnerFid?: number;
+    logs: string[];
+  } | null>(null)
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -493,6 +510,77 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       document.body.removeChild(textarea)
       setCopyFeedback('Copied!')
       setTimeout(() => setCopyFeedback(null), 2000)
+    }
+  }
+
+  const handleRunSimulation = async (dryRun: boolean = false) => {
+    if (!user?.fid) return
+
+    try {
+      setSimLoading(true)
+      setSimResult(null)
+      setError(null)
+
+      const res = await fetch('/api/admin/operational/simulate-round', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          answer: simAnswer || undefined,
+          numGuesses: parseInt(simGuesses, 10) || 20,
+          numUsers: parseInt(simUsers, 10) || 5,
+          skipOnchain: simSkipOnchain,
+          dryRun,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Simulation failed')
+      }
+
+      setSimResult(data)
+      if (data.success && !dryRun) {
+        setSuccess(`Simulation complete! Round ${data.roundId} resolved.`)
+        await fetchStatus()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSimLoading(false)
+    }
+  }
+
+  const handleForceResolve = async () => {
+    if (!user?.fid) return
+
+    if (!confirm('Are you sure you want to force-resolve the active round? This will end the round immediately.')) {
+      return
+    }
+
+    try {
+      setForceResolveLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/admin/operational/force-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ devFid: user.fid }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Force resolve failed')
+      }
+
+      setSuccess(`Round ${data.roundId} resolved. Answer was: ${data.answer}`)
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setForceResolveLoading(false)
     }
   }
 
@@ -982,6 +1070,199 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               ))}
             </div>
           )}
+
+          {/* Sepolia Simulation Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>
+              Sepolia Test Simulation
+              <span style={{
+                marginLeft: '12px',
+                fontSize: '11px',
+                padding: '2px 8px',
+                background: '#dbeafe',
+                color: '#1e40af',
+                borderRadius: '9999px',
+              }}>
+                TESTNET
+              </span>
+            </h2>
+
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Simulate a complete game round with fake users for testing on Sepolia.
+              This creates a round, submits guesses from simulated users, and resolves with a winner.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={styles.label}>Answer (optional)</label>
+                <input
+                  type="text"
+                  style={styles.input}
+                  placeholder="CRANE (random if empty)"
+                  value={simAnswer}
+                  onChange={(e) => setSimAnswer(e.target.value.toUpperCase().slice(0, 5))}
+                  maxLength={5}
+                />
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                  Leave empty for random word
+                </div>
+              </div>
+              <div>
+                <label style={styles.label}>Wrong Guesses</label>
+                <input
+                  type="number"
+                  style={styles.input}
+                  value={simGuesses}
+                  onChange={(e) => setSimGuesses(e.target.value)}
+                  min={1}
+                  max={100}
+                />
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                  Number of wrong guesses before winning (1-100)
+                </div>
+              </div>
+              <div>
+                <label style={styles.label}>Simulated Users</label>
+                <input
+                  type="number"
+                  style={styles.input}
+                  value={simUsers}
+                  onChange={(e) => setSimUsers(e.target.value)}
+                  min={1}
+                  max={10}
+                />
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                  Number of fake users (1-10)
+                </div>
+              </div>
+              <div>
+                <label style={styles.label}>Skip On-chain</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={simSkipOnchain}
+                    onChange={(e) => setSimSkipOnchain(e.target.checked)}
+                    style={{ width: '18px', height: '18px' }}
+                  />
+                  <span style={{ fontSize: '14px', color: '#374151' }}>
+                    Skip on-chain commitment
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                  Enable for testing without contract calls
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+              <button
+                onClick={() => handleRunSimulation(true)}
+                style={styles.btnSecondary}
+                disabled={simLoading}
+              >
+                {simLoading ? 'Running...' : 'Dry Run'}
+              </button>
+              <button
+                onClick={() => handleRunSimulation(false)}
+                style={{
+                  ...styles.btnPrimary,
+                  background: '#7c3aed',
+                }}
+                disabled={simLoading || (status?.activeRoundId !== undefined && status.activeRoundId !== null)}
+              >
+                {simLoading ? 'Running...' : 'Run Simulation'}
+              </button>
+            </div>
+
+            {status?.activeRoundId && (
+              <div style={{
+                ...styles.alert('warning'),
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span>
+                  An active round exists (Round #{status.activeRoundId}).
+                  Resolve it first to run a simulation.
+                </span>
+                <button
+                  onClick={handleForceResolve}
+                  style={{
+                    ...styles.btnDanger,
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    marginLeft: '12px',
+                    flexShrink: 0,
+                  }}
+                  disabled={forceResolveLoading}
+                >
+                  {forceResolveLoading ? 'Resolving...' : 'Force Resolve'}
+                </button>
+              </div>
+            )}
+
+            {simResult && (
+              <div style={{
+                background: simResult.success ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${simResult.success ? '#bbf7d0' : '#fecaca'}`,
+                borderRadius: '8px',
+                padding: '16px',
+              }}>
+                <div style={{
+                  fontWeight: 600,
+                  color: simResult.success ? '#166534' : '#dc2626',
+                  marginBottom: '12px',
+                }}>
+                  {simResult.success ? 'Simulation Complete' : 'Simulation Failed'}
+                </div>
+
+                {simResult.roundId && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Round ID</span>
+                      <span style={styles.infoValue}>#{simResult.roundId}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Answer</span>
+                      <span style={{ ...styles.infoValue, fontFamily: 'monospace' }}>{simResult.answer}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Total Guesses</span>
+                      <span style={styles.infoValue}>{simResult.totalGuesses}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Winner FID</span>
+                      <span style={styles.infoValue}>{simResult.winnerFid}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '13px', color: '#374151' }}>
+                  {simResult.message}
+                </div>
+
+                {simResult.logs.length > 0 && (
+                  <details style={{ marginTop: '12px' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: '13px', color: '#6b7280' }}>
+                      View Logs ({simResult.logs.length} entries)
+                    </summary>
+                    <pre style={{
+                      marginTop: '8px',
+                      padding: '12px',
+                      background: '#1f2937',
+                      color: '#e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      overflow: 'auto',
+                      maxHeight: '200px',
+                    }}>
+                      {simResult.logs.join('\n')}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
         </>
       ) : null}
     </div>
