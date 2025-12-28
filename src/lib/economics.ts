@@ -10,6 +10,7 @@ import {
   resolveRoundWithPayoutsOnSepolia,
   getCurrentJackpotOnChain,
   getCurrentJackpotOnSepolia,
+  getSepoliaContractBalance,
   type PayoutRecipient,
 } from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
@@ -310,11 +311,35 @@ export async function resolveRoundAndCreatePayouts(
   let jackpotWei: bigint;
 
   try {
-    const contractJackpotEth = sepoliaSimulationMode
-      ? await getCurrentJackpotOnSepolia()
-      : await getCurrentJackpotOnChain();
-    jackpotEth = parseFloat(contractJackpotEth);
-    jackpotWei = ethers.parseEther(contractJackpotEth);
+    if (sepoliaSimulationMode) {
+      // For Sepolia: use ACTUAL contract balance, not internal jackpot tracking
+      // This is critical because the contract's internal jackpot may be higher than
+      // its actual ETH balance (from accumulated unresolved simulations)
+      const contractBalance = await getSepoliaContractBalance();
+      const internalJackpot = await getCurrentJackpotOnSepolia();
+
+      console.log(`[economics] Sepolia contract state:`);
+      console.log(`  - Internal jackpot: ${internalJackpot} ETH`);
+      console.log(`  - Actual balance: ${contractBalance} ETH`);
+
+      // Use the lower of the two to prevent CALL_EXCEPTION
+      const balanceNum = parseFloat(contractBalance);
+      const jackpotNum = parseFloat(internalJackpot);
+
+      if (balanceNum < jackpotNum) {
+        console.warn(`[economics] ⚠️ Using actual balance (${contractBalance} ETH) instead of internal jackpot (${internalJackpot} ETH)`);
+        jackpotEth = balanceNum;
+        jackpotWei = ethers.parseEther(contractBalance);
+      } else {
+        jackpotEth = jackpotNum;
+        jackpotWei = ethers.parseEther(internalJackpot);
+      }
+    } else {
+      // For mainnet: use contract's internal jackpot tracking
+      const contractJackpotEth = await getCurrentJackpotOnChain();
+      jackpotEth = parseFloat(contractJackpotEth);
+      jackpotWei = ethers.parseEther(contractJackpotEth);
+    }
 
     const dbJackpotEth = parseFloat(round.prizePoolEth);
     if (Math.abs(jackpotEth - dbJackpotEth) > 0.0001) {
