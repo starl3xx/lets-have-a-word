@@ -178,19 +178,22 @@ const styles = {
     color: "#111827",
     fontWeight: 500,
   },
-  alert: (type: 'error' | 'success' | 'warning') => ({
+  alert: (type: 'error' | 'success' | 'warning' | 'info') => ({
     padding: "12px 16px",
     borderRadius: "8px",
     marginBottom: "16px",
     fontSize: "14px",
     background: type === 'error' ? "#fef2f2" :
                 type === 'success' ? "#f0fdf4" :
+                type === 'info' ? "#eff6ff" :
                 "#fffbeb",
     color: type === 'error' ? "#dc2626" :
            type === 'success' ? "#16a34a" :
+           type === 'info' ? "#2563eb" :
            "#d97706",
     border: `1px solid ${type === 'error' ? "#fecaca" :
                          type === 'success' ? "#bbf7d0" :
+                         type === 'info' ? "#bfdbfe" :
                          "#fde68a"}`,
   }),
 }
@@ -1150,7 +1153,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   ...styles.btnPrimary,
                   background: '#7c3aed',
                 }}
-                disabled={simLoading || (status?.activeRoundId !== undefined && status.activeRoundId !== null)}
+                disabled={simLoading}
               >
                 {simLoading ? 'Running...' : 'Run Simulation'}
               </button>
@@ -1158,14 +1161,14 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
             {status?.activeRoundId && (
               <div style={{
-                ...styles.alert('warning'),
+                ...styles.alert('info'),
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
               }}>
                 <span>
-                  An active round exists (Round #{status.activeRoundId}).
-                  Resolve it first to run a simulation.
+                  Production has an active round (#{status.activeRoundId}).
+                  Sepolia simulation runs independently.
                 </span>
                 <button
                   onClick={handleForceResolve}
