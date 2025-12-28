@@ -566,15 +566,16 @@ export default function WalletSection({ user }: WalletSectionProps) {
     try {
       const amountWei = ethers.parseEther(injectAmount);
 
-      // Send transaction
+      // Call seedJackpot() on the contract
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      const tx = await signer.sendTransaction({
-        to: balances.contractAddress,
-        value: amountWei,
-        data: '0x', // seedJackpot() selector would go here for contract call
-      });
+      // Create contract instance with seedJackpot ABI
+      const seedJackpotAbi = ['function seedJackpot() payable'];
+      const contract = new ethers.Contract(balances.contractAddress, seedJackpotAbi, signer);
+
+      // Call seedJackpot with ETH value
+      const tx = await contract.seedJackpot({ value: amountWei });
 
       // Log the action
       await fetch('/api/admin/wallet/actions', {
@@ -591,7 +592,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           initiatedByFid: user.fid,
           initiatedByAddress: connectedWallet.address,
           note: injectNote || null,
-          metadata: { chainId: connectedWallet.chainId },
+          metadata: { chainId: connectedWallet.chainId, method: 'seedJackpot' },
         }),
       });
 
@@ -627,7 +628,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
       return;
     }
 
-    // Validate destination
+    // Note: withdrawCreatorProfit() sends to the configured creatorProfitWallet,
+    // not an arbitrary destination. The destination field is informational.
     if (!ethers.isAddress(withdrawDestination)) {
       setWalletError('Invalid destination address');
       return;
@@ -639,19 +641,18 @@ export default function WalletSection({ user }: WalletSectionProps) {
     try {
       const amountWei = ethers.parseEther(withdrawAmount);
 
-      // For creator pool withdrawal, we'd call the contract's withdrawCreatorProfit()
-      // For now, this demonstrates the flow - actual implementation would use contract call
+      // Call withdrawCreatorProfit() on the contract
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // This is a placeholder - actual withdrawal would call contract method
-      // const contract = new ethers.Contract(balances.contractAddress, ABI, signer);
-      // const tx = await contract.withdrawCreatorProfit();
+      // Create contract instance with withdrawCreatorProfit ABI
+      const withdrawAbi = ['function withdrawCreatorProfit()'];
+      const contract = new ethers.Contract(balances.contractAddress, withdrawAbi, signer);
 
-      // For demonstration, we'll just log what would happen
-      alert('Creator pool withdrawal requires calling the contract\'s withdrawCreatorProfit() function.\n\nThis is connected to the contract at: ' + balances.contractAddress);
+      // Call withdrawCreatorProfit - sends accumulated profit to creatorProfitWallet
+      const tx = await contract.withdrawCreatorProfit();
 
-      // Log the action (even for demo)
+      // Log the action
       await fetch('/api/admin/wallet/actions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -660,12 +661,13 @@ export default function WalletSection({ user }: WalletSectionProps) {
           actionType: 'creator_pool_withdrawal',
           amountEth: withdrawAmount,
           amountWei: amountWei.toString(),
-          fromAddress: balances.creatorPool.address,
-          toAddress: withdrawDestination,
+          fromAddress: balances.contractAddress,
+          toAddress: balances.creatorPool.address,
+          txHash: tx.hash,
           initiatedByFid: user.fid,
           initiatedByAddress: connectedWallet.address,
           note: 'Withdrawal initiated from admin panel',
-          metadata: { chainId: connectedWallet.chainId },
+          metadata: { chainId: connectedWallet.chainId, method: 'withdrawCreatorProfit' },
         }),
       });
 
@@ -677,6 +679,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
       // Refresh data
       await Promise.all([fetchBalances(), fetchActions()]);
+
+      alert(`Transaction submitted: ${tx.hash}\n\nView on BaseScan: https://basescan.org/tx/${tx.hash}`);
     } catch (err: any) {
       console.error('Withdrawal error:', err);
       setWalletError(err.message || 'Withdrawal failed');
