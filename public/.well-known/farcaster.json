@@ -2,20 +2,20 @@
   "frame": {
     "name": "Let's Have A Word!",
     "version": "1",
-    "iconUrl": "https://www.letshaveaword.fun/LHAW-icon.png",
-    "homeUrl": "https://www.letshaveaword.fun",
-    "imageUrl": "https://www.letshaveaword.fun/screenshot4.png",
+    "iconUrl": "https://letshaveaword.fun/LHAW-icon.png",
+    "homeUrl": "https://letshaveaword.fun",
+    "imageUrl": "https://letshaveaword.fun/screenshot4.png",
     "buttonTitle": "Play now",
-    "splashImageUrl": "https://www.letshaveaword.fun/LHAW-splash.png",
+    "splashImageUrl": "https://letshaveaword.fun/LHAW-splash.png",
     "splashBackgroundColor": "#8c81a8",
-    "webhookUrl": "https://www.letshaveaword.fun/api/webhook",
+    "webhookUrl": "https://letshaveaword.fun/api/webhook",
     "subtitle": "Global word game. ETH prizes",
     "description": "A global word game where players compete to guess the word and win ETH. Thousands of guesses per round. One winner takes the prize.",
     "primaryCategory": "games",
     "screenshotUrls": [
-      "https://www.letshaveaword.fun/screenshot3.png"
+      "https://letshaveaword.fun/screenshot3.png"
     ],
-    "heroImageUrl": "https://www.letshaveaword.fun/LHAW-hero.png",
+    "heroImageUrl": "https://letshaveaword.fun/LHAW-hero.png",
     "tags": [
       "game",
       "wordgame",
@@ -26,12 +26,12 @@
     "tagline": "Find the word, win the ETH",
     "ogTitle": "Let's Have A Word!",
     "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot",
-    "ogImageUrl": "https://www.letshaveaword.fun/LHAW-hero.png",
-    "castShareUrl": "https://warpcast.com/~/compose?text=I%E2%80%99m+playing+%40letshaveaword+%E2%80%94+a+global+word+game+where+one+player+wins+the+ETH+jackpot+%F0%9F%91%80"
+    "ogImageUrl": "https://letshaveaword.fun/LHAW-hero.png",
+    "castShareUrl": "https://farcaster.xyz/~/compose?text=I%E2%80%99m+playing+%40letshaveaword+%E2%80%94+a+global+word+game+where+one+player+wins+the+ETH+jackpot+%F0%9F%91%80"
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjY1MDAsInR5cGUiOiJhdXRoIiwia2V5IjoiMHgzQ2VlNjMwMDc1REM1ODZENUJGZEZBODFGM2EyZDc3OTgwRjBkMjIzIn0",
-    "payload": "eyJkb21haW4iOiJodHRwczovL3d3dy5sZXRzaGF2ZWF3b3JkLmZ1biJ9",
-    "signature": "j7vUAU9nGS1OpKfK5qtYHl1BfRLFb+6wGbTj9mO2fkp/hNRO2vsPeX95ixtM+/CW6S1n9tF47186nIUCFqiUPRs="
+    "payload": "eyJkb21haW4iOiJsZXRzaGF2ZWF3b3JkLmZ1biJ9",
+    "signature": "6L58F9vnp9sTMiZys7BmStOtWNkcOMd+rcChWs+BcGcXfzYIU7X6ASzLxEccs7LbH+FNbQD+okjM4Z8/Bp9fZxs="
   }
 }
