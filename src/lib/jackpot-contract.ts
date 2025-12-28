@@ -769,6 +769,16 @@ export async function getSepoliaContractBalance(): Promise<string> {
 }
 
 /**
+ * Get actual ETH balance of the Sepolia contract in raw wei
+ * Use this for precise comparisons to avoid formatEther/parseEther precision loss
+ */
+export async function getSepoliaContractBalanceWei(): Promise<bigint> {
+  const config = getSepoliaContractConfig();
+  const provider = getSepoliaProvider();
+  return await provider.getBalance(config.jackpotManagerAddress);
+}
+
+/**
  * Get current round info from Sepolia contract
  */
 export async function getSepoliaRoundInfo(): Promise<{
@@ -820,15 +830,24 @@ export async function resolveRoundWithPayoutsOnSepolia(
   // Pre-flight check: verify contract state before attempting resolution
   console.log(`[SEPOLIA] Pre-flight contract state check...`);
   const roundInfo = await getSepoliaRoundInfo();
-  const actualBalance = await getSepoliaContractBalance();
+  const actualBalanceWei = await getSepoliaContractBalanceWei();
 
   console.log(`[SEPOLIA] Contract state:`);
   console.log(`  - Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
-  console.log(`  - Internal jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
-  console.log(`  - Actual balance: ${actualBalance} ETH`);
+  console.log(`  - Internal jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH (${roundInfo.jackpot} wei)`);
+  console.log(`  - Actual balance: ${ethers.formatEther(actualBalanceWei)} ETH (${actualBalanceWei} wei)`);
 
   if (!roundInfo.isActive) {
     throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active. The contract may be in an inconsistent state.`);
+  }
+
+  // CRITICAL: Check that actual ETH balance is sufficient
+  // The contract will fail to transfer ETH if balance < jackpot
+  if (actualBalanceWei < roundInfo.jackpot) {
+    const shortfall = roundInfo.jackpot - actualBalanceWei;
+    console.error(`[SEPOLIA] ❌ CRITICAL: Contract balance (${ethers.formatEther(actualBalanceWei)} ETH) < internal jackpot (${ethers.formatEther(roundInfo.jackpot)} ETH)`);
+    console.error(`[SEPOLIA] Shortfall: ${ethers.formatEther(shortfall)} ETH (${shortfall} wei)`);
+    throw new Error(`Contract balance insufficient: has ${ethers.formatEther(actualBalanceWei)} ETH but internal jackpot is ${ethers.formatEther(roundInfo.jackpot)} ETH. Use "Clear Sepolia Round" in admin to reset.`);
   }
 
   // Calculate total payout + seed and compare to contract jackpot
@@ -863,19 +882,33 @@ export async function resolveRoundWithPayoutsOnSepolia(
   // Try static call first to get better error messages
   try {
     console.log(`[SEPOLIA] Testing with static call...`);
+    console.log(`[SEPOLIA] Call params:`);
+    console.log(`  - recipients: ${JSON.stringify(recipients)}`);
+    console.log(`  - amounts (wei): ${JSON.stringify(amounts.map(a => a.toString()))}`);
+    console.log(`  - seed (wei): ${seedForNextRoundWei.toString()}`);
     await contract.resolveRoundWithPayouts.staticCall(recipients, amounts, seedForNextRoundWei);
     console.log(`[SEPOLIA] Static call succeeded, proceeding with transaction...`);
   } catch (staticErr: any) {
     // Re-query contract state to see what changed
     console.error(`[SEPOLIA] Static call FAILED - re-checking contract state...`);
     const freshRoundInfo = await getSepoliaRoundInfo();
+    const freshBalance = await getSepoliaContractBalanceWei();
     console.error(`[SEPOLIA] Current state:`);
     console.error(`  - Round #${freshRoundInfo.roundNumber}, Active: ${freshRoundInfo.isActive}`);
-    console.error(`  - Internal jackpot: ${ethers.formatEther(freshRoundInfo.jackpot)} ETH`);
-    console.error(`  - Our total: ${ethers.formatEther(totalResolveWei)} ETH`);
-    console.error(`  - Difference: ${ethers.formatEther(freshRoundInfo.jackpot - totalResolveWei)} ETH`);
+    console.error(`  - Internal jackpot: ${ethers.formatEther(freshRoundInfo.jackpot)} ETH (${freshRoundInfo.jackpot} wei)`);
+    console.error(`  - Actual balance: ${ethers.formatEther(freshBalance)} ETH (${freshBalance} wei)`);
+    console.error(`  - Our total: ${ethers.formatEther(totalResolveWei)} ETH (${totalResolveWei} wei)`);
+
+    // Safe difference calculation
+    const diff = freshRoundInfo.jackpot > totalResolveWei
+      ? freshRoundInfo.jackpot - totalResolveWei
+      : totalResolveWei - freshRoundInfo.jackpot;
+    const diffSign = freshRoundInfo.jackpot > totalResolveWei ? '+' : '-';
+    console.error(`  - Difference: ${diffSign}${ethers.formatEther(diff)} ETH (${diffSign}${diff} wei)`);
+    console.error(`  - Balance vs Jackpot: ${freshBalance >= freshRoundInfo.jackpot ? 'OK' : 'INSUFFICIENT'}`);
 
     const errMsg = staticErr.reason || staticErr.message || 'Unknown error';
+    console.error(`[SEPOLIA] Raw error:`, staticErr);
     throw new Error(`Contract rejected resolution: ${errMsg}. Contract jackpot: ${ethers.formatEther(freshRoundInfo.jackpot)} ETH, Our total: ${ethers.formatEther(totalResolveWei)} ETH`);
   }
 
