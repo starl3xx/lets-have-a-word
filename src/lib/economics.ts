@@ -14,7 +14,6 @@ import {
   getCurrentJackpotOnSepoliaWei,
   getSepoliaContractBalance,
   getMainnetContractBalance,
-  getSepoliaMinimumSeed,
   type PayoutRecipient,
 } from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
@@ -473,37 +472,8 @@ export async function resolveRoundAndCreatePayouts(
     seedForNextRoundWei = (referrerShareWei * 2500n) / 10000n; // 2.5%
   }
 
-  // For Sepolia simulation: ensure seed meets contract minimum
-  // If seed is below minimum, take the difference from winner payout
-  if (sepoliaSimulationMode) {
-    try {
-      const minimumSeed = await getSepoliaMinimumSeed();
-      console.log(`[economics] Sepolia minimum seed: ${ethers.formatEther(minimumSeed)} ETH`);
-      console.log(`[economics] Calculated seed: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
-
-      if (seedForNextRoundWei < minimumSeed) {
-        const shortfall = minimumSeed - seedForNextRoundWei;
-        console.log(`[economics] ⚠️ Seed shortfall: ${ethers.formatEther(shortfall)} ETH`);
-
-        // Check if we can take shortfall from winner payout
-        if (toWinnerWei > shortfall) {
-          console.log(`[economics] Adjusting: taking ${ethers.formatEther(shortfall)} ETH from winner to meet minimum seed`);
-          toWinnerWei = toWinnerWei - shortfall;
-          seedForNextRoundWei = minimumSeed;
-          console.log(`[economics] Adjusted winner payout: ${ethers.formatEther(toWinnerWei)} ETH`);
-          console.log(`[economics] Adjusted seed: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
-        } else {
-          console.error(`[economics] ❌ Cannot meet minimum seed - winner payout too small`);
-          throw new Error(`Jackpot too small to meet minimum seed requirement. Need at least ${ethers.formatEther(minimumSeed)} ETH seed but jackpot can't cover it.`);
-        }
-      }
-    } catch (seedErr: any) {
-      if (seedErr.message?.includes('Jackpot too small')) {
-        throw seedErr;
-      }
-      console.warn(`[economics] Could not check minimum seed:`, seedErr.message);
-    }
-  }
+  // Note: For Sepolia simulation, seed is ignored since the contract uses
+  // resolveRound(winner) which pays 100% to the winner with no seed.
 
   // Get top 10 guessers (FIDs)
   const topGuesserFids = await getTop10Guessers(roundId, winnerFid);
