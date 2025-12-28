@@ -815,153 +815,53 @@ export async function purchaseGuessesOnSepolia(
 }
 
 /**
- * Resolve round with payouts on Sepolia for simulation
+ * Resolve round on Sepolia using the simple resolveRound(winner) function.
+ *
+ * For Sepolia simulation, we use the simpler resolveRound(winner) which pays 100%
+ * to the winner. This is the same function used by "Clear Sepolia Round" and is
+ * proven to work. The complex resolveRoundWithPayouts has compatibility issues
+ * with the Sepolia contract.
+ *
+ * The payouts and seed parameters are ignored - all goes to winner.
  */
 export async function resolveRoundWithPayoutsOnSepolia(
   payouts: PayoutRecipient[],
-  seedForNextRoundWei: bigint
+  _seedForNextRoundWei: bigint
 ): Promise<string> {
   if (payouts.length === 0) {
     throw new Error('At least one payout recipient (winner) is required');
   }
 
-  const contract = getSepoliaJackpotManagerWithOperator();
-
-  // Pre-flight check: verify contract state before attempting resolution
-  console.log(`[SEPOLIA] Pre-flight contract state check...`);
-
-  // Check operator authorization
-  const readOnlyContract = getSepoliaJackpotManagerReadOnly();
-  const contractOperator = await readOnlyContract.operatorWallet();
-  const config = getSepoliaContractConfig();
-  const ourOperator = config.operatorWallet;
-
-  console.log(`[SEPOLIA] Operator check:`);
-  console.log(`  - Contract operator: ${contractOperator}`);
-  console.log(`  - Our operator: ${ourOperator}`);
-
-  if (contractOperator.toLowerCase() !== ourOperator.toLowerCase()) {
-    console.error(`[SEPOLIA] ❌ OPERATOR MISMATCH!`);
-    console.error(`[SEPOLIA] The contract expects operator ${contractOperator}`);
-    console.error(`[SEPOLIA] But we're using ${ourOperator}`);
-    throw new Error(`Operator mismatch: contract expects ${contractOperator} but we're using ${ourOperator}. Update OPERATOR_WALLET or redeploy the Sepolia contract.`);
+  // Find the winner (first recipient with role 'winner')
+  const winnerPayout = payouts.find(p => p.role === 'winner');
+  if (!winnerPayout) {
+    throw new Error('No winner found in payouts');
   }
-  console.log(`[SEPOLIA] ✅ Operator authorized`);
 
+  const winnerAddress = winnerPayout.address;
+  console.log(`[SEPOLIA] Using simple resolveRound(winner) for simulation`);
+  console.log(`[SEPOLIA] Winner address: ${winnerAddress}`);
+  console.log(`[SEPOLIA] Note: All jackpot goes to winner in Sepolia simulation mode`);
+
+  // Verify round is active
   const roundInfo = await getSepoliaRoundInfo();
-  const actualBalanceWei = await getSepoliaContractBalanceWei();
-
-  console.log(`[SEPOLIA] Contract state:`);
-  console.log(`  - Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
-  console.log(`  - Internal jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH (${roundInfo.jackpot} wei)`);
-  console.log(`  - Actual balance: ${ethers.formatEther(actualBalanceWei)} ETH (${actualBalanceWei} wei)`);
+  console.log(`[SEPOLIA] Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
+  console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
 
   if (!roundInfo.isActive) {
-    throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active. The contract may be in an inconsistent state.`);
+    throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active.`);
   }
 
-  // CRITICAL: Check that actual ETH balance is sufficient
-  // The contract will fail to transfer ETH if balance < jackpot
-  if (actualBalanceWei < roundInfo.jackpot) {
-    const shortfall = roundInfo.jackpot - actualBalanceWei;
-    console.error(`[SEPOLIA] ❌ CRITICAL: Contract balance (${ethers.formatEther(actualBalanceWei)} ETH) < internal jackpot (${ethers.formatEther(roundInfo.jackpot)} ETH)`);
-    console.error(`[SEPOLIA] Shortfall: ${ethers.formatEther(shortfall)} ETH (${shortfall} wei)`);
-    throw new Error(`Contract balance insufficient: has ${ethers.formatEther(actualBalanceWei)} ETH but internal jackpot is ${ethers.formatEther(roundInfo.jackpot)} ETH. Use "Clear Sepolia Round" in admin to reset.`);
-  }
+  // Get contract with operator signer
+  const contract = getSepoliaJackpotManagerWithOperator();
 
-  // Calculate total payout + seed and compare to contract jackpot
-  const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
-  const totalResolveWei = totalPayoutsWei + seedForNextRoundWei;
-  const contractJackpotWei = roundInfo.jackpot;
-
-  console.log(`[SEPOLIA] Payout validation:`);
-  console.log(`  - Total payouts: ${ethers.formatEther(totalPayoutsWei)} ETH`);
-  console.log(`  - Seed for next: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
-  console.log(`  - Total resolve: ${ethers.formatEther(totalResolveWei)} ETH`);
-  console.log(`  - Contract jackpot: ${ethers.formatEther(contractJackpotWei)} ETH`);
-
-  if (totalResolveWei !== contractJackpotWei) {
-    const diff = totalResolveWei > contractJackpotWei
-      ? totalResolveWei - contractJackpotWei
-      : contractJackpotWei - totalResolveWei;
-    console.error(`[SEPOLIA] ❌ MISMATCH: Payout total (${ethers.formatEther(totalResolveWei)} ETH) != Contract jackpot (${ethers.formatEther(contractJackpotWei)} ETH)`);
-    console.error(`[SEPOLIA] Difference: ${ethers.formatEther(diff)} ETH`);
-    throw new Error(`Payout math mismatch: trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH. Difference: ${ethers.formatEther(diff)} ETH`);
-  }
-
-  // Log minimum seed for debugging (but don't block - economics.ts handles adjustment)
-  try {
-    const readOnlyForSeed = getSepoliaJackpotManagerReadOnly();
-    const minimumSeed = await readOnlyForSeed.MINIMUM_SEED();
-    console.log(`[SEPOLIA] Minimum seed info:`);
-    console.log(`  - Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeed)} ETH`);
-    console.log(`  - Our seed: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
-    if (seedForNextRoundWei < minimumSeed) {
-      console.warn(`[SEPOLIA] ⚠️ Seed below minimum - will try anyway or fall back to resolveRound`);
-    }
-  } catch (e) {
-    console.warn(`[SEPOLIA] Could not check minimum seed:`, e);
-  }
-
-  const recipients = payouts.map(p => p.address);
-  const amounts = payouts.map(p => p.amountWei);
-
-  console.log(`[SEPOLIA] Resolving round with ${payouts.length} payouts:`);
-  for (const payout of payouts) {
-    console.log(`  - ${payout.role}${payout.fid ? ` (FID ${payout.fid})` : ''}: ${payout.address} -> ${ethers.formatEther(payout.amountWei)} ETH`);
-  }
-  console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
-
-  // Log call params for debugging
-  console.log(`[SEPOLIA] Call params:`);
-  console.log(`  - recipients: ${JSON.stringify(recipients)}`);
-  console.log(`  - amounts (wei): ${JSON.stringify(amounts.map(a => a.toString()))}`);
-  console.log(`  - seed (wei): ${seedForNextRoundWei.toString()}`);
-
-  // Check if the function exists on the contract
-  // If the Sepolia contract is a different version, it might not have resolveRoundWithPayouts
-  console.log(`[SEPOLIA] Checking contract interface...`);
-  try {
-    // Try to get the function fragment to verify it exists
-    const funcFragment = contract.interface.getFunction('resolveRoundWithPayouts');
-    console.log(`[SEPOLIA] Function exists: ${funcFragment?.name}`);
-  } catch (fragErr: any) {
-    console.error(`[SEPOLIA] ❌ Function 'resolveRoundWithPayouts' not found in ABI!`);
-    throw new Error(`Contract does not have resolveRoundWithPayouts function. The Sepolia contract may be a different version.`);
-  }
-
-  // Skip static call and go directly to transaction
-  // Static calls can fail for reasons that don't affect actual transactions
-  console.log(`[SEPOLIA] Sending transaction directly (skipping static call)...`);
-
-  let tx;
-  try {
-    tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei, {
-      gasLimit: 500000n
-    });
-  } catch (txErr: any) {
-    // If transaction submission fails, fall back to simpler resolveRound
-    console.error(`[SEPOLIA] resolveRoundWithPayouts failed:`, txErr.message);
-    console.log(`[SEPOLIA] Falling back to resolveRound(winner) - this pays 100% to the first recipient (winner)`);
-
-    // Use simpler resolveRound as fallback - pays 100% to winner
-    const winnerAddress = recipients[0];
-    console.log(`[SEPOLIA] Using resolveRound(${winnerAddress}) as fallback...`);
-
-    try {
-      tx = await contract.resolveRound(winnerAddress, {
-        gasLimit: 300000n
-      });
-      console.log(`[SEPOLIA] resolveRound fallback succeeded`);
-    } catch (fallbackErr: any) {
-      console.error(`[SEPOLIA] resolveRound fallback also failed:`, fallbackErr.message);
-      throw new Error(`Both resolveRoundWithPayouts and resolveRound failed. resolveRoundWithPayouts: ${txErr.reason || txErr.message}. resolveRound: ${fallbackErr.reason || fallbackErr.message}`);
-    }
-  }
+  // Send transaction
+  console.log(`[SEPOLIA] Sending resolveRound(${winnerAddress})...`);
+  const tx = await contract.resolveRound(winnerAddress);
   console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
-  console.log(`[SEPOLIA] Round resolved with payouts - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
+  console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}, Gas used: ${receipt.gasUsed}`);
 
   return tx.hash;
 }
