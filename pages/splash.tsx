@@ -3,7 +3,7 @@
  *
  * Landing page shown during prelaunch mode (NEXT_PUBLIC_PRELAUNCH_MODE=1).
  * Features the OG Hunter badge campaign with two-step verification:
- * 1. Add the mini app
+ * 1. Add the app
  * 2. Share via Farcaster cast
  *
  * Rewards: OG Hunter badge + 500 XP
@@ -217,7 +217,7 @@ export default function SplashPage() {
         style={{ fontFamily: FONT_FAMILY }}
       >
         {/* Hero Section */}
-        <div className="px-4 pt-12 pb-8 text-center">
+        <div className="px-4 pt-4 pb-8 text-center">
           {/* App Icon */}
           <img
             src="https://letshaveaword.fun/LHAW-icon.png"
@@ -234,7 +234,7 @@ export default function SplashPage() {
           </h1>
 
           <p className="text-gray-600 max-w-md mx-auto">
-            A social word game where everyone guesses together. Join before launch to earn your exclusive badge and 500 XP.
+            Let's Have A Word! is a social word game where everyone guesses together. Join before launch to earn your exclusive badge and 500 XP.
           </p>
         </div>
 
@@ -315,7 +315,7 @@ function AwardedState({ status }: { status: OgHunterStatus }) {
             <span className="text-xl">🕵️‍♂️</span>
           </div>
           <div className="text-left">
-            <div className="font-semibold text-gray-900">OG Hunter Badge</div>
+            <div className="font-semibold text-gray-900">OG Hunter badge</div>
             <div className="text-sm text-gray-500">+{status.xpAwardAmount} XP earned</div>
           </div>
         </div>
@@ -406,14 +406,14 @@ function ChecklistState({
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <span className={`font-medium ${addedMiniApp ? 'text-green-700' : 'text-gray-900'}`}>
-                  Add the mini app
+                  Add the app
                 </span>
                 {addedMiniApp && (
                   <span className="text-xs text-green-600 font-medium">Verified</span>
                 )}
               </div>
               <p className="text-sm text-gray-500 mt-0.5">
-                Add Let's Have A Word to your Farcaster apps
+                Add Let's Have A Word to your mini apps
               </p>
 
               {!addedMiniApp && (
@@ -499,7 +499,7 @@ function ChecklistState({
             <span className="text-2xl">🕵️‍♂️</span>
           </div>
           <div>
-            <div className="font-semibold text-purple-900">OG Hunter Badge</div>
+            <div className="font-semibold text-purple-900">OG Hunter badge</div>
             <div className="text-sm text-purple-600">+{status?.xpAwardAmount || 500} XP</div>
           </div>
         </div>
