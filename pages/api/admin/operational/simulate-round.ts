@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from '../me';
-import { createRound, getActiveRound, getRoundById } from '../../../../src/lib/rounds';
+import { createRound, getRoundById } from '../../../../src/lib/rounds';
 import { submitGuess } from '../../../../src/lib/guesses';
 import { getGuessWords } from '../../../../src/lib/word-lists';
 import { db, users, dailyGuessState } from '../../../../src/db';
@@ -125,27 +125,20 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     };
   }
 
-  // Check for existing active round
-  const existingRound = await getActiveRound();
-  if (existingRound) {
-    log(`Active round ${existingRound.id} already exists`);
-    return {
-      success: false,
-      message: `Active round ${existingRound.id} already exists. Resolve it first or wait for it to complete.`,
-      logs,
-    };
-  }
+  // Sepolia simulation bypasses active round check - it's independent of production state
+  log('Sepolia simulation - bypassing active round check');
 
   // Generate fake users
   const fakeUsers = generateFakeUsers(config.numUsers);
   await ensureFakeUsersExist(fakeUsers);
   log(`Created ${fakeUsers.length} fake users (FIDs ${FAKE_FID_BASE} - ${FAKE_FID_BASE + fakeUsers.length - 1})`);
 
-  // Create round
+  // Create round (bypass active round check for Sepolia simulation)
   log('Creating new round...');
   const round = await createRound({
     forceAnswer: config.answer,
     skipOnChainCommitment: config.skipOnchain,
+    skipActiveRoundCheck: true,
   });
 
   log(`Round created: ID=${round.id}, Answer=${round.answer}`);

@@ -18,6 +18,7 @@ export interface CreateRoundOptions {
   forceAnswer?: string; // Force a specific answer (for testing)
   rulesetId?: number; // Game rules ID to use (default 1)
   skipOnChainCommitment?: boolean; // Skip onchain commitment (for testing without contract)
+  skipActiveRoundCheck?: boolean; // Skip active round check (for Sepolia simulation)
 }
 
 /**
@@ -30,14 +31,17 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   const rulesetId = opts?.rulesetId ?? 1;
   const forceAnswer = opts?.forceAnswer;
   const skipOnChainCommitment = opts?.skipOnChainCommitment ?? false;
+  const skipActiveRoundCheck = opts?.skipActiveRoundCheck ?? false;
 
-  // Check if there's already an active round
-  const existingRound = await getActiveRound();
-  if (existingRound) {
-    throw new Error(
-      `Cannot create new round: Round ${existingRound.id} is still active. ` +
-      `Resolve it first before creating a new round.`
-    );
+  // Check if there's already an active round (skip for simulations)
+  if (!skipActiveRoundCheck) {
+    const existingRound = await getActiveRound();
+    if (existingRound) {
+      throw new Error(
+        `Cannot create new round: Round ${existingRound.id} is still active. ` +
+        `Resolve it first before creating a new round.`
+      );
+    }
   }
 
   // Select answer
