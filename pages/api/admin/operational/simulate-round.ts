@@ -13,7 +13,12 @@ import { submitGuess } from '../../../../src/lib/guesses';
 import { getGuessWords } from '../../../../src/lib/word-lists';
 import { db, users, dailyGuessState } from '../../../../src/db';
 import { eq } from 'drizzle-orm';
-import { purchaseGuessesOnSepolia } from '../../../../src/lib/jackpot-contract';
+import {
+  purchaseGuessesOnSepolia,
+  startRoundWithCommitmentOnSepolia,
+  getCurrentJackpotOnSepolia,
+  getSepoliaContractBalance,
+} from '../../../../src/lib/jackpot-contract';
 import { setSepoliaSimulationMode } from '../../../../src/lib/economics';
 import { isDevModeEnabled, getDevFixedSolution } from '../../../../src/lib/devGameState';
 
@@ -153,15 +158,41 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     await ensureFakeUsersExist(fakeUsers);
     log(`Created ${fakeUsers.length} fake users (FIDs ${FAKE_FID_BASE} - ${FAKE_FID_BASE + fakeUsers.length - 1})`);
 
-    // Create round (bypass active round check for Sepolia simulation)
-    log('Creating new round...');
+    // Log Sepolia contract state before starting
+    try {
+      const sepoliaJackpot = await getCurrentJackpotOnSepolia();
+      const sepoliaBalance = await getSepoliaContractBalance();
+      log(`Sepolia contract state BEFORE:`);
+      log(`  - Internal jackpot: ${sepoliaJackpot} ETH`);
+      log(`  - Actual balance: ${sepoliaBalance} ETH`);
+    } catch (err: any) {
+      log(`Warning: Could not query Sepolia state: ${err.message}`);
+    }
+
+    // Create DB round (bypass active round check for Sepolia simulation)
+    // IMPORTANT: We skip onchain commitment here because we'll start a Sepolia round explicitly
+    log('Creating DB round...');
     const round = await createRound({
       forceAnswer: effectiveAnswer,
-      skipOnChainCommitment: config.skipOnchain,
+      skipOnChainCommitment: true, // Always skip - we start on Sepolia explicitly
       skipActiveRoundCheck: true,
     });
+    log(`DB Round created: ID=${round.id}, Answer=${round.answer}`);
 
-    log(`Round created: ID=${round.id}, Answer=${round.answer}`);
+    // Start a fresh round on Sepolia contract
+    // This is critical: we need a clean round state for the simulation to resolve properly
+    if (!config.skipOnchain) {
+      log('Starting fresh round on Sepolia contract...');
+      try {
+        const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+        log(`Sepolia round started: ${txHash}`);
+      } catch (err: any) {
+        log(`Warning: Failed to start Sepolia round: ${err.message}`);
+        log(`  → Continuing with existing Sepolia round state (may cause issues)`);
+      }
+    } else {
+      log('Skipping Sepolia round start (skipOnchain=true)');
+    }
 
     // Prepare wrong guesses
     const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
@@ -203,6 +234,18 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     }
 
     log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} onchain purchases)`);
+
+    // Log Sepolia contract state before resolution
+    try {
+      const sepoliaJackpot = await getCurrentJackpotOnSepolia();
+      const sepoliaBalance = await getSepoliaContractBalance();
+      log(`Sepolia contract state BEFORE RESOLUTION:`);
+      log(`  - Internal jackpot: ${sepoliaJackpot} ETH`);
+      log(`  - Actual balance: ${sepoliaBalance} ETH`);
+      log(`  - Will use: ${parseFloat(sepoliaBalance) < parseFloat(sepoliaJackpot) ? sepoliaBalance : sepoliaJackpot} ETH for payouts`);
+    } catch (err: any) {
+      log(`Warning: Could not query Sepolia state: ${err.message}`);
+    }
 
     // Winning guess
     const winner = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
@@ -259,7 +302,8 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { devFid, answer, numGuesses = 20, numUsers = 5, skipOnchain = true, dryRun = false } = req.body;
+  // Note: skipOnchain defaults to FALSE - simulation should run full onchain flow on Sepolia
+  const { devFid, answer, numGuesses = 20, numUsers = 5, skipOnchain = false, dryRun = false } = req.body;
 
   // Authorize using centralized admin check
   if (!devFid || !isAdminFid(devFid)) {
