@@ -9,6 +9,7 @@ import {
   resolveRoundWithPayoutsOnChain,
   resolveRoundWithPayoutsOnSepolia,
   getCurrentJackpotOnChain,
+  getCurrentJackpotOnChainWei,
   getCurrentJackpotOnSepolia,
   getCurrentJackpotOnSepoliaWei,
   getSepoliaContractBalance,
@@ -396,26 +397,27 @@ export async function resolveRoundAndCreatePayouts(
       jackpotWei = internalJackpotWei;
     } else {
       // For mainnet: verify contract balance >= internal jackpot to prevent CALL_EXCEPTION
-      // This is a critical safety check learned from Sepolia testing
+      // CRITICAL: Use raw wei value to avoid precision loss from ETH string round-trip
       const contractBalance = await getMainnetContractBalance();
-      const internalJackpot = await getCurrentJackpotOnChain();
+      const internalJackpotWei = await getCurrentJackpotOnChainWei();
+      const internalJackpotEth = ethers.formatEther(internalJackpotWei);
 
       console.log(`[economics] Mainnet contract state:`);
-      console.log(`  - Internal jackpot: ${internalJackpot} ETH`);
+      console.log(`  - Internal jackpot: ${internalJackpotEth} ETH (${internalJackpotWei} wei)`);
       console.log(`  - Actual balance: ${contractBalance} ETH`);
 
-      const balanceNum = parseFloat(contractBalance);
-      const jackpotNum = parseFloat(internalJackpot);
+      const balanceWei = ethers.parseEther(contractBalance);
 
-      if (balanceNum < jackpotNum) {
+      if (balanceWei < internalJackpotWei) {
         // CRITICAL: Balance is less than internal jackpot - this would cause CALL_EXCEPTION
-        console.error(`[economics] ❌ CRITICAL: Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpot} ETH)`);
+        console.error(`[economics] ❌ CRITICAL: Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpotEth} ETH)`);
         console.error(`[economics] This indicates a serious contract state inconsistency. Aborting payout to prevent loss.`);
-        throw new Error(`Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpot} ETH). Cannot safely execute payouts.`);
+        throw new Error(`Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpotEth} ETH). Cannot safely execute payouts.`);
       }
 
-      jackpotEth = jackpotNum;
-      jackpotWei = ethers.parseEther(internalJackpot);
+      // Use raw wei value - this is EXACTLY what the contract has
+      jackpotEth = parseFloat(internalJackpotEth);
+      jackpotWei = internalJackpotWei;
     }
 
     const dbJackpotEth = parseFloat(round.prizePoolEth);

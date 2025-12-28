@@ -226,12 +226,21 @@ export async function isMinimumSeedMetOnChain(): Promise<boolean> {
 }
 
 /**
- * Get current jackpot amount from contract
+ * Get current jackpot amount from contract (formatted ETH string)
  */
 export async function getCurrentJackpotOnChain(): Promise<string> {
   const contract = getJackpotManagerReadOnly();
   const jackpot = await contract.currentJackpot();
   return ethers.formatEther(jackpot);
+}
+
+/**
+ * Get current jackpot amount from contract (raw wei bigint)
+ * Use this for calculations to avoid precision loss from ETH string round-trip
+ */
+export async function getCurrentJackpotOnChainWei(): Promise<bigint> {
+  const contract = getJackpotManagerReadOnly();
+  return await contract.currentJackpot();
 }
 
 /**
