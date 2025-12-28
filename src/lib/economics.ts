@@ -54,6 +54,48 @@ export function isSkipOnchainResolution(): boolean {
 const SEED_CAP_ETH = '0.03'; // 0.03 ETH cap for seed accumulation (updated from 0.1 in Milestone 5.4b)
 
 /**
+ * Validate that payout amounts sum correctly before calling contract
+ * The contract requires: sum(payouts) + seedForNextRound == currentJackpot
+ *
+ * Returns an error message if validation fails, null if valid
+ */
+export function validatePayoutMath(
+  payouts: { amountWei: bigint }[],
+  seedForNextRoundWei: bigint,
+  jackpotWei: bigint
+): { valid: boolean; error?: string; totalPayoutsWei: bigint; expectedWei: bigint; diffWei: bigint } {
+  const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+  const expectedWei = jackpotWei;
+  const actualWei = totalPayoutsWei + seedForNextRoundWei;
+  const diffWei = expectedWei - actualWei;
+
+  console.log(`[economics] Payout validation:`);
+  console.log(`  - Jackpot: ${ethers.formatEther(jackpotWei)} ETH (${jackpotWei} wei)`);
+  console.log(`  - Sum of payouts: ${ethers.formatEther(totalPayoutsWei)} ETH (${totalPayoutsWei} wei)`);
+  console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH (${seedForNextRoundWei} wei)`);
+  console.log(`  - Total (payouts + seed): ${ethers.formatEther(actualWei)} ETH (${actualWei} wei)`);
+  console.log(`  - Difference: ${diffWei} wei`);
+
+  if (diffWei === 0n) {
+    console.log(`  ✅ Payout math is VALID`);
+    return { valid: true, totalPayoutsWei, expectedWei, diffWei };
+  } else if (diffWei > 0n && diffWei < 1000n) {
+    // Small rounding error (< 1000 wei), this is acceptable and can be added to winner
+    console.warn(`  ⚠️ Small rounding error of ${diffWei} wei - will be added to winner payout`);
+    return { valid: true, totalPayoutsWei, expectedWei, diffWei };
+  } else {
+    console.error(`  ❌ Payout math INVALID: difference of ${diffWei} wei is too large!`);
+    return {
+      valid: false,
+      error: `Payout sum (${actualWei} wei) does not equal jackpot (${jackpotWei} wei). Diff: ${diffWei} wei`,
+      totalPayoutsWei,
+      expectedWei,
+      diffWei
+    };
+  }
+}
+
+/**
  * Sync the DB prize pool from the contract's current jackpot
  *
  * IMPORTANT: The contract is the single source of truth for prize pool balance.
@@ -510,6 +552,22 @@ export async function resolveRoundAndCreatePayouts(
   } else {
     console.log(`  - Top guessers (17.5%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
     console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+  }
+
+  // CRITICAL: Validate payout math before calling contract
+  // The contract requires: sum(payouts) + seedForNextRound == currentJackpot
+  const validation = validatePayoutMath(onChainPayouts, seedForNextRoundWei, jackpotWei);
+  if (!validation.valid) {
+    console.error(`[economics] ❌ Payout validation FAILED: ${validation.error}`);
+    throw new Error(`Payout validation failed: ${validation.error}`);
+  }
+
+  // Fix rounding errors by adding any dust to the winner payout
+  if (validation.diffWei > 0n) {
+    console.log(`[economics] Adding ${validation.diffWei} wei rounding dust to winner payout`);
+    onChainPayouts[0].amountWei += validation.diffWei;
+    // Update DB payout too
+    dbPayouts[0].amountEth = ethers.formatEther(onChainPayouts[0].amountWei);
   }
 
   // Execute onchain payouts (use Sepolia or mainnet based on simulation mode)
