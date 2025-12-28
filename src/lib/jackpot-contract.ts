@@ -889,6 +889,19 @@ export async function resolveRoundWithPayoutsOnSepolia(
     throw new Error(`Payout math mismatch: trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH. Difference: ${ethers.formatEther(diff)} ETH`);
   }
 
+  // Check minimum seed requirement
+  const readOnlyForSeed = getSepoliaJackpotManagerReadOnly();
+  const minimumSeed = await readOnlyForSeed.MINIMUM_SEED();
+  console.log(`[SEPOLIA] Minimum seed check:`);
+  console.log(`  - Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeed)} ETH (${minimumSeed} wei)`);
+  console.log(`  - Our seed: ${ethers.formatEther(seedForNextRoundWei)} ETH (${seedForNextRoundWei} wei)`);
+
+  if (seedForNextRoundWei < minimumSeed) {
+    console.error(`[SEPOLIA] ❌ SEED TOO LOW: ${ethers.formatEther(seedForNextRoundWei)} ETH < minimum ${ethers.formatEther(minimumSeed)} ETH`);
+    throw new Error(`Seed amount ${ethers.formatEther(seedForNextRoundWei)} ETH is below contract minimum of ${ethers.formatEther(minimumSeed)} ETH. Adjust payout economics.`);
+  }
+  console.log(`[SEPOLIA] ✅ Seed meets minimum requirement`);
+
   const recipients = payouts.map(p => p.address);
   const amounts = payouts.map(p => p.amountWei);
 
@@ -899,13 +912,19 @@ export async function resolveRoundWithPayoutsOnSepolia(
   console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
 
   // Try static call first to get better error messages
+  // Use explicit high gas limit to avoid silent failures
   try {
-    console.log(`[SEPOLIA] Testing with static call...`);
+    console.log(`[SEPOLIA] Testing with static call (gasLimit: 500000)...`);
     console.log(`[SEPOLIA] Call params:`);
     console.log(`  - recipients: ${JSON.stringify(recipients)}`);
     console.log(`  - amounts (wei): ${JSON.stringify(amounts.map(a => a.toString()))}`);
     console.log(`  - seed (wei): ${seedForNextRoundWei.toString()}`);
-    await contract.resolveRoundWithPayouts.staticCall(recipients, amounts, seedForNextRoundWei);
+    await contract.resolveRoundWithPayouts.staticCall(
+      recipients,
+      amounts,
+      seedForNextRoundWei,
+      { gasLimit: 500000n }
+    );
     console.log(`[SEPOLIA] Static call succeeded, proceeding with transaction...`);
   } catch (staticErr: any) {
     // Re-query contract state to see what changed
