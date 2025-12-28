@@ -40,10 +40,12 @@ function getAdminFids(): number[] {
 
 /**
  * Check if a FID is an admin
+ * Handles both string and number FIDs (Neynar SIWN can return FID as string)
  */
-function isAdminFid(fid: number): boolean {
+function isAdminFid(fid: number | string): boolean {
   const adminFids = getAdminFids();
-  return adminFids.includes(fid);
+  const numericFid = typeof fid === 'string' ? parseInt(fid, 10) : fid;
+  return adminFids.includes(numericFid);
 }
 
 /**
