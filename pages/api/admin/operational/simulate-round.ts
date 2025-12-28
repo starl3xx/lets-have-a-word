@@ -88,6 +88,8 @@ function generateFakeUsers(count: number): FakeUser[] {
 
 async function ensureFakeUsersExist(fakeUsers: FakeUser[]): Promise<void> {
   for (const user of fakeUsers) {
+    // Use upsert to ensure wallet address is always set correctly
+    // onConflictDoNothing would leave existing users without wallet addresses
     await db
       .insert(users)
       .values({
@@ -95,8 +97,15 @@ async function ensureFakeUsersExist(fakeUsers: FakeUser[]): Promise<void> {
         username: user.username,
         signerWalletAddress: user.walletAddress,
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: users.fid,
+        set: {
+          username: user.username,
+          signerWalletAddress: user.walletAddress,
+        },
+      });
   }
+  console.log(`[simulate] Ensured ${fakeUsers.length} fake users have wallet addresses`);
 }
 
 async function cleanupFakeUsers(fakeUsers: FakeUser[]): Promise<void> {
