@@ -358,11 +358,14 @@ export const packPurchases = pgTable('pack_purchases', {
   totalPriceWei: varchar('total_price_wei', { length: 78 }).notNull(),
   pricingPhase: varchar('pricing_phase', { length: 20 }).notNull(), // 'BASE', 'LATE_1', 'LATE_2'
   totalGuessesAtPurchase: integer('total_guesses_at_purchase').notNull(),
+  // Milestone 6.4: On-chain transaction verification
+  txHash: varchar('tx_hash', { length: 66 }).unique(), // On-chain transaction hash
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundIdx: index('pack_purchases_round_idx').on(table.roundId),
   fidIdx: index('pack_purchases_fid_idx').on(table.fid),
   createdAtIdx: index('pack_purchases_created_at_idx').on(table.createdAt),
+  txHashIdx: index('pack_purchases_tx_hash_idx').on(table.txHash),
 }));
 
 export type PackPurchaseRow = typeof packPurchases.$inferSelect;

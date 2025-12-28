@@ -500,3 +500,130 @@ export async function isContractDeployed(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Verification result for a purchase transaction
+ */
+export interface PurchaseVerificationResult {
+  valid: boolean;
+  player?: string;
+  quantity?: number;
+  ethAmount?: string;
+  toJackpot?: string;
+  toCreator?: string;
+  roundNumber?: number;
+  error?: string;
+}
+
+/**
+ * Verify an on-chain purchase transaction
+ *
+ * Parses the GuessesPurchased event from the transaction receipt to verify:
+ * - Transaction was successful
+ * - Transaction was to our JackpotManager contract
+ * - Event data matches expected values
+ *
+ * @param txHash - Transaction hash to verify
+ * @param expectedPlayer - Expected player address (optional - for strict verification)
+ * @param expectedQuantity - Expected quantity (optional - for strict verification)
+ * @returns Verification result with transaction details
+ */
+export async function verifyPurchaseTransaction(
+  txHash: string,
+  expectedPlayer?: string,
+  expectedQuantity?: number
+): Promise<PurchaseVerificationResult> {
+  try {
+    const config = getContractConfig();
+    const provider = getBaseProvider();
+
+    // Fetch transaction receipt
+    const receipt = await provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return { valid: false, error: 'Transaction not found or not yet mined' };
+    }
+
+    if (receipt.status !== 1) {
+      return { valid: false, error: 'Transaction reverted' };
+    }
+
+    // Check transaction was to our contract
+    if (receipt.to?.toLowerCase() !== config.jackpotManagerAddress.toLowerCase()) {
+      return { valid: false, error: 'Transaction was not to JackpotManager contract' };
+    }
+
+    // Create interface to decode event
+    const iface = new ethers.Interface(JACKPOT_MANAGER_ABI);
+
+    // Find GuessesPurchased event in logs
+    let purchaseEvent: ethers.LogDescription | null = null;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() === config.jackpotManagerAddress.toLowerCase()) {
+        try {
+          const parsed = iface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+          if (parsed?.name === 'GuessesPurchased') {
+            purchaseEvent = parsed;
+            break;
+          }
+        } catch {
+          // Not this event, continue
+        }
+      }
+    }
+
+    if (!purchaseEvent) {
+      return { valid: false, error: 'No GuessesPurchased event found in transaction' };
+    }
+
+    // Extract event data
+    const roundNumber = Number(purchaseEvent.args.roundNumber);
+    const player = purchaseEvent.args.player;
+    const quantity = Number(purchaseEvent.args.quantity);
+    const ethAmount = ethers.formatEther(purchaseEvent.args.ethAmount);
+    const toJackpot = ethers.formatEther(purchaseEvent.args.toJackpot);
+    const toCreator = ethers.formatEther(purchaseEvent.args.toCreator);
+
+    // Strict verification if expected values provided
+    if (expectedPlayer && player.toLowerCase() !== expectedPlayer.toLowerCase()) {
+      return {
+        valid: false,
+        error: `Player mismatch: expected ${expectedPlayer}, got ${player}`,
+        player,
+        quantity,
+        ethAmount,
+        roundNumber,
+      };
+    }
+
+    if (expectedQuantity && quantity !== expectedQuantity) {
+      return {
+        valid: false,
+        error: `Quantity mismatch: expected ${expectedQuantity}, got ${quantity}`,
+        player,
+        quantity,
+        ethAmount,
+        roundNumber,
+      };
+    }
+
+    return {
+      valid: true,
+      player,
+      quantity,
+      ethAmount,
+      toJackpot,
+      toCreator,
+      roundNumber,
+    };
+  } catch (error) {
+    console.error('[CONTRACT] Error verifying purchase transaction:', error);
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Unknown verification error',
+    };
+  }
+}
