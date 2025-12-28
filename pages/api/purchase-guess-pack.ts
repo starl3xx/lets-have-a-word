@@ -29,13 +29,13 @@ import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
  * POST /api/purchase-guess-pack
  * Milestone 6.3, Updated Milestone 6.4, 7.1
  *
- * Process guess pack purchase with on-chain verification and dynamic late-round pricing.
+ * Process guess pack purchase with onchain verification and dynamic late-round pricing.
  *
  * Milestone 6.4 Flow:
  * 1. Frontend initiates wallet transaction via wagmi useWriteContract
  * 2. User signs transaction in their wallet
  * 3. Frontend waits for tx confirmation, then calls this API with txHash
- * 4. This API verifies the transaction on-chain before awarding packs
+ * 4. This API verifies the transaction onchain before awarding packs
  *
  * Body:
  * - fid: number - Farcaster ID
@@ -82,9 +82,9 @@ export default async function handler(
       return res.status(400).json({ error: 'Invalid pack count. Must be 1, 2, or 3.' });
     }
 
-    // Milestone 6.4: Require on-chain transaction hash
+    // Milestone 6.4: Require onchain transaction hash
     if (!txHash || typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-      return res.status(400).json({ error: 'Invalid transaction hash. Must provide valid on-chain txHash.' });
+      return res.status(400).json({ error: 'Invalid transaction hash. Must provide valid onchain txHash.' });
     }
 
     // Check if txHash has already been used (prevent double-claiming)
@@ -147,7 +147,7 @@ export default async function handler(
       },
     });
 
-    // Milestone 6.4: Verify on-chain transaction before awarding packs
+    // Milestone 6.4: Verify onchain transaction before awarding packs
     const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
     const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
 

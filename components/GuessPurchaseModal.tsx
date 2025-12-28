@@ -71,7 +71,7 @@ export default function GuessPurchaseModal({
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
-  // Wagmi hooks for on-chain purchase
+  // Wagmi hooks for onchain purchase
   const { address: walletAddress, isConnected } = useAccount();
   const {
     purchaseGuesses,
@@ -111,7 +111,7 @@ export default function GuessPurchaseModal({
   // Milestone 6.4: Handle transaction success - verify on backend
   useEffect(() => {
     if (isTxSuccess && txHash && fid) {
-      // Transaction confirmed on-chain, now verify and record on backend
+      // Transaction confirmed onchain, now verify and record on backend
       const verifyPurchase = async () => {
         try {
           const response = await fetch('/api/purchase-guess-pack', {
@@ -120,7 +120,7 @@ export default function GuessPurchaseModal({
             body: JSON.stringify({
               fid,
               packCount: selectedPackCount,
-              txHash, // Send txHash for on-chain verification
+              txHash, // Send txHash for onchain verification
             }),
           });
 
@@ -275,7 +275,7 @@ export default function GuessPurchaseModal({
       walletAddress,
     });
 
-    // Initiate on-chain transaction
+    // Initiate onchain transaction
     // Total guesses = packCount * 3 (3 guesses per pack)
     const totalGuesses = selectedPackCount * 3;
 

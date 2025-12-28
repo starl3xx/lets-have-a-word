@@ -288,7 +288,7 @@ export async function seedJackpotOnChain(amountEth: string): Promise<string> {
 }
 
 /**
- * Purchase guesses on-chain for a player
+ * Purchase guesses onchain for a player
  *
  * @param playerAddress - Wallet address of the player
  * @param quantity - Number of guesses to purchase
@@ -516,7 +516,7 @@ export interface PurchaseVerificationResult {
 }
 
 /**
- * Verify an on-chain purchase transaction
+ * Verify an onchain purchase transaction
  *
  * Parses the GuessesPurchased event from the transaction receipt to verify:
  * - Transaction was successful
