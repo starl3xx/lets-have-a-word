@@ -11,11 +11,86 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 10 Complete
+## 🎯 Current Status: Milestone 11 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully on-chain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, **and provably fair onchain commitment with public verification** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, **and production-hardened onchain pack purchases with comprehensive error handling and admin tooling** are fully implemented and production-ready:
 
-### ✅ Milestone 10 - Provably Fair Onchain Commitment (Latest)
+### ✅ Milestone 11 - Production Hardening & Onchain Pack Purchases (Latest)
+
+Production-hardened game operations with onchain pack purchases, comprehensive error handling, and enhanced admin tooling:
+
+- **Onchain Pack Purchases** (`pages/api/purchase-guess-pack.ts`, `src/lib/pack-pricing.ts`)
+  - Users sign transactions in wallet, frontend verifies onchain before awarding packs
+  - Transaction verification via `verifyPurchaseTransaction()` prevents fraud
+  - `txHash` tracking prevents double-claiming of the same transaction
+  - Dynamic pricing phases: BASE (0-749 guesses), LATE_1 (750-1249), LATE_2 (1250+)
+  - Pack purchase records stored in `pack_purchases` table with tx hash
+
+- **Rate Limiting & Spam Protection** (`src/lib/rateLimit.ts`)
+  - FID-first rate limiting with IP+UA fallback
+  - Dual-window for guesses: burst (8/10s) + sustained (30/60s)
+  - Separate limits for purchases (4/5min) and shares (6/60s)
+  - Duplicate guess detection (10-second window)
+  - Fail-open design: allows through if Redis unavailable
+
+- **Share Verification via Neynar API** (`pages/api/share-callback.ts`)
+  - Actually verifies cast exists on Farcaster before awarding bonus
+  - Searches for cast mentioning `letshaveaword.fun` in last 10 minutes
+  - Prevents gaming by opening composer without posting
+
+- **CLANKTON Mid-Day Tier Upgrade** (`src/lib/clankton.ts`, `src/lib/daily-limits.ts`)
+  - When market cap crosses $250K, holders get +1 guess (2→3)
+  - Upgrade detected and applied mid-day, not just at daily reset
+  - Market cap fetched from DexScreener with CoinGecko fallback
+
+- **Leaderboard Lock at 750 Guesses** (`src/lib/top10-lock.ts`)
+  - Top-10 rankings only count guesses 1-750
+  - Guesses 751+ count for winning but not for leaderboard
+  - Prevents late-game clustering from skewing rankings
+
+- **Comprehensive Error Handling** (`src/lib/appErrors.ts`)
+  - Unified error system with 40+ error codes across categories
+  - Categories: Network, Round State, Pricing, User, Guess, Share, Purchase, Wallet, Archive, Operational
+  - Each error has user-facing title/body, CTA action, banner variant
+  - Auto-retry configuration for transient errors
+
+- **Contract State Diagnostics** (`pages/api/admin/operational/contract-state.ts`)
+  - Real-time diagnostics for mainnet and Sepolia contracts
+  - Detects balance < jackpot mismatches before resolution
+  - Suggests recovery actions when issues detected
+  - Clear Sepolia round action for emergency recovery
+
+- **Force Resolve Admin Button** (`pages/api/admin/operational/force-resolve.ts`)
+  - Admin can force-resolve stuck rounds via Operations tab
+  - Submits correct answer as special admin user (FID 9999999)
+  - Triggers normal round resolution flow
+  - Logs timestamp and admin FID for audit trail
+
+- **Sepolia Round Simulation** (`pages/api/admin/operational/simulate-round.ts`)
+  - Full round lifecycle testing on Sepolia testnet
+  - Creates fake users with random wallets
+  - Generates wrong guesses with optional paid purchases
+  - Auto-resolves previous round and auto-seeds if needed
+  - DB-only fallback when onchain operations fail
+
+- **Production Safety Checks**
+  - Balance sufficiency check before resolution attempts
+  - Contract state validation before withdrawal
+  - Retry logic with exponential backoff for network errors
+  - Graceful fallbacks when contract state mismatches detected
+
+- **Bonus Guesses Tracking** (`src/lib/daily-limits.ts`)
+  - Per-source tracking: base, CLANKTON, share, paid
+  - Consumption order: free → CLANKTON → share → paid
+  - `GuessSourceState` interface for detailed breakdown
+  - API returns `sourceState` with remaining by source
+
+- **Environment Variables**
+  - `BASE_RPC_URL` - Mainnet RPC for transaction verification
+  - `BASE_SEPOLIA_RPC_URL` - Sepolia RPC for simulation
+  - `RATE_LIMIT_*` - Configurable rate limit thresholds
+
+### ✅ Milestone 10 - Provably Fair Onchain Commitment
 
 Enhanced provable fairness with onchain commitment and a public verification page:
 
@@ -208,7 +283,7 @@ Implemented fixed-percentage distribution for Top-10 guessers, replacing equal s
   - Covers 80/10/10 split, referral logic, Top-10 tiers
   - Design rationale and implementation references
 
-### ✅ Milestone 6.9 - On-Chain Multi-Recipient Prize Distribution
+### ✅ Milestone 6.9 - Onchain Multi-Recipient Prize Distribution
 
 Upgraded smart contract to distribute all prizes atomically in a single transaction:
 
@@ -231,7 +306,7 @@ Upgraded smart contract to distribute all prizes atomically in a single transact
   - Self-referral blocked at signup
 
 - **No Offchain Payouts**
-  - All prize money distributed on-chain
+  - All prize money distributed onchain
   - No manual intervention or backend reconciliation
   - Trust-minimized, fully transparent
 
@@ -1342,7 +1417,7 @@ Complete economic system for prize distribution:
   - 20% → Seed for next round (up to 0.03 ETH cap)
   - Overflow → Creator balance
 
-- **Jackpot Resolution (On-Chain, Atomic)**
+- **Jackpot Resolution (Onchain, Atomic)**
   - 80% → Winner (always)
   - With referrer: 10% referrer, 10% Top-10 guessers
   - Without referrer: 17.5% Top-10 guessers, 2.5% next round seed
@@ -2037,7 +2112,7 @@ The game uses smart modal sequencing to offer guesses without being annoying:
 - 20% → Seed for next round (capped at 0.03 ETH)
   - Overflow → Creator balance
 
-**Jackpot Resolution (On-Chain, Atomic)**
+**Jackpot Resolution (Onchain, Atomic)**
 - 80% → Winner (always)
 - 10% → Referrer (if winner has one)
 - 10-17.5% → Top-10 guessers (tiered distribution)
@@ -2130,7 +2205,7 @@ To prevent bot/sybil abuse, **only Farcaster users with a Neynar User Score ≥ 
 The fairness monitoring system validates game integrity in real-time:
 
 - **Commit-Reveal Validation**: Verifies `H(salt || answer) === commitHash` for all resolved rounds
-- **On-Chain Payout Verification**: All payouts verifiable on BaseScan via `PayoutSent` events
+- **Onchain Payout Verification**: All payouts verifiable on BaseScan via `PayoutSent` events
 - **Suspicious Pattern Detection**: Flags unusual win patterns (same winner, same answer)
 - **Automated Alerts**: Logs `FAIRNESS_ALERT_*` events when issues detected
 
@@ -2590,7 +2665,7 @@ await resolveRound(roundId, winnerFid, referrerFid);
   - `resolveRoundWithPayouts()` - Atomic multi-recipient payout (winner + referrer + Top-10)
   - `purchaseGuesses()` - 80/20 split (jackpot/seed+creator)
   - `seedJackpot()` - Operator seeding for new rounds
-- **Features**: Jackpot management, guess purchase, on-chain prize distribution, CLANKTON oracle
+- **Features**: Jackpot management, guess purchase, onchain prize distribution, CLANKTON oracle
 - **Events**: `RoundResolvedWithPayouts`, `PayoutSent`, `GuessesPurchased`, `RoundStarted`
 
 ### CLANKTON Oracle
@@ -2623,7 +2698,7 @@ Each player's daily allocation:
 
 - **Reward**: 10% of jackpot when referred user wins
 - **Tracking**: `referrerFid` field on users table
-- **Payouts**: On-chain, atomic (part of `resolveRoundWithPayouts`)
+- **Payouts**: Onchain, atomic (part of `resolveRoundWithPayouts`)
 - **Link format**: `https://lets-have-a-word.vercel.app?ref={fid}`
 - **Self-referral**: Blocked at signup
 - **No referrer flow**: 7.5% → Top-10 pool, 2.5% → next round seed
