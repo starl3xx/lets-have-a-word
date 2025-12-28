@@ -22,7 +22,6 @@ import {
   resolveSepoliaPreviousRound,
   getSepoliaMinimumSeed,
   seedJackpotOnSepolia,
-  startNextRoundOnSepolia,
 } from '../../../../src/lib/jackpot-contract';
 import { ethers } from 'ethers';
 import { setSepoliaSimulationMode, setSkipOnchainResolution } from '../../../../src/lib/economics';
@@ -279,6 +278,7 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
       }
 
       // Now start a fresh round (only if we didn't fail to resolve AND no round is already active)
+      // Note: Sepolia contract only has startRoundWithCommitment(), not startNextRound()
       if (!sepoliaJackpotMismatch && !sepoliaRoundStarted) {
         try {
           const minimumSeed = await getSepoliaMinimumSeed();
@@ -290,44 +290,24 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
           log(`Current jackpot: ${currentJackpot} ETH`);
           log(`Contract balance: ${contractBalance} ETH`);
 
-          // Strategy: Try startNextRound() first if contract has balance >= minimum
-          // This uses the contract's ETH balance to start the round
-          if (contractBalanceWei >= minimumSeed) {
-            log(`Contract balance >= minimum, using startNextRound()...`);
-            try {
-              const txHash = await startNextRoundOnSepolia();
-              log(`✅ Sepolia round started via startNextRound(): ${txHash}`);
-              sepoliaRoundStarted = true;
-
-              // Re-check state after starting round
-              const newRoundInfo = await getSepoliaRoundInfo();
-              const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
-              log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
-            } catch (err: any) {
-              log(`❌ startNextRound() failed: ${err.message}`);
-              log(`   Trying seedJackpot + startRoundWithCommitment...`);
-            }
-          }
-
-          // Fallback: seed the jackpot and use startRoundWithCommitment
-          if (!sepoliaRoundStarted) {
-            // Seed with minimum if needed
+          // Seed the jackpot if needed
+          if (contractBalanceWei < minimumSeed) {
             const seedAmount = ethers.formatEther(minimumSeed);
             log(`Seeding jackpot with ${seedAmount} ETH...`);
             const seedTxHash = await seedJackpotOnSepolia(seedAmount);
             log(`✅ Jackpot seeded: ${seedTxHash}`);
-
-            // Now try to start the round
-            log('Starting round with commitment...');
-            const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
-            log(`✅ Sepolia round started: ${txHash}`);
-            sepoliaRoundStarted = true;
-
-            // Re-check state after starting round
-            const newRoundInfo = await getSepoliaRoundInfo();
-            const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
-            log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
           }
+
+          // Start round with commitment (the only way on Sepolia contract)
+          log('Starting round with commitment...');
+          const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+          log(`✅ Sepolia round started: ${txHash}`);
+          sepoliaRoundStarted = true;
+
+          // Re-check state after starting round
+          const newRoundInfo = await getSepoliaRoundInfo();
+          const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
+          log(`New round state: Round #${newRoundInfo.roundNumber}, Active: ${newRoundInfo.isActive}, Jackpot: ${newJackpot} ETH`);
         } catch (err: any) {
           log(`❌ Failed to start Sepolia round: ${err.message}`);
           log(`   → Continuing with DB-only simulation (all onchain operations will be skipped).`);
@@ -352,11 +332,27 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
         if (!verifyInfo.isActive) {
           log(`⚠️  Round became inactive after delay. Attempting to restart...`);
           try {
+            // Seed if needed
             const minimumSeed = await getSepoliaMinimumSeed();
-            const minimumSeedEth = ethers.formatEther(minimumSeed);
-            const seedTxHash = await seedJackpotOnSepolia(minimumSeedEth);
-            log(`✅ Re-seeded jackpot: ${seedTxHash}`);
+            const currentJackpot = await getCurrentJackpotOnSepolia();
+            const currentJackpotWei = ethers.parseEther(currentJackpot);
+
+            if (currentJackpotWei < minimumSeed) {
+              const minimumSeedEth = ethers.formatEther(minimumSeed);
+              const seedTxHash = await seedJackpotOnSepolia(minimumSeedEth);
+              log(`✅ Re-seeded jackpot: ${seedTxHash}`);
+            }
+
+            // Start new round with commitment
+            log(`Starting new round with commitment...`);
+            const startTxHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+            log(`✅ Round restarted: ${startTxHash}`);
+
             await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Verify it's now active
+            const newInfo = await getSepoliaRoundInfo();
+            log(`New round state: Round #${newInfo.roundNumber}, Active: ${newInfo.isActive}, Jackpot: ${ethers.formatEther(newInfo.jackpot)} ETH`);
           } catch (restartErr: any) {
             log(`❌ Failed to restart round: ${restartErr.message}`);
             log(`   → Falling back to DB-only simulation`);
