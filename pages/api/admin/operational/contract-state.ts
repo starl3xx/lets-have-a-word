@@ -156,10 +156,11 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    // Auth check
-    const devFid = req.query.devFid ? parseInt(req.query.devFid as string, 10) : null;
+    // Auth check - support devFid from query (GET) or body (POST)
+    const devFidFromQuery = req.query.devFid ? parseInt(req.query.devFid as string, 10) : null;
+    const devFidFromBody = req.body?.devFid ? parseInt(req.body.devFid, 10) : null;
     const fidFromCookie = req.cookies.siwn_fid ? parseInt(req.cookies.siwn_fid, 10) : null;
-    const fid = devFid || fidFromCookie;
+    const fid = devFidFromQuery || devFidFromBody || fidFromCookie;
 
     if (!fid || !isAdminFid(fid)) {
       return res.status(403).json({ error: 'Admin access required' });
