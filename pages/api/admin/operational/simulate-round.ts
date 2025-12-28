@@ -67,13 +67,19 @@ interface FakeUser {
 
 const FAKE_FID_BASE = 9000000;
 
+// Use a prefix that creates valid non-precompile addresses
+// Precompiles are 0x01-0x09, so we use 0xDEAD as prefix
+const FAKE_WALLET_PREFIX = 'DEAD';
+
 function generateFakeUsers(count: number): FakeUser[] {
   const fakeUsers: FakeUser[] = [];
   for (let i = 0; i < count; i++) {
+    // Generate addresses like 0xDEAD000000000000000000000000000000000001
+    // This ensures they're not precompile addresses
     fakeUsers.push({
       fid: FAKE_FID_BASE + i,
       username: `sim_user_${i}`,
-      walletAddress: `0x${(i + 1).toString(16).padStart(40, '0')}`,
+      walletAddress: `0x${FAKE_WALLET_PREFIX}${(i + 1).toString(16).padStart(36, '0')}`,
     });
   }
   return fakeUsers;
