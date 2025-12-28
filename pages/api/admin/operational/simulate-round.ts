@@ -309,19 +309,24 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
         try {
           const minimumSeed = await getSepoliaMinimumSeed();
           const currentJackpot = await getCurrentJackpotOnSepolia();
+          const currentJackpotWei = ethers.parseEther(currentJackpot);
           const contractBalance = await getSepoliaContractBalance();
-          const contractBalanceWei = ethers.parseEther(contractBalance);
 
           log(`Minimum seed required: ${ethers.formatEther(minimumSeed)} ETH`);
-          log(`Current jackpot: ${currentJackpot} ETH`);
-          log(`Contract balance: ${contractBalance} ETH`);
+          log(`Current jackpot (internal): ${currentJackpot} ETH`);
+          log(`Contract balance (actual): ${contractBalance} ETH`);
 
-          // Seed the jackpot if needed
-          if (contractBalanceWei < minimumSeed) {
+          // Seed the jackpot if the INTERNAL jackpot is below minimum
+          // The contract checks currentJackpot, not raw balance, before starting a round
+          if (currentJackpotWei < minimumSeed) {
             const seedAmount = ethers.formatEther(minimumSeed);
-            log(`Seeding jackpot with ${seedAmount} ETH...`);
+            log(`Internal jackpot below minimum - seeding with ${seedAmount} ETH...`);
             const seedTxHash = await seedJackpotOnSepolia(seedAmount);
             log(`✅ Jackpot seeded: ${seedTxHash}`);
+
+            // Verify the new jackpot
+            const newJackpot = await getCurrentJackpotOnSepolia();
+            log(`   New internal jackpot: ${newJackpot} ETH`);
           }
 
           // Start round with commitment (the only way on Sepolia contract)
