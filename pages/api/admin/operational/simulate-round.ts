@@ -74,21 +74,37 @@ const FAKE_WALLET_PREFIX = 'DEAD';
 
 function generateFakeUsers(count: number): FakeUser[] {
   const fakeUsers: FakeUser[] = [];
+  console.log(`[simulate] Generating ${count} fake users with FAKE_WALLET_PREFIX="${FAKE_WALLET_PREFIX}"`);
+
   for (let i = 0; i < count; i++) {
-    // Generate addresses like 0xDEAD000000000000000000000000000000000001
-    // This ensures they're not precompile addresses
-    // IMPORTANT: Must lowercase first because ethers.getAddress() requires either:
-    // - A valid EIP-55 checksummed address, OR
-    // - An all-lowercase address (which it will then checksum)
-    // Mixed case (e.g., 0xDEAD...000a) fails checksum validation
-    const rawAddress = `0x${FAKE_WALLET_PREFIX}${(i + 1).toString(16).padStart(36, '0')}`.toLowerCase();
+    // Generate addresses like 0xdead000000000000000000000000000000000001
+    // IMPORTANT: Must be all lowercase before ethers.getAddress() to avoid checksum errors
+    const hexSuffix = (i + 1).toString(16).padStart(36, '0');
+    const rawAddress = `0x${FAKE_WALLET_PREFIX}${hexSuffix}`.toLowerCase();
+
+    console.log(`[simulate] User ${i}: raw="${rawAddress}"`);
+
+    // ethers.getAddress() will convert all-lowercase to proper EIP-55 checksum
     const checksumAddress = ethers.getAddress(rawAddress);
+
+    console.log(`[simulate] User ${i}: checksum="${checksumAddress}"`);
+
     fakeUsers.push({
       fid: FAKE_FID_BASE + i,
       username: `sim_user_${i}`,
       walletAddress: checksumAddress,
     });
   }
+
+  // Validate all addresses before returning
+  console.log(`[simulate] Validating ${fakeUsers.length} fake user addresses...`);
+  for (const user of fakeUsers) {
+    if (!ethers.isAddress(user.walletAddress)) {
+      throw new Error(`Generated invalid address for ${user.username}: ${user.walletAddress}`);
+    }
+  }
+  console.log(`[simulate] All fake user addresses validated successfully`);
+
   return fakeUsers;
 }
 
@@ -395,6 +411,14 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
       let actuallyPaid = false;
       if (isPaidGuess) {
         try {
+          // Debug: log the exact address being used
+          log(`Attempting purchase for ${user.username} with address: ${user.walletAddress}`);
+
+          // Validate address one more time before the call
+          if (!ethers.isAddress(user.walletAddress)) {
+            throw new Error(`Invalid address before purchase: ${user.walletAddress}`);
+          }
+
           await purchaseGuessesOnSepolia(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
           actuallyPaid = true;
           paidGuessCount++;
@@ -403,7 +427,7 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
         } catch (err: any) {
           consecutiveFailures++;
           const errMsg = err.message || 'Unknown error';
-          log(`Warning: Sepolia purchase failed for ${user.username}: ${errMsg}`);
+          log(`Warning: Sepolia purchase failed for ${user.username} (addr: ${user.walletAddress}): ${errMsg}`);
 
           // If we're getting consecutive failures, the round might be inactive
           if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
