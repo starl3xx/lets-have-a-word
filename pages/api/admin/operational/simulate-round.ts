@@ -13,6 +13,10 @@ import { submitGuess } from '../../../../src/lib/guesses';
 import { getGuessWords } from '../../../../src/lib/word-lists';
 import { db, users, dailyGuessState } from '../../../../src/db';
 import { eq } from 'drizzle-orm';
+import { purchaseGuessesOnChain } from '../../../../src/lib/jackpot-contract';
+
+// Base pack price for simulation (0.0003 ETH)
+const SIM_PACK_PRICE_ETH = '0.0003';
 
 // =============================================================================
 // Types
@@ -147,23 +151,38 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
   const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
   log(`Selected ${wrongWords.length} wrong words to guess`);
 
-  // Simulate wrong guesses
+  // Simulate wrong guesses with on-chain pack purchases
   let guessCount = 0;
+  let paidGuessCount = 0;
   for (const word of wrongWords) {
     const user = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
+    const isPaidGuess = Math.random() > 0.7; // ~30% paid guesses
+
+    // For paid guesses, execute on-chain purchase first
+    if (isPaidGuess) {
+      try {
+        await purchaseGuessesOnChain(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
+        paidGuessCount++;
+        log(`On-chain purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
+      } catch (err: any) {
+        log(`Warning: On-chain purchase failed for ${user.username}: ${err.message}`);
+        // Continue with DB-only tracking if on-chain fails
+      }
+    }
+
     await submitGuess({
       fid: user.fid,
       word,
-      isPaidGuess: Math.random() > 0.7,
+      isPaidGuess,
     });
     guessCount++;
 
     if (guessCount % 10 === 0) {
-      log(`Progress: ${guessCount}/${wrongWords.length} guesses submitted`);
+      log(`Progress: ${guessCount}/${wrongWords.length} guesses submitted (${paidGuessCount} paid)`);
     }
   }
 
-  log(`Submitted ${guessCount} wrong guesses`);
+  log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} on-chain purchases)`);
 
   // Winning guess
   const winner = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];

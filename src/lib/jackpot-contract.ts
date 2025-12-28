@@ -288,6 +288,33 @@ export async function seedJackpotOnChain(amountEth: string): Promise<string> {
 }
 
 /**
+ * Purchase guesses on-chain for a player
+ *
+ * @param playerAddress - Wallet address of the player
+ * @param quantity - Number of guesses to purchase
+ * @param amountEth - ETH amount to pay (as string)
+ * @returns Transaction hash
+ */
+export async function purchaseGuessesOnChain(
+  playerAddress: string,
+  quantity: number,
+  amountEth: string
+): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+  const amountWei = ethers.parseEther(amountEth);
+
+  console.log(`[CONTRACT] Purchasing ${quantity} guesses for ${playerAddress} (${amountEth} ETH)`);
+
+  const tx = await contract.purchaseGuesses(playerAddress, quantity, { value: amountWei });
+  console.log(`[CONTRACT] Purchase transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Guesses purchased - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
  * Start next round on smart contract (legacy - without commitment)
  *
  * @deprecated Use startRoundWithCommitmentOnChain for provably fair rounds
