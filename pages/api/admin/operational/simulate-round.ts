@@ -169,21 +169,25 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     const isPaidGuess = Math.random() > 0.7; // ~30% paid guesses
 
     // For paid guesses, execute onchain purchase first
+    // CRITICAL: Only mark as paid in DB if onchain purchase succeeds
+    // This prevents DB/contract balance mismatch
+    let actuallyPaid = false;
     if (isPaidGuess) {
       try {
         await purchaseGuessesOnChain(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
+        actuallyPaid = true;
         paidGuessCount++;
-        log(`On-chain purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
+        log(`Onchain purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
       } catch (err: any) {
-        log(`Warning: On-chain purchase failed for ${user.username}: ${err.message}`);
-        // Continue with DB-only tracking if onchain fails
+        log(`Warning: Onchain purchase failed for ${user.username}: ${err.message}`);
+        log(`  → Submitting as free guess to maintain DB/contract sync`);
       }
     }
 
     await submitGuess({
       fid: user.fid,
       word,
-      isPaidGuess,
+      isPaidGuess: actuallyPaid, // Only paid if onchain succeeded
     });
     guessCount++;
 

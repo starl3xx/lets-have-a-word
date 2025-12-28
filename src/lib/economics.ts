@@ -5,7 +5,7 @@ import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
 import { awardTopTenGuesserXp } from './xp';
 import { ethers } from 'ethers';
-import { resolveRoundWithPayoutsOnChain, type PayoutRecipient } from './jackpot-contract';
+import { resolveRoundWithPayoutsOnChain, getCurrentJackpotOnChain, type PayoutRecipient } from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
@@ -242,8 +242,27 @@ export async function resolveRoundAndCreatePayouts(
     return;
   }
 
-  const jackpotEth = parseFloat(round.prizePoolEth);
-  const jackpotWei = ethers.parseEther(round.prizePoolEth);
+  // CRITICAL: Use actual contract balance for payouts, not DB value
+  // This prevents payout failures when DB and contract are out of sync
+  // (e.g., Sepolia simulations, failed onchain purchases, etc.)
+  let jackpotEth: number;
+  let jackpotWei: bigint;
+
+  try {
+    const contractJackpotEth = await getCurrentJackpotOnChain();
+    jackpotEth = parseFloat(contractJackpotEth);
+    jackpotWei = ethers.parseEther(contractJackpotEth);
+
+    const dbJackpotEth = parseFloat(round.prizePoolEth);
+    if (Math.abs(jackpotEth - dbJackpotEth) > 0.0001) {
+      console.warn(`[economics] ⚠️ Jackpot mismatch: DB=${dbJackpotEth} ETH, Contract=${jackpotEth} ETH`);
+      console.warn(`[economics] Using contract balance for payouts to prevent CALL_EXCEPTION`);
+    }
+  } catch (error) {
+    console.warn(`[economics] Failed to query contract jackpot, falling back to DB value:`, error);
+    jackpotEth = parseFloat(round.prizePoolEth);
+    jackpotWei = ethers.parseEther(round.prizePoolEth);
+  }
 
   if (jackpotEth === 0) {
     console.log(`⚠️  Round ${roundId} has zero jackpot, no payouts created`);
