@@ -652,7 +652,7 @@ function DataRow({
 }
 
 /**
- * On-Chain Commitment Status Component
+ * Onchain Commitment Status Component
  * Shows whether the round has an onchain commitment and if it matches the database
  */
 function OnChainCommitmentStatus({
