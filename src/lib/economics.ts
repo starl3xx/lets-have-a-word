@@ -572,6 +572,23 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   }
 
+  // CRITICAL: Validate all payout addresses before calling contract
+  // Invalid addresses will cause CALL_EXCEPTION on the contract
+  console.log(`[economics] Validating ${onChainPayouts.length} payout addresses...`);
+  for (const payout of onChainPayouts) {
+    if (!ethers.isAddress(payout.address)) {
+      console.error(`[economics] ❌ Invalid address for ${payout.role} (FID ${payout.fid}): "${payout.address}"`);
+      throw new Error(`Invalid payout address for ${payout.role}: "${payout.address}" is not a valid Ethereum address`);
+    }
+    // Also check for precompile addresses (0x01-0x09)
+    const addrLower = payout.address.toLowerCase();
+    if (/^0x0+[1-9]$/.test(addrLower)) {
+      console.error(`[economics] ❌ Precompile address for ${payout.role} (FID ${payout.fid}): "${payout.address}"`);
+      throw new Error(`Precompile address for ${payout.role}: "${payout.address}" cannot receive ETH`);
+    }
+    console.log(`  ✓ ${payout.role} (FID ${payout.fid}): ${payout.address}`);
+  }
+
   // CRITICAL: Validate payout math before calling contract
   // The contract requires: sum(payouts) + seedForNextRound == currentJackpot
   const validation = validatePayoutMath(onChainPayouts, seedForNextRoundWei, jackpotWei);

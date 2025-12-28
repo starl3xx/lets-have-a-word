@@ -59,6 +59,30 @@ interface OperationalStatus {
   timestamp: string
 }
 
+interface ContractNetworkState {
+  network: 'mainnet' | 'sepolia'
+  roundNumber: number
+  isActive: boolean
+  internalJackpot: string
+  actualBalance: string
+  hasMismatch: boolean
+  mismatchAmount: string
+  mismatchPercent: number
+  canResolve: boolean
+  error?: string
+}
+
+interface ContractStateResponse {
+  ok: boolean
+  mainnet: ContractNetworkState
+  sepolia: ContractNetworkState
+  recommendations: {
+    mainnet: string
+    sepolia: string
+  }
+  timestamp: string
+}
+
 interface OperationsSectionProps {
   user?: {
     fid: number
@@ -222,6 +246,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Copy feedback state
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
 
+  // Contract state
+  const [contractState, setContractState] = useState<ContractStateResponse | null>(null)
+  const [contractStateLoading, setContractStateLoading] = useState(false)
+  const [clearSepoliaLoading, setClearSepoliaLoading] = useState(false)
+
   // Simulation states
   const [simAnswer, setSimAnswer] = useState("")
   const [simGuesses, setSimGuesses] = useState("20")
@@ -264,6 +293,66 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)
   }, [fetchStatus])
+
+  const fetchContractState = useCallback(async () => {
+    if (!user?.fid) return
+
+    try {
+      setContractStateLoading(true)
+      const res = await fetch(`/api/admin/operational/contract-state?devFid=${user.fid}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch contract state')
+      }
+
+      setContractState(data)
+    } catch (err: any) {
+      console.error('Failed to fetch contract state:', err)
+    } finally {
+      setContractStateLoading(false)
+    }
+  }, [user?.fid])
+
+  useEffect(() => {
+    fetchContractState()
+  }, [fetchContractState])
+
+  const handleClearSepoliaRound = async () => {
+    if (!user?.fid) return
+
+    if (!confirm('Clear the Sepolia round? This will pay the jackpot to the operator wallet and reset the contract state.')) {
+      return
+    }
+
+    try {
+      setClearSepoliaLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/admin/operational/contract-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: 'clear-sepolia-round',
+          network: 'sepolia',
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to clear Sepolia round')
+      }
+
+      setSuccess(data.message)
+      await fetchContractState()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setClearSepoliaLoading(false)
+    }
+  }
 
   const handleEnableKillSwitch = async () => {
     if (!killSwitchReason || killSwitchReason.length < 10) {
@@ -1072,6 +1161,189 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               ))}
             </div>
           )}
+
+          {/* Contract State Diagnostics Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>
+              Contract State Diagnostics
+              <span style={{
+                marginLeft: '12px',
+                fontSize: '11px',
+                padding: '2px 8px',
+                background: '#fef3c7',
+                color: '#92400e',
+                borderRadius: '9999px',
+              }}>
+                ONCHAIN
+              </span>
+            </h2>
+
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Monitor contract balance vs internal jackpot to diagnose resolution issues.
+              A mismatch means the contract cannot pay out the expected amounts.
+            </p>
+
+            {contractStateLoading && !contractState ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280' }}>
+                Loading contract state...
+              </div>
+            ) : contractState ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {/* Mainnet State */}
+                <div style={{
+                  padding: '16px',
+                  background: contractState.mainnet.hasMismatch ? '#fef2f2' : '#f0fdf4',
+                  border: `1px solid ${contractState.mainnet.hasMismatch ? '#fecaca' : '#bbf7d0'}`,
+                  borderRadius: '8px',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                      Base Mainnet
+                    </span>
+                    <span style={{
+                      fontSize: '20px',
+                    }}>
+                      {contractState.mainnet.hasMismatch ? '⚠️' : '✅'}
+                    </span>
+                  </div>
+                  {contractState.mainnet.error ? (
+                    <div style={{ color: '#dc2626', fontSize: '13px' }}>
+                      Error: {contractState.mainnet.error}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Round</span>
+                        <span style={styles.infoValue}>
+                          #{contractState.mainnet.roundNumber} {contractState.mainnet.isActive ? '(active)' : '(inactive)'}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Internal Jackpot</span>
+                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.internalJackpot).toFixed(6)} ETH</span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Actual Balance</span>
+                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.actualBalance).toFixed(6)} ETH</span>
+                      </div>
+                      {contractState.mainnet.hasMismatch && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '8px',
+                          background: '#fee2e2',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          color: '#991b1b',
+                        }}>
+                          ⚠️ Balance is {contractState.mainnet.mismatchAmount} ETH ({contractState.mainnet.mismatchPercent.toFixed(1)}%) less than jackpot.
+                          Resolution will fail.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Sepolia State */}
+                <div style={{
+                  padding: '16px',
+                  background: contractState.sepolia.hasMismatch ? '#fef2f2' : '#f0fdf4',
+                  border: `1px solid ${contractState.sepolia.hasMismatch ? '#fecaca' : '#bbf7d0'}`,
+                  borderRadius: '8px',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                      Base Sepolia (Testnet)
+                    </span>
+                    <span style={{
+                      fontSize: '20px',
+                    }}>
+                      {contractState.sepolia.hasMismatch ? '⚠️' : '✅'}
+                    </span>
+                  </div>
+                  {contractState.sepolia.error ? (
+                    <div style={{ color: '#dc2626', fontSize: '13px' }}>
+                      Error: {contractState.sepolia.error}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Round</span>
+                        <span style={styles.infoValue}>
+                          #{contractState.sepolia.roundNumber} {contractState.sepolia.isActive ? '(active)' : '(inactive)'}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Internal Jackpot</span>
+                        <span style={styles.infoValue}>{parseFloat(contractState.sepolia.internalJackpot).toFixed(6)} ETH</span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Actual Balance</span>
+                        <span style={styles.infoValue}>{parseFloat(contractState.sepolia.actualBalance).toFixed(6)} ETH</span>
+                      </div>
+                      {contractState.sepolia.hasMismatch && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '8px',
+                          background: '#fee2e2',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          color: '#991b1b',
+                        }}>
+                          ⚠️ Balance is {contractState.sepolia.mismatchAmount} ETH ({contractState.sepolia.mismatchPercent.toFixed(1)}%) less than jackpot.
+                        </div>
+                      )}
+                      {contractState.sepolia.isActive && (
+                        <button
+                          onClick={handleClearSepoliaRound}
+                          style={{
+                            ...styles.btnDanger,
+                            marginTop: '12px',
+                            width: '100%',
+                            padding: '8px 12px',
+                            fontSize: '12px',
+                          }}
+                          disabled={clearSepoliaLoading}
+                        >
+                          {clearSepoliaLoading ? 'Clearing...' : 'Clear Sepolia Round'}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <button
+                onClick={fetchContractState}
+                style={styles.btnSecondary}
+                disabled={contractStateLoading}
+              >
+                {contractStateLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+
+            {contractState?.recommendations && (
+              <div style={{ marginTop: '16px', fontSize: '12px', color: '#6b7280' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>Mainnet:</strong> {contractState.recommendations.mainnet}
+                </div>
+                <div>
+                  <strong>Sepolia:</strong> {contractState.recommendations.sepolia}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Sepolia Simulation Card */}
           <div style={styles.card}>
