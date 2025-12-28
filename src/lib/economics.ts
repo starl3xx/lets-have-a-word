@@ -452,7 +452,7 @@ export async function resolveRoundAndCreatePayouts(
   const hasReferrer = referrerFid !== null;
 
   // Calculate splits based on referrer status
-  let toWinnerWei = (jackpotWei * 8000n) / 10000n; // 80%
+  const toWinnerWei = (jackpotWei * 8000n) / 10000n; // 80%
   const referrerShareWei = (jackpotWei * 1000n) / 10000n; // 10%
   const baseTopGuessersWei = (jackpotWei * 1000n) / 10000n; // 10%
 
