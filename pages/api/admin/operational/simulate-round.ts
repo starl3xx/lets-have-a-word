@@ -327,13 +327,22 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
             // Verify the new jackpot
             const newJackpot = await getCurrentJackpotOnSepolia();
             log(`   New internal jackpot: ${newJackpot} ETH`);
+
+            // Check if seeding auto-started a round (JackpotManagerSimple does this)
+            const postSeedInfo = await getSepoliaRoundInfo();
+            if (postSeedInfo.isActive) {
+              log(`   Round #${postSeedInfo.roundNumber} was auto-started by seeding`);
+              sepoliaRoundStarted = true;
+            }
           }
 
-          // Start round with commitment (the only way on Sepolia contract)
-          log('Starting round with commitment...');
-          const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
-          log(`✅ Sepolia round started: ${txHash}`);
-          sepoliaRoundStarted = true;
+          // Only start round with commitment if not already started
+          if (!sepoliaRoundStarted) {
+            log('Starting round with commitment...');
+            const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+            log(`✅ Sepolia round started: ${txHash}`);
+            sepoliaRoundStarted = true;
+          }
 
           // Re-check state after starting round
           const newRoundInfo = await getSepoliaRoundInfo();
