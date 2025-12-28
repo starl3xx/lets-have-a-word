@@ -1275,7 +1275,7 @@ await sdk.actions.openUrl({
 - **Status**: ✅ Complete
 - CLANKTON Oracle integration for real-time holder verification
 - Multi-wallet support for CLANKTON balance checking
-- Enhanced round management with on-chain verification
+- Enhanced round management with onchain verification
 
 ### Milestone 6.4: Input & Word Wheel Performance Audit
 - **Status**: ✅ Complete
@@ -1742,12 +1742,12 @@ All announcement formats updated with new copy:
 - `ANSWER_ENCRYPTION_KEY` - 32-byte hex key for answer encryption (required)
 - `OPERATOR_PRIVATE_KEY` - For contract interactions (existing)
 
-### Milestone 11: Production Hardening & On-Chain Pack Purchases
+### Milestone 11: Production Hardening & Onchain Pack Purchases
 - **Status**: ✅ Complete
-- **Goal**: Production-harden game operations with on-chain pack purchases, comprehensive error handling, and enhanced admin tooling
+- **Goal**: Production-harden game operations with onchain pack purchases, comprehensive error handling, and enhanced admin tooling
 
-#### On-Chain Pack Purchases
-Users now sign wallet transactions that are verified on-chain before packs are awarded:
+#### Onchain Pack Purchases
+Users now sign wallet transactions that are verified onchain before packs are awarded:
 
 **Files:**
 - `pages/api/purchase-guess-pack.ts` - Main API endpoint
@@ -1758,7 +1758,7 @@ Users now sign wallet transactions that are verified on-chain before packs are a
 1. Frontend initiates wallet transaction via wagmi
 2. User signs transaction in their wallet
 3. Frontend waits for confirmation, then calls `/api/purchase-guess-pack` with `txHash`
-4. API verifies transaction on-chain using `verifyPurchaseTransaction()`
+4. API verifies transaction onchain using `verifyPurchaseTransaction()`
 5. Awards packs only after successful verification (prevents fraud)
 6. Tracks purchase via `txHash` to prevent double-claiming
 
@@ -1929,7 +1929,7 @@ TOP10_LOCK_AFTER_GUESSES = 750
   answer?: string;       // Round answer (default: random)
   numGuesses: number;    // Wrong guesses to simulate (1-100)
   numUsers: number;      // Fake users (1-10)
-  skipOnchain: boolean;  // Skip all on-chain ops
+  skipOnchain: boolean;  // Skip all onchain ops
   dryRun: boolean;       // Don't actually change state
 }
 ```
@@ -1939,7 +1939,7 @@ TOP10_LOCK_AFTER_GUESSES = 750
 - Auto-resolves previous round if needed
 - Auto-seeds jackpot if below minimum
 - Handles contract state mismatch gracefully
-- DB-only fallback if on-chain fails
+- DB-only fallback if onchain fails
 
 #### Production Safety Checks
 
@@ -2005,7 +2005,7 @@ dailyGuessState {
 - `pages/api/admin/operational/simulate-round.ts` - Sepolia simulation
 
 **Modified Files:**
-- `pages/api/purchase-guess-pack.ts` - On-chain verification
+- `pages/api/purchase-guess-pack.ts` - Onchain verification
 - `pages/api/share-callback.ts` - Neynar cast verification
 - `src/lib/daily-limits.ts` - Source-level tracking, mid-day upgrade
 - `src/lib/clankton.ts` - Tier upgrade logic
@@ -3209,7 +3209,7 @@ Process pack purchase.
 {
   "fid": 12345,
   "packCount": 2,
-  "txHash": "0x..." // Optional: on-chain transaction hash
+  "txHash": "0x..." // Optional: onchain transaction hash
 }
 ```
 
@@ -3778,5 +3778,5 @@ https://lets-have-a-word.vercel.app
 ---
 
 **Last Updated**: December 2025
-**Version**: 11.0 (Milestone 11 - Production Hardening & On-Chain Pack Purchases)
+**Version**: 11.0 (Milestone 11 - Production Hardening & Onchain Pack Purchases)
 **Status**: Production

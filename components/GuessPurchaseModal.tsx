@@ -233,7 +233,7 @@ export default function GuessPurchaseModal({
   };
 
   /**
-   * Handle purchase - Milestone 6.4: On-chain pack purchase
+   * Handle purchase - Milestone 6.4: Onchain pack purchase
    *
    * Flow:
    * 1. User clicks Buy -> initiate wallet transaction

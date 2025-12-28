@@ -1,6 +1,6 @@
 /**
  * Hook for purchasing guesses onchain
- * Milestone 6.4 - On-chain pack purchases
+ * Milestone 6.4 - Onchain pack purchases
  *
  * Uses wagmi to call purchaseGuesses() on the JackpotManager contract
  */

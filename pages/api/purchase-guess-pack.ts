@@ -40,7 +40,7 @@ import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
  * Body:
  * - fid: number - Farcaster ID
  * - packCount: number - Number of packs to purchase (1, 2, or 3)
- * - txHash: string - On-chain transaction hash to verify
+ * - txHash: string - Onchain transaction hash to verify
  */
 export default async function handler(
   req: NextApiRequest,
@@ -152,7 +152,7 @@ export default async function handler(
     const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
 
     if (!verification.valid) {
-      console.error(`[purchase-guess-pack] On-chain verification failed: ${verification.error}`, {
+      console.error(`[purchase-guess-pack] Onchain verification failed: ${verification.error}`, {
         txHash,
         fid,
         packCount,
@@ -163,7 +163,7 @@ export default async function handler(
       });
     }
 
-    console.log(`[purchase-guess-pack] On-chain verification passed for txHash ${txHash}`, {
+    console.log(`[purchase-guess-pack] Onchain verification passed for txHash ${txHash}`, {
       player: verification.player,
       quantity: verification.quantity,
       ethAmount: verification.ethAmount,
