@@ -536,6 +536,20 @@ export function formatJackpotEth(weiAmount: bigint): string {
 }
 
 /**
+ * Get actual ETH balance of the mainnet contract
+ * This is the real source of truth for what can be paid out
+ *
+ * IMPORTANT: For production safety, always verify contract balance >= internal jackpot
+ * before attempting payouts to prevent CALL_EXCEPTION errors
+ */
+export async function getMainnetContractBalance(): Promise<string> {
+  const config = getContractConfig();
+  const provider = getBaseProvider();
+  const balance = await provider.getBalance(config.jackpotManagerAddress);
+  return ethers.formatEther(balance);
+}
+
+/**
  * Check if contract is deployed and accessible
  */
 export async function isContractDeployed(): Promise<boolean> {
