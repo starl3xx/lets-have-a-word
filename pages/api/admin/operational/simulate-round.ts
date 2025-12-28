@@ -155,13 +155,14 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
   log(`Selected ${wrongWords.length} wrong words to guess`);
 
   // Simulate wrong guesses
+  // When skipOnchain is true, all guesses are free to avoid triggering on-chain payouts
   let guessCount = 0;
   for (const word of wrongWords) {
     const user = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
     await submitGuess({
       fid: user.fid,
       word,
-      isPaidGuess: Math.random() > 0.7,
+      isPaidGuess: config.skipOnchain ? false : Math.random() > 0.7,
     });
     guessCount++;
 
