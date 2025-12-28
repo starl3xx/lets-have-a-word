@@ -191,7 +191,8 @@ export type XpEventType =
   | 'NEAR_MISS'             // 0 XP (tracked for future use)
   | 'CLANKTON_BONUS_DAY'    // +10 XP per day for CLANKTON holders
   | 'SHARE_CAST'            // +15 XP for sharing to Farcaster
-  | 'PACK_PURCHASE';        // +20 XP per pack purchase
+  | 'PACK_PURCHASE'         // +20 XP per pack purchase
+  | 'OG_HUNTER_AWARD';      // +500 XP for OG Hunter badge (prelaunch campaign)
 
 /**
  * XP Event
@@ -222,6 +223,7 @@ export const XP_VALUES: Record<XpEventType, number> = {
   CLANKTON_BONUS_DAY: 10,
   SHARE_CAST: 15,
   PACK_PURCHASE: 20,
+  OG_HUNTER_AWARD: 500,   // OG Hunter badge award (prelaunch campaign)
 };
 
 /**

@@ -29,6 +29,7 @@ export const users = pgTable('users', {
   userScoreUpdatedAt: timestamp('user_score_updated_at'), // Last time user score was fetched - Milestone 5.3
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
+  addedMiniAppAt: timestamp('added_mini_app_at'), // OG Hunter: When user added the mini app via SDK
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -517,3 +518,47 @@ export const adminWalletActions = pgTable('admin_wallet_actions', {
 
 export type AdminWalletActionRow = typeof adminWalletActions.$inferSelect;
 export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
+
+/**
+ * Badge Types
+ * OG Hunter Campaign: Badge system for special achievements
+ */
+export type BadgeType = 'OG_HUNTER';
+
+/**
+ * User Badges Table
+ * OG Hunter Campaign: Tracks awarded badges
+ */
+export const userBadges = pgTable('user_badges', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull(),
+  badgeType: varchar('badge_type', { length: 50 }).notNull().$type<BadgeType>(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // castHash, castUrl, etc.
+  awardedAt: timestamp('awarded_at').defaultNow().notNull(),
+}, (table) => ({
+  fidBadgeUnique: unique('user_badges_fid_badge_unique').on(table.fid, table.badgeType),
+  fidIdx: index('user_badges_fid_idx').on(table.fid),
+  badgeTypeIdx: index('user_badges_badge_type_idx').on(table.badgeType),
+}));
+
+export type UserBadgeRow = typeof userBadges.$inferSelect;
+export type UserBadgeInsert = typeof userBadges.$inferInsert;
+
+/**
+ * OG Hunter Cast Proofs Table
+ * OG Hunter Campaign: Stores verified cast share proofs
+ */
+export const ogHunterCastProofs = pgTable('og_hunter_cast_proofs', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull().unique(), // One proof per user
+  castHash: varchar('cast_hash', { length: 100 }).notNull(),
+  castUrl: varchar('cast_url', { length: 500 }),
+  castText: varchar('cast_text', { length: 1000 }),
+  verifiedAt: timestamp('verified_at').defaultNow().notNull(),
+}, (table) => ({
+  fidIdx: index('og_hunter_cast_proofs_fid_idx').on(table.fid),
+  castHashIdx: index('og_hunter_cast_proofs_cast_hash_idx').on(table.castHash),
+}));
+
+export type OgHunterCastProofRow = typeof ogHunterCastProofs.$inferSelect;
+export type OgHunterCastProofInsert = typeof ogHunterCastProofs.$inferInsert;
