@@ -62,7 +62,7 @@ export function getShareText(): string {
 
 Add the app + share a cast before launch to earn a permanent badge and 500 XP 🏆
 
-letshaveaword.fun`;
+letshaveaword.fun `;
 }
 
 /**
