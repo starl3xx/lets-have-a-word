@@ -763,10 +763,44 @@ export async function resolveRoundWithPayoutsOnSepolia(
     throw new Error('At least one payout recipient (winner) is required');
   }
 
+  const contract = getSepoliaJackpotManagerWithOperator();
+
+  // Pre-flight check: verify contract state before attempting resolution
+  console.log(`[SEPOLIA] Pre-flight contract state check...`);
+  const roundInfo = await getSepoliaRoundInfo();
+  const actualBalance = await getSepoliaContractBalance();
+
+  console.log(`[SEPOLIA] Contract state:`);
+  console.log(`  - Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
+  console.log(`  - Internal jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+  console.log(`  - Actual balance: ${actualBalance} ETH`);
+
+  if (!roundInfo.isActive) {
+    throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active. The contract may be in an inconsistent state.`);
+  }
+
+  // Calculate total payout + seed and compare to contract jackpot
+  const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+  const totalResolveWei = totalPayoutsWei + seedForNextRoundWei;
+  const contractJackpotWei = roundInfo.jackpot;
+
+  console.log(`[SEPOLIA] Payout validation:`);
+  console.log(`  - Total payouts: ${ethers.formatEther(totalPayoutsWei)} ETH`);
+  console.log(`  - Seed for next: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+  console.log(`  - Total resolve: ${ethers.formatEther(totalResolveWei)} ETH`);
+  console.log(`  - Contract jackpot: ${ethers.formatEther(contractJackpotWei)} ETH`);
+
+  if (totalResolveWei !== contractJackpotWei) {
+    const diff = totalResolveWei > contractJackpotWei
+      ? totalResolveWei - contractJackpotWei
+      : contractJackpotWei - totalResolveWei;
+    console.error(`[SEPOLIA] ❌ MISMATCH: Payout total (${ethers.formatEther(totalResolveWei)} ETH) != Contract jackpot (${ethers.formatEther(contractJackpotWei)} ETH)`);
+    console.error(`[SEPOLIA] Difference: ${ethers.formatEther(diff)} ETH`);
+    throw new Error(`Payout math mismatch: trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH. Difference: ${ethers.formatEther(diff)} ETH`);
+  }
+
   const recipients = payouts.map(p => p.address);
   const amounts = payouts.map(p => p.amountWei);
-
-  const contract = getSepoliaJackpotManagerWithOperator();
 
   console.log(`[SEPOLIA] Resolving round with ${payouts.length} payouts:`);
   for (const payout of payouts) {
