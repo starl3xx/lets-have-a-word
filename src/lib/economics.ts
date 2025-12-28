@@ -20,13 +20,41 @@ import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 const SEED_CAP_ETH = '0.03'; // 0.03 ETH cap for seed accumulation (updated from 0.1 in Milestone 5.4b)
 
 /**
+ * Sync the DB prize pool from the contract's current jackpot
+ *
+ * IMPORTANT: The contract is the single source of truth for prize pool balance.
+ * Call this after any onchain operation that modifies the jackpot (seeding, purchases, etc.)
+ *
+ * @param roundId - The round ID to sync
+ * @returns The synced prize pool amount in ETH
+ */
+export async function syncPrizePoolFromContract(roundId: number): Promise<string> {
+  const contractJackpot = await getCurrentJackpotOnChain();
+
+  await db
+    .update(rounds)
+    .set({
+      prizePoolEth: contractJackpot,
+    })
+    .where(eq(rounds.id, roundId));
+
+  console.log(`[economics] Synced round ${roundId} prize pool from contract: ${contractJackpot} ETH`);
+  return contractJackpot;
+}
+
+/**
  * Apply economic effects when a paid guess is made
  *
- * Split logic:
+ * IMPORTANT: The contract is the single source of truth for prize pool balance.
+ * This function syncs the DB to match the contract's current jackpot.
+ *
+ * Split logic (handled by contract):
  * - 80% goes to prize pool (P)
- * - 20% goes to seed/creator:
- *   - If seed S < 0.03 ETH, add to S
- *   - Otherwise add to creator balance
+ * - 20% goes to creator profit (contract tracks this)
+ *
+ * DB-only logic (seed accumulation):
+ * - We track seed for next round in DB
+ * - If seed S < 0.03 ETH, portion of 20% goes to S
  *
  * @param roundId - The round ID
  * @param guessPriceEth - Price of the guess in ETH (as string)
@@ -37,8 +65,7 @@ export async function applyPaidGuessEconomicEffects(
 ): Promise<void> {
   const price = parseFloat(guessPriceEth);
 
-  // Calculate splits
-  const toPrizePool = price * 0.8;
+  // The 20% portion for seed/creator calculation
   const toSeedOrCreator = price * 0.2;
 
   // Get current round
@@ -50,6 +77,18 @@ export async function applyPaidGuessEconomicEffects(
 
   if (!round) {
     throw new Error(`Round ${roundId} not found`);
+  }
+
+  // CRITICAL: Sync prize pool from contract (single source of truth)
+  let newPrizePool: string;
+  try {
+    newPrizePool = await getCurrentJackpotOnChain();
+    console.log(`[economics] Synced prize pool from contract: ${newPrizePool} ETH`);
+  } catch (error) {
+    // Fallback to local calculation if contract query fails
+    console.warn(`[economics] Failed to sync from contract, using local calculation:`, error);
+    const toPrizePool = price * 0.8;
+    newPrizePool = (parseFloat(round.prizePoolEth) + toPrizePool).toFixed(18);
   }
 
   // Get or create system state
@@ -66,10 +105,7 @@ export async function applyPaidGuessEconomicEffects(
     state = newState;
   }
 
-  // Update prize pool
-  const newPrizePool = parseFloat(round.prizePoolEth) + toPrizePool;
-
-  // Calculate seed update
+  // Calculate seed update (DB-only concept, not in contract)
   const currentSeed = parseFloat(round.seedNextRoundEth);
   const seedCap = parseFloat(SEED_CAP_ETH);
 
@@ -87,16 +123,16 @@ export async function applyPaidGuessEconomicEffects(
     toCreator = toSeedOrCreator;
   }
 
-  // Update round with new prize pool and seed
+  // Update round with synced prize pool and calculated seed
   await db
     .update(rounds)
     .set({
-      prizePoolEth: newPrizePool.toFixed(18),
+      prizePoolEth: newPrizePool,
       seedNextRoundEth: newSeed.toFixed(18),
     })
     .where(eq(rounds.id, roundId));
 
-  // Update creator balance if needed
+  // Update creator balance if needed (DB tracking for display)
   if (toCreator > 0) {
     const newCreatorBalance = parseFloat(state.creatorBalanceEth) + toCreator;
     await db
@@ -109,7 +145,7 @@ export async function applyPaidGuessEconomicEffects(
   }
 
   console.log(`✅ Applied paid guess economics for round ${roundId}:
-  - Prize pool: ${round.prizePoolEth} → ${newPrizePool.toFixed(18)}
+  - Prize pool (from contract): ${newPrizePool} ETH
   - Seed: ${round.seedNextRoundEth} → ${newSeed.toFixed(18)}
   - Creator balance: ${state.creatorBalanceEth} → ${(parseFloat(state.creatorBalanceEth) + toCreator).toFixed(18)}`);
 }
