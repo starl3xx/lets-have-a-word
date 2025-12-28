@@ -129,6 +129,16 @@ export const AnalyticsEventTypes = {
 
   // Top-10 Lock Event
   TOP10_LOCK_REACHED: 'top10_lock_reached',
+
+  // OG Hunter Campaign Events
+  SPLASH_VIEW: 'splash_view',
+  OG_HUNTER_ADD_MINIAPP_CLICK: 'og_hunter_add_miniapp_click',
+  OG_HUNTER_CAST_INTENT_CLICK: 'og_hunter_cast_intent_click',
+  OG_HUNTER_VERIFY_CAST_SUCCESS: 'og_hunter_verify_cast_success',
+  OG_HUNTER_VERIFY_CAST_FAIL: 'og_hunter_verify_cast_fail',
+  OG_HUNTER_CLAIM_SUCCESS: 'og_hunter_claim_success',
+  OG_HUNTER_CLAIM_INELIGIBLE: 'og_hunter_claim_ineligible',
+  OG_HUNTER_CLAIM_ALREADY_AWARDED: 'og_hunter_claim_already_awarded',
 } as const;
 
 export type AnalyticsEventType = typeof AnalyticsEventTypes[keyof typeof AnalyticsEventTypes];
