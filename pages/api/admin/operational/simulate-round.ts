@@ -77,10 +77,13 @@ function generateFakeUsers(count: number): FakeUser[] {
   for (let i = 0; i < count; i++) {
     // Generate addresses like 0xDEAD000000000000000000000000000000000001
     // This ensures they're not precompile addresses
+    // Use ethers.getAddress() to normalize checksum (handles lowercase hex digits)
+    const rawAddress = `0x${FAKE_WALLET_PREFIX}${(i + 1).toString(16).padStart(36, '0')}`;
+    const checksumAddress = ethers.getAddress(rawAddress);
     fakeUsers.push({
       fid: FAKE_FID_BASE + i,
       username: `sim_user_${i}`,
-      walletAddress: `0x${FAKE_WALLET_PREFIX}${(i + 1).toString(16).padStart(36, '0')}`,
+      walletAddress: checksumAddress,
     });
   }
   return fakeUsers;
@@ -240,7 +243,28 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
           const postResolveInfo = await getSepoliaRoundInfo();
           if (postResolveInfo.isActive) {
             log(`Contract automatically started new round #${postResolveInfo.roundNumber}`);
-            log(`Using existing active round (jackpot: ${ethers.formatEther(postResolveInfo.jackpot)} ETH)`);
+            const autoJackpot = ethers.formatEther(postResolveInfo.jackpot);
+            log(`Auto-started round jackpot: ${autoJackpot} ETH`);
+
+            // Check if auto-started round needs seeding
+            const minimumSeed = await getSepoliaMinimumSeed();
+            const minimumSeedEth = ethers.formatEther(minimumSeed);
+            if (postResolveInfo.jackpot < minimumSeed) {
+              log(`⚠️  Auto-started round jackpot (${autoJackpot} ETH) is below minimum (${minimumSeedEth} ETH)`);
+              log(`   Seeding jackpot to enable purchases...`);
+              try {
+                const seedTxHash = await seedJackpotOnSepolia(minimumSeedEth);
+                log(`✅ Jackpot seeded: ${seedTxHash}`);
+
+                // Verify new jackpot
+                const newJackpot = await getCurrentJackpotOnSepolia();
+                log(`   New jackpot: ${newJackpot} ETH`);
+              } catch (seedErr: any) {
+                log(`❌ Failed to seed jackpot: ${seedErr.message}`);
+                log(`   → Purchases may fail.`);
+              }
+            }
+
             sepoliaRoundStarted = true;
             sepoliaHasActiveRound = true; // Update flag
           }
@@ -313,7 +337,36 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
 
     // Determine if we should skip onchain operations
     // Skip if: mismatch detected, explicitly requested, OR round start failed
-    const skipOnchainOps = skipAllOnchain || !sepoliaRoundStarted;
+    let skipOnchainOps = skipAllOnchain || !sepoliaRoundStarted;
+
+    // If we started/seeded a round, wait a moment for the blockchain state to settle
+    if (sepoliaRoundStarted && !skipAllOnchain) {
+      log('Waiting 2 seconds for blockchain state to settle...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Verify round is still active after delay
+      try {
+        const verifyInfo = await getSepoliaRoundInfo();
+        if (!verifyInfo.isActive) {
+          log(`⚠️  Round became inactive after delay. Attempting to restart...`);
+          try {
+            const minimumSeed = await getSepoliaMinimumSeed();
+            const minimumSeedEth = ethers.formatEther(minimumSeed);
+            const seedTxHash = await seedJackpotOnSepolia(minimumSeedEth);
+            log(`✅ Re-seeded jackpot: ${seedTxHash}`);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } catch (restartErr: any) {
+            log(`❌ Failed to restart round: ${restartErr.message}`);
+            log(`   → Falling back to DB-only simulation`);
+            skipOnchainOps = true;
+          }
+        } else {
+          log(`✅ Round #${verifyInfo.roundNumber} is active with ${ethers.formatEther(verifyInfo.jackpot)} ETH`);
+        }
+      } catch (verifyErr: any) {
+        log(`Warning: Could not verify round state: ${verifyErr.message}`);
+      }
+    }
 
     // Prepare wrong guesses
     const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
@@ -322,6 +375,8 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     // Simulate wrong guesses with onchain pack purchases
     let guessCount = 0;
     let paidGuessCount = 0;
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 3;
 
     if (skipOnchainOps) {
       log(`⚠️  Skipping onchain purchases (DB-only simulation)`);
@@ -340,9 +395,29 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
           await purchaseGuessesOnSepolia(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
           actuallyPaid = true;
           paidGuessCount++;
+          consecutiveFailures = 0; // Reset on success
           log(`Sepolia purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
         } catch (err: any) {
-          log(`Warning: Sepolia purchase failed for ${user.username}: ${err.message}`);
+          consecutiveFailures++;
+          const errMsg = err.message || 'Unknown error';
+          log(`Warning: Sepolia purchase failed for ${user.username}: ${errMsg}`);
+
+          // If we're getting consecutive failures, the round might be inactive
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            log(`⚠️  ${MAX_CONSECUTIVE_FAILURES} consecutive purchase failures - checking round state...`);
+            try {
+              const roundCheck = await getSepoliaRoundInfo();
+              if (!roundCheck.isActive) {
+                log(`   Round is inactive. Switching to DB-only mode for remaining guesses.`);
+                skipOnchainOps = true;
+              } else {
+                log(`   Round #${roundCheck.roundNumber} is active. Errors may be transient.`);
+              }
+            } catch (checkErr: any) {
+              log(`   Could not check round state: ${checkErr.message}`);
+            }
+          }
+
           log(`  → Submitting as free guess to maintain DB/contract sync`);
         }
       }
