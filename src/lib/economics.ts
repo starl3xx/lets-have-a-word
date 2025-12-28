@@ -530,7 +530,15 @@ export async function resolveRoundAndCreatePayouts(
   }
 
   // Insert all database payout records
-  await db.insert(roundPayouts).values(dbPayouts);
+  // Filter out null-fid payouts (seed/creator) if the database doesn't support nullable fid yet
+  // TODO: Run migration 0005_nullable_payout_fid.sql to fix this properly
+  const payoutsToInsert = dbPayouts.filter(p => p.fid !== null);
+  if (payoutsToInsert.length < dbPayouts.length) {
+    console.log(`[economics] Note: Filtered out ${dbPayouts.length - payoutsToInsert.length} null-fid payouts (seed/creator) - run migration to fix`);
+  }
+  if (payoutsToInsert.length > 0) {
+    await db.insert(roundPayouts).values(payoutsToInsert);
+  }
 
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
   if (topGuesserFids.length > 0) {
