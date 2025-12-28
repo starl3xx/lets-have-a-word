@@ -19,6 +19,7 @@ import {
   getCurrentJackpotOnSepolia,
   getSepoliaContractBalance,
   getSepoliaRoundInfo,
+  resolveSepoliaPreviousRound,
 } from '../../../../src/lib/jackpot-contract';
 import { ethers } from 'ethers';
 import { setSepoliaSimulationMode, setSkipOnchainResolution } from '../../../../src/lib/economics';
@@ -208,24 +209,37 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     // This is critical: we need a clean round state for the simulation to resolve properly
     let sepoliaRoundStarted = false;
     if (!skipAllOnchain) {
+      // If there's an active round, resolve it first to clear the state
       if (sepoliaHasActiveRound) {
-        log(`⚠️  Sepolia already has an active round - attempting to start new round anyway...`);
-        log(`   (This will fail if the current round hasn't been resolved)`);
+        log(`Sepolia has an active round - resolving it first...`);
+        try {
+          const resolveTxHash = await resolveSepoliaPreviousRound();
+          log(`✅ Previous round resolved: ${resolveTxHash}`);
+          log(`   Jackpot returned to operator wallet.`);
+        } catch (err: any) {
+          log(`❌ Failed to resolve previous round: ${err.message}`);
+          log(`   → Continuing with DB-only simulation.`);
+          // Mark as mismatch so we skip all onchain ops
+          sepoliaJackpotMismatch = true;
+        }
       }
 
-      log('Starting fresh round on Sepolia contract...');
-      try {
-        const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
-        log(`Sepolia round started: ${txHash}`);
-        sepoliaRoundStarted = true;
+      // Now start a fresh round (only if we didn't fail to resolve)
+      if (!sepoliaJackpotMismatch) {
+        log('Starting fresh round on Sepolia contract...');
+        try {
+          const txHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+          log(`Sepolia round started: ${txHash}`);
+          sepoliaRoundStarted = true;
 
-        // Re-check state after starting round
-        const newRoundInfo = await getSepoliaRoundInfo();
-        const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
-        log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
-      } catch (err: any) {
-        log(`❌ Failed to start Sepolia round: ${err.message}`);
-        log(`   → Continuing with DB-only simulation (all onchain operations will be skipped).`);
+          // Re-check state after starting round
+          const newRoundInfo = await getSepoliaRoundInfo();
+          const newJackpot = ethers.formatEther(newRoundInfo.jackpot);
+          log(`New round state: Round #${newRoundInfo.roundNumber}, Jackpot: ${newJackpot} ETH`);
+        } catch (err: any) {
+          log(`❌ Failed to start Sepolia round: ${err.message}`);
+          log(`   → Continuing with DB-only simulation (all onchain operations will be skipped).`);
+        }
       }
     } else {
       log('Skipping Sepolia round start (skipAllOnchain=true)');
