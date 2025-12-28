@@ -258,6 +258,18 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
             log(`Seeding jackpot with ${seedAmount} ETH...`);
             const seedTxHash = await seedJackpotOnSepolia(seedAmount);
             log(`✅ Jackpot seeded: ${seedTxHash}`);
+
+            // Verify the jackpot was updated
+            const updatedJackpot = await getCurrentJackpotOnSepolia();
+            log(`Verified jackpot after seeding: ${updatedJackpot} ETH`);
+
+            const updatedJackpotWei = ethers.parseEther(updatedJackpot);
+            if (updatedJackpotWei < minimumSeed) {
+              log(`⚠️  Jackpot still below minimum after seeding!`);
+              log(`   Expected: ${ethers.formatEther(minimumSeed)} ETH, Got: ${updatedJackpot} ETH`);
+              log(`   → Continuing with DB-only simulation.`);
+              sepoliaJackpotMismatch = true;
+            }
           }
         } catch (err: any) {
           log(`❌ Failed to check/seed minimum: ${err.message}`);
