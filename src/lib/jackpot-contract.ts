@@ -829,6 +829,25 @@ export async function resolveRoundWithPayoutsOnSepolia(
 
   // Pre-flight check: verify contract state before attempting resolution
   console.log(`[SEPOLIA] Pre-flight contract state check...`);
+
+  // Check operator authorization
+  const readOnlyContract = getSepoliaJackpotManagerReadOnly();
+  const contractOperator = await readOnlyContract.operatorWallet();
+  const config = getSepoliaContractConfig();
+  const ourOperator = config.operatorWallet;
+
+  console.log(`[SEPOLIA] Operator check:`);
+  console.log(`  - Contract operator: ${contractOperator}`);
+  console.log(`  - Our operator: ${ourOperator}`);
+
+  if (contractOperator.toLowerCase() !== ourOperator.toLowerCase()) {
+    console.error(`[SEPOLIA] ❌ OPERATOR MISMATCH!`);
+    console.error(`[SEPOLIA] The contract expects operator ${contractOperator}`);
+    console.error(`[SEPOLIA] But we're using ${ourOperator}`);
+    throw new Error(`Operator mismatch: contract expects ${contractOperator} but we're using ${ourOperator}. Update OPERATOR_WALLET or redeploy the Sepolia contract.`);
+  }
+  console.log(`[SEPOLIA] ✅ Operator authorized`);
+
   const roundInfo = await getSepoliaRoundInfo();
   const actualBalanceWei = await getSepoliaContractBalanceWei();
 
@@ -953,6 +972,20 @@ export async function resolveSepoliaPreviousRound(): Promise<string> {
   if (!roundInfo.isActive) {
     throw new Error('No active round to resolve');
   }
+
+  // Check operator authorization first
+  const readOnlyContract = getSepoliaJackpotManagerReadOnly();
+  const contractOperator = await readOnlyContract.operatorWallet();
+  const config = getSepoliaContractConfig();
+
+  console.log(`[SEPOLIA] Operator check:`);
+  console.log(`  - Contract operator: ${contractOperator}`);
+  console.log(`  - Our operator: ${config.operatorWallet}`);
+
+  if (contractOperator.toLowerCase() !== config.operatorWallet.toLowerCase()) {
+    throw new Error(`Operator mismatch: contract expects ${contractOperator} but we're using ${config.operatorWallet}. The Sepolia contract may have been deployed with a different operator.`);
+  }
+  console.log(`[SEPOLIA] ✅ Operator authorized`);
 
   // Get operator address from wallet
   const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
