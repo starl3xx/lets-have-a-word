@@ -151,14 +151,14 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
   const wrongWords = selectWrongGuesses(round.answer, config.numGuesses);
   log(`Selected ${wrongWords.length} wrong words to guess`);
 
-  // Simulate wrong guesses with on-chain pack purchases
+  // Simulate wrong guesses with onchain pack purchases
   let guessCount = 0;
   let paidGuessCount = 0;
   for (const word of wrongWords) {
     const user = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
     const isPaidGuess = Math.random() > 0.7; // ~30% paid guesses
 
-    // For paid guesses, execute on-chain purchase first
+    // For paid guesses, execute onchain purchase first
     if (isPaidGuess) {
       try {
         await purchaseGuessesOnChain(user.walletAddress, 1, SIM_PACK_PRICE_ETH);
@@ -166,7 +166,7 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
         log(`On-chain purchase: ${user.username} bought 1 pack (${SIM_PACK_PRICE_ETH} ETH)`);
       } catch (err: any) {
         log(`Warning: On-chain purchase failed for ${user.username}: ${err.message}`);
-        // Continue with DB-only tracking if on-chain fails
+        // Continue with DB-only tracking if onchain fails
       }
     }
 
@@ -182,7 +182,7 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
     }
   }
 
-  log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} on-chain purchases)`);
+  log(`Submitted ${guessCount} wrong guesses (${paidGuessCount} onchain purchases)`);
 
   // Winning guess
   const winner = fakeUsers[Math.floor(Math.random() * fakeUsers.length)];
