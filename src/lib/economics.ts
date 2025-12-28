@@ -369,9 +369,9 @@ export async function resolveRoundAndCreatePayouts(
 
   try {
     if (sepoliaSimulationMode) {
-      // For Sepolia: use ACTUAL contract balance, not internal jackpot tracking
-      // This is critical because the contract's internal jackpot may be higher than
-      // its actual ETH balance (from accumulated unresolved simulations)
+      // For Sepolia: MUST use internal jackpot for payout calculations
+      // The contract validates: sum(payouts) + seed == currentJackpot
+      // Using balance instead would cause a math mismatch and CALL_EXCEPTION
       const contractBalance = await getSepoliaContractBalance();
       const internalJackpot = await getCurrentJackpotOnSepolia();
 
@@ -379,18 +379,21 @@ export async function resolveRoundAndCreatePayouts(
       console.log(`  - Internal jackpot: ${internalJackpot} ETH`);
       console.log(`  - Actual balance: ${contractBalance} ETH`);
 
-      // Use the lower of the two to prevent CALL_EXCEPTION
       const balanceNum = parseFloat(contractBalance);
       const jackpotNum = parseFloat(internalJackpot);
 
       if (balanceNum < jackpotNum) {
-        console.warn(`[economics] ⚠️ Using actual balance (${contractBalance} ETH) instead of internal jackpot (${internalJackpot} ETH)`);
-        jackpotEth = balanceNum;
-        jackpotWei = ethers.parseEther(contractBalance);
-      } else {
-        jackpotEth = jackpotNum;
-        jackpotWei = ethers.parseEther(internalJackpot);
+        // WARNING: Contract has less ETH than its internal jackpot tracks
+        // This means previous resolutions failed and left the contract in bad state
+        // We MUST still use internal jackpot for math, but resolution will fail
+        console.error(`[economics] ❌ CRITICAL: Balance (${contractBalance} ETH) < Internal jackpot (${internalJackpot} ETH)`);
+        console.error(`[economics] The contract cannot pay out. Use "Clear Sepolia Round" in admin to reset.`);
+        throw new Error(`Sepolia contract state error: balance (${contractBalance} ETH) < internal jackpot (${internalJackpot} ETH). Clear the round in admin dashboard.`);
       }
+
+      // Use internal jackpot - this is what the contract validates against
+      jackpotEth = jackpotNum;
+      jackpotWei = ethers.parseEther(internalJackpot);
     } else {
       // For mainnet: verify contract balance >= internal jackpot to prevent CALL_EXCEPTION
       // This is a critical safety check learned from Sepolia testing
