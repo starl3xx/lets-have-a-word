@@ -788,3 +788,41 @@ export async function startRoundWithCommitmentOnSepolia(commitHash: string): Pro
 
   return tx.hash;
 }
+
+/**
+ * Resolve previous Sepolia round by paying out full jackpot to operator
+ * Used to clear stale rounds before starting a new simulation
+ */
+export async function resolveSepoliaPreviousRound(): Promise<string> {
+  const roundInfo = await getSepoliaRoundInfo();
+
+  if (!roundInfo.isActive) {
+    throw new Error('No active round to resolve');
+  }
+
+  const jackpotWei = roundInfo.jackpot;
+  if (jackpotWei === 0n) {
+    throw new Error('Jackpot is zero, nothing to resolve');
+  }
+
+  // Get operator address from wallet
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+  if (!operatorPrivateKey) {
+    throw new Error('OPERATOR_PRIVATE_KEY not set');
+  }
+  const wallet = new ethers.Wallet(operatorPrivateKey);
+  const operatorAddress = wallet.address;
+
+  console.log(`[SEPOLIA] Resolving previous round #${roundInfo.roundNumber}`);
+  console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(jackpotWei)} ETH -> Operator: ${operatorAddress}`);
+
+  // Pay full jackpot to operator, 0 seed for next round
+  const payouts: PayoutRecipient[] = [{
+    address: operatorAddress,
+    amountWei: jackpotWei,
+    role: 'operator_reclaim',
+    fid: null,
+  }];
+
+  return resolveRoundWithPayoutsOnSepolia(payouts, 0n);
+}
