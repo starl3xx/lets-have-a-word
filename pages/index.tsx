@@ -9,6 +9,7 @@ import WinnerShareCard from '../components/WinnerShareCard';
 import LetterBoxes from '../components/LetterBoxes';
 import ResultBanner, { type ResultBannerVariant } from '../components/ResultBanner';
 import FirstTimeOverlay from '../components/FirstTimeOverlay';
+import OnboardingManager from '../components/OnboardingManager';
 import StatsSheet from '../components/StatsSheet';
 import ReferralSheet from '../components/ReferralSheet';
 import FAQSheet from '../components/FAQSheet';
@@ -209,32 +210,16 @@ function GameContent() {
 
   /**
    * Check if user has seen intro overlay (Milestone 4.3)
-   * Uses effectiveFid for consistent dev mode FID handling
+   * NOTE: In production, OnboardingManager now handles this via /api/onboarding/status
+   * This effect is only for dev mode testing
    */
   useEffect(() => {
-    const checkFirstTimeUser = async () => {
-      if (!effectiveFid) return;
-
-      // In dev mode, always show the tutorial overlay for testing
-      if (isClientDevMode()) {
-        setShowFirstTimeOverlay(true);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/user/state?devFid=${effectiveFid}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (!data.hasSeenIntro) {
-            setShowFirstTimeOverlay(true);
-          }
-        }
-      } catch (error) {
-        console.error('Error checking first-time user status:', error);
-      }
-    };
-
-    checkFirstTimeUser();
+    // In dev mode, always show the tutorial overlay for testing
+    if (isClientDevMode() && effectiveFid) {
+      setShowFirstTimeOverlay(true);
+    }
+    // In production, OnboardingManager handles the full onboarding flow
+    // including both "How It Works" and OG Hunter thanks modals
   }, [effectiveFid]);
 
   /**
@@ -1505,11 +1490,11 @@ function GameContent() {
         currentRoundId={currentRoundId}
       />
 
-      {/* First Time Overlay - rendered after keyboard to appear above it */}
+      {/* First Time Overlay - only shown in dev mode for testing */}
       {showFirstTimeOverlay && (
         <FirstTimeOverlay
           onDismiss={() => setShowFirstTimeOverlay(false)}
-          fid={effectiveFid}
+          fid={effectiveFid ?? undefined}
         />
       )}
 
@@ -1518,8 +1503,15 @@ function GameContent() {
         <FirstTimeOverlay
           onDismiss={() => setShowTutorial(false)}
           tutorialOnly
-          fid={effectiveFid}
+          fid={effectiveFid ?? undefined}
         />
+      )}
+
+      {/* Onboarding Manager - handles post-launch onboarding flow */}
+      {/* Shows "How It Works" + OG Hunter thanks modals in sequence */}
+      {/* Only active in production mode (not dev mode which uses showFirstTimeOverlay) */}
+      {effectiveFid && !isClientDevMode() && (
+        <OnboardingManager fid={effectiveFid} />
       )}
     </div>
   );
