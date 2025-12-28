@@ -11,6 +11,7 @@ import {
   getCurrentJackpotOnChain,
   getCurrentJackpotOnSepolia,
   getSepoliaContractBalance,
+  getMainnetContractBalance,
   type PayoutRecipient,
 } from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
@@ -391,10 +392,27 @@ export async function resolveRoundAndCreatePayouts(
         jackpotWei = ethers.parseEther(internalJackpot);
       }
     } else {
-      // For mainnet: use contract's internal jackpot tracking
-      const contractJackpotEth = await getCurrentJackpotOnChain();
-      jackpotEth = parseFloat(contractJackpotEth);
-      jackpotWei = ethers.parseEther(contractJackpotEth);
+      // For mainnet: verify contract balance >= internal jackpot to prevent CALL_EXCEPTION
+      // This is a critical safety check learned from Sepolia testing
+      const contractBalance = await getMainnetContractBalance();
+      const internalJackpot = await getCurrentJackpotOnChain();
+
+      console.log(`[economics] Mainnet contract state:`);
+      console.log(`  - Internal jackpot: ${internalJackpot} ETH`);
+      console.log(`  - Actual balance: ${contractBalance} ETH`);
+
+      const balanceNum = parseFloat(contractBalance);
+      const jackpotNum = parseFloat(internalJackpot);
+
+      if (balanceNum < jackpotNum) {
+        // CRITICAL: Balance is less than internal jackpot - this would cause CALL_EXCEPTION
+        console.error(`[economics] ❌ CRITICAL: Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpot} ETH)`);
+        console.error(`[economics] This indicates a serious contract state inconsistency. Aborting payout to prevent loss.`);
+        throw new Error(`Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpot} ETH). Cannot safely execute payouts.`);
+      }
+
+      jackpotEth = jackpotNum;
+      jackpotWei = ethers.parseEther(internalJackpot);
     }
 
     const dbJackpotEth = parseFloat(round.prizePoolEth);
@@ -587,15 +605,10 @@ export async function resolveRoundAndCreatePayouts(
     }
   }
 
-  // Insert all database payout records
-  // Filter out null-fid payouts (seed/creator) if the database doesn't support nullable fid yet
-  // TODO: Run migration 0005_nullable_payout_fid.sql to fix this properly
-  const payoutsToInsert = dbPayouts.filter(p => p.fid !== null);
-  if (payoutsToInsert.length < dbPayouts.length) {
-    console.log(`[economics] Note: Filtered out ${dbPayouts.length - payoutsToInsert.length} null-fid payouts (seed/creator) - run migration to fix`);
-  }
-  if (payoutsToInsert.length > 0) {
-    await db.insert(roundPayouts).values(payoutsToInsert);
+  // Insert all database payout records (including seed/creator with null fid)
+  // Migration 0005_nullable_payout_fid.sql allows null fid for seed and creator payouts
+  if (dbPayouts.length > 0) {
+    await db.insert(roundPayouts).values(dbPayouts);
   }
 
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
