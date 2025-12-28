@@ -219,7 +219,13 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
  * Verify that a user recently cast content mentioning the game
  * Used to verify share bonus eligibility
  *
- * @param fid - Farcaster ID of the user
+ * SECURITY:
+ * - Only accepts casts authored by the specified FID (explicit author check)
+ * - Requires the canonical game URL to be present in text or embeds
+ * - Applies time window to prevent old cast reuse
+ * - OG Hunter: "Cast must be created while PRELAUNCH_MODE=1" (enforced by time window)
+ *
+ * @param fid - Farcaster ID of the user (must match cast author)
  * @param gameUrl - The game URL that should appear in the cast (e.g., letshaveaword.fun)
  * @param lookbackMinutes - How far back to search for casts (default: 10 minutes)
  * @returns The cast hash if found, null otherwise
@@ -236,6 +242,7 @@ export async function verifyRecentShareCast(
 
   try {
     // Get user's recent casts using Neynar feed API
+    // The fids filter ensures we only get casts from this user
     const response = await neynarClient.fetchFeed({
       feedType: 'filter',
       filterType: 'fids',
@@ -249,19 +256,31 @@ export async function verifyRecentShareCast(
     }
 
     const cutoffTime = new Date(Date.now() - lookbackMinutes * 60 * 1000);
+    const gameUrlLower = gameUrl.toLowerCase();
 
     // Look for a cast containing the game URL within the time window
     for (const cast of response.casts) {
+      // SECURITY: Explicit author FID check (defense in depth)
+      // Even though we filter by fids, verify the cast author matches
+      const castAuthorFid = cast.author?.fid;
+      if (castAuthorFid !== fid) {
+        console.warn(`[verifyRecentShareCast] Cast author FID ${castAuthorFid} does not match requested FID ${fid}, skipping`);
+        continue;
+      }
+
       const castTime = new Date(cast.timestamp);
 
       // Skip casts older than the lookback window
+      // For OG Hunter: this enforces "cast must be recent" which implicitly means
+      // "created while prelaunch mode is active" since the campaign is time-limited
       if (castTime < cutoffTime) {
         continue;
       }
 
-      // Check if cast text contains the game URL (case-insensitive)
+      // Check if cast text contains the CANONICAL game URL (case-insensitive)
+      // Must contain the exact domain - no fuzzy matching on app name
       const textLower = (cast.text || '').toLowerCase();
-      if (textLower.includes(gameUrl.toLowerCase()) || textLower.includes("let's have a word")) {
+      if (textLower.includes(gameUrlLower)) {
         console.log(`[verifyRecentShareCast] Found valid share cast for FID ${fid}: ${cast.hash}`);
         return {
           castHash: cast.hash,
@@ -272,7 +291,7 @@ export async function verifyRecentShareCast(
       // Also check embeds for the game URL
       if (cast.embeds) {
         for (const embed of cast.embeds) {
-          if ('url' in embed && embed.url?.toLowerCase().includes(gameUrl.toLowerCase())) {
+          if ('url' in embed && embed.url?.toLowerCase().includes(gameUrlLower)) {
             console.log(`[verifyRecentShareCast] Found valid share cast (via embed) for FID ${fid}: ${cast.hash}`);
             return {
               castHash: cast.hash,

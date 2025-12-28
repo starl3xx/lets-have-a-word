@@ -17,7 +17,25 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Routes that should always be accessible (even in prelaunch mode)
+/**
+ * Routes that should always be accessible (even in prelaunch mode)
+ *
+ * ALLOWLIST RATIONALE:
+ * - /splash       : The prelaunch landing page itself (must be accessible!)
+ * - /admin        : Admin dashboard for operators (protected by auth)
+ * - /api          : All API endpoints including:
+ *                   - /api/webhook (Farcaster mini app events - CRITICAL for OG Hunter)
+ *                   - /api/og-hunter/* (status, verify-cast, claim)
+ *                   - /api/analytics/log (event tracking)
+ *                   - /api/user-state (user initialization)
+ * - /.well-known  : Farcaster manifest (farcaster.json) - REQUIRED for mini app add flow
+ * - /verify       : Onchain verification page (transparency)
+ * - /archive      : Round archive pages (transparency)
+ * - /_next        : Next.js static assets (JS, CSS bundles)
+ * - /favicon.ico  : Browser favicon
+ * - /LHAW-        : App assets (icons, hero images)
+ * - /screenshot   : Screenshot images for embeds
+ */
 const ALLOWED_PATHS = [
   '/splash',
   '/admin',
@@ -27,8 +45,8 @@ const ALLOWED_PATHS = [
   '/archive',
   '/_next',
   '/favicon.ico',
-  '/LHAW-',        // All LHAW assets (icons, images)
-  '/screenshot',   // Screenshot images
+  '/LHAW-',
+  '/screenshot',
 ];
 
 // Static file extensions that should always pass through

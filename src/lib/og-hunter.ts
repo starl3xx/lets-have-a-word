@@ -206,42 +206,46 @@ export async function claimOgHunterBadge(fid: number): Promise<{
   });
 
   try {
-    // Award badge (idempotent via unique constraint)
-    await db.insert(userBadges).values({
-      fid,
-      badgeType: 'OG_HUNTER',
-      metadata: {
-        castHash: castProof?.castHash,
-        castUrl: castProof?.castUrl,
-        campaignVersion: 1,
-      },
-      awardedAt: new Date(),
-    }).onConflictDoNothing();
-
-    // Award XP (check for existing award first)
-    const existingXpAward = await db.query.xpEvents.findFirst({
-      where: and(
-        eq(xpEvents.fid, fid),
-        eq(xpEvents.eventType, 'OG_HUNTER_AWARD')
-      ),
-    });
-
-    if (!existingXpAward) {
-      await db.insert(xpEvents).values({
+    // Award badge + XP atomically in a single transaction
+    // This ensures no partial awards (badge without XP or vice versa)
+    await db.transaction(async (tx) => {
+      // Award badge (idempotent via unique constraint)
+      await tx.insert(userBadges).values({
         fid,
-        eventType: 'OG_HUNTER_AWARD',
-        xpAmount: OG_HUNTER_XP_AMOUNT,
+        badgeType: 'OG_HUNTER',
         metadata: {
-          badgeType: 'OG_HUNTER',
           castHash: castProof?.castHash,
+          castUrl: castProof?.castUrl,
+          campaignVersion: 1,
         },
-        createdAt: new Date(),
+        awardedAt: new Date(),
+      }).onConflictDoNothing();
+
+      // Award XP (check for existing award first to ensure idempotency)
+      const existingXpAward = await tx.query.xpEvents.findFirst({
+        where: and(
+          eq(xpEvents.fid, fid),
+          eq(xpEvents.eventType, 'OG_HUNTER_AWARD')
+        ),
       });
 
-      console.log(`[OgHunter] Awarded ${OG_HUNTER_XP_AMOUNT} XP to FID ${fid}`);
-    }
+      if (!existingXpAward) {
+        await tx.insert(xpEvents).values({
+          fid,
+          eventType: 'OG_HUNTER_AWARD',
+          xpAmount: OG_HUNTER_XP_AMOUNT,
+          metadata: {
+            badgeType: 'OG_HUNTER',
+            castHash: castProof?.castHash,
+          },
+          createdAt: new Date(),
+        });
 
-    console.log(`[OgHunter] Awarded OG_HUNTER badge to FID ${fid}`);
+        console.log(`[OgHunter] Awarded ${OG_HUNTER_XP_AMOUNT} XP to FID ${fid}`);
+      }
+
+      console.log(`[OgHunter] Awarded OG_HUNTER badge to FID ${fid}`);
+    });
   } catch (error) {
     console.error(`[OgHunter] Error awarding badge to FID ${fid}:`, error);
     return { success: false, error: 'Failed to award badge' };
@@ -287,26 +291,6 @@ export async function getUserBadges(fid: number): Promise<Array<{
   return badges;
 }
 
-/**
- * Mark user as having added the mini app (for client-side SDK flow)
- * This is a backup for when webhook doesn't fire
- */
-export async function markMiniAppAdded(fid: number): Promise<void> {
-  // Only update if not already set
-  const user = await db.query.users.findFirst({
-    where: eq(users.fid, fid),
-    columns: { addedMiniAppAt: true },
-  });
-
-  if (user && !user.addedMiniAppAt) {
-    await db
-      .update(users)
-      .set({
-        addedMiniAppAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.fid, fid));
-
-    console.log(`[OgHunter] Marked mini app added for FID ${fid} via client`);
-  }
-}
+// NOTE: markMiniAppAdded was removed for security.
+// The addedMiniAppAt timestamp can ONLY be set via verified webhook from Farcaster.
+// This ensures the "add mini app" step cannot be spoofed by clients.
