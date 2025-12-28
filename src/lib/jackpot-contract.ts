@@ -14,7 +14,7 @@
  */
 
 import { ethers, Contract, Wallet } from 'ethers';
-import { getBaseProvider } from './clankton';
+import { getBaseProvider, getSepoliaProvider } from './clankton';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 
 /**
@@ -104,6 +104,28 @@ export function getContractConfig(): ContractConfig {
 }
 
 /**
+ * Get Sepolia contract configuration from environment
+ * Uses SEPOLIA_JACKPOT_MANAGER_ADDRESS or falls back to main address
+ */
+export function getSepoliaContractConfig(): ContractConfig {
+  // Prefer explicit Sepolia address, fall back to main (for when main IS Sepolia)
+  const jackpotManagerAddress = process.env.SEPOLIA_JACKPOT_MANAGER_ADDRESS || process.env.JACKPOT_MANAGER_ADDRESS;
+
+  if (!jackpotManagerAddress) {
+    throw new Error('SEPOLIA_JACKPOT_MANAGER_ADDRESS or JACKPOT_MANAGER_ADDRESS not configured');
+  }
+
+  const normalizeAddress = (addr: string) => ethers.getAddress(addr.toLowerCase());
+
+  return {
+    jackpotManagerAddress: normalizeAddress(jackpotManagerAddress),
+    prizePoolWallet: normalizeAddress(process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB'),
+    operatorWallet: normalizeAddress(process.env.OPERATOR_WALLET || '0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38'),
+    creatorProfitWallet: normalizeAddress(process.env.CREATOR_PROFIT_WALLET || '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223'),
+  };
+}
+
+/**
  * Get read-only contract instance
  */
 export function getJackpotManagerReadOnly(): Contract {
@@ -111,6 +133,33 @@ export function getJackpotManagerReadOnly(): Contract {
   const provider = getBaseProvider();
 
   return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, provider);
+}
+
+/**
+ * Get Sepolia read-only contract instance
+ */
+export function getSepoliaJackpotManagerReadOnly(): Contract {
+  const config = getSepoliaContractConfig();
+  const provider = getSepoliaProvider();
+
+  return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, provider);
+}
+
+/**
+ * Get Sepolia contract instance with operator signer for write operations
+ */
+export function getSepoliaJackpotManagerWithOperator(): Contract {
+  const config = getSepoliaContractConfig();
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+
+  if (!operatorPrivateKey) {
+    throw new Error('OPERATOR_PRIVATE_KEY not configured for contract writes');
+  }
+
+  const provider = getSepoliaProvider();
+  const wallet = new Wallet(operatorPrivateKey, provider);
+
+  return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, wallet);
 }
 
 /**
@@ -177,12 +226,21 @@ export async function isMinimumSeedMetOnChain(): Promise<boolean> {
 }
 
 /**
- * Get current jackpot amount from contract
+ * Get current jackpot amount from contract (formatted ETH string)
  */
 export async function getCurrentJackpotOnChain(): Promise<string> {
   const contract = getJackpotManagerReadOnly();
   const jackpot = await contract.currentJackpot();
   return ethers.formatEther(jackpot);
+}
+
+/**
+ * Get current jackpot amount from contract (raw wei bigint)
+ * Use this for calculations to avoid precision loss from ETH string round-trip
+ */
+export async function getCurrentJackpotOnChainWei(): Promise<bigint> {
+  const contract = getJackpotManagerReadOnly();
+  return await contract.currentJackpot();
 }
 
 /**
@@ -241,12 +299,46 @@ export async function resolveRoundWithPayoutsOnChain(
     throw new Error('At least one payout recipient (winner) is required');
   }
 
+  // Get contract with operator signer
+  const contract = getJackpotManagerWithOperator();
+
+  // Pre-flight check: verify contract state before attempting resolution
+  console.log(`[CONTRACT] Pre-flight contract state check...`);
+  const roundInfo = await getContractRoundInfo();
+  const actualBalance = await getMainnetContractBalance();
+
+  console.log(`[CONTRACT] Contract state:`);
+  console.log(`  - Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
+  console.log(`  - Internal jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+  console.log(`  - Actual balance: ${actualBalance} ETH`);
+
+  if (!roundInfo.isActive) {
+    throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active.`);
+  }
+
+  // Calculate total payout + seed and compare to contract jackpot
+  const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+  const totalResolveWei = totalPayoutsWei + seedForNextRoundWei;
+  const contractJackpotWei = roundInfo.jackpot;
+
+  console.log(`[CONTRACT] Payout validation:`);
+  console.log(`  - Total payouts: ${ethers.formatEther(totalPayoutsWei)} ETH`);
+  console.log(`  - Seed for next: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+  console.log(`  - Total resolve: ${ethers.formatEther(totalResolveWei)} ETH`);
+  console.log(`  - Contract jackpot: ${ethers.formatEther(contractJackpotWei)} ETH`);
+
+  if (totalResolveWei !== contractJackpotWei) {
+    const diff = totalResolveWei > contractJackpotWei
+      ? totalResolveWei - contractJackpotWei
+      : contractJackpotWei - totalResolveWei;
+    console.error(`[CONTRACT] ❌ MISMATCH: Payout total (${ethers.formatEther(totalResolveWei)} ETH) != Contract jackpot (${ethers.formatEther(contractJackpotWei)} ETH)`);
+    console.error(`[CONTRACT] Difference: ${ethers.formatEther(diff)} ETH`);
+    throw new Error(`CRITICAL: Payout math mismatch on mainnet. Trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH. Aborting to prevent fund loss.`);
+  }
+
   // Extract arrays for contract call
   const recipients = payouts.map(p => p.address);
   const amounts = payouts.map(p => p.amountWei);
-
-  // Get contract with operator signer
-  const contract = getJackpotManagerWithOperator();
 
   // Log payout details
   console.log(`[CONTRACT] Resolving round with ${payouts.length} payouts:`);
@@ -283,6 +375,33 @@ export async function seedJackpotOnChain(amountEth: string): Promise<string> {
 
   const receipt = await tx.wait();
   console.log(`[CONTRACT] Jackpot seeded - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Purchase guesses onchain for a player
+ *
+ * @param playerAddress - Wallet address of the player
+ * @param quantity - Number of guesses to purchase
+ * @param amountEth - ETH amount to pay (as string)
+ * @returns Transaction hash
+ */
+export async function purchaseGuessesOnChain(
+  playerAddress: string,
+  quantity: number,
+  amountEth: string
+): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+  const amountWei = ethers.parseEther(amountEth);
+
+  console.log(`[CONTRACT] Purchasing ${quantity} guesses for ${playerAddress} (${amountEth} ETH)`);
+
+  const tx = await contract.purchaseGuesses(playerAddress, quantity, { value: amountWei });
+  console.log(`[CONTRACT] Purchase transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Guesses purchased - Block: ${receipt.blockNumber}`);
 
   return tx.hash;
 }
@@ -460,6 +579,20 @@ export function formatJackpotEth(weiAmount: bigint): string {
 }
 
 /**
+ * Get actual ETH balance of the mainnet contract
+ * This is the real source of truth for what can be paid out
+ *
+ * IMPORTANT: For production safety, always verify contract balance >= internal jackpot
+ * before attempting payouts to prevent CALL_EXCEPTION errors
+ */
+export async function getMainnetContractBalance(): Promise<string> {
+  const config = getContractConfig();
+  const provider = getBaseProvider();
+  const balance = await provider.getBalance(config.jackpotManagerAddress);
+  return ethers.formatEther(balance);
+}
+
+/**
  * Check if contract is deployed and accessible
  */
 export async function isContractDeployed(): Promise<boolean> {
@@ -472,4 +605,430 @@ export async function isContractDeployed(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Verification result for a purchase transaction
+ */
+export interface PurchaseVerificationResult {
+  valid: boolean;
+  player?: string;
+  quantity?: number;
+  ethAmount?: string;
+  toJackpot?: string;
+  toCreator?: string;
+  roundNumber?: number;
+  error?: string;
+}
+
+/**
+ * Verify an onchain purchase transaction
+ *
+ * Parses the GuessesPurchased event from the transaction receipt to verify:
+ * - Transaction was successful
+ * - Transaction was to our JackpotManager contract
+ * - Event data matches expected values
+ *
+ * @param txHash - Transaction hash to verify
+ * @param expectedPlayer - Expected player address (optional - for strict verification)
+ * @param expectedQuantity - Expected quantity (optional - for strict verification)
+ * @returns Verification result with transaction details
+ */
+export async function verifyPurchaseTransaction(
+  txHash: string,
+  expectedPlayer?: string,
+  expectedQuantity?: number
+): Promise<PurchaseVerificationResult> {
+  try {
+    const config = getContractConfig();
+    const provider = getBaseProvider();
+
+    // Fetch transaction receipt
+    const receipt = await provider.getTransactionReceipt(txHash);
+
+    if (!receipt) {
+      return { valid: false, error: 'Transaction not found or not yet mined' };
+    }
+
+    if (receipt.status !== 1) {
+      return { valid: false, error: 'Transaction reverted' };
+    }
+
+    // Check transaction was to our contract
+    if (receipt.to?.toLowerCase() !== config.jackpotManagerAddress.toLowerCase()) {
+      return { valid: false, error: 'Transaction was not to JackpotManager contract' };
+    }
+
+    // Create interface to decode event
+    const iface = new ethers.Interface(JACKPOT_MANAGER_ABI);
+
+    // Find GuessesPurchased event in logs
+    let purchaseEvent: ethers.LogDescription | null = null;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() === config.jackpotManagerAddress.toLowerCase()) {
+        try {
+          const parsed = iface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+          if (parsed?.name === 'GuessesPurchased') {
+            purchaseEvent = parsed;
+            break;
+          }
+        } catch {
+          // Not this event, continue
+        }
+      }
+    }
+
+    if (!purchaseEvent) {
+      return { valid: false, error: 'No GuessesPurchased event found in transaction' };
+    }
+
+    // Extract event data
+    const roundNumber = Number(purchaseEvent.args.roundNumber);
+    const player = purchaseEvent.args.player;
+    const quantity = Number(purchaseEvent.args.quantity);
+    const ethAmount = ethers.formatEther(purchaseEvent.args.ethAmount);
+    const toJackpot = ethers.formatEther(purchaseEvent.args.toJackpot);
+    const toCreator = ethers.formatEther(purchaseEvent.args.toCreator);
+
+    // Strict verification if expected values provided
+    if (expectedPlayer && player.toLowerCase() !== expectedPlayer.toLowerCase()) {
+      return {
+        valid: false,
+        error: `Player mismatch: expected ${expectedPlayer}, got ${player}`,
+        player,
+        quantity,
+        ethAmount,
+        roundNumber,
+      };
+    }
+
+    if (expectedQuantity && quantity !== expectedQuantity) {
+      return {
+        valid: false,
+        error: `Quantity mismatch: expected ${expectedQuantity}, got ${quantity}`,
+        player,
+        quantity,
+        ethAmount,
+        roundNumber,
+      };
+    }
+
+    return {
+      valid: true,
+      player,
+      quantity,
+      ethAmount,
+      toJackpot,
+      toCreator,
+      roundNumber,
+    };
+  } catch (error) {
+    console.error('[CONTRACT] Error verifying purchase transaction:', error);
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Unknown verification error',
+    };
+  }
+}
+
+// =============================================================================
+// SEPOLIA-SPECIFIC FUNCTIONS
+// For testnet simulations - explicitly use Sepolia RPC and contract
+// =============================================================================
+
+/**
+ * Get current jackpot amount from Sepolia contract (formatted ETH string)
+ */
+export async function getCurrentJackpotOnSepolia(): Promise<string> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  const jackpot = await contract.currentJackpot();
+  return ethers.formatEther(jackpot);
+}
+
+/**
+ * Get current jackpot amount from Sepolia contract (raw wei bigint)
+ * Use this for calculations to avoid precision loss from ETH string round-trip
+ */
+export async function getCurrentJackpotOnSepoliaWei(): Promise<bigint> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  return await contract.currentJackpot();
+}
+
+/**
+ * Get actual ETH balance of the Sepolia contract
+ * This is the real source of truth for what can be paid out
+ */
+export async function getSepoliaContractBalance(): Promise<string> {
+  const config = getSepoliaContractConfig();
+  const provider = getSepoliaProvider();
+  const balance = await provider.getBalance(config.jackpotManagerAddress);
+  return ethers.formatEther(balance);
+}
+
+/**
+ * Get actual ETH balance of the Sepolia contract in raw wei
+ * Use this for precise comparisons to avoid formatEther/parseEther precision loss
+ */
+export async function getSepoliaContractBalanceWei(): Promise<bigint> {
+  const config = getSepoliaContractConfig();
+  const provider = getSepoliaProvider();
+  return await provider.getBalance(config.jackpotManagerAddress);
+}
+
+/**
+ * Get current round info from Sepolia contract
+ */
+export async function getSepoliaRoundInfo(): Promise<{
+  roundNumber: bigint;
+  jackpot: bigint;
+  isActive: boolean;
+  startedAt: bigint;
+}> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  const [roundNumber, jackpot, isActive, startedAt] = await contract.getCurrentRoundInfo();
+  return { roundNumber, jackpot, isActive, startedAt };
+}
+
+/**
+ * Purchase guesses on Sepolia for simulation
+ */
+export async function purchaseGuessesOnSepolia(
+  playerAddress: string,
+  quantity: number,
+  amountEth: string
+): Promise<string> {
+  const contract = getSepoliaJackpotManagerWithOperator();
+  const amountWei = ethers.parseEther(amountEth);
+
+  console.log(`[SEPOLIA] Purchasing ${quantity} guesses for ${playerAddress} (${amountEth} ETH)`);
+
+  const tx = await contract.purchaseGuesses(playerAddress, quantity, { value: amountWei });
+  console.log(`[SEPOLIA] Purchase transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Guesses purchased - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Resolve round on Sepolia with multi-recipient payouts.
+ *
+ * This function supports both:
+ * 1. JackpotManagerFull (has resolveRoundWithPayouts) - uses full payout distribution
+ * 2. JackpotManagerSimple (only has resolveRound) - falls back to simple resolution
+ *
+ * Set SEPOLIA_FULL_CONTRACT=true in env to use full payout distribution.
+ */
+export async function resolveRoundWithPayoutsOnSepolia(
+  payouts: PayoutRecipient[],
+  seedForNextRoundWei: bigint
+): Promise<string> {
+  if (payouts.length === 0) {
+    throw new Error('At least one payout recipient (winner) is required');
+  }
+
+  // Find the winner (first recipient with role 'winner')
+  const winnerPayout = payouts.find(p => p.role === 'winner');
+  if (!winnerPayout) {
+    throw new Error('No winner found in payouts');
+  }
+
+  // Verify round is active
+  const roundInfo = await getSepoliaRoundInfo();
+  console.log(`[SEPOLIA] Round #${roundInfo.roundNumber}, Active: ${roundInfo.isActive}`);
+  console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+
+  if (!roundInfo.isActive) {
+    throw new Error(`Cannot resolve: Round #${roundInfo.roundNumber} is not active.`);
+  }
+
+  // Get contract with operator signer
+  const contract = getSepoliaJackpotManagerWithOperator();
+
+  // Check if we're using the full contract (has resolveRoundWithPayouts)
+  const useFullContract = process.env.SEPOLIA_FULL_CONTRACT === 'true';
+
+  if (useFullContract) {
+    // Full contract: use multi-recipient payouts
+    console.log(`[SEPOLIA] Using resolveRoundWithPayouts for full payout distribution`);
+
+    // Pre-flight check: validate payout totals match jackpot
+    const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+    const totalResolveWei = totalPayoutsWei + seedForNextRoundWei;
+    const contractJackpotWei = roundInfo.jackpot;
+
+    console.log(`[SEPOLIA] Payout validation:`);
+    console.log(`  - Total payouts: ${ethers.formatEther(totalPayoutsWei)} ETH`);
+    console.log(`  - Seed for next: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+    console.log(`  - Total resolve: ${ethers.formatEther(totalResolveWei)} ETH`);
+    console.log(`  - Contract jackpot: ${ethers.formatEther(contractJackpotWei)} ETH`);
+
+    if (totalResolveWei !== contractJackpotWei) {
+      const diff = totalResolveWei > contractJackpotWei
+        ? totalResolveWei - contractJackpotWei
+        : contractJackpotWei - totalResolveWei;
+      console.error(`[SEPOLIA] ❌ MISMATCH: Payout total (${ethers.formatEther(totalResolveWei)} ETH) != Contract jackpot (${ethers.formatEther(contractJackpotWei)} ETH)`);
+      console.error(`[SEPOLIA] Difference: ${ethers.formatEther(diff)} ETH`);
+      throw new Error(`Payout math mismatch. Trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH.`);
+    }
+
+    // Extract arrays for contract call
+    const recipients = payouts.map(p => p.address);
+    const amounts = payouts.map(p => p.amountWei);
+
+    // Log payout details
+    console.log(`[SEPOLIA] Resolving round with ${payouts.length} payouts:`);
+    for (const payout of payouts) {
+      console.log(`  - ${payout.role}${payout.fid ? ` (FID ${payout.fid})` : ''}: ${payout.address} -> ${ethers.formatEther(payout.amountWei)} ETH`);
+    }
+    console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+
+    // Call resolveRoundWithPayouts
+    const tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei);
+    console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
+
+    const receipt = await tx.wait();
+    console.log(`[SEPOLIA] Round resolved with payouts - Block: ${receipt.blockNumber}, Gas used: ${receipt.gasUsed}`);
+
+    return tx.hash;
+  } else {
+    // Simple contract: use resolveRound(winner) - 100% to winner
+    const winnerAddress = winnerPayout.address;
+    console.log(`[SEPOLIA] Using simple resolveRound(winner) for simulation`);
+    console.log(`[SEPOLIA] Winner address: ${winnerAddress}`);
+    console.log(`[SEPOLIA] Note: All jackpot goes to winner (simple contract mode)`);
+
+    const tx = await contract.resolveRound(winnerAddress);
+    console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
+
+    const receipt = await tx.wait();
+    console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}, Gas used: ${receipt.gasUsed}`);
+
+    return tx.hash;
+  }
+}
+
+/**
+ * Start round with commitment on Sepolia for simulation
+ */
+export async function startRoundWithCommitmentOnSepolia(commitHash: string): Promise<string> {
+  const contract = getSepoliaJackpotManagerWithOperator();
+
+  const bytes32Hash = commitHash.startsWith('0x') ? commitHash : `0x${commitHash}`;
+
+  console.log(`[SEPOLIA] Starting round with onchain commitment`);
+  console.log(`[SEPOLIA] Commit hash: ${bytes32Hash}`);
+
+  const tx = await contract.startRoundWithCommitment(bytes32Hash);
+  console.log(`[SEPOLIA] Start round transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Round started with commitment - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Resolve previous Sepolia round by paying out full jackpot to operator
+ * Used to clear stale rounds before starting a new simulation
+ *
+ * Uses resolveRound(winner) function which pays 100% to the winner
+ */
+export async function resolveSepoliaPreviousRound(): Promise<string> {
+  const roundInfo = await getSepoliaRoundInfo();
+
+  if (!roundInfo.isActive) {
+    throw new Error('No active round to resolve');
+  }
+
+  // Check operator authorization first
+  const readOnlyContract = getSepoliaJackpotManagerReadOnly();
+  const contractOperator = await readOnlyContract.operatorWallet();
+  const config = getSepoliaContractConfig();
+
+  console.log(`[SEPOLIA] Operator check:`);
+  console.log(`  - Contract operator: ${contractOperator}`);
+  console.log(`  - Our operator: ${config.operatorWallet}`);
+
+  if (contractOperator.toLowerCase() !== config.operatorWallet.toLowerCase()) {
+    throw new Error(`Operator mismatch: contract expects ${contractOperator} but we're using ${config.operatorWallet}. The Sepolia contract may have been deployed with a different operator.`);
+  }
+  console.log(`[SEPOLIA] ✅ Operator authorized`);
+
+  // Get operator address from wallet
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+  if (!operatorPrivateKey) {
+    throw new Error('OPERATOR_PRIVATE_KEY not set');
+  }
+  const wallet = new ethers.Wallet(operatorPrivateKey);
+  const operatorAddress = wallet.address;
+
+  console.log(`[SEPOLIA] Resolving previous round #${roundInfo.roundNumber}`);
+  console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+  console.log(`[SEPOLIA] Using resolveRound() to pay winner: ${operatorAddress}`);
+
+  // Use the simpler resolveRound(winner) function
+  const contract = getSepoliaJackpotManagerWithOperator();
+  const tx = await contract.resolveRound(operatorAddress);
+  console.log(`[SEPOLIA] Resolve transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Check if the Sepolia contract supports full features (resolveRoundWithPayouts, startNextRound)
+ * Returns true if SEPOLIA_FULL_CONTRACT=true in environment
+ */
+export function isSepoliaFullContract(): boolean {
+  return process.env.SEPOLIA_FULL_CONTRACT === 'true';
+}
+
+/**
+ * Get minimum seed required on Sepolia contract
+ */
+export async function getSepoliaMinimumSeed(): Promise<bigint> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  return await contract.MINIMUM_SEED();
+}
+
+/**
+ * Seed jackpot on Sepolia contract
+ */
+export async function seedJackpotOnSepolia(amountEth: string): Promise<string> {
+  const contract = getSepoliaJackpotManagerWithOperator();
+  const amountWei = ethers.parseEther(amountEth);
+
+  console.log(`[SEPOLIA] Seeding jackpot with ${amountEth} ETH`);
+
+  const tx = await contract.seedJackpot({ value: amountWei });
+  console.log(`[SEPOLIA] Seed transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Jackpot seeded - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Start next round on Sepolia (uses contract balance, no commitment hash)
+ */
+export async function startNextRoundOnSepolia(): Promise<string> {
+  const contract = getSepoliaJackpotManagerWithOperator();
+
+  console.log(`[SEPOLIA] Starting next round (using contract balance)`);
+
+  const tx = await contract.startNextRound();
+  console.log(`[SEPOLIA] Start round transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[SEPOLIA] Round started - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
 }

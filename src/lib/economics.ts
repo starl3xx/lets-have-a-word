@@ -5,10 +5,47 @@ import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
 import { awardTopTenGuesserXp } from './xp';
 import { ethers } from 'ethers';
-import { resolveRoundWithPayoutsOnChain, type PayoutRecipient } from './jackpot-contract';
+import {
+  resolveRoundWithPayoutsOnChain,
+  resolveRoundWithPayoutsOnSepolia,
+  getCurrentJackpotOnChain,
+  getCurrentJackpotOnChainWei,
+  getCurrentJackpotOnSepolia,
+  getCurrentJackpotOnSepoliaWei,
+  getSepoliaContractBalance,
+  getMainnetContractBalance,
+  type PayoutRecipient,
+} from './jackpot-contract';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+
+// Global flag for Sepolia simulation mode
+// When true, contract queries use Sepolia RPC instead of mainnet
+let sepoliaSimulationMode = false;
+
+// Global flag to skip onchain resolution entirely
+// When true, DB payouts are created but no onchain transaction is executed
+// Use this when the contract state is inconsistent (e.g., jackpot > balance)
+let skipOnchainResolutionFlag = false;
+
+export function setSepoliaSimulationMode(enabled: boolean): void {
+  sepoliaSimulationMode = enabled;
+  console.log(`[economics] Sepolia simulation mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+}
+
+export function isSepoliaSimulationMode(): boolean {
+  return sepoliaSimulationMode;
+}
+
+export function setSkipOnchainResolution(skip: boolean): void {
+  skipOnchainResolutionFlag = skip;
+  console.log(`[economics] Skip onchain resolution: ${skip ? 'YES' : 'NO'}`);
+}
+
+export function isSkipOnchainResolution(): boolean {
+  return skipOnchainResolutionFlag;
+}
 
 /**
  * Economics Module - Milestone 3.1
@@ -20,13 +57,86 @@ import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 const SEED_CAP_ETH = '0.03'; // 0.03 ETH cap for seed accumulation (updated from 0.1 in Milestone 5.4b)
 
 /**
+ * Validate that payout amounts sum correctly before calling contract
+ * The contract requires: sum(payouts) + seedForNextRound == currentJackpot
+ *
+ * Returns an error message if validation fails, null if valid
+ */
+export function validatePayoutMath(
+  payouts: { amountWei: bigint }[],
+  seedForNextRoundWei: bigint,
+  jackpotWei: bigint
+): { valid: boolean; error?: string; totalPayoutsWei: bigint; expectedWei: bigint; diffWei: bigint } {
+  const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+  const expectedWei = jackpotWei;
+  const actualWei = totalPayoutsWei + seedForNextRoundWei;
+  const diffWei = expectedWei - actualWei;
+
+  console.log(`[economics] Payout validation:`);
+  console.log(`  - Jackpot: ${ethers.formatEther(jackpotWei)} ETH (${jackpotWei} wei)`);
+  console.log(`  - Sum of payouts: ${ethers.formatEther(totalPayoutsWei)} ETH (${totalPayoutsWei} wei)`);
+  console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH (${seedForNextRoundWei} wei)`);
+  console.log(`  - Total (payouts + seed): ${ethers.formatEther(actualWei)} ETH (${actualWei} wei)`);
+  console.log(`  - Difference: ${diffWei} wei`);
+
+  if (diffWei === 0n) {
+    console.log(`  ✅ Payout math is VALID`);
+    return { valid: true, totalPayoutsWei, expectedWei, diffWei };
+  } else if (diffWei > 0n && diffWei < 1000n) {
+    // Small rounding error (< 1000 wei), this is acceptable and can be added to winner
+    console.warn(`  ⚠️ Small rounding error of ${diffWei} wei - will be added to winner payout`);
+    return { valid: true, totalPayoutsWei, expectedWei, diffWei };
+  } else {
+    console.error(`  ❌ Payout math INVALID: difference of ${diffWei} wei is too large!`);
+    return {
+      valid: false,
+      error: `Payout sum (${actualWei} wei) does not equal jackpot (${jackpotWei} wei). Diff: ${diffWei} wei`,
+      totalPayoutsWei,
+      expectedWei,
+      diffWei
+    };
+  }
+}
+
+/**
+ * Sync the DB prize pool from the contract's current jackpot
+ *
+ * IMPORTANT: The contract is the single source of truth for prize pool balance.
+ * Call this after any onchain operation that modifies the jackpot (seeding, purchases, etc.)
+ *
+ * @param roundId - The round ID to sync
+ * @returns The synced prize pool amount in ETH
+ */
+export async function syncPrizePoolFromContract(roundId: number): Promise<string> {
+  // Use Sepolia or mainnet based on simulation mode
+  const contractJackpot = sepoliaSimulationMode
+    ? await getCurrentJackpotOnSepolia()
+    : await getCurrentJackpotOnChain();
+
+  await db
+    .update(rounds)
+    .set({
+      prizePoolEth: contractJackpot,
+    })
+    .where(eq(rounds.id, roundId));
+
+  console.log(`[economics] Synced round ${roundId} prize pool from contract: ${contractJackpot} ETH`);
+  return contractJackpot;
+}
+
+/**
  * Apply economic effects when a paid guess is made
  *
- * Split logic:
+ * IMPORTANT: The contract is the single source of truth for prize pool balance.
+ * This function syncs the DB to match the contract's current jackpot.
+ *
+ * Split logic (handled by contract):
  * - 80% goes to prize pool (P)
- * - 20% goes to seed/creator:
- *   - If seed S < 0.03 ETH, add to S
- *   - Otherwise add to creator balance
+ * - 20% goes to creator profit (contract tracks this)
+ *
+ * DB-only logic (seed accumulation):
+ * - We track seed for next round in DB
+ * - If seed S < 0.03 ETH, portion of 20% goes to S
  *
  * @param roundId - The round ID
  * @param guessPriceEth - Price of the guess in ETH (as string)
@@ -37,8 +147,7 @@ export async function applyPaidGuessEconomicEffects(
 ): Promise<void> {
   const price = parseFloat(guessPriceEth);
 
-  // Calculate splits
-  const toPrizePool = price * 0.8;
+  // The 20% portion for seed/creator calculation
   const toSeedOrCreator = price * 0.2;
 
   // Get current round
@@ -50,6 +159,21 @@ export async function applyPaidGuessEconomicEffects(
 
   if (!round) {
     throw new Error(`Round ${roundId} not found`);
+  }
+
+  // CRITICAL: Sync prize pool from contract (single source of truth)
+  // Use Sepolia or mainnet based on simulation mode
+  let newPrizePool: string;
+  try {
+    newPrizePool = sepoliaSimulationMode
+      ? await getCurrentJackpotOnSepolia()
+      : await getCurrentJackpotOnChain();
+    console.log(`[economics] Synced prize pool from contract${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${newPrizePool} ETH`);
+  } catch (error) {
+    // Fallback to local calculation if contract query fails
+    console.warn(`[economics] Failed to sync from contract, using local calculation:`, error);
+    const toPrizePool = price * 0.8;
+    newPrizePool = (parseFloat(round.prizePoolEth) + toPrizePool).toFixed(18);
   }
 
   // Get or create system state
@@ -66,10 +190,7 @@ export async function applyPaidGuessEconomicEffects(
     state = newState;
   }
 
-  // Update prize pool
-  const newPrizePool = parseFloat(round.prizePoolEth) + toPrizePool;
-
-  // Calculate seed update
+  // Calculate seed update (DB-only concept, not in contract)
   const currentSeed = parseFloat(round.seedNextRoundEth);
   const seedCap = parseFloat(SEED_CAP_ETH);
 
@@ -87,16 +208,16 @@ export async function applyPaidGuessEconomicEffects(
     toCreator = toSeedOrCreator;
   }
 
-  // Update round with new prize pool and seed
+  // Update round with synced prize pool and calculated seed
   await db
     .update(rounds)
     .set({
-      prizePoolEth: newPrizePool.toFixed(18),
+      prizePoolEth: newPrizePool,
       seedNextRoundEth: newSeed.toFixed(18),
     })
     .where(eq(rounds.id, roundId));
 
-  // Update creator balance if needed
+  // Update creator balance if needed (DB tracking for display)
   if (toCreator > 0) {
     const newCreatorBalance = parseFloat(state.creatorBalanceEth) + toCreator;
     await db
@@ -109,7 +230,7 @@ export async function applyPaidGuessEconomicEffects(
   }
 
   console.log(`✅ Applied paid guess economics for round ${roundId}:
-  - Prize pool: ${round.prizePoolEth} → ${newPrizePool.toFixed(18)}
+  - Prize pool (from contract): ${newPrizePool} ETH
   - Seed: ${round.seedNextRoundEth} → ${newSeed.toFixed(18)}
   - Creator balance: ${state.creatorBalanceEth} → ${(parseFloat(state.creatorBalanceEth) + toCreator).toFixed(18)}`);
 }
@@ -242,8 +363,78 @@ export async function resolveRoundAndCreatePayouts(
     return;
   }
 
-  const jackpotEth = parseFloat(round.prizePoolEth);
-  const jackpotWei = ethers.parseEther(round.prizePoolEth);
+  // CRITICAL: Use actual contract balance for payouts, not DB value
+  // This prevents payout failures when DB and contract are out of sync
+  // Use Sepolia or mainnet based on simulation mode
+  let jackpotEth: number;
+  let jackpotWei: bigint;
+
+  try {
+    if (sepoliaSimulationMode) {
+      // For Sepolia: MUST use internal jackpot for payout calculations
+      // The contract validates: sum(payouts) + seed == currentJackpot
+      // CRITICAL: Use raw wei value to avoid precision loss from ETH string round-trip
+      const contractBalance = await getSepoliaContractBalance();
+      const internalJackpotWei = await getCurrentJackpotOnSepoliaWei();
+      const internalJackpotEth = ethers.formatEther(internalJackpotWei);
+
+      console.log(`[economics] Sepolia contract state:`);
+      console.log(`  - Internal jackpot: ${internalJackpotEth} ETH (${internalJackpotWei} wei)`);
+      console.log(`  - Actual balance: ${contractBalance} ETH`);
+
+      const balanceWei = ethers.parseEther(contractBalance);
+
+      if (balanceWei < internalJackpotWei) {
+        // WARNING: Contract has less ETH than its internal jackpot tracks
+        // This means previous resolutions failed and left the contract in bad state
+        console.error(`[economics] ❌ CRITICAL: Balance (${contractBalance} ETH) < Internal jackpot (${internalJackpotEth} ETH)`);
+        console.error(`[economics] The contract cannot pay out. Use "Clear Sepolia Round" in admin to reset.`);
+        throw new Error(`Sepolia contract state error: balance (${contractBalance} ETH) < internal jackpot (${internalJackpotEth} ETH). Clear the round in admin dashboard.`);
+      }
+
+      // Use raw wei value - this is EXACTLY what the contract has
+      jackpotEth = parseFloat(internalJackpotEth);
+      jackpotWei = internalJackpotWei;
+    } else {
+      // For mainnet: verify contract balance >= internal jackpot to prevent CALL_EXCEPTION
+      // CRITICAL: Use raw wei value to avoid precision loss from ETH string round-trip
+      const contractBalance = await getMainnetContractBalance();
+      const internalJackpotWei = await getCurrentJackpotOnChainWei();
+      const internalJackpotEth = ethers.formatEther(internalJackpotWei);
+
+      console.log(`[economics] Mainnet contract state:`);
+      console.log(`  - Internal jackpot: ${internalJackpotEth} ETH (${internalJackpotWei} wei)`);
+      console.log(`  - Actual balance: ${contractBalance} ETH`);
+
+      const balanceWei = ethers.parseEther(contractBalance);
+
+      if (balanceWei < internalJackpotWei) {
+        // CRITICAL: Balance is less than internal jackpot - this would cause CALL_EXCEPTION
+        console.error(`[economics] ❌ CRITICAL: Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpotEth} ETH)`);
+        console.error(`[economics] This indicates a serious contract state inconsistency. Aborting payout to prevent loss.`);
+        throw new Error(`Contract balance (${contractBalance} ETH) is less than internal jackpot (${internalJackpotEth} ETH). Cannot safely execute payouts.`);
+      }
+
+      // Use raw wei value - this is EXACTLY what the contract has
+      jackpotEth = parseFloat(internalJackpotEth);
+      jackpotWei = internalJackpotWei;
+    }
+
+    const dbJackpotEth = parseFloat(round.prizePoolEth);
+    if (Math.abs(jackpotEth - dbJackpotEth) > 0.0001) {
+      console.warn(`[economics] ⚠️ Jackpot mismatch: DB=${dbJackpotEth} ETH, Contract${sepoliaSimulationMode ? ' (Sepolia)' : ''}=${jackpotEth} ETH`);
+      console.warn(`[economics] Using contract balance for payouts to prevent CALL_EXCEPTION`);
+    }
+  } catch (error) {
+    // CRITICAL: Do NOT fall back to DB value for payouts!
+    // Using a DB value that doesn't match contract's internal jackpot exactly
+    // will cause resolution to fail with CALL_EXCEPTION.
+    // Better to fail fast here with a clear error than to attempt resolution
+    // with potentially incorrect values.
+    console.error(`[economics] ❌ CRITICAL: Failed to query contract jackpot:`, error);
+    console.error(`[economics] Cannot safely compute payouts without current contract state.`);
+    throw new Error(`Failed to query contract jackpot. Cannot compute payouts safely. Please check RPC connectivity.`);
+  }
 
   if (jackpotEth === 0) {
     console.log(`⚠️  Round ${roundId} has zero jackpot, no payouts created`);
@@ -280,6 +471,9 @@ export async function resolveRoundAndCreatePayouts(
     // 2.5% of referrer share (25% of 10%) goes to seed
     seedForNextRoundWei = (referrerShareWei * 2500n) / 10000n; // 2.5%
   }
+
+  // Note: For Sepolia simulation, seed is ignored since the contract uses
+  // resolveRound(winner) which pays 100% to the winner with no seed.
 
   // Get top 10 guessers (FIDs)
   const topGuesserFids = await getTop10Guessers(roundId, winnerFid);
@@ -391,17 +585,61 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   }
 
-  // Execute onchain payouts
-  try {
-    const txHash = await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
-    console.log(`[economics] Onchain payouts executed: ${txHash}`);
-  } catch (error) {
-    console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
-    throw error; // Re-throw to prevent marking round as resolved
+  // CRITICAL: Validate all payout addresses before calling contract
+  // Invalid addresses will cause CALL_EXCEPTION on the contract
+  console.log(`[economics] Validating ${onChainPayouts.length} payout addresses...`);
+  for (const payout of onChainPayouts) {
+    if (!ethers.isAddress(payout.address)) {
+      console.error(`[economics] ❌ Invalid address for ${payout.role} (FID ${payout.fid}): "${payout.address}"`);
+      throw new Error(`Invalid payout address for ${payout.role}: "${payout.address}" is not a valid Ethereum address`);
+    }
+    // Also check for precompile addresses (0x01-0x09)
+    const addrLower = payout.address.toLowerCase();
+    if (/^0x0+[1-9]$/.test(addrLower)) {
+      console.error(`[economics] ❌ Precompile address for ${payout.role} (FID ${payout.fid}): "${payout.address}"`);
+      throw new Error(`Precompile address for ${payout.role}: "${payout.address}" cannot receive ETH`);
+    }
+    console.log(`  ✓ ${payout.role} (FID ${payout.fid}): ${payout.address}`);
   }
 
-  // Insert all database payout records
-  await db.insert(roundPayouts).values(dbPayouts);
+  // CRITICAL: Validate payout math before calling contract
+  // The contract requires: sum(payouts) + seedForNextRound == currentJackpot
+  const validation = validatePayoutMath(onChainPayouts, seedForNextRoundWei, jackpotWei);
+  if (!validation.valid) {
+    console.error(`[economics] ❌ Payout validation FAILED: ${validation.error}`);
+    throw new Error(`Payout validation failed: ${validation.error}`);
+  }
+
+  // Fix rounding errors by adding any dust to the winner payout
+  if (validation.diffWei > 0n) {
+    console.log(`[economics] Adding ${validation.diffWei} wei rounding dust to winner payout`);
+    onChainPayouts[0].amountWei += validation.diffWei;
+    // Update DB payout too
+    dbPayouts[0].amountEth = ethers.formatEther(onChainPayouts[0].amountWei);
+  }
+
+  // Execute onchain payouts (use Sepolia or mainnet based on simulation mode)
+  // Skip entirely if skipOnchainResolutionFlag is set (contract state issues)
+  if (skipOnchainResolutionFlag) {
+    console.log(`[economics] ⚠️ SKIPPING onchain resolution (skipOnchainResolution=true)`);
+    console.log(`[economics] DB payouts will be created but no onchain transaction`);
+  } else {
+    try {
+      const txHash = sepoliaSimulationMode
+        ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
+        : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
+      console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${txHash}`);
+    } catch (error) {
+      console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
+      throw error; // Re-throw to prevent marking round as resolved
+    }
+  }
+
+  // Insert all database payout records (including seed/creator with null fid)
+  // Migration 0005_nullable_payout_fid.sql allows null fid for seed and creator payouts
+  if (dbPayouts.length > 0) {
+    await db.insert(roundPayouts).values(dbPayouts);
+  }
 
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
   if (topGuesserFids.length > 0) {
