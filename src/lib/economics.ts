@@ -426,9 +426,14 @@ export async function resolveRoundAndCreatePayouts(
       console.warn(`[economics] Using contract balance for payouts to prevent CALL_EXCEPTION`);
     }
   } catch (error) {
-    console.warn(`[economics] Failed to query contract jackpot, falling back to DB value:`, error);
-    jackpotEth = parseFloat(round.prizePoolEth);
-    jackpotWei = ethers.parseEther(round.prizePoolEth);
+    // CRITICAL: Do NOT fall back to DB value for payouts!
+    // Using a DB value that doesn't match contract's internal jackpot exactly
+    // will cause resolution to fail with CALL_EXCEPTION.
+    // Better to fail fast here with a clear error than to attempt resolution
+    // with potentially incorrect values.
+    console.error(`[economics] ❌ CRITICAL: Failed to query contract jackpot:`, error);
+    console.error(`[economics] Cannot safely compute payouts without current contract state.`);
+    throw new Error(`Failed to query contract jackpot. Cannot compute payouts safely. Please check RPC connectivity.`);
   }
 
   if (jackpotEth === 0) {
