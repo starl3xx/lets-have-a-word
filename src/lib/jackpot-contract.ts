@@ -692,6 +692,17 @@ export async function getCurrentJackpotOnSepolia(): Promise<string> {
 }
 
 /**
+ * Get actual ETH balance of the Sepolia contract
+ * This is the real source of truth for what can be paid out
+ */
+export async function getSepoliaContractBalance(): Promise<string> {
+  const config = getSepoliaContractConfig();
+  const provider = getSepoliaProvider();
+  const balance = await provider.getBalance(config.jackpotManagerAddress);
+  return ethers.formatEther(balance);
+}
+
+/**
  * Purchase guesses on Sepolia for simulation
  */
 export async function purchaseGuessesOnSepolia(
