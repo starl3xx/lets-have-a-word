@@ -1,16 +1,32 @@
 {
-  "accountAssociation": {
-    "header": "eyJmaWQiOjEyMzQ1LCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9",
-    "payload": "eyJkb21haW4iOiJsZXRzLWhhdmUtYS13b3JkLnZlcmNlbC5hcHAifQ",
-    "signature": "placeholder_signature"
-  },
   "frame": {
-    "version": "1",
     "name": "Let's Have A Word!",
-    "iconUrl": "https://lets-have-a-word.vercel.app/FC-arch-icon.png",
-    "homeUrl": "https://lets-have-a-word.vercel.app",
-    "splashImageUrl": "https://lets-have-a-word.vercel.app/FC-arch-icon.png",
-    "splashBackgroundColor": "#1e3a5f",
-    "webhookUrl": "https://api.neynar.com/f/app/64ddc4ee-b993-4a64-bc76-b96af4a1ec32/event"
+    "version": "1",
+    "iconUrl": "https://www.letshaveaword.fun/LHAW-icon.png",
+    "homeUrl": "https://www.letshaveaword.fun",
+    "imageUrl": "https://www.letshaveaword.fun/screenshot4.png",
+    "buttonTitle": "Play now",
+    "splashImageUrl": "https://www.letshaveaword.fun/LHAW-splash.png",
+    "splashBackgroundColor": "#8c81a8",
+    "webhookUrl": "https://www.letshaveaword.fun/api/webhook",
+    "subtitle": "Global word game. ETH prizes",
+    "description": "A global word game where players compete to guess the word and win ETH. Thousands of guesses per round. One winner takes the prize.",
+    "primaryCategory": "games",
+    "screenshotUrls": [
+      "https://www.letshaveaword.fun/screenshot3.png"
+    ],
+    "heroImageUrl": "https://www.letshaveaword.fun/LHAW-hero.png",
+    "tags": [
+      "game",
+      "word game",
+      "puzzle",
+      "multiplayer",
+      "crypto"
+    ],
+    "tagline": "Find the word, win the ETH",
+    "ogTitle": "Let's Have A Word!",
+    "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot",
+    "ogImageUrl": "https://www.letshaveaword.fun/LHAW-hero.png",
+    "castShareUrl": "https://warpcast.com/~/compose?text=I%E2%80%99m+playing+%40letshaveaword+%E2%80%94+a+global+word+game+where+one+player+wins+the+ETH+jackpot+%F0%9F%91%80"
   }
 }
