@@ -14,12 +14,22 @@ export interface AdminCheckResponse {
 }
 
 /**
- * Get list of admin FIDs from environment variable
+ * Default admin FIDs - fallback when LHAW_ADMIN_USER_IDS env var is not set
+ * Keep in sync with components/admin/AdminAuthWrapper.tsx
+ */
+const DEFAULT_ADMIN_FIDS = [
+  6500,      // Primary admin
+  1477413,   // Secondary admin
+];
+
+/**
+ * Get list of admin FIDs from environment variable (with fallback to defaults)
  */
 function getAdminFids(): number[] {
   const adminFidsStr = process.env.LHAW_ADMIN_USER_IDS || '';
   if (!adminFidsStr) {
-    return [];
+    // Fallback to hardcoded admin FIDs when env var not set
+    return DEFAULT_ADMIN_FIDS;
   }
 
   return adminFidsStr
