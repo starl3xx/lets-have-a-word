@@ -21,6 +21,11 @@ import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 // When true, contract queries use Sepolia RPC instead of mainnet
 let sepoliaSimulationMode = false;
 
+// Global flag to skip onchain resolution entirely
+// When true, DB payouts are created but no onchain transaction is executed
+// Use this when the contract state is inconsistent (e.g., jackpot > balance)
+let skipOnchainResolutionFlag = false;
+
 export function setSepoliaSimulationMode(enabled: boolean): void {
   sepoliaSimulationMode = enabled;
   console.log(`[economics] Sepolia simulation mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
@@ -28,6 +33,15 @@ export function setSepoliaSimulationMode(enabled: boolean): void {
 
 export function isSepoliaSimulationMode(): boolean {
   return sepoliaSimulationMode;
+}
+
+export function setSkipOnchainResolution(skip: boolean): void {
+  skipOnchainResolutionFlag = skip;
+  console.log(`[economics] Skip onchain resolution: ${skip ? 'YES' : 'NO'}`);
+}
+
+export function isSkipOnchainResolution(): boolean {
+  return skipOnchainResolutionFlag;
 }
 
 /**
@@ -499,14 +513,20 @@ export async function resolveRoundAndCreatePayouts(
   }
 
   // Execute onchain payouts (use Sepolia or mainnet based on simulation mode)
-  try {
-    const txHash = sepoliaSimulationMode
-      ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
-      : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
-    console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${txHash}`);
-  } catch (error) {
-    console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
-    throw error; // Re-throw to prevent marking round as resolved
+  // Skip entirely if skipOnchainResolutionFlag is set (contract state issues)
+  if (skipOnchainResolutionFlag) {
+    console.log(`[economics] ⚠️ SKIPPING onchain resolution (skipOnchainResolution=true)`);
+    console.log(`[economics] DB payouts will be created but no onchain transaction`);
+  } else {
+    try {
+      const txHash = sepoliaSimulationMode
+        ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
+        : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
+      console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${txHash}`);
+    } catch (error) {
+      console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
+      throw error; // Re-throw to prevent marking round as resolved
+    }
   }
 
   // Insert all database payout records

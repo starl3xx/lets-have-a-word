@@ -703,6 +703,20 @@ export async function getSepoliaContractBalance(): Promise<string> {
 }
 
 /**
+ * Get current round info from Sepolia contract
+ */
+export async function getSepoliaRoundInfo(): Promise<{
+  roundNumber: bigint;
+  jackpot: bigint;
+  isActive: boolean;
+  startedAt: bigint;
+}> {
+  const contract = getSepoliaJackpotManagerReadOnly();
+  const [roundNumber, jackpot, isActive, startedAt] = await contract.getCurrentRoundInfo();
+  return { roundNumber, jackpot, isActive, startedAt };
+}
+
+/**
  * Purchase guesses on Sepolia for simulation
  */
 export async function purchaseGuessesOnSepolia(
