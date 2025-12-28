@@ -815,18 +815,17 @@ export async function purchaseGuessesOnSepolia(
 }
 
 /**
- * Resolve round on Sepolia using the simple resolveRound(winner) function.
+ * Resolve round on Sepolia with multi-recipient payouts.
  *
- * For Sepolia simulation, we use the simpler resolveRound(winner) which pays 100%
- * to the winner. This is the same function used by "Clear Sepolia Round" and is
- * proven to work. The complex resolveRoundWithPayouts has compatibility issues
- * with the Sepolia contract.
+ * This function supports both:
+ * 1. JackpotManagerFull (has resolveRoundWithPayouts) - uses full payout distribution
+ * 2. JackpotManagerSimple (only has resolveRound) - falls back to simple resolution
  *
- * The payouts and seed parameters are ignored - all goes to winner.
+ * Set SEPOLIA_FULL_CONTRACT=true in env to use full payout distribution.
  */
 export async function resolveRoundWithPayoutsOnSepolia(
   payouts: PayoutRecipient[],
-  _seedForNextRoundWei: bigint
+  seedForNextRoundWei: bigint
 ): Promise<string> {
   if (payouts.length === 0) {
     throw new Error('At least one payout recipient (winner) is required');
@@ -837,11 +836,6 @@ export async function resolveRoundWithPayoutsOnSepolia(
   if (!winnerPayout) {
     throw new Error('No winner found in payouts');
   }
-
-  const winnerAddress = winnerPayout.address;
-  console.log(`[SEPOLIA] Using simple resolveRound(winner) for simulation`);
-  console.log(`[SEPOLIA] Winner address: ${winnerAddress}`);
-  console.log(`[SEPOLIA] Note: All jackpot goes to winner in Sepolia simulation mode`);
 
   // Verify round is active
   const roundInfo = await getSepoliaRoundInfo();
@@ -855,15 +849,67 @@ export async function resolveRoundWithPayoutsOnSepolia(
   // Get contract with operator signer
   const contract = getSepoliaJackpotManagerWithOperator();
 
-  // Send transaction
-  console.log(`[SEPOLIA] Sending resolveRound(${winnerAddress})...`);
-  const tx = await contract.resolveRound(winnerAddress);
-  console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
+  // Check if we're using the full contract (has resolveRoundWithPayouts)
+  const useFullContract = process.env.SEPOLIA_FULL_CONTRACT === 'true';
 
-  const receipt = await tx.wait();
-  console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}, Gas used: ${receipt.gasUsed}`);
+  if (useFullContract) {
+    // Full contract: use multi-recipient payouts
+    console.log(`[SEPOLIA] Using resolveRoundWithPayouts for full payout distribution`);
 
-  return tx.hash;
+    // Pre-flight check: validate payout totals match jackpot
+    const totalPayoutsWei = payouts.reduce((sum, p) => sum + p.amountWei, 0n);
+    const totalResolveWei = totalPayoutsWei + seedForNextRoundWei;
+    const contractJackpotWei = roundInfo.jackpot;
+
+    console.log(`[SEPOLIA] Payout validation:`);
+    console.log(`  - Total payouts: ${ethers.formatEther(totalPayoutsWei)} ETH`);
+    console.log(`  - Seed for next: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+    console.log(`  - Total resolve: ${ethers.formatEther(totalResolveWei)} ETH`);
+    console.log(`  - Contract jackpot: ${ethers.formatEther(contractJackpotWei)} ETH`);
+
+    if (totalResolveWei !== contractJackpotWei) {
+      const diff = totalResolveWei > contractJackpotWei
+        ? totalResolveWei - contractJackpotWei
+        : contractJackpotWei - totalResolveWei;
+      console.error(`[SEPOLIA] ❌ MISMATCH: Payout total (${ethers.formatEther(totalResolveWei)} ETH) != Contract jackpot (${ethers.formatEther(contractJackpotWei)} ETH)`);
+      console.error(`[SEPOLIA] Difference: ${ethers.formatEther(diff)} ETH`);
+      throw new Error(`Payout math mismatch. Trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH.`);
+    }
+
+    // Extract arrays for contract call
+    const recipients = payouts.map(p => p.address);
+    const amounts = payouts.map(p => p.amountWei);
+
+    // Log payout details
+    console.log(`[SEPOLIA] Resolving round with ${payouts.length} payouts:`);
+    for (const payout of payouts) {
+      console.log(`  - ${payout.role}${payout.fid ? ` (FID ${payout.fid})` : ''}: ${payout.address} -> ${ethers.formatEther(payout.amountWei)} ETH`);
+    }
+    console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+
+    // Call resolveRoundWithPayouts
+    const tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei);
+    console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
+
+    const receipt = await tx.wait();
+    console.log(`[SEPOLIA] Round resolved with payouts - Block: ${receipt.blockNumber}, Gas used: ${receipt.gasUsed}`);
+
+    return tx.hash;
+  } else {
+    // Simple contract: use resolveRound(winner) - 100% to winner
+    const winnerAddress = winnerPayout.address;
+    console.log(`[SEPOLIA] Using simple resolveRound(winner) for simulation`);
+    console.log(`[SEPOLIA] Winner address: ${winnerAddress}`);
+    console.log(`[SEPOLIA] Note: All jackpot goes to winner (simple contract mode)`);
+
+    const tx = await contract.resolveRound(winnerAddress);
+    console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
+
+    const receipt = await tx.wait();
+    console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}, Gas used: ${receipt.gasUsed}`);
+
+    return tx.hash;
+  }
 }
 
 /**
@@ -890,7 +936,7 @@ export async function startRoundWithCommitmentOnSepolia(commitHash: string): Pro
  * Resolve previous Sepolia round by paying out full jackpot to operator
  * Used to clear stale rounds before starting a new simulation
  *
- * Uses the simpler resolveRound(winner) function which pays 100% to the winner
+ * Uses resolveRound(winner) function which pays 100% to the winner
  */
 export async function resolveSepoliaPreviousRound(): Promise<string> {
   const roundInfo = await getSepoliaRoundInfo();
@@ -934,6 +980,14 @@ export async function resolveSepoliaPreviousRound(): Promise<string> {
   console.log(`[SEPOLIA] Round resolved - Block: ${receipt.blockNumber}`);
 
   return tx.hash;
+}
+
+/**
+ * Check if the Sepolia contract supports full features (resolveRoundWithPayouts, startNextRound)
+ * Returns true if SEPOLIA_FULL_CONTRACT=true in environment
+ */
+export function isSepoliaFullContract(): boolean {
+  return process.env.SEPOLIA_FULL_CONTRACT === 'true';
 }
 
 /**
