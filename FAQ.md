@@ -11,10 +11,10 @@ The **prize pool** is the total ETH collected during a round as players purchase
 **Yes.** When a round is won, the secret word is revealed publicly by @letshaveaword.
 
 You can view all past winning words, round details, and payouts in the Round Archive:
-https://www.letshaveaword.fun/archive
+https://letshaveaword.fun/archive
 
 You can also independently verify each round's cryptographic commitment and reveal at:
-https://www.letshaveaword.fun/verify
+https://letshaveaword.fun/verify
 
 ## What does "provably fair" mean?
 
@@ -28,7 +28,7 @@ When a round ends:
 - Anyone can verify the answer was fixed from the very start
 
 You don't have to trust this; you can verify every round yourself at:
-https://www.letshaveaword.fun/verify
+https://letshaveaword.fun/verify
 
 This commit–reveal process makes every round transparent, verifiable, and fair.
 
