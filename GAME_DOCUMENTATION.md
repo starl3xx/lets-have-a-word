@@ -1742,6 +1742,276 @@ All announcement formats updated with new copy:
 - `ANSWER_ENCRYPTION_KEY` - 32-byte hex key for answer encryption (required)
 - `OPERATOR_PRIVATE_KEY` - For contract interactions (existing)
 
+### Milestone 11: Production Hardening & On-Chain Pack Purchases
+- **Status**: ✅ Complete
+- **Goal**: Production-harden game operations with on-chain pack purchases, comprehensive error handling, and enhanced admin tooling
+
+#### On-Chain Pack Purchases
+Users now sign wallet transactions that are verified on-chain before packs are awarded:
+
+**Files:**
+- `pages/api/purchase-guess-pack.ts` - Main API endpoint
+- `src/lib/pack-pricing.ts` - Dynamic pricing logic
+- `src/lib/daily-limits.ts` - Daily purchase limits & state
+
+**How It Works:**
+1. Frontend initiates wallet transaction via wagmi
+2. User signs transaction in their wallet
+3. Frontend waits for confirmation, then calls `/api/purchase-guess-pack` with `txHash`
+4. API verifies transaction on-chain using `verifyPurchaseTransaction()`
+5. Awards packs only after successful verification (prevents fraud)
+6. Tracks purchase via `txHash` to prevent double-claiming
+
+**Dynamic Pricing Phases:**
+- **BASE** (0-749 guesses): 0.0003 ETH per pack
+- **LATE_1** (750-1249 guesses): 0.00045 ETH per pack
+- **LATE_2** (1250+ guesses): 0.0006 ETH per pack (capped)
+
+**Database Schema:**
+```sql
+pack_purchases {
+  id, roundId, fid, packCount,
+  totalPriceEth, totalPriceWei, pricingPhase,
+  totalGuessesAtPurchase,
+  txHash (unique), createdAt
+}
+```
+
+#### Rate Limiting & Spam Protection
+
+**Files:**
+- `src/lib/rateLimit.ts` - Core rate limiting logic
+- Applied to guesses, purchases, and shares
+
+**Configuration (Environment Variables):**
+```
+RATE_LIMIT_GUESS_BURST_REQUESTS=8
+RATE_LIMIT_GUESS_BURST_WINDOW=10
+RATE_LIMIT_GUESS_SUSTAINED_REQUESTS=30
+RATE_LIMIT_GUESS_SUSTAINED_WINDOW=60
+RATE_LIMIT_SHARE_REQUESTS=6
+RATE_LIMIT_SHARE_WINDOW=60
+RATE_LIMIT_PURCHASE_REQUESTS=4
+RATE_LIMIT_PURCHASE_WINDOW=300
+RATE_LIMIT_DUPLICATE_WINDOW=10
+```
+
+**How It Works:**
+- **FID-first limiting**: Prioritizes user FID if available
+- **Fallback to IP+UA hash**: If no FID, uses IP+UserAgent combo
+- **Sliding window algorithm**: Using Redis sorted sets for atomic operations
+- **Dual-window for guesses**: Burst (8/10s) + Sustained (30/60s) checks
+- **Duplicate detection**: Prevents re-submission of same word within 10 seconds
+- **Fail-open**: Returns allowed=true if Redis unavailable
+
+#### Share Verification via Neynar API
+
+**Files:**
+- `pages/api/share-callback.ts` - Main endpoint
+- `src/lib/farcaster.ts` - Neynar API integration
+
+**How It Works:**
+1. User clicks "Share to Farcaster" button
+2. Opens composer with pre-filled text mentioning `letshaveaword.fun`
+3. User posts the cast
+4. Frontend calls `/api/share-callback` with FID after posting
+5. API verifies cast exists on Farcaster via Neynar (last 10 minutes)
+6. Only awards bonus if cast is verified
+7. Prevents gaming by just opening composer without posting
+
+#### CLANKTON Mid-Day Tier Upgrade
+
+**Files:**
+- `src/lib/clankton.ts` - Token balance and tier checking
+- `src/lib/clankton-oracle.ts` - Market cap oracle
+- `src/lib/daily-limits.ts` - Bonus allocation
+
+**Tier Detection:**
+- LOW tier: Market cap < $250K → 2 free guesses
+- HIGH tier: Market cap >= $250K → 3 free guesses
+
+**Mid-Day Upgrade:**
+- If market cap crosses $250K during the day, holders get +1 guess immediately
+- Not just applied at daily reset anymore
+- `CLANKTON_MARKET_CAP_USD` environment variable for testing
+
+#### Leaderboard Lock at 750 Guesses
+
+**Files:**
+- `src/lib/top10-lock.ts` - Lock threshold constant
+- `pages/api/round/top-guessers.ts` - Top-10 API
+- `src/lib/guesses.ts` - Guess indexing
+
+**How It Works:**
+1. Each guess gets a `guessIndexInRound` (1-based counter)
+2. Top-10 locked after guess #750
+3. Leaderboard only counts guesses 1-750
+4. Guesses 751+ count for winning jackpot but not for Top-10 ranking
+5. Prevents late-game clustering from skewing leaderboard
+
+**Configuration:**
+```typescript
+TOP10_LOCK_AFTER_GUESSES = 750
+```
+
+#### Comprehensive Error Handling
+
+**File:** `src/lib/appErrors.ts`
+
+**Error Categories & Sample Codes:**
+
+| Category | Codes |
+|----------|-------|
+| Network | NETWORK_UNAVAILABLE, SERVER_ERROR, REQUEST_TIMEOUT, RATE_LIMITED |
+| Round State | ROUND_STATE_UNAVAILABLE, ROUND_STALE, ROUND_CLOSED, ROUND_NOT_ACTIVE |
+| Pricing | USD_PRICE_UNAVAILABLE, COINGECKO_RATE_LIMITED, PRICING_UNAVAILABLE |
+| User | USER_STATE_UNAVAILABLE, USER_QUALITY_BLOCKED, FARCASTER_CONTEXT_MISSING |
+| Guess | WHEEL_UNAVAILABLE, GUESS_FAILED, OUT_OF_GUESSES, INVALID_WORD |
+| Share | SHARE_FAILED, SHARE_ALREADY_CLAIMED |
+| Purchase | PURCHASE_FAILED, PURCHASE_TX_REJECTED, PURCHASE_TX_TIMEOUT |
+| Wallet | WALLET_READ_FAILED, WALLET_NOT_CONNECTED |
+| Operational | GAME_PAUSED, GAME_BETWEEN_ROUNDS |
+
+**Error Display Config:**
+```typescript
+{
+  userTitle: string;           // User-facing title
+  userBody?: string;           // Description
+  primaryCtaLabel: string;     // Button text
+  primaryCtaAction: ErrorCtaAction; // Action type
+  bannerVariant: 'error'|'warning'|'info';
+  autoRetry?: boolean;
+  maxAutoRetries?: number;
+}
+```
+
+#### Contract State Diagnostics
+
+**File:** `pages/api/admin/operational/contract-state.ts`
+
+**Diagnostics Data:**
+```typescript
+{
+  network: 'mainnet' | 'sepolia',
+  contractAddress: string,
+  roundNumber: number,
+  isActive: boolean,
+  internalJackpot: string,
+  actualBalance: string,
+  hasMismatch: boolean,
+  mismatchAmount: string,
+  canResolve: boolean
+}
+```
+
+**Operations:**
+- **GET**: Fetch current state for both mainnet + Sepolia
+- **POST**: `clear-sepolia-round` action (resolve to operator wallet)
+
+#### Force Resolve Admin Button
+
+**File:** `pages/api/admin/operational/force-resolve.ts`
+
+**How It Works:**
+1. Admin clicks "Force Resolve Round" button in Operations tab
+2. API fetches active round
+3. Submits correct answer as guess from special admin user (FID 9999999)
+4. Triggers normal round resolution flow
+5. Logs timestamp and admin FID for audit
+
+#### Sepolia Round Simulation
+
+**File:** `pages/api/admin/operational/simulate-round.ts`
+
+**Simulation Config:**
+```typescript
+{
+  answer?: string;       // Round answer (default: random)
+  numGuesses: number;    // Wrong guesses to simulate (1-100)
+  numUsers: number;      // Fake users (1-10)
+  skipOnchain: boolean;  // Skip all on-chain ops
+  dryRun: boolean;       // Don't actually change state
+}
+```
+
+**Features:**
+- Independent of production state (bypasses active round check)
+- Auto-resolves previous round if needed
+- Auto-seeds jackpot if below minimum
+- Handles contract state mismatch gracefully
+- DB-only fallback if on-chain fails
+
+#### Production Safety Checks
+
+Lessons learned from Sepolia testing:
+- Always verify round is still active before resolution
+- Check balance sufficiency before attempting withdrawal
+- Implement retry logic with exponential backoff
+- Log all contract state for diagnostics
+- Have emergency manual override (clear-sepolia-round)
+
+#### Bonus Guesses Tracking
+
+**File:** `src/lib/daily-limits.ts`
+
+**Allocation Order (consumed in sequence):**
+1. **Base Free**: 1 guess (always)
+2. **CLANKTON Bonus**: 2 or 3 guesses (if holder)
+3. **Share Bonus**: 1 guess (if shared today)
+4. **Paid Guesses**: 3 per pack (max 9 per day)
+
+**Tracking Schema:**
+```sql
+dailyGuessState {
+  freeAllocatedBase: 1
+  freeAllocatedClankton: 0|2|3
+  freeAllocatedShareBonus: 0|1
+  freeUsed: int
+  paidGuessCredits: int
+  paidPacksPurchased: int (0-3)
+  hasSharedToday: boolean
+}
+```
+
+**Source State Response:**
+```typescript
+{
+  totalRemaining: number,
+  free: { total, used, remaining },
+  clankton: { total, used, remaining, isHolder },
+  share: { total, used, remaining, hasSharedToday, canClaimBonus },
+  paid: { total, used, remaining, packsPurchased, maxPacksPerDay, canBuyMore }
+}
+```
+
+#### Environment Variables Added
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `BASE_RPC_URL` | Mainnet RPC for purchase verification | https://mainnet.base.org |
+| `BASE_SEPOLIA_RPC_URL` | Sepolia RPC for simulation | https://sepolia.base.org |
+| `RATE_LIMIT_GUESS_*` | Guess rate limits | 8/10s burst, 30/60s sustained |
+| `RATE_LIMIT_PURCHASE_*` | Purchase rate limits | 4 per 300s |
+| `RATE_LIMIT_SHARE_*` | Share rate limits | 6 per 60s |
+| `CLANKTON_MARKET_CAP_USD` | Override market cap for testing | (from oracle) |
+
+#### Files Added/Modified
+
+**New Files:**
+- `src/lib/rateLimit.ts` - Rate limiting infrastructure
+- `src/lib/appErrors.ts` - Comprehensive error system
+- `pages/api/admin/operational/contract-state.ts` - Contract diagnostics
+- `pages/api/admin/operational/force-resolve.ts` - Force resolve endpoint
+- `pages/api/admin/operational/simulate-round.ts` - Sepolia simulation
+
+**Modified Files:**
+- `pages/api/purchase-guess-pack.ts` - On-chain verification
+- `pages/api/share-callback.ts` - Neynar cast verification
+- `src/lib/daily-limits.ts` - Source-level tracking, mid-day upgrade
+- `src/lib/clankton.ts` - Tier upgrade logic
+- `src/lib/guesses.ts` - Guess index tracking
+- `components/admin/OperationsSection.tsx` - Force resolve, contract state UI
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)
@@ -3507,6 +3777,6 @@ https://lets-have-a-word.vercel.app
 
 ---
 
-**Last Updated**: November 2025
-**Version**: 6.3 (Milestone 6.3 - UX & Growth Mechanics)
-**Status**: Active Development
+**Last Updated**: December 2025
+**Version**: 11.0 (Milestone 11 - Production Hardening & On-Chain Pack Purchases)
+**Status**: Production
