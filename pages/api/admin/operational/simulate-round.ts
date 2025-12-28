@@ -224,6 +224,16 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
           const resolveTxHash = await resolveSepoliaPreviousRound();
           log(`✅ Previous round resolved: ${resolveTxHash}`);
           log(`   Jackpot returned to operator wallet.`);
+
+          // After resolving, the contract may automatically start a new round
+          // Check if a new round is already active
+          const postResolveInfo = await getSepoliaRoundInfo();
+          if (postResolveInfo.isActive) {
+            log(`Contract automatically started new round #${postResolveInfo.roundNumber}`);
+            log(`Using existing active round (jackpot: ${ethers.formatEther(postResolveInfo.jackpot)} ETH)`);
+            sepoliaRoundStarted = true;
+            sepoliaHasActiveRound = true; // Update flag
+          }
         } catch (err: any) {
           log(`❌ Failed to resolve previous round: ${err.message}`);
           log(`   → Continuing with DB-only simulation.`);
@@ -232,8 +242,8 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
         }
       }
 
-      // Now start a fresh round (only if we didn't fail to resolve)
-      if (!sepoliaJackpotMismatch) {
+      // Now start a fresh round (only if we didn't fail to resolve AND no round is already active)
+      if (!sepoliaJackpotMismatch && !sepoliaRoundStarted) {
         // Check if minimum seed is met, if not seed the jackpot
         try {
           const minimumSeed = await getSepoliaMinimumSeed();
