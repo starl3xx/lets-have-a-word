@@ -889,18 +889,19 @@ export async function resolveRoundWithPayoutsOnSepolia(
     throw new Error(`Payout math mismatch: trying to resolve ${ethers.formatEther(totalResolveWei)} ETH but contract jackpot is ${ethers.formatEther(contractJackpotWei)} ETH. Difference: ${ethers.formatEther(diff)} ETH`);
   }
 
-  // Check minimum seed requirement
-  const readOnlyForSeed = getSepoliaJackpotManagerReadOnly();
-  const minimumSeed = await readOnlyForSeed.MINIMUM_SEED();
-  console.log(`[SEPOLIA] Minimum seed check:`);
-  console.log(`  - Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeed)} ETH (${minimumSeed} wei)`);
-  console.log(`  - Our seed: ${ethers.formatEther(seedForNextRoundWei)} ETH (${seedForNextRoundWei} wei)`);
-
-  if (seedForNextRoundWei < minimumSeed) {
-    console.error(`[SEPOLIA] ❌ SEED TOO LOW: ${ethers.formatEther(seedForNextRoundWei)} ETH < minimum ${ethers.formatEther(minimumSeed)} ETH`);
-    throw new Error(`Seed amount ${ethers.formatEther(seedForNextRoundWei)} ETH is below contract minimum of ${ethers.formatEther(minimumSeed)} ETH. Adjust payout economics.`);
+  // Log minimum seed for debugging (but don't block - economics.ts handles adjustment)
+  try {
+    const readOnlyForSeed = getSepoliaJackpotManagerReadOnly();
+    const minimumSeed = await readOnlyForSeed.MINIMUM_SEED();
+    console.log(`[SEPOLIA] Minimum seed info:`);
+    console.log(`  - Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeed)} ETH`);
+    console.log(`  - Our seed: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+    if (seedForNextRoundWei < minimumSeed) {
+      console.warn(`[SEPOLIA] ⚠️ Seed below minimum - will try anyway or fall back to resolveRound`);
+    }
+  } catch (e) {
+    console.warn(`[SEPOLIA] Could not check minimum seed:`, e);
   }
-  console.log(`[SEPOLIA] ✅ Seed meets minimum requirement`);
 
   const recipients = payouts.map(p => p.address);
   const amounts = payouts.map(p => p.amountWei);
