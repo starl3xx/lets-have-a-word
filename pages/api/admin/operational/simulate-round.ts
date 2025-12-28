@@ -77,8 +77,11 @@ function generateFakeUsers(count: number): FakeUser[] {
   for (let i = 0; i < count; i++) {
     // Generate addresses like 0xDEAD000000000000000000000000000000000001
     // This ensures they're not precompile addresses
-    // Use ethers.getAddress() to normalize checksum (handles lowercase hex digits)
-    const rawAddress = `0x${FAKE_WALLET_PREFIX}${(i + 1).toString(16).padStart(36, '0')}`;
+    // IMPORTANT: Must lowercase first because ethers.getAddress() requires either:
+    // - A valid EIP-55 checksummed address, OR
+    // - An all-lowercase address (which it will then checksum)
+    // Mixed case (e.g., 0xDEAD...000a) fails checksum validation
+    const rawAddress = `0x${FAKE_WALLET_PREFIX}${(i + 1).toString(16).padStart(36, '0')}`.toLowerCase();
     const checksumAddress = ethers.getAddress(rawAddress);
     fakeUsers.push({
       fid: FAKE_FID_BASE + i,
