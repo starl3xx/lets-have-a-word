@@ -14,6 +14,7 @@ import { getGuessWords } from '../../../../src/lib/word-lists';
 import { db, users, dailyGuessState } from '../../../../src/db';
 import { eq } from 'drizzle-orm';
 import { purchaseGuessesOnChain } from '../../../../src/lib/jackpot-contract';
+import { isDevModeEnabled, getDevFixedSolution } from '../../../../src/lib/devGameState';
 
 // Base pack price for simulation (0.0003 ETH)
 const SIM_PACK_PRICE_ETH = '0.0003';
@@ -132,6 +133,15 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
   // Sepolia simulation bypasses active round check - it's independent of production state
   log('Sepolia simulation - bypassing active round check');
 
+  // Dev mode check: if dev mode is enabled, submitGuess uses fixed solution (CRANE)
+  // So we need to force the round answer to match, or the winning guess will fail
+  let effectiveAnswer = config.answer;
+  if (isDevModeEnabled()) {
+    const devSolution = getDevFixedSolution();
+    log(`Dev mode enabled - forcing answer to "${devSolution}" (submitGuess uses fixed solution)`);
+    effectiveAnswer = devSolution;
+  }
+
   // Generate fake users
   const fakeUsers = generateFakeUsers(config.numUsers);
   await ensureFakeUsersExist(fakeUsers);
@@ -140,7 +150,7 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
   // Create round (bypass active round check for Sepolia simulation)
   log('Creating new round...');
   const round = await createRound({
-    forceAnswer: config.answer,
+    forceAnswer: effectiveAnswer,
     skipOnChainCommitment: config.skipOnchain,
     skipActiveRoundCheck: true,
   });
