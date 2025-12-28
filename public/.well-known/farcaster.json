@@ -1,6 +1,6 @@
 {
   "frame": {
-    "name": "Let's Have A Word!",
+    "name": "Let’s Have A Word!",
     "version": "1",
     "iconUrl": "https://letshaveaword.fun/LHAW-icon.png",
     "homeUrl": "https://letshaveaword.fun",
@@ -24,7 +24,7 @@
       "crypto"
     ],
     "tagline": "Find the word, win the ETH",
-    "ogTitle": "Let's Have A Word!",
+    "ogTitle": "Let’s Have A Word!",
     "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot",
     "ogImageUrl": "https://letshaveaword.fun/LHAW-hero2.png"
   },
