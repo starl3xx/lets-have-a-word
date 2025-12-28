@@ -10,7 +10,7 @@
  * Do not modify wording, punctuation, or emoji placement.
  */
 
-export const GAME_URL = 'https://www.letshaveaword.fun';
+export const GAME_URL = 'https://letshaveaword.fun';
 
 /**
  * Share copy templates for incorrect guesses
