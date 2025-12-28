@@ -8,6 +8,11 @@
  * - Enable/disable notifications (notifications_enabled, notifications_disabled)
  *
  * We use frame_added to track when users add the mini app for OG Hunter eligibility.
+ *
+ * SECURITY:
+ * - Webhook secret verification is REQUIRED in production
+ * - Configure FARCASTER_WEBHOOK_SECRET in your environment
+ * - The secret is shared with the Farcaster Developer Console when registering webhooks
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -35,6 +40,44 @@ interface WebhookPayload {
   event: WebhookEvent;
 }
 
+/**
+ * Verify webhook request authenticity
+ * Uses a shared secret configured in Farcaster Developer Console
+ *
+ * @returns true if verified, false if verification fails
+ */
+function verifyWebhookSecret(req: NextApiRequest): boolean {
+  const webhookSecret = process.env.FARCASTER_WEBHOOK_SECRET;
+
+  // In development without a secret, log warning but allow
+  if (!webhookSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Webhook] CRITICAL: FARCASTER_WEBHOOK_SECRET not set in production!');
+      return false;
+    }
+    console.warn('[Webhook] FARCASTER_WEBHOOK_SECRET not set - skipping verification in development');
+    return true;
+  }
+
+  // Check Authorization header (Bearer token format)
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    if (token === webhookSecret) {
+      return true;
+    }
+  }
+
+  // Also check X-Webhook-Secret header (alternative format)
+  const secretHeader = req.headers['x-webhook-secret'];
+  if (secretHeader === webhookSecret) {
+    return true;
+  }
+
+  console.warn('[Webhook] Secret verification failed - invalid or missing credentials');
+  return false;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -42,6 +85,12 @@ export default async function handler(
   // Only accept POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Verify webhook authenticity BEFORE processing
+  if (!verifyWebhookSecret(req)) {
+    console.warn('[Webhook] Rejected request - failed secret verification');
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {

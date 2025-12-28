@@ -39,6 +39,7 @@ export default function SplashPage() {
   const [isAddingApp, setIsAddingApp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Initialize SDK and get FID
@@ -184,6 +185,23 @@ export default function SplashPage() {
     }
   };
 
+  // Handle "Refresh Status" click
+  const handleRefreshStatus = async () => {
+    if (!fid || isRefreshing) return;
+
+    setIsRefreshing(true);
+    setError(null);
+
+    try {
+      await fetchStatus();
+      logAnalytics('og_hunter_refresh_status', fid);
+    } catch (err) {
+      console.error('[Splash] Error refreshing status:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <>
       <Head>
@@ -228,10 +246,12 @@ export default function SplashPage() {
               isAddingApp={isAddingApp}
               isVerifying={isVerifying}
               isClaiming={isClaiming}
+              isRefreshing={isRefreshing}
               onAddMiniApp={handleAddMiniApp}
               onCastIntent={handleCastIntent}
               onVerifyCast={handleVerifyCast}
               onClaimBadge={handleClaimBadge}
+              onRefreshStatus={handleRefreshStatus}
             />
           )}
         </div>
@@ -308,20 +328,24 @@ function ChecklistState({
   isAddingApp,
   isVerifying,
   isClaiming,
+  isRefreshing,
   onAddMiniApp,
   onCastIntent,
   onVerifyCast,
   onClaimBadge,
+  onRefreshStatus,
 }: {
   status: OgHunterStatus | null;
   error: string | null;
   isAddingApp: boolean;
   isVerifying: boolean;
   isClaiming: boolean;
+  isRefreshing: boolean;
   onAddMiniApp: () => void;
   onCastIntent: () => void;
   onVerifyCast: () => void;
   onClaimBadge: () => void;
+  onRefreshStatus: () => void;
 }) {
   const addedMiniApp = status?.addedMiniAppVerified ?? false;
   const sharedCast = status?.sharedCastVerified ?? false;
@@ -332,10 +356,34 @@ function ChecklistState({
       {/* Progress Card */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Complete these steps</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Both steps required to earn your badge
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900">Complete these steps</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Both steps required to earn your badge
+              </p>
+            </div>
+            <button
+              onClick={onRefreshStatus}
+              disabled={isRefreshing}
+              className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+              title="Refresh status"
+            >
+              <svg
+                className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Step 1: Add Mini App */}

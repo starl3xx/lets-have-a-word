@@ -8,10 +8,36 @@
  * - Cast share verification status
  * - Eligibility and award status
  * - Share URL and text for casting
+ *
+ * CONTRACT:
+ * Always returns ALL fields defined in OgHunterStatus interface.
+ * Never returns undefined values - use null for missing data.
+ * On error: returns fail-closed status (all verifications = false).
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOgHunterStatus, isPrelaunchMode, getShareUrl, getShareText, OG_HUNTER_XP_AMOUNT } from '../../../src/lib/og-hunter';
+import { getOgHunterStatus, isPrelaunchMode, getShareUrl, getShareText, OG_HUNTER_XP_AMOUNT, OgHunterStatus } from '../../../src/lib/og-hunter';
+
+/**
+ * Get a fail-closed status response
+ * Used when verification is unavailable or errors occur
+ */
+function getFailClosedStatus(): OgHunterStatus {
+  return {
+    prelaunchModeEnabled: isPrelaunchMode(),
+    addedMiniAppVerified: false,
+    addedMiniAppAt: null,
+    sharedCastVerified: false,
+    sharedCastAt: null,
+    castHash: null,
+    isEligible: false,
+    isAwarded: false,
+    awardedAt: null,
+    xpAwardAmount: OG_HUNTER_XP_AMOUNT,
+    shareUrl: getShareUrl(),
+    shareText: getShareText(),
+  };
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,27 +51,20 @@ export default async function handler(
   // Get FID from query parameter
   const fidParam = req.query.fid;
   if (!fidParam || typeof fidParam !== 'string') {
-    return res.status(400).json({ error: 'Missing fid parameter' });
+    // Fail closed: return unverified status for missing fid
+    return res.status(200).json(getFailClosedStatus());
   }
 
   const fid = parseInt(fidParam, 10);
   if (isNaN(fid) || fid <= 0) {
-    return res.status(400).json({ error: 'Invalid fid parameter' });
+    // Fail closed: return unverified status for invalid fid
+    return res.status(200).json(getFailClosedStatus());
   }
 
   try {
-    // If prelaunch mode is disabled, return minimal response
+    // If prelaunch mode is disabled, return complete status with all fields
     if (!isPrelaunchMode()) {
-      return res.status(200).json({
-        prelaunchModeEnabled: false,
-        addedMiniAppVerified: false,
-        sharedCastVerified: false,
-        isEligible: false,
-        isAwarded: false,
-        xpAwardAmount: OG_HUNTER_XP_AMOUNT,
-        shareUrl: getShareUrl(),
-        shareText: getShareText(),
-      });
+      return res.status(200).json(getFailClosedStatus());
     }
 
     // Get full status
@@ -54,6 +73,7 @@ export default async function handler(
     return res.status(200).json(status);
   } catch (error) {
     console.error('[OgHunter/status] Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    // Fail closed: return unverified status on any error
+    return res.status(200).json(getFailClosedStatus());
   }
 }
