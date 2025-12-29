@@ -35,6 +35,8 @@ export default function Document() {
         <meta name="fc:miniapp" content={fcFrameEmbed} />
         {/* Backward compatibility for older Farcaster clients */}
         <meta name="fc:frame" content={fcFrameEmbed} />
+        {/* Base app verification */}
+        <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
       <body>
         <Main />
