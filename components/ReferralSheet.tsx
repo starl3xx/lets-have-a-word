@@ -185,7 +185,7 @@ export default function ReferralSheet({
 
       await sdk.actions.composeCast({
         text: castText,
-        embeds: ['https://letshaveaword.fun'],
+        embeds: [referralData.referralLink],
       });
 
       void haptics.shareCompleted();
