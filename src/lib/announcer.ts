@@ -244,7 +244,7 @@ The secret word is locked onchain 🔒
 → Verify anytime: https://letshaveaword.fun/verify?round=${roundNumber}
 
 Happy hunting 🕵️‍♂️
-https://letshaveaword.fun`;
+letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
@@ -378,7 +378,7 @@ Provably fair:
 → Verify anytime: https://letshaveaword.fun/verify?round=${roundNumber}
 
 New round starts soon 👀
-https://letshaveaword.fun`;
+letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
@@ -409,7 +409,7 @@ export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
 Round #${roundNumber} is getting serious 👀
 
 One correct guess is all it takes ↓
-https://letshaveaword.fun`
+letshaveaword.fun`
         : `🔥 Jackpot milestone in Let's Have A Word!
 
 Round #${roundNumber} prize pool just passed ${milestoneEth} ETH (~$${milestoneUsd}) 🎯
@@ -418,7 +418,7 @@ One secret word. One winner.
 Every wrong guess narrows the field 👀
 
 Play now ↓
-https://letshaveaword.fun`;
+letshaveaword.fun`;
 
       await recordAndCastAnnouncerEvent({
         eventType: 'jackpot_milestone',
@@ -453,7 +453,7 @@ Round #${roundNumber} just crossed ${milestone.toLocaleString()} global guesses.
 Every wrong guess removes one word from the shared global pool.
 One correct guess wins the jackpot 👀
 
-https://letshaveaword.fun`;
+letshaveaword.fun`;
 
       await recordAndCastAnnouncerEvent({
         eventType: 'guess_milestone',
@@ -487,7 +487,7 @@ In Round #${roundNumber}, the jackpot winner joined through a referral
 Their referrer earned ${referrerPayoutEth} ETH just for inviting a friend to play!
 
 Share your link. You can win even when your friends do 👀
-https://letshaveaword.fun`;
+letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'referral_win',

@@ -3,7 +3,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
-import { getRandomTemplate, renderShareTemplate, GAME_URL } from '../src/lib/shareTemplates';
+import { getRandomTemplate, renderShareTemplate } from '../src/lib/shareTemplates';
 
 interface SharePromptModalProps {
   fid: number | null;
@@ -115,8 +115,8 @@ export default function SharePromptModal({
       return renderShareTemplate(selectedTemplate, word, jackpot);
     }
 
-    // Fallback for cases without a word
-    return `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\n${GAME_URL}`;
+    // Fallback for cases without a word (URL provided via embed)
+    return `I'm playing Let's Have A Word! 🔤\n\nDaily jackpot-based word puzzle on Base.\n\n@letshaveaword`;
   };
 
   // Memoize the share text so it doesn't change during the modal session
@@ -182,8 +182,9 @@ export default function SharePromptModal({
     try {
       console.log('[SharePromptModal] Opening composer with text:', shareText);
 
-      await sdk.actions.openUrl({
-        url: `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}`,
+      await sdk.actions.composeCast({
+        text: shareText,
+        embeds: ['https://letshaveaword.fun'],
       });
 
       console.log('[SharePromptModal] Composer opened');

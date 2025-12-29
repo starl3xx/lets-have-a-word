@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Top10StatusChip from './Top10StatusChip';
+import OgHunterBadge from './OgHunterBadge';
 
 interface TopGuesser {
   fid: number;
   username: string;
   guessCount: number;
   pfpUrl: string;
+  hasOgHunterBadge?: boolean;
 }
 
 interface RoundState {
@@ -354,11 +356,14 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                             (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
                           }}
                         />
-                        {/* Username + ETH Payout */}
-                        <div className="flex-1 flex items-baseline gap-2 min-w-0">
+                        {/* Username + Badge + ETH Payout */}
+                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
                           <span className="font-medium text-gray-900 truncate">
                             {guesser.username || `fid:${guesser.fid}`}
                           </span>
+                          {guesser.hasOgHunterBadge && (
+                            <OgHunterBadge size="sm" showTooltip={true} />
+                          )}
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
                             (.{rankPayout.replace('0.', '')} ETH)
                           </span>

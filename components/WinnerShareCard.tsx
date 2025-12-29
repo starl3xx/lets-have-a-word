@@ -189,7 +189,7 @@ export default function WinnerShareCard({
   const [error, setError] = useState<string | null>(null);
 
   const jackpotDisplay = parseFloat(jackpotEth).toFixed(4);
-  const shareText = `I just hit the ${jackpotDisplay} ETH jackpot on Let's Have A Word! 🎉🟩\n\nI found the winning word "${winnerWord}" in round #${roundId}!\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
+  const shareText = `I just hit the ${jackpotDisplay} ETH jackpot on Let's Have A Word! 🎉🟩\n\nI found the winning word "${winnerWord}" in round #${roundId}!\n\n@letshaveaword`;
 
   /**
    * Share to Farcaster
@@ -202,14 +202,11 @@ export default function WinnerShareCard({
     try {
       console.log('[WinnerShareCard] Opening Farcaster composer with text:', shareText);
 
-      // Open Farcaster composer with prefilled text
-      const result = await sdk.actions.openUrl({
-        url: `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}`,
+      // Open Farcaster composer with prefilled text and embed
+      await sdk.actions.composeCast({
+        text: shareText,
+        embeds: ['https://letshaveaword.fun'],
       });
-
-      if (result && result.reason) {
-        console.log('[WinnerShareCard] Farcaster share result:', result.reason);
-      }
 
       // Note: We don't close the modal automatically - let user decide when to dismiss
     } catch (err) {
