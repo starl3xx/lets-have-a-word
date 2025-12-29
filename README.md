@@ -11,11 +11,56 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 11 Complete
+## 🎯 Current Status: Milestone 12 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, **and production-hardened onchain pack purchases with comprehensive error handling and admin tooling** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, **and OG Hunter prelaunch campaign with enhanced Farcaster mini app integration** are fully implemented and production-ready:
 
-### ✅ Milestone 11 - Production Hardening & Onchain Pack Purchases (Latest)
+### ✅ Milestone 12 - OG Hunter Prelaunch & Mini App Enhancements (Latest)
+
+Prelaunch campaign system and enhanced Farcaster mini app integration:
+
+- **OG Hunter Campaign** (`pages/splash.tsx`, `src/lib/og-hunter.ts`)
+  - Prelaunch campaign where early users earn permanent badges
+  - Users add the mini app + share a cast to qualify
+  - 500 XP bonus for completing both actions
+  - Immediate UI feedback when app is added locally
+  - "Verified" badge after webhook confirmation
+  - Database tables: `user_badges`, `og_hunter_cast_proofs`
+
+- **Farcaster Mini App Embed Improvements**
+  - Added `fc:miniapp` meta tag alongside `fc:frame` for better embed support
+  - Share flows use `sdk.actions.composeCast()` with `embeds` parameter
+  - Embeds auto-load in Farcaster clients (no manual space required)
+  - External links use `sdk.actions.openUrl()` for proper in-app navigation
+
+- **OG Hunter Badge Display** (`components/OgHunterBadge.tsx`)
+  - Badge displayed in StatsSheet header for badge holders
+  - Badge shown next to usernames in Top 10 early guessers list
+  - `hasOgHunterBadge` field added to top-guessers API response
+  - `useOgHunterBadge` hook for checking badge status
+
+- **Admin Start Round Button** (`pages/admin/operations.tsx`, `pages/api/admin/operational/start-round.ts`)
+  - Green "Start Round" card appears when no active round exists
+  - One-click round creation from admin dashboard
+  - Creates round with random word and onchain commitment
+  - Triggers Farcaster announcement via @letshaveaword
+
+- **Share Flow Improvements**
+  - Share URLs simplified to `letshaveaword.fun` format
+  - Removed redundant URLs from share copy (embeds provide the link)
+  - Updated all share flows: winner, referral, stats, splash
+  - Referral shares use unique referral link as embed
+
+- **Database Migration** (`drizzle/0004_og_hunter.sql`)
+  - `users.added_mini_app_at` column for tracking app additions
+  - `user_badges` table for permanent achievement badges
+  - `og_hunter_cast_proofs` table for cast verification
+
+- **Environment Variables**
+  - `NEXT_PUBLIC_PRELAUNCH_MODE` - Set to `1` for splash page, `0` for game
+  - Existing: `ANNOUNCER_ENABLED`, `ANSWER_ENCRYPTION_KEY`
+
+### ✅ Milestone 11 - Production Hardening & Onchain Pack Purchases
 
 Production-hardened game operations with onchain pack purchases, comprehensive error handling, and enhanced admin tooling:
 

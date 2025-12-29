@@ -6,11 +6,10 @@
  * - {WORD} → the user's guessed word
  * - {JACKPOT} → current jackpot amount in ETH (formatted)
  *
- * All templates include the game URL and at least one emoji.
+ * All templates include at least one emoji.
+ * URL is provided via embed, not in text.
  * Do not modify wording, punctuation, or emoji placement.
  */
-
-export const GAME_URL = 'https://letshaveaword.fun';
 
 /**
  * Share copy templates for incorrect guesses
@@ -20,52 +19,43 @@ export const INCORRECT_GUESS_TEMPLATES: string[] = [
   `My guess "{WORD}" was wrong in @letshaveaword —
 that's one less possible word for everyone else.
 
-One person still wins the {JACKPOT} ETH jackpot 👀 🎯
-${GAME_URL}`,
+One person still wins the {JACKPOT} ETH jackpot 👀 🎯`,
 
   `My guess "{WORD}" is off the board in @letshaveaword.
 
-That's one fewer word standing between you and the {JACKPOT} ETH jackpot 👀 🎯
-${GAME_URL}`,
+That's one fewer word standing between you and the {JACKPOT} ETH jackpot 👀 🎯`,
 
   `"{WORD}" ❌
 
 Another word eliminated in @letshaveaword —
-one person takes the {JACKPOT} ETH jackpot 🎯 👀
-${GAME_URL}`,
+one person takes the {JACKPOT} ETH jackpot 🎯 👀`,
 
   `I just knocked "{WORD}" out of play in @letshaveaword.
 
-The field keeps shrinking — and the {JACKPOT} ETH jackpot is still live 👀 🎯
-${GAME_URL}`,
+The field keeps shrinking — and the {JACKPOT} ETH jackpot is still live 👀 🎯`,
 
   `"{WORD}" is gone. ❌
 
 Every wrong guess narrows the field —
-one winner, {JACKPOT} ETH 🎯 👀
-${GAME_URL}`,
+one winner, {JACKPOT} ETH 🎯 👀`,
 
   `My guess "{WORD}" was wrong in the global @letshaveaword game.
 
-One shared word pool, one winner — {JACKPOT} ETH 🎯 👀
-${GAME_URL}`,
+One shared word pool, one winner — {JACKPOT} ETH 🎯 👀`,
 
   `I'm hunting for the secret word in @letshaveaword, but "{WORD}" isn't it 😫
 
-One person still wins the {JACKPOT} ETH jackpot 👀 🎯
-${GAME_URL}`,
+One person still wins the {JACKPOT} ETH jackpot 👀 🎯`,
 
   `Still hunting the secret word in @letshaveaword —
 "{WORD}" was a miss 😫
 
-The {JACKPOT} ETH jackpot is still up for grabs 👀 🎯
-${GAME_URL}`,
+The {JACKPOT} ETH jackpot is still up for grabs 👀 🎯`,
 
   `"{WORD}" ❌ 😫
 
 Secret word still hiding —
-{JACKPOT} ETH jackpot still up for grabs 🎯 👀
-${GAME_URL}`,
+{JACKPOT} ETH jackpot still up for grabs 🎯 👀`,
 ];
 
 /**

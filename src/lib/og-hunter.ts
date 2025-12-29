@@ -58,11 +58,9 @@ export function getShareUrl(): string {
  * Get canonical share text for OG Hunter campaign
  */
 export function getShareText(): string {
-  return `I'm becoming an OG Hunter for @letshaveaword! 🕵️‍♂️
+  return `I'm becoming an OG Hunter on @letshaveaword! 🕵️‍♂️
 
-Add the app + share a cast before launch to earn a permanent badge and 500 XP 🏆
-
-https://letshaveaword.fun`;
+Add the app + share a cast before launch to earn a permanent badge and 500 XP 🏆`;
 }
 
 /**

@@ -9,7 +9,7 @@
  * <OgHunterBadge size="xl" /> - Extra large badge (32px)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface OgHunterBadgeProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -67,10 +67,7 @@ export function useOgHunterBadge(fid: number | null): {
   const [hasBadge, setHasBadge] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Effect to fetch badge status
-  // Note: In a real implementation, you'd want to batch these requests
-  // or cache the results to avoid excessive API calls
-  useState(() => {
+  useEffect(() => {
     if (!fid) {
       setIsLoading(false);
       return;
@@ -87,7 +84,7 @@ export function useOgHunterBadge(fid: number | null): {
       .finally(() => {
         setIsLoading(false);
       });
-  });
+  }, [fid]);
 
   return { hasBadge, isLoading };
 }

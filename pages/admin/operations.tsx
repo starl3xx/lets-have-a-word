@@ -263,6 +263,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const [deadDayReason, setDeadDayReason] = useState("")
   const [deadDayReopenAt, setDeadDayReopenAt] = useState("")
 
+  // Start Round state
+  const [startRoundLoading, setStartRoundLoading] = useState(false)
+
   // Kill Switch confirmation states
   const [showKillSwitchConfirm, setShowKillSwitchConfirm] = useState(false)
   const [killSwitchConfirmText, setKillSwitchConfirmText] = useState("")
@@ -435,6 +438,30 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       setError(err.message)
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const handleStartRound = async () => {
+    try {
+      setStartRoundLoading(true)
+      setError(null)
+
+      const res = await fetch(`/api/admin/operational/start-round?devFid=${user?.fid}`, {
+        method: 'POST',
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to start round')
+      }
+
+      setSuccess(`Round #${data.roundId} started successfully! Commit hash: ${data.commitHash?.slice(0, 16)}...`)
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setStartRoundLoading(false)
     }
   }
 
@@ -711,6 +738,50 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 )}
               </div>
             </div>
+
+            {/* Start Round Card - only show when no active round */}
+            {!status.activeRoundId && !status.killSwitch.enabled && (
+              <div style={{
+                ...styles.card,
+                background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                border: '2px solid #10b981',
+              }}>
+                <h2 style={{ ...styles.cardTitle, color: '#065f46' }}>
+                  🚀 Start New Round
+                </h2>
+                <p style={{ fontSize: '14px', color: '#047857', marginBottom: '16px' }}>
+                  No active round. Click below to start a new round with a random secret word.
+                </p>
+                <div style={{
+                  background: 'white',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  color: '#374151',
+                }}>
+                  <strong>This will:</strong>
+                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                    <li>Select a random secret word</li>
+                    <li>Create onchain commitment (provably fair)</li>
+                    <li>Announce on Farcaster via @letshaveaword</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={handleStartRound}
+                  disabled={startRoundLoading}
+                  style={{
+                    ...styles.btnSuccess,
+                    width: '100%',
+                    padding: '14px 20px',
+                    fontSize: '16px',
+                    opacity: startRoundLoading ? 0.7 : 1,
+                  }}
+                >
+                  {startRoundLoading ? '⏳ Starting Round...' : '🎯 Start Round'}
+                </button>
+              </div>
+            )}
 
             {/* Kill Switch Card */}
             <div style={styles.card}>

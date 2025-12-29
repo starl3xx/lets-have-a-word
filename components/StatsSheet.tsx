@@ -3,6 +3,7 @@ import type { UserStatsResponse } from '../pages/api/user/stats';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import { useTranslation } from '../src/hooks/useTranslation';
+import OgHunterBadge from './OgHunterBadge';
 
 interface StatsSheetProps {
   fid: number | null;
@@ -24,6 +25,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
   const [xp, setXp] = useState<number>(0);
+  const [hasOgHunterBadge, setHasOgHunterBadge] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,10 +38,11 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       }
 
       try {
-        // Fetch stats and XP in parallel
-        const [statsResponse, xpResponse] = await Promise.all([
+        // Fetch stats, XP, and badge status in parallel
+        const [statsResponse, xpResponse, badgeResponse] = await Promise.all([
           fetch(`/api/user/stats?devFid=${fid}`),
-          fetch(`/api/user/xp?fid=${fid}`)
+          fetch(`/api/user/xp?fid=${fid}`),
+          fetch(`/api/og-hunter/status?fid=${fid}`)
         ]);
 
         if (!statsResponse.ok) {
@@ -52,6 +55,11 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         if (xpResponse.ok) {
           const xpData = await xpResponse.json();
           setXp(xpData.totalXp || 0);
+        }
+
+        if (badgeResponse.ok) {
+          const badgeData = await badgeResponse.json();
+          setHasOgHunterBadge(badgeData.isAwarded || false);
         }
       } catch (err) {
         console.error('Error fetching stats:', err);
@@ -82,6 +90,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
       await sdk.actions.composeCast({
         text: castText,
+        embeds: ['https://letshaveaword.fun'],
       });
 
       triggerHaptic('success');
@@ -99,7 +108,12 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">Your Stats</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900">Your Stats</h2>
+            {hasOgHunterBadge && (
+              <OgHunterBadge size="md" showTooltip={true} />
+            )}
+          </div>
           <button onClick={onClose} className="btn-close" aria-label="Close">
             ×
           </button>

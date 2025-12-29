@@ -32,6 +32,8 @@ export default function Document() {
         <meta property="og:url" content="https://letshaveaword.fun" />
         <meta property="og:type" content="website" />
         {/* Farcaster Mini App embed for rich sharing */}
+        <meta name="fc:miniapp" content={fcFrameEmbed} />
+        {/* Backward compatibility for older Farcaster clients */}
         <meta name="fc:frame" content={fcFrameEmbed} />
       </Head>
       <body>
