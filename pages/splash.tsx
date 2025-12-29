@@ -125,13 +125,16 @@ export default function SplashPage() {
     }
   };
 
-  // Handle "Cast This" click - opens Warpcast compose
-  const handleCastIntent = () => {
+  // Handle "Cast This" click - opens composer with embed
+  const handleCastIntent = async () => {
     if (!status) return;
     logAnalytics('og_hunter_cast_intent_click', fid || undefined);
 
-    const castUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(status.shareText)}`;
-    sdk.actions.openUrl(castUrl);
+    // Use composeCast with embeds for auto-loading embed preview
+    await sdk.actions.composeCast({
+      text: status.shareText,
+      embeds: ['https://letshaveaword.fun'],
+    });
   };
 
   // Handle "Verify My Cast" click
