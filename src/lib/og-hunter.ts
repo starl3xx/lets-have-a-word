@@ -60,9 +60,7 @@ export function getShareUrl(): string {
 export function getShareText(): string {
   return `I'm becoming an OG Hunter for @letshaveaword! 🕵️‍♂️
 
-Add the app + share a cast before launch to earn a permanent badge and 500 XP 🏆
-
-letshaveaword.fun `;
+Add the app + share a cast before launch to earn a permanent badge and 500 XP 🏆`;
 }
 
 /**
