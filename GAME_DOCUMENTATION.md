@@ -11,14 +11,15 @@
 8. [UI/UX Patterns](#uiux-patterns)
 9. [Word Lists & Validation](#word-lists--validation)
 10. [Farcaster Integration](#farcaster-integration)
-11. [Key Features by Milestone](#key-features-by-milestone)
-12. [Daily Guess Flow](#daily-guess-flow)
-13. [Guess Packs](#guess-packs)
-14. [Share-for-Free-Guess](#share-for-free-guess)
-15. [CLANKTON Holder Bonus](#clankton-holder-bonus)
-16. [Referral System](#referral-system)
-17. [XP & Progression (v1)](#xp--progression-v1)
-18. [UX Design Guidelines](#ux-design-guidelines)
+11. [OG Hunter Prelaunch Campaign](#og-hunter-prelaunch-campaign)
+12. [Key Features by Milestone](#key-features-by-milestone)
+13. [Daily Guess Flow](#daily-guess-flow)
+14. [Guess Packs](#guess-packs)
+15. [Share-for-Free-Guess](#share-for-free-guess)
+16. [CLANKTON Holder Bonus](#clankton-holder-bonus)
+17. [Referral System](#referral-system)
+18. [XP & Progression (v1)](#xp--progression-v1)
+19. [UX Design Guidelines](#ux-design-guidelines)
 
 ---
 
@@ -932,15 +933,27 @@ if (result.added && result.notificationDetails) {
 
 ### Composer Integration
 ```typescript
-// Share to Farcaster
+// Share to Farcaster with auto-loading embed (preferred)
 await sdk.actions.composeCast({
-  text: `My guess "${word}" in Let's Have A Word!...`
+  text: 'Check out this game!',
+  embeds: ['https://letshaveaword.fun'],
 });
 
-// Open URL (alternate method)
-await sdk.actions.openUrl({
-  url: `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
+// For referral shares, use unique referral link as embed
+await sdk.actions.composeCast({
+  text: 'Join me on Let\'s Have A Word!',
+  embeds: [referralLink], // e.g., https://letshaveaword.fun?ref=abc123
 });
+
+// Open external URLs (for links that should open in browser)
+await sdk.actions.openUrl('https://farcaster.xyz/username/0xhash');
+```
+
+### Mini App Embed Meta Tags
+For proper embed previews when sharing, the app includes both meta tags in `_document.tsx`:
+```html
+<meta name="fc:miniapp" content="..." />
+<meta name="fc:frame" content="..." />
 ```
 
 ### Share Bonus Flow
@@ -948,10 +961,50 @@ await sdk.actions.openUrl({
 2. Wait 2 seconds (user reads feedback)
 3. Show SharePromptModal
 4. User clicks "Share to Farcaster"
-5. Open Farcaster composer with pre-filled text
-6. After 2-second delay, call `/api/share-callback`
-7. Award +1 guess if not already claimed today
-8. Update UserState display
+5. `composeCast()` opens with text and embed URL
+6. Embed auto-loads in Farcaster client
+7. After 2-second delay, call `/api/share-callback`
+8. Award +1 guess if not already claimed today
+9. Update UserState display
+
+### OG Hunter Prelaunch Campaign
+
+The OG Hunter campaign rewards early adopters before the game launches.
+
+**How It Works:**
+1. When `NEXT_PUBLIC_PRELAUNCH_MODE=1`, users are redirected to `/splash`
+2. Users must complete two actions:
+   - Add the mini app (click "Add App" button)
+   - Share a cast about the game
+3. Completing both actions earns:
+   - Permanent "OG Hunter" badge
+   - 500 XP bonus
+
+**Splash Page Flow:**
+```
+User lands on splash → Sees campaign info → Adds app → Shares cast → Badge awarded
+```
+
+**UI Feedback:**
+- "Add App" button shows immediate "Added!" state on click
+- Badge changes to "Verified" after webhook confirmation
+- Progress indicators show completion status
+
+**Database Tables:**
+- `user_badges` - Stores permanent badge awards (badge_type, fid, awarded_at)
+- `og_hunter_cast_proofs` - Stores cast verification (cast_hash, verified_at)
+- `users.added_mini_app_at` - Timestamp when user added the app
+
+**API Endpoints:**
+- `GET /api/og-hunter/status` - Check user's campaign progress
+- `POST /api/og-hunter/verify-cast` - Verify and record cast share
+- `POST /api/webhooks/mini-app-added` - Neynar webhook for app additions
+
+**Launching the Game:**
+1. Set `NEXT_PUBLIC_PRELAUNCH_MODE=0` in environment
+2. Go to `/admin/operations`
+3. Click "Start Round" button
+4. Round starts with random word and onchain commitment
 
 ---
 
