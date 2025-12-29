@@ -191,6 +191,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
   const [ogHunterData, setOgHunterData] = useState<OgHunterData | null>(null)
+  const [backfillStatus, setBackfillStatus] = useState<{ loading: boolean; result?: string }>({ loading: false })
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -245,6 +246,25 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current)
     }
   }, [autoRefresh, fetchAnalytics])
+
+  const handleBackfillAdds = async () => {
+    if (!user?.fid) return
+    setBackfillStatus({ loading: true })
+    try {
+      const res = await fetch(`/api/admin/backfill-og-hunter-adds?devFid=${user.fid}`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (data.success) {
+        setBackfillStatus({ loading: false, result: `Updated ${data.updatedCount} users` })
+        fetchAnalytics() // Refresh data
+      } else {
+        setBackfillStatus({ loading: false, result: `Error: ${data.error}` })
+      }
+    } catch (err) {
+      setBackfillStatus({ loading: false, result: 'Failed to run backfill' })
+    }
+  }
 
   const dauChartData = [...dauData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -380,7 +400,30 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* OG Hunter Splash Metrics */}
       {ogHunterData && (
         <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>OG Hunter Splash</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <h3 style={{ ...styles.sectionTitle, margin: 0 }}>OG Hunter Splash</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {backfillStatus.result && (
+                <span style={{ fontSize: "12px", color: "#6b7280" }}>{backfillStatus.result}</span>
+              )}
+              <button
+                onClick={handleBackfillAdds}
+                disabled={backfillStatus.loading}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  background: backfillStatus.loading ? "#e5e7eb" : "#6366f1",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: backfillStatus.loading ? "not-allowed" : "pointer",
+                  fontFamily,
+                }}
+              >
+                {backfillStatus.loading ? "Running..." : "Backfill Adds"}
+              </button>
+            </div>
+          </div>
           <div style={styles.grid}>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Added App</div>
