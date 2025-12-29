@@ -256,7 +256,8 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       })
       const data = await res.json()
       if (data.success) {
-        setBackfillStatus({ loading: false, result: `Updated ${data.updatedCount} users` })
+        const total = (data.updatedCount || 0) + (data.insertedCount || 0)
+        setBackfillStatus({ loading: false, result: `Backfilled ${total} users` })
         fetchAnalytics() // Refresh data
       } else {
         setBackfillStatus({ loading: false, result: `Error: ${data.error}` })
