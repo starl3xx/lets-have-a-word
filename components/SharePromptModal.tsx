@@ -182,8 +182,9 @@ export default function SharePromptModal({
     try {
       console.log('[SharePromptModal] Opening composer with text:', shareText);
 
-      await sdk.actions.openUrl({
-        url: `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}`,
+      await sdk.actions.composeCast({
+        text: shareText,
+        embeds: ['https://letshaveaword.fun'],
       });
 
       console.log('[SharePromptModal] Composer opened');
