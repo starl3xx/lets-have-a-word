@@ -502,14 +502,12 @@ function ChecklistState({
       <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 text-sm text-gray-600">
         <p>
           Let's Have A Word! is set to launch <strong>very soon</strong> with a Round #1 prize pool starting at 0.1 ETH.{' '}
-          <a
-            href="https://farcaster.xyz/starl3xx.eth/0x7cbca1fd"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => sdk.actions.openUrl('https://warpcast.com/starl3xx.eth/0x7cbca1fd')}
             className="text-purple-600 hover:text-purple-700 underline"
           >
             Read more about the game
-          </a>
+          </button>
           .
         </p>
       </div>
