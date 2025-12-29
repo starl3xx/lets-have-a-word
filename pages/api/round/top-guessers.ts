@@ -7,8 +7,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
-import { guesses, rounds, users } from '../../../src/db/schema';
-import { eq, and, sql, desc, lte } from 'drizzle-orm';
+import { guesses, rounds, users, userBadges } from '../../../src/db/schema';
+import { eq, and, sql, desc, lte, inArray } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
@@ -19,6 +19,7 @@ export interface TopGuesser {
   username: string | null;
   guessCount: number;
   pfpUrl: string; // Farcaster profile picture URL
+  hasOgHunterBadge: boolean;
 }
 
 export interface TopGuessersResponse {
@@ -113,6 +114,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       username: userData?.username || `FID ${fid}`,
       guessCount: guessCounts[i],
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
+      hasOgHunterBadge: false, // Dev mode: no badges
     };
   });
 
@@ -218,6 +220,24 @@ export default async function handler(
 
         const uniqueGuessersCount = uniqueCountResult[0]?.count || 0;
 
+        // Get FIDs of top guessers to check for badges
+        const topGuesserFids = topGuessersData.map((g) => g.fid);
+
+        // Fetch OG Hunter badges for these users
+        const ogHunterBadges = topGuesserFids.length > 0
+          ? await db
+              .select({ fid: userBadges.fid })
+              .from(userBadges)
+              .where(
+                and(
+                  inArray(userBadges.fid, topGuesserFids),
+                  eq(userBadges.badgeType, 'OG_HUNTER')
+                )
+              )
+          : [];
+
+        const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
+
         // Format response with profile picture URLs
         const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
           fid: g.fid,
@@ -225,6 +245,7 @@ export default async function handler(
           guessCount: Number(g.guessCount),
           // Using Warpcast's avatar endpoint
           pfpUrl: `https://warpcast.com/avatar/${g.fid}`,
+          hasOgHunterBadge: badgeFids.has(g.fid),
         }));
 
         return {
