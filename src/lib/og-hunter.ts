@@ -159,6 +159,14 @@ export async function verifyOgHunterCast(fid: number): Promise<{
       verifiedAt: new Date(),
     }).onConflictDoNothing(); // Idempotent - ignore if already exists
 
+    // Ensure user record exists (create if missing)
+    await db.insert(users).values({
+      fid,
+      xp: 0,
+      hasSeenIntro: false,
+      hasSeenOgHunterThanks: false,
+    }).onConflictDoNothing();
+
     console.log(`[OgHunter] Verified cast for FID ${fid}: ${castResult.castHash}`);
   } catch (error) {
     console.error(`[OgHunter] Error storing cast proof for FID ${fid}:`, error);
