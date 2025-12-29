@@ -189,7 +189,7 @@ export default function WinnerShareCard({
   const [error, setError] = useState<string | null>(null);
 
   const jackpotDisplay = parseFloat(jackpotEth).toFixed(4);
-  const shareText = `I just hit the ${jackpotDisplay} ETH jackpot on Let's Have A Word! 🎉🟩\n\nI found the winning word "${winnerWord}" in round #${roundId}!\n\n@letshaveaword\nhttps://lets-have-a-word.vercel.app`;
+  const shareText = `I just hit the ${jackpotDisplay} ETH jackpot on Let's Have A Word! 🎉🟩\n\nI found the winning word "${winnerWord}" in round #${roundId}!\n\n@letshaveaword`;
 
   /**
    * Share to Farcaster
