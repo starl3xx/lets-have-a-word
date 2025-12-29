@@ -202,14 +202,11 @@ export default function WinnerShareCard({
     try {
       console.log('[WinnerShareCard] Opening Farcaster composer with text:', shareText);
 
-      // Open Farcaster composer with prefilled text
-      const result = await sdk.actions.openUrl({
-        url: `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}`,
+      // Open Farcaster composer with prefilled text and embed
+      await sdk.actions.composeCast({
+        text: shareText,
+        embeds: ['https://letshaveaword.fun'],
       });
-
-      if (result && result.reason) {
-        console.log('[WinnerShareCard] Farcaster share result:', result.reason);
-      }
 
       // Note: We don't close the modal automatically - let user decide when to dismiss
     } catch (err) {

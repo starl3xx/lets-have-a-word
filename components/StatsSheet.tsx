@@ -82,6 +82,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
 
       await sdk.actions.composeCast({
         text: castText,
+        embeds: ['https://letshaveaword.fun'],
       });
 
       triggerHaptic('success');
