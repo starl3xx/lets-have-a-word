@@ -167,7 +167,7 @@ export interface GameStateResponse {
     totalGuessesRemaining: number;
     clanktonBonusActive: boolean;
   };
-  wheelWords: string[];
+  wheelWords?: string[]; // Only in dev mode - production uses /api/wheel
   devMode?: boolean;
   devSolution?: string; // Only present in dev mode for testing
   devState?: DevBackendState; // Only present in forced preview mode
