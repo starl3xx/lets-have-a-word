@@ -809,13 +809,20 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             </div>
           </div>
 
-          {/* Start New Round Card - Only show when no active round */}
-          {!status.activeRoundId && !status.killSwitch.enabled && (
+          {/* Start New Round Card */}
+          {!status.killSwitch.enabled && (
             <div style={styles.card}>
               <h2 style={styles.cardTitle}>Start New Round</h2>
-              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-                No active round. Start a new round to begin gameplay. A random target word will be selected.
-              </p>
+              {status.activeRoundId ? (
+                <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                  Round #{status.activeRoundId} is active in the database. If the onchain round hasn't started yet,
+                  you may need to resolve or clear the existing round first.
+                </p>
+              ) : (
+                <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                  No active round. Start a new round to begin gameplay. A random target word will be selected.
+                </p>
+              )}
               <button
                 onClick={handleStartRound}
                 style={styles.btnSuccess}
