@@ -461,20 +461,6 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
         )}
       </div>
 
-      {/* Link to full archive */}
-      <div style={{ textAlign: "center", padding: "24px" }}>
-        <a
-          href="/admin/archive"
-          style={{
-            color: "#6366f1",
-            fontSize: "14px",
-            fontFamily,
-            textDecoration: "none",
-          }}
-        >
-          View full round archive →
-        </a>
-      </div>
     </div>
   )
 }

@@ -478,20 +478,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         </div>
       )}
 
-      {/* Link to full analytics */}
-      <div style={{ textAlign: "center", padding: "24px" }}>
-        <a
-          href="/admin/analytics"
-          style={{
-            color: "#6366f1",
-            fontSize: "14px",
-            fontFamily,
-            textDecoration: "none",
-          }}
-        >
-          View full analytics dashboard →
-        </a>
-      </div>
     </div>
   )
 }

@@ -269,6 +269,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     logs: string[];
   } | null>(null)
 
+  // Start round state
+  const [startRoundLoading, setStartRoundLoading] = useState(false)
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -677,6 +680,36 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }
 
+  const handleStartRound = async () => {
+    if (!user?.fid) return
+
+    if (!confirm('Start a new round? This will create Round 1 with a random target word.')) {
+      return
+    }
+
+    try {
+      setStartRoundLoading(true)
+      setError(null)
+
+      const res = await fetch(`/api/admin/operational/start-round?devFid=${user.fid}`, {
+        method: 'POST',
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Failed to start round')
+      }
+
+      setSuccess(`Round ${data.roundId} started! Prize pool: ${data.prizePoolEth} ETH`)
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setStartRoundLoading(false)
+    }
+  }
+
   return (
     <div>
       {/* Alerts */}
@@ -775,6 +808,23 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               )}
             </div>
           </div>
+
+          {/* Start New Round Card - Only show when no active round */}
+          {!status.activeRoundId && !status.killSwitch.enabled && (
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>Start New Round</h2>
+              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                No active round. Start a new round to begin gameplay. A random target word will be selected.
+              </p>
+              <button
+                onClick={handleStartRound}
+                style={styles.btnSuccess}
+                disabled={startRoundLoading}
+              >
+                {startRoundLoading ? 'Starting...' : 'Start New Round'}
+              </button>
+            </div>
+          )}
 
           {/* Kill Switch Card */}
           <div style={styles.card}>
