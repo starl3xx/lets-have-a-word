@@ -356,12 +356,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [actions, setActions] = useState<WalletAction[]>([]);
   const [actionsLoading, setActionsLoading] = useState(true);
 
-  // Injection form state
-  const [injectAmount, setInjectAmount] = useState('');
-  const [injectNote, setInjectNote] = useState('');
-  const [isInjecting, setIsInjecting] = useState(false);
-  const [showInjectConfirm, setShowInjectConfirm] = useState(false);
-
   // Withdrawal form state
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawDestination, setWithdrawDestination] = useState('');
@@ -548,70 +542,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
       }
     };
   }, [checkWalletConnection, fetchBalances, fetchOperationalStatus, fetchActions]);
-
-  // =============================================================================
-  // Injection Handler
-  // =============================================================================
-
-  const handleInject = async () => {
-    if (!connectedWallet || !balances || !user) return;
-    if (connectedWallet.chainId !== BASE_CHAIN_ID) {
-      setWalletError('Please switch to Base network');
-      return;
-    }
-
-    setIsInjecting(true);
-    setWalletError(null);
-
-    try {
-      const amountWei = ethers.parseEther(injectAmount);
-
-      // Call seedJackpot() on the contract
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-
-      // Create contract instance with seedJackpot ABI
-      const seedJackpotAbi = ['function seedJackpot() payable'];
-      const contract = new ethers.Contract(balances.contractAddress, seedJackpotAbi, signer);
-
-      // Call seedJackpot with ETH value
-      const tx = await contract.seedJackpot({ value: amountWei });
-
-      // Log the action
-      await fetch('/api/admin/wallet/actions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          devFid: user.fid,
-          actionType: 'prize_pool_injection',
-          amountEth: injectAmount,
-          amountWei: amountWei.toString(),
-          fromAddress: connectedWallet.address,
-          toAddress: balances.contractAddress,
-          txHash: tx.hash,
-          initiatedByFid: user.fid,
-          initiatedByAddress: connectedWallet.address,
-          note: injectNote || null,
-          metadata: { chainId: connectedWallet.chainId, method: 'seedJackpot' },
-        }),
-      });
-
-      // Reset form
-      setInjectAmount('');
-      setInjectNote('');
-      setShowInjectConfirm(false);
-
-      // Refresh data
-      await Promise.all([fetchBalances(), fetchActions(), checkWalletConnection()]);
-
-      alert(`Transaction submitted: ${tx.hash}\n\nView on BaseScan: https://basescan.org/tx/${tx.hash}`);
-    } catch (err: any) {
-      console.error('Injection error:', err);
-      setWalletError(err.message || 'Transaction failed');
-    } finally {
-      setIsInjecting(false);
-    }
-  };
 
   // =============================================================================
   // Withdrawal Handler
@@ -896,62 +826,77 @@ export default function WalletSection({ user }: WalletSectionProps) {
         ) : null}
       </div>
 
-      {/* Prize Pool Injection */}
+      {/* Prize Pool Injection Instructions */}
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>Add ETH to Prize Pool</h3>
         <p style={styles.cardSubtitle}>
-          Inject ETH directly into the current prize pool. This increases the jackpot immediately.
+          To add ETH to the prize pool, send a transfer on Base from one of the authorized wallets.
         </p>
 
-        <div style={{ marginBottom: '16px' }}>
-          <label style={styles.label}>Amount (ETH)</label>
-          <input
-            type="text"
-            value={injectAmount}
-            onChange={(e) => setInjectAmount(e.target.value)}
-            placeholder="0.05"
-            style={styles.input}
-          />
+        <div style={{
+          background: '#f0f9ff',
+          border: '1px solid #bae6fd',
+          borderRadius: '8px',
+          padding: '16px',
+          marginBottom: '16px',
+        }}>
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 500, marginBottom: '4px' }}>
+              Step 1: Send ETH from
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#0c4a6e', wordBreak: 'break-all' }}>
+              {balances?.prizePool.address || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+              (letshaveaword.eth — Prize Pool Wallet)
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 500, marginBottom: '4px' }}>
+              Step 2: To the contract
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#0c4a6e', wordBreak: 'break-all' }}>
+              {balances?.contractAddress || '0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+              (JackpotManager Contract on Base)
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 500, marginBottom: '4px' }}>
+              Step 3: Any amount
+            </div>
+            <div style={{ fontSize: '13px', color: '#0c4a6e' }}>
+              The ETH will be added to the jackpot automatically.
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-          {['0.05', '0.10', '0.25', '0.50'].map((amt) => (
+        <div style={styles.alert('info')}>
+          <span>ℹ️</span>
+          <span>
+            Only transfers from the Prize Pool Wallet or Operator Wallet are added to the jackpot.
+            Transfers from other addresses are accepted but won't increase the prize pool.
+          </span>
+        </div>
+
+        {balances && (
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             <button
-              key={amt}
-              onClick={() => setInjectAmount(amt)}
-              style={styles.quickBtn}
+              onClick={() => navigator.clipboard.writeText(balances.prizePool.address)}
+              style={{ ...styles.btnSecondary, ...styles.btnSmall }}
             >
-              +{amt}
+              Copy Prize Pool Wallet
             </button>
-          ))}
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={styles.label}>Note (optional)</label>
-          <input
-            type="text"
-            value={injectNote}
-            onChange={(e) => setInjectNote(e.target.value)}
-            placeholder="e.g., Weekly prize pool top-up"
-            style={styles.input}
-          />
-        </div>
-
-        <button
-          onClick={() => setShowInjectConfirm(true)}
-          disabled={!connectedWallet || !isOnBase || !injectAmount || isInjecting}
-          style={{
-            ...styles.btnSuccess,
-            ...(!connectedWallet || !isOnBase || !injectAmount ? styles.btnDisabled : {}),
-          }}
-        >
-          Add ETH to Prize Pool
-        </button>
-
-        {!connectedWallet && (
-          <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
-            Connect wallet to enable this action.
-          </p>
+            <button
+              onClick={() => navigator.clipboard.writeText(balances.contractAddress)}
+              style={{ ...styles.btnSecondary, ...styles.btnSmall }}
+            >
+              Copy Contract Address
+            </button>
+          </div>
         )}
       </div>
 
@@ -1081,64 +1026,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </table>
         )}
       </div>
-
-      {/* Inject Confirmation Modal */}
-      {showInjectConfirm && balances && connectedWallet && (
-        <div style={styles.modal} onClick={() => setShowInjectConfirm(false)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>Confirm Prize Pool Injection</h3>
-
-            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>From:</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{connectedWallet.address}</div>
-              </div>
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>To (Contract):</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{balances.contractAddress}</div>
-              </div>
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>Amount:</span>
-                <div style={{ fontWeight: 600, fontSize: '18px' }}>{injectAmount} ETH</div>
-              </div>
-              <div>
-                <span style={{ color: '#6b7280' }}>Network:</span>
-                <div>{connectedWallet.chainName}</div>
-              </div>
-            </div>
-
-            <p style={{ fontSize: '13px', color: '#374151', marginBottom: '16px' }}>
-              This will increase the current prize pool immediately. The transaction cannot be reversed.
-            </p>
-
-            {(opStatus?.killSwitch.enabled || opStatus?.deadDay.enabled) && (
-              <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
-                ⚠️ Game is currently paused. Are you sure you want to inject funds?
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setShowInjectConfirm(false)}
-                style={styles.btnSecondary}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleInject}
-                disabled={isInjecting}
-                style={{
-                  ...styles.btnSuccess,
-                  flex: 1,
-                  ...(isInjecting ? styles.btnDisabled : {}),
-                }}
-              >
-                {isInjecting ? 'Sending...' : 'Confirm Injection'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Withdraw Confirmation Modal */}
       {showWithdrawConfirm && balances && connectedWallet && (
