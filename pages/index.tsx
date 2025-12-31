@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
+import Head from 'next/head';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
 import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
@@ -1531,10 +1532,15 @@ function GameContent() {
  */
 export default function Home() {
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <GameContent />
-      </QueryClientProvider>
-    </WagmiProvider>
+    <>
+      <Head>
+        <meta name="base:app_id" content="695205f8c63ad876c90817af" />
+      </Head>
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <GameContent />
+        </QueryClientProvider>
+      </WagmiProvider>
+    </>
   );
 }
