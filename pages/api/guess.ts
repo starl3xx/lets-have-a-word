@@ -116,6 +116,7 @@ export default async function handler(
 
     // Normalize word to uppercase
     const normalizedWord = word.toUpperCase();
+    console.log(`📝 [guess] Step 1: Word validated and normalized: ${normalizedWord}`);
 
     // ========================================
     // Milestone 4.8: Dev Mode Early Check
@@ -187,7 +188,9 @@ export default async function handler(
     // If database is unavailable, falls back to offline mock responses.
 
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
+    console.log(`📝 [guess] Step 2: About to call ensureDevMidRound (isDevelopment=${isDevelopment})`);
     await ensureDevMidRound();
+    console.log(`📝 [guess] Step 3: ensureDevMidRound completed`);
 
     // Ensure there's an active round
     let roundId: number | undefined;
@@ -207,7 +210,9 @@ export default async function handler(
       }
     } else {
       // Production: create a normal round if needed
+      console.log(`📝 [guess] Step 4: Production mode - calling ensureActiveRound`);
       await ensureActiveRound();
+      console.log(`📝 [guess] Step 5: ensureActiveRound completed`);
     }
 
     // ========================================
@@ -239,6 +244,7 @@ export default async function handler(
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
     } else {
       // Production mode: require Farcaster authentication
+      console.log(`📝 [guess] Step 6: Production auth - frameMessage=${!!frameMessage}, signerUuid=${!!signerUuid}`);
 
       // Verify Farcaster request and extract user context
       let farcasterContext;
