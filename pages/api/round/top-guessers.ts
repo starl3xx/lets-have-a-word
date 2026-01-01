@@ -248,30 +248,35 @@ export default async function handler(
           .filter((g) => !g.username)
           .map((g) => g.fid);
 
-        let neynarUsernames: Map<number, string> = new Map();
+        let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
         if (missingUsernameFids.length > 0) {
           try {
             const userData = await neynarClient.fetchBulkUsers({ fids: missingUsernameFids });
             if (userData.users) {
               for (const user of userData.users) {
-                neynarUsernames.set(user.fid, user.username || `FID ${user.fid}`);
+                neynarProfiles.set(user.fid, {
+                  username: user.username || `FID ${user.fid}`,
+                  pfpUrl: user.pfp_url || `https://warpcast.com/avatar/${user.fid}`,
+                });
               }
             }
           } catch (err) {
-            // Neynar fetch failed, fall back to FID display
-            console.warn('[top-guessers] Failed to fetch usernames from Neynar:', err);
+            // Neynar fetch failed, fall back to defaults
+            console.warn('[top-guessers] Failed to fetch profiles from Neynar:', err);
           }
         }
 
         // Format response with profile picture URLs
-        const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
-          fid: g.fid,
-          username: g.username || neynarUsernames.get(g.fid) || `FID ${g.fid}`,
-          guessCount: Number(g.guessCount),
-          // Using Warpcast's avatar endpoint
-          pfpUrl: `https://warpcast.com/avatar/${g.fid}`,
-          hasOgHunterBadge: badgeFids.has(g.fid),
-        }));
+        const topGuessers: TopGuesser[] = topGuessersData.map((g) => {
+          const neynarProfile = neynarProfiles.get(g.fid);
+          return {
+            fid: g.fid,
+            username: g.username || neynarProfile?.username || `FID ${g.fid}`,
+            guessCount: Number(g.guessCount),
+            pfpUrl: neynarProfile?.pfpUrl || `https://warpcast.com/avatar/${g.fid}`,
+            hasOgHunterBadge: badgeFids.has(g.fid),
+          };
+        });
 
         return {
           currentRoundId,
