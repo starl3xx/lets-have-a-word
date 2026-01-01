@@ -67,33 +67,32 @@ export default async function handler(
 
     console.log(`[reset-for-launch] Admin FID ${fid} initiating database reset...`);
 
+    // Helper to safely delete from a table (handles tables that might not exist)
+    const safeDelete = async (table: any, name: string) => {
+      try {
+        const deleted = await db.delete(table).returning();
+        console.log(`[reset-for-launch] Deleted ${deleted.length} ${name}`);
+        return deleted.length;
+      } catch (err: any) {
+        if (err.code === '42P01') {
+          // Table doesn't exist - skip it
+          console.log(`[reset-for-launch] Table ${name} doesn't exist, skipping`);
+          return 0;
+        }
+        throw err;
+      }
+    };
+
     // Delete all tables that reference rounds (in order to avoid FK violations)
-    const deletedGuesses = await db.delete(guesses).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedGuesses.length} guesses`);
-
-    const deletedArchives = await db.delete(roundArchive).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedArchives.length} archive entries`);
-
-    const deletedEvents = await db.delete(operationalEvents).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedEvents.length} operational events`);
-
-    const deletedPayouts = await db.delete(roundPayouts).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedPayouts.length} round payouts`);
-
-    const deletedSeedWords = await db.delete(roundSeedWords).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedSeedWords.length} seed words`);
-
-    const deletedAnnouncements = await db.delete(announcerEvents).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedAnnouncements.length} announcer events`);
-
-    const deletedPurchases = await db.delete(packPurchases).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedPurchases.length} pack purchases`);
-
-    const deletedRefunds = await db.delete(refunds).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedRefunds.length} refunds`);
-
-    const deletedEconConfigs = await db.delete(roundEconomicsConfig).returning();
-    console.log(`[reset-for-launch] Deleted ${deletedEconConfigs.length} economics configs`);
+    await safeDelete(guesses, 'guesses');
+    await safeDelete(roundArchive, 'archive entries');
+    await safeDelete(operationalEvents, 'operational events');
+    await safeDelete(roundPayouts, 'round payouts');
+    await safeDelete(roundSeedWords, 'seed words');
+    await safeDelete(announcerEvents, 'announcer events');
+    await safeDelete(packPurchases, 'pack purchases');
+    await safeDelete(refunds, 'refunds');
+    await safeDelete(roundEconomicsConfig, 'economics configs');
 
     // Delete all rounds
     const deletedRounds = await db.delete(rounds).returning();
