@@ -16,6 +16,7 @@ import { announcerEvents, rounds, roundPayouts, users } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
 import { getPlaintextAnswer } from './encryption';
+import { getCurrentJackpotOnChain } from './jackpot-contract';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -227,7 +228,16 @@ function getRoundNumber(round: RoundRow): number {
  */
 export async function announceRoundStarted(round: RoundRow) {
   const roundNumber = getRoundNumber(round);
-  const jackpotEth = formatEth(round.prizePoolEth);
+
+  // Read prize pool from onchain contract (source of truth)
+  let jackpotEth: string;
+  try {
+    jackpotEth = formatEth(await getCurrentJackpotOnChain());
+  } catch (err) {
+    console.error('[announcer] Failed to read jackpot from contract, using database value:', err);
+    jackpotEth = formatEth(round.prizePoolEth);
+  }
+
   const commitHash = round.commitHash;
   // Shorten hash for display: first 10 chars + last 4 chars
   const shortHash = commitHash.length > 16
@@ -393,7 +403,14 @@ letshaveaword.fun`;
  * @param round - The current round
  */
 export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
-  const jackpotEth = parseFloat(round.prizePoolEth);
+  // Read prize pool from onchain contract (source of truth)
+  let jackpotEth: number;
+  try {
+    jackpotEth = parseFloat(await getCurrentJackpotOnChain());
+  } catch (err) {
+    console.error('[announcer] Failed to read jackpot from contract, using database value:', err);
+    jackpotEth = parseFloat(round.prizePoolEth);
+  }
   const roundNumber = getRoundNumber(round);
 
   for (const milestone of JACKPOT_MILESTONES) {
