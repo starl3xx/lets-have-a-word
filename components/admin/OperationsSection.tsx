@@ -272,6 +272,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Start round state
   const [startRoundLoading, setStartRoundLoading] = useState(false)
 
+  // Reset for launch state
+  const [resetLoading, setResetLoading] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -727,6 +731,45 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }
 
+  const handleResetForLaunch = async () => {
+    if (!user?.fid) return
+
+    try {
+      setResetLoading(true)
+      setError(null)
+
+      const res = await fetch(`/api/admin/reset-for-launch?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ confirm: 'RESET_FOR_LAUNCH' }),
+      })
+
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `Failed to reset (${res.status})`)
+      }
+
+      setSuccess(`Database reset! Deleted ${data.deletedRounds} rounds and ${data.deletedGuesses} guesses. Ready for Round #1!`)
+      setShowResetConfirm(false)
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   return (
     <div>
       {/* Alerts */}
@@ -849,6 +892,68 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </button>
             </div>
           )}
+
+          {/* Reset for Launch Card */}
+          <div style={{
+            ...styles.card,
+            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            border: '2px solid #f59e0b',
+          }}>
+            <h2 style={{ ...styles.cardTitle, color: '#92400e' }}>
+              Reset for Launch
+            </h2>
+            <p style={{ fontSize: '14px', color: '#78350f', marginBottom: '16px' }}>
+              Clear all test data and reset to Round #1 for a fresh launch.
+            </p>
+            <div style={{
+              background: 'white',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              fontSize: '13px',
+              color: '#374151',
+            }}>
+              <strong>This will permanently delete:</strong>
+              <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                <li>All rounds (including active round)</li>
+                <li>All guesses</li>
+                <li>All round archives</li>
+                <li>Reset round IDs to start at 1</li>
+              </ul>
+            </div>
+            {!showResetConfirm ? (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                style={{
+                  ...styles.btnSecondary,
+                  background: '#fef3c7',
+                  borderColor: '#f59e0b',
+                  color: '#92400e',
+                }}
+              >
+                Reset Database for Launch
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={handleResetForLaunch}
+                  disabled={resetLoading}
+                  style={{
+                    ...styles.btnDanger,
+                    opacity: resetLoading ? 0.7 : 1,
+                  }}
+                >
+                  {resetLoading ? 'Resetting...' : 'CONFIRM RESET'}
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  style={styles.btnSecondary}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Kill Switch Card */}
           <div style={styles.card}>
