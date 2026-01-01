@@ -448,6 +448,10 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
       const res = await fetch(`/api/admin/operational/start-round?devFid=${user?.fid}`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
       })
 
       // Safely parse response - handle empty or invalid JSON
