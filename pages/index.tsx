@@ -44,6 +44,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MiniAppProvider } from '@neynar/react';
 import { config } from '../src/config/wagmi';
 
 // Create a client for React Query
@@ -1550,11 +1551,13 @@ export default function Home() {
       <Head>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          <GameContent />
-        </QueryClientProvider>
-      </WagmiProvider>
+      <MiniAppProvider>
+        <WagmiProvider config={config}>
+          <QueryClientProvider client={queryClient}>
+            <GameContent />
+          </QueryClientProvider>
+        </WagmiProvider>
+      </MiniAppProvider>
     </>
   );
 }
