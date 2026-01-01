@@ -44,8 +44,14 @@ import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MiniAppProvider } from '@neynar/react';
+import dynamic from 'next/dynamic';
 import { config } from '../src/config/wagmi';
+
+// MiniAppProvider must be client-side only (not SSR compatible)
+const MiniAppProvider = dynamic(
+  () => import('@neynar/react').then((mod) => mod.MiniAppProvider),
+  { ssr: false }
+);
 
 // Create a client for React Query
 const queryClient = new QueryClient();
