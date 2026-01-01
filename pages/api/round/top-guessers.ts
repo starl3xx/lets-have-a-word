@@ -168,7 +168,7 @@ export default async function handler(
     const [activeRound] = await db
       .select({ id: rounds.id })
       .from(rounds)
-      .where(eq(rounds.resolvedAt, sql`null`))
+      .where(isNull(rounds.resolvedAt))
       .limit(1);
 
     const currentRoundId = activeRound?.id || null;
