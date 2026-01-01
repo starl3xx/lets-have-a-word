@@ -143,21 +143,26 @@ export default async function handler(
 
         // Milestone 6.3: Calculate new stats
 
-        // Sum bonus guesses USED from daily state (CLANKTON + share bonus)
-        // We track allocated and used separately, so sum the used amounts
+        // Sum bonus guesses ALLOCATED from daily state (CLANKTON + share bonus)
+        // Note: We only track total freeUsed, not which type was used
+        // So we use allocated amounts but cap at actual non-paid guesses
         const bonusStats = await db
           .select({
-            clanktonUsed: sql<number>`coalesce(sum(${dailyGuessState.freeUsedClankton}), 0)`,
-            shareBonusUsed: sql<number>`coalesce(sum(${dailyGuessState.freeUsedShareBonus}), 0)`,
+            clanktonAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedClankton}), 0)`,
+            shareBonusAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedShareBonus}), 0)`,
           })
           .from(dailyGuessState)
           .where(eq(dailyGuessState.fid, fid));
 
-        // Bonus guesses are CLANKTON + share bonus actually used
-        const bonusGuessesAllTime = Number(bonusStats[0]?.clanktonUsed || 0) + Number(bonusStats[0]?.shareBonusUsed || 0);
+        const totalBonusAllocated = Number(bonusStats[0]?.clanktonAllocated || 0) + Number(bonusStats[0]?.shareBonusAllocated || 0);
 
-        // Free guesses = non-paid guesses minus bonus guesses used
+        // Non-paid guesses are what was actually used from free/bonus pool
         const nonPaidGuesses = guessesAllTime - paidGuessesAllTime;
+
+        // Cap bonus at actual non-paid guesses (can't use more than allocated)
+        const bonusGuessesAllTime = Math.min(totalBonusAllocated, nonPaidGuesses);
+
+        // Free guesses = remaining non-paid guesses after bonus
         const freeGuessesAllTime = Math.max(0, nonPaidGuesses - bonusGuessesAllTime);
 
         // Guesses per round histogram (last 10 rounds for this user)
