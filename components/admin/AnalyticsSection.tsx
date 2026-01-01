@@ -72,18 +72,6 @@ interface GuessData {
   paid_guesses: number
 }
 
-interface OgHunterData {
-  usersAddedApp: number
-  usersWithVerifiedCast: number
-  badgesAwarded: number
-  splashViews: number
-  addAppClicks: number
-  castIntentClicks: number
-  addAppConversionRate: number
-  castConversionRate: number
-  claimEligibilityRate: number
-}
-
 // =============================================================================
 // Styling
 // =============================================================================
@@ -190,8 +178,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [packPricing, setPackPricing] = useState<PackPricingAnalytics | null>(null)
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
-  const [ogHunterData, setOgHunterData] = useState<OgHunterData | null>(null)
-  const [backfillStatus, setBackfillStatus] = useState<{ loading: boolean; result?: string }>({ loading: false })
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -202,12 +188,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       setLoading(true)
       setError(null)
 
-      const [summaryRes, packPricingRes, dauRes, guessRes, ogHunterRes] = await Promise.all([
+      const [summaryRes, packPricingRes, dauRes, guessRes] = await Promise.all([
         fetch(`/api/admin/analytics/dashboard-summary?devFid=${user.fid}`),
         fetch(`/api/admin/analytics/pack-pricing?devFid=${user.fid}`),
         fetch(`/api/admin/analytics/dau?devFid=${user.fid}&range=${timeRange}`),
         fetch(`/api/admin/analytics/free-paid?devFid=${user.fid}&range=${timeRange}`),
-        fetch(`/api/admin/analytics/og-hunter?devFid=${user.fid}&range=${timeRange}`),
       ])
 
       if (!summaryRes.ok) throw new Error("Failed to fetch summary")
@@ -217,13 +202,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       const packPricingData = await packPricingRes.json()
       const dauDataResult = dauRes.ok ? await dauRes.json() : []
       const guessDataResult = guessRes.ok ? await guessRes.json() : []
-      const ogHunterDataResult = ogHunterRes.ok ? await ogHunterRes.json() : null
 
       setSummary(summaryData)
       setPackPricing(packPricingData)
       setDauData(dauDataResult.data || [])
       setGuessData(guessDataResult.data || [])
-      setOgHunterData(ogHunterDataResult)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -246,26 +229,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current)
     }
   }, [autoRefresh, fetchAnalytics])
-
-  const handleBackfillAdds = async () => {
-    if (!user?.fid) return
-    setBackfillStatus({ loading: true })
-    try {
-      const res = await fetch(`/api/admin/backfill-og-hunter-adds?devFid=${user.fid}`, {
-        method: 'POST',
-      })
-      const data = await res.json()
-      if (data.success) {
-        const total = (data.updatedCount || 0) + (data.insertedCount || 0)
-        setBackfillStatus({ loading: false, result: `Backfilled ${total} users` })
-        fetchAnalytics() // Refresh data
-      } else {
-        setBackfillStatus({ loading: false, result: `Error: ${data.error}` })
-      }
-    } catch (err) {
-      setBackfillStatus({ loading: false, result: 'Failed to run backfill' })
-    }
-  }
 
   const dauChartData = [...dauData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -393,53 +356,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
               <div style={{ fontSize: "12px", color: "#16a34a" }}>
                 {packPricing.last24h.late2.revenueEth.toFixed(4)} ETH
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* OG Hunter Splash Metrics */}
-      {ogHunterData && (
-        <div style={styles.section}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h3 style={{ ...styles.sectionTitle, margin: 0 }}>OG Hunter Splash</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {backfillStatus.result && (
-                <span style={{ fontSize: "12px", color: "#6b7280" }}>{backfillStatus.result}</span>
-              )}
-              <button
-                onClick={handleBackfillAdds}
-                disabled={backfillStatus.loading}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  background: backfillStatus.loading ? "#e5e7eb" : "#6366f1",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: backfillStatus.loading ? "not-allowed" : "pointer",
-                  fontFamily,
-                }}
-              >
-                {backfillStatus.loading ? "Running..." : "Backfill Adds"}
-              </button>
-            </div>
-          </div>
-          <div style={styles.grid}>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Added App</div>
-              <div style={styles.statValue}>{ogHunterData.usersAddedApp.toLocaleString()}</div>
-              <div style={styles.statSubtext}>{ogHunterData.addAppClicks.toLocaleString()} clicks</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Casted</div>
-              <div style={styles.statValue}>{ogHunterData.usersWithVerifiedCast.toLocaleString()}</div>
-              <div style={styles.statSubtext}>{ogHunterData.castIntentClicks.toLocaleString()} clicks</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Badges Awarded</div>
-              <div style={styles.statValue}>{ogHunterData.badgesAwarded.toLocaleString()}</div>
-              <div style={styles.statSubtext}>{ogHunterData.splashViews.toLocaleString()} splash views</div>
             </div>
           </div>
         </div>
