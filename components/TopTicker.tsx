@@ -63,6 +63,13 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
     try {
       const response = await fetch('/api/round-state');
 
+      // 204 No Content means no active round
+      if (response.status === 204) {
+        setStatus(null);
+        setError(null);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to fetch round status');
       }
