@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { RoundStatus } from '../src/lib/wheel';
 
+interface TopTickerProps {
+  onRoundClick?: (roundId: number) => void;
+  adminFid?: number; // Pass admin FID to enable start round button
+}
+
 /**
  * Format ETH value for display
  * Always show exactly 4 decimal places
@@ -36,10 +41,6 @@ function formatUsd(value: string | number): string {
   }).format(Math.round(num));
 }
 
-interface TopTickerProps {
-  onRoundClick?: (roundId: number) => void;
-}
-
 /**
  * TopTicker Component
  * Milestone 3.2: Displays live round status with polished formatting
@@ -51,10 +52,49 @@ interface TopTickerProps {
  *
  * Polls /api/round-state every 15 seconds for live updates.
  */
-export default function TopTicker({ onRoundClick }: TopTickerProps) {
+export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStartingRound, setIsStartingRound] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  /**
+   * Start a new round (admin only)
+   */
+  const handleStartRound = async () => {
+    if (!adminFid) return;
+
+    setIsStartingRound(true);
+    setStartError(null);
+
+    try {
+      const res = await fetch(`/api/admin/operational/start-round?devFid=${adminFid}`, {
+        method: 'POST',
+      });
+
+      const text = await res.text();
+      let data: any = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error('Invalid response from server');
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `Failed (${res.status})`);
+      }
+
+      // Success! Refresh the round status
+      await fetchRoundStatus();
+    } catch (err: any) {
+      setStartError(err.message);
+    } finally {
+      setIsStartingRound(false);
+    }
+  };
 
   /**
    * Fetch round status from API
@@ -128,6 +168,7 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
 
   /**
    * No active round - show "Round #1 starting soon" splash
+   * If adminFid is provided, show a Start Round button
    */
   if (!status) {
     return (
@@ -139,6 +180,20 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
           <p className="text-sm opacity-80 mt-1">
             Get ready to guess the secret word!
           </p>
+          {adminFid && (
+            <div className="mt-3">
+              <button
+                onClick={handleStartRound}
+                disabled={isStartingRound}
+                className="px-6 py-2 bg-white text-brand font-bold rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isStartingRound ? 'Starting...' : 'Start Round 1'}
+              </button>
+              {startError && (
+                <p className="text-red-200 text-xs mt-2">{startError}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
