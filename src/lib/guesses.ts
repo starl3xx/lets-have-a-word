@@ -1,7 +1,7 @@
 import { db, guesses, users, rounds } from '../db';
 import { eq, and, desc, sql, count } from 'drizzle-orm';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
-import { getActiveRound, resolveRound } from './rounds';
+import { getActiveRound, getActiveRoundForUpdate, resolveRound } from './rounds';
 import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
@@ -243,8 +243,9 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // This prevents race conditions where two correct guesses happen simultaneously
     try {
       await db.transaction(async (tx) => {
-        // Re-check that round is still unresolved (race condition protection)
-        const currentRound = await getActiveRound();
+        // Re-check that round is still unresolved with FOR UPDATE lock
+        // This acquires a row-level lock, blocking other winning guesses until we commit
+        const currentRound = await getActiveRoundForUpdate(tx);
         if (!currentRound || currentRound.resolvedAt !== null) {
           throw new Error('ROUND_ALREADY_RESOLVED');
         }

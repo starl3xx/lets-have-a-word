@@ -182,6 +182,48 @@ export async function getActiveRound(): Promise<Round | null> {
 }
 
 /**
+ * Get the current active round with FOR UPDATE lock (for use in transactions)
+ *
+ * This acquires a row-level lock on the round, preventing other transactions
+ * from modifying it until this transaction commits. Used to prevent race
+ * conditions when resolving rounds.
+ *
+ * @param tx - The transaction context
+ * @returns The active round (locked) or null if no active round
+ */
+export async function getActiveRoundForUpdate(tx: typeof db): Promise<Round | null> {
+  const result = await tx
+    .select()
+    .from(rounds)
+    .where(and(
+      isNull(rounds.resolvedAt),
+      eq(rounds.status, 'active')
+    ))
+    .orderBy(desc(rounds.startedAt))
+    .limit(1)
+    .for('update');
+
+  if (result.length === 0) {
+    return null;
+  }
+
+  const round = result[0];
+  return {
+    id: round.id,
+    rulesetId: round.rulesetId,
+    answer: getPlaintextAnswer(round.answer),
+    salt: round.salt,
+    commitHash: round.commitHash,
+    prizePoolEth: round.prizePoolEth,
+    seedNextRoundEth: round.seedNextRoundEth,
+    winnerFid: round.winnerFid,
+    referrerFid: round.referrerFid,
+    startedAt: round.startedAt,
+    resolvedAt: round.resolvedAt,
+  };
+}
+
+/**
  * Ensure there is an active round, creating one if necessary
  *
  * Milestone 9.5: Will NOT create a new round if:

@@ -8,7 +8,7 @@
     "buttonTitle": "Play now",
     "splashImageUrl": "https://letshaveaword.fun/LHAW-splash.png",
     "splashBackgroundColor": "#8c81a8",
-    "webhookUrl": "https://letshaveaword.fun/api/webhook",
+    "webhookUrl": "https://api.neynar.com/f/app/64ddc4ee-b993-4a64-bc76-b96af4a1ec32/event",
     "subtitle": "Global word game. ETH prizes",
     "description": "A global word game where players compete to guess the word and win ETH. Thousands of guesses per round. One winner takes the prize.",
     "primaryCategory": "games",

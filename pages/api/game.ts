@@ -10,7 +10,6 @@ import {
   isValidDevBackendState,
 } from '../../src/lib/devGameState';
 import { getActiveRoundStatus } from '../../src/lib/wheel';
-import { getGuessWords } from '../../src/lib/word-lists';
 import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
 
 /**
@@ -141,9 +140,6 @@ export default async function handler(
     const dailyState = await getOrCreateDailyState(fid);
     const freeRemaining = getFreeGuessesRemaining(dailyState);
 
-    // Fetch wheel words - Milestone 4.11: Use canonical GUESS_WORDS list
-    const wheelWords = getGuessWords();
-
     const gameState: GameStateResponse = {
       roundId: roundStatus.roundId,
       prizePoolEth: roundStatus.prizePoolEth,
@@ -156,7 +152,6 @@ export default async function handler(
         totalGuessesRemaining: freeRemaining + dailyState.paidGuessCredits,
         clanktonBonusActive: dailyState.freeAllocatedClankton > 0,
       },
-      wheelWords,
       devMode: false,
     };
 
