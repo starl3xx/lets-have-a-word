@@ -10,7 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from './me';
 import { db } from '../../../src/db';
-import { rounds, guesses, users, roundArchive } from '../../../src/db/schema';
+import { rounds, guesses, users, roundArchive, operationalEvents } from '../../../src/db/schema';
 import { sql } from 'drizzle-orm';
 
 interface ResetResponse {
@@ -62,6 +62,10 @@ export default async function handler(
     // Delete all round archives
     const deletedArchives = await db.delete(roundArchive).returning();
     console.log(`[reset-for-launch] Deleted ${deletedArchives.length} archive entries`);
+
+    // Delete all operational events (references rounds)
+    const deletedEvents = await db.delete(operationalEvents).returning();
+    console.log(`[reset-for-launch] Deleted ${deletedEvents.length} operational events`);
 
     // Delete all rounds
     const deletedRounds = await db.delete(rounds).returning();
