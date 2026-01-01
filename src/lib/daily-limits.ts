@@ -186,6 +186,26 @@ export async function getOrCreateDailyState(
         );
         return upgraded;
       }
+    } else {
+      // User has no CLANKTON bonus allocated - check if they should have it now
+      // This handles the case where daily state was created before wallet was connected
+      const hasClankton = await hasCLANKTONBonus(fid);
+      if (hasClankton) {
+        const clanktonBonusGuesses = getClanktonHolderBonusGuesses();
+        const [upgraded] = await db
+          .update(dailyGuessState)
+          .set({
+            freeAllocatedClankton: clanktonBonusGuesses,
+            updatedAt: new Date(),
+          })
+          .where(eq(dailyGuessState.id, state.id))
+          .returning();
+
+        console.log(
+          `🎁 [CLANKTON] Late allocation for FID ${fid}: +${clanktonBonusGuesses} bonus guesses (wallet connected after daily state creation)`
+        );
+        return upgraded;
+      }
     }
 
     return state;
