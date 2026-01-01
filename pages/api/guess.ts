@@ -77,11 +77,11 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid } = req.body;
 
     // Extract request metadata for rate limiting
     const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
-    const rateLimitFid = devFid || metadataFid;
+    const rateLimitFid = miniAppFid || devFid || metadataFid;
 
     // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
     // Runs BEFORE any DB operations to fail fast and cheap
@@ -242,6 +242,27 @@ export default async function handler(
       // This allows the web UI to work in dev mode without requiring auth
       fid = 6500; // Default dev FID
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
+    } else if (miniAppFid) {
+      // Mini app context authentication
+      // The FID is provided by Warpcast's mini app SDK (sdk.context.user.fid)
+      // Warpcast has already authenticated the user, so we trust this FID
+      fid = typeof miniAppFid === 'number' ? miniAppFid : parseInt(miniAppFid, 10);
+      console.log(`📱 Mini app auth: using miniAppFid ${fid}`);
+
+      // Set Sentry context for mini app users
+      Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+      Sentry.setTag('auth_type', 'mini_app');
+
+      // Parse referral parameter
+      const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+
+      // Upsert user with minimal data (we don't have full Farcaster context)
+      await upsertUserFromFarcaster({
+        fid,
+        signerWallet: null,
+        spamScore: null,
+        referrerFid,
+      });
     } else {
       // Production mode: require Farcaster authentication
       console.log(`📝 [guess] Step 6: Production auth - frameMessage=${!!frameMessage}, signerUuid=${!!signerUuid}`);
@@ -267,7 +288,7 @@ export default async function handler(
         }
       } else {
         return res.status(400).json({
-          error: 'Authentication required: provide frameMessage or signerUuid (or devFid in development)',
+          error: 'Authentication required: provide miniAppFid, frameMessage, or signerUuid',
         });
       }
 

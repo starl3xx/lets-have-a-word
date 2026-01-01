@@ -698,10 +698,15 @@ function GameContent() {
     void haptics.guessSubmitting();
 
     try {
-      // Use effectiveFid (real Farcaster FID or dev fallback)
+      // Build request body with appropriate authentication
       const requestBody: any = { word };
 
-      if (effectiveFid) {
+      if (isInMiniApp && fid) {
+        // In mini app context: use miniAppFid (production)
+        // Warpcast has already authenticated the user via sdk.context
+        requestBody.miniAppFid = fid;
+      } else if (isClientDevMode() && effectiveFid) {
+        // Local development: use devFid
         requestBody.devFid = effectiveFid;
       }
 
