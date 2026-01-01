@@ -111,11 +111,24 @@ export default function SplashPage() {
     try {
       const result = await sdk.actions.addMiniApp();
 
-      // If user added the app, show immediate feedback
+      // If user added the app, record it server-side and show feedback
       if (result.added || result.notificationDetails) {
         setHasAddedLocally(true);
-        // Small delay to allow webhook to process, then fetch confirmed status
-        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Record the add directly via API (don't rely on webhook)
+        if (fid) {
+          try {
+            await fetch('/api/og-hunter/record-add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fid }),
+            });
+          } catch (err) {
+            console.error('[Splash] Failed to record add:', err);
+          }
+        }
+
+        // Fetch updated status
         await fetchStatus();
       }
     } catch (err) {
