@@ -243,10 +243,30 @@ export default async function handler(
 
         const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
 
+        // Find FIDs with missing usernames and fetch from Neynar
+        const missingUsernameFids = topGuessersData
+          .filter((g) => !g.username)
+          .map((g) => g.fid);
+
+        let neynarUsernames: Map<number, string> = new Map();
+        if (missingUsernameFids.length > 0) {
+          try {
+            const userData = await neynarClient.fetchBulkUsers({ fids: missingUsernameFids });
+            if (userData.users) {
+              for (const user of userData.users) {
+                neynarUsernames.set(user.fid, user.username || `FID ${user.fid}`);
+              }
+            }
+          } catch (err) {
+            // Neynar fetch failed, fall back to FID display
+            console.warn('[top-guessers] Failed to fetch usernames from Neynar:', err);
+          }
+        }
+
         // Format response with profile picture URLs
         const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
           fid: g.fid,
-          username: g.username || `FID ${g.fid}`,
+          username: g.username || neynarUsernames.get(g.fid) || `FID ${g.fid}`,
           guessCount: Number(g.guessCount),
           // Using Warpcast's avatar endpoint
           pfpUrl: `https://warpcast.com/avatar/${g.fid}`,
