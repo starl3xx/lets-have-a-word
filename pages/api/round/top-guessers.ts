@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds, users, userBadges } from '../../../src/db/schema';
-import { eq, and, sql, desc, lte, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, lte, isNull, inArray } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
@@ -203,7 +203,12 @@ export default async function handler(
             .where(
               and(
                 eq(guesses.roundId, currentRoundId),
-                lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES)
+                // Include guesses where guessIndexInRound <= 750 OR is NULL
+                // NULL values are treated as eligible (legacy data or edge cases)
+                or(
+                  lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
+                  isNull(guesses.guessIndexInRound)
+                )
               )
             )
             .groupBy(guesses.fid, users.username)
