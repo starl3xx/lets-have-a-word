@@ -84,7 +84,7 @@ export default async function handler(
     };
 
     // Delete all tables that reference rounds (in order to avoid FK violations)
-    await safeDelete(guesses, 'guesses');
+    const deletedGuessesCount = await safeDelete(guesses, 'guesses');
     await safeDelete(roundArchive, 'archive entries');
     await safeDelete(operationalEvents, 'operational events');
     await safeDelete(roundPayouts, 'round payouts');
@@ -116,7 +116,7 @@ export default async function handler(
       success: true,
       message: `Database reset complete! Ready for Round #1 launch.`,
       deletedRounds: deletedRounds.length,
-      deletedGuesses: deletedGuesses.length,
+      deletedGuesses: deletedGuessesCount,
     });
   } catch (error) {
     console.error('[reset-for-launch] Error:', error);
