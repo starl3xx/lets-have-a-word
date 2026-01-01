@@ -246,15 +246,13 @@ export default async function handler(
 
         const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
 
-        // Find FIDs with missing usernames and fetch from Neynar
-        const missingUsernameFids = topGuessersData
-          .filter((g) => !g.username)
-          .map((g) => g.fid);
+        // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
+        const allFids = topGuessersData.map((g) => g.fid);
 
         let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
-        if (missingUsernameFids.length > 0) {
+        if (allFids.length > 0) {
           try {
-            const userData = await neynarClient.fetchBulkUsers({ fids: missingUsernameFids });
+            const userData = await neynarClient.fetchBulkUsers({ fids: allFids });
             if (userData.users) {
               for (const user of userData.users) {
                 neynarProfiles.set(user.fid, {
@@ -270,11 +268,12 @@ export default async function handler(
         }
 
         // Format response with profile picture URLs
+        // Prefer Neynar data for both username and pfpUrl (more reliable)
         const topGuessers: TopGuesser[] = topGuessersData.map((g) => {
           const neynarProfile = neynarProfiles.get(g.fid);
           return {
             fid: g.fid,
-            username: g.username || neynarProfile?.username || `FID ${g.fid}`,
+            username: neynarProfile?.username || g.username || `FID ${g.fid}`,
             guessCount: Number(g.guessCount),
             pfpUrl: neynarProfile?.pfpUrl || `https://warpcast.com/avatar/${g.fid}`,
             hasOgHunterBadge: badgeFids.has(g.fid),
