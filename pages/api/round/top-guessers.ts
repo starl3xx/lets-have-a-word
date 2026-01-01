@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds, users, userBadges } from '../../../src/db/schema';
-import { eq, and, or, sql, desc, lte, isNull, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, asc, lte, isNull, inArray } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
@@ -197,6 +197,8 @@ export default async function handler(
               fid: guesses.fid,
               username: users.username,
               guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+              // Track when player made their last guess (for tiebreaker)
+              lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
             })
             .from(guesses)
             .leftJoin(users, eq(guesses.fid, users.fid))
@@ -212,7 +214,8 @@ export default async function handler(
               )
             )
             .groupBy(guesses.fid, users.username)
-            .orderBy(desc(sql`count(${guesses.id})`))
+            // Primary: most guesses (desc), Secondary: who reached that count first (asc)
+            .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
             .limit(10),
           // Count total unique guessers
           db
