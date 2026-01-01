@@ -42,7 +42,7 @@ import { useGuessInput } from '../src/hooks/useGuessInput';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
-import { WagmiProvider } from 'wagmi';
+import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 
@@ -72,6 +72,9 @@ function GameContent() {
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
+
+  // Get connected wallet from Wagmi for CLANKTON bonus check
+  const { address: connectedWalletAddress } = useAccount();
 
   // Effective FID: use real Farcaster FID, or dev fallback in dev mode
   // This ensures consistent FID usage across guess submission, user state fetch, and share callbacks
@@ -322,9 +325,12 @@ function GameContent() {
         const isInitialLoad = isFirstUserStateFetchRef.current;
         isFirstUserStateFetchRef.current = false;
 
-        const url = isInitialLoad
-          ? `/api/user-state?devFid=${effectiveFid}&initialLoad=true`
-          : `/api/user-state?devFid=${effectiveFid}`;
+        // Build URL with FID and wallet address for CLANKTON bonus check
+        const params = new URLSearchParams();
+        params.append('devFid', effectiveFid.toString());
+        if (isInitialLoad) params.append('initialLoad', 'true');
+        if (connectedWalletAddress) params.append('walletAddress', connectedWalletAddress);
+        const url = `/api/user-state?${params.toString()}`;
 
         const response = await fetch(url);
         if (response.ok) {
@@ -355,7 +361,7 @@ function GameContent() {
     };
 
     fetchUserGuessCount();
-  }, [effectiveFid, userStateKey]); // Re-fetch when effectiveFid or userStateKey changes
+  }, [effectiveFid, userStateKey, connectedWalletAddress]); // Re-fetch when FID, state key, or wallet changes
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
@@ -881,7 +887,9 @@ function GameContent() {
         setTimeout(async () => {
           // Refetch user state to get updated guesses remaining
           try {
-            const stateResponse = await fetch(`/api/user-state?devFid=${effectiveFid}`);
+            const stateParams = new URLSearchParams({ devFid: effectiveFid.toString() });
+            if (connectedWalletAddress) stateParams.append('walletAddress', connectedWalletAddress);
+            const stateResponse = await fetch(`/api/user-state?${stateParams.toString()}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
               const guessesRemaining = stateData.totalGuessesRemaining;
