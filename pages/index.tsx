@@ -1173,6 +1173,10 @@ function GameContent() {
     // Immediately dismiss the incorrect banner (no fade needed - user took action)
     setIncorrectState('none');
     setLastSubmittedGuess(null);
+
+    // Clear the result state and reset input boxes for fresh guessing
+    setResult(null);
+    setLetters(['', '', '', '', '']);
   };
 
   return (
