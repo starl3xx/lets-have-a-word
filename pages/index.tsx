@@ -44,17 +44,29 @@ import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import dynamic from 'next/dynamic';
+import { MiniAppProvider } from '@neynar/react';
 import { config } from '../src/config/wagmi';
-
-// MiniAppProvider must be client-side only (not SSR compatible)
-const MiniAppProvider = dynamic(
-  () => import('@neynar/react').then((mod) => mod.MiniAppProvider),
-  { ssr: false }
-);
 
 // Create a client for React Query
 const queryClient = new QueryClient();
+
+/**
+ * Client-only wrapper for MiniAppProvider to avoid SSR issues
+ * Tracks notification opens for Neynar analytics
+ */
+function ClientMiniAppProvider({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <>{children}</>;
+  }
+
+  return <MiniAppProvider>{children}</MiniAppProvider>;
+}
 
 /**
  * GameContent - Main game component
@@ -1561,13 +1573,13 @@ export default function Home() {
       <Head>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
-      <MiniAppProvider>
+      <ClientMiniAppProvider>
         <WagmiProvider config={config}>
           <QueryClientProvider client={queryClient}>
             <GameContent />
           </QueryClientProvider>
         </WagmiProvider>
-      </MiniAppProvider>
+      </ClientMiniAppProvider>
     </>
   );
 }
