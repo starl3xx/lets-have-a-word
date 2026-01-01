@@ -71,6 +71,10 @@ export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
     try {
       const res = await fetch(`/api/admin/operational/start-round?devFid=${adminFid}`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
       });
 
       const text = await res.text();
