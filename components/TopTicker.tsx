@@ -120,13 +120,18 @@ export default function TopTicker({ onRoundClick }: TopTickerProps) {
   }
 
   /**
-   * No active round
+   * No active round - show "Round #1 starting soon" splash
    */
   if (!status) {
     return (
-      <div className="bg-gray-600 text-white py-3 px-4 shadow-md">
+      <div className="bg-brand text-white py-4 px-4 shadow-md">
         <div className="max-w-6xl mx-auto text-center">
-          <p className="text-sm">No active round</p>
+          <p className="text-2xl font-bold animate-pulse">
+            Round #1 starting soon
+          </p>
+          <p className="text-sm opacity-80 mt-1">
+            Get ready to guess the secret word!
+          </p>
         </div>
       </div>
     );
