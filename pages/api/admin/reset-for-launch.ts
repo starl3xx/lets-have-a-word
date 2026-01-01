@@ -103,14 +103,24 @@ export default async function handler(
     console.log(`[reset-for-launch] Reset rounds_id_seq to 1`);
 
     // Reset user daily stats (optional - keeps user accounts but clears daily progress)
-    await db.execute(sql`
-      UPDATE users SET
-        guesses_today = 0,
-        has_shared_today = false,
-        share_bonus_claimed_today = false,
-        paid_packs_purchased_today = 0
-    `);
-    console.log(`[reset-for-launch] Reset user daily stats`);
+    // Skip gracefully if columns don't exist in the schema
+    try {
+      await db.execute(sql`
+        UPDATE users SET
+          guesses_today = 0,
+          has_shared_today = false,
+          share_bonus_claimed_today = false,
+          paid_packs_purchased_today = 0
+      `);
+      console.log(`[reset-for-launch] Reset user daily stats`);
+    } catch (err: any) {
+      if (err.code === '42703') {
+        // Column doesn't exist - skip user stats reset
+        console.log(`[reset-for-launch] User daily stats columns don't exist, skipping`);
+      } else {
+        throw err;
+      }
+    }
 
     return res.status(200).json({
       success: true,

@@ -383,7 +383,16 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
         }),
       })
 
-      const data = await res.json()
+      // Safe JSON parsing - handle empty or malformed responses
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
+        }
+      }
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to enable kill switch')
@@ -415,7 +424,16 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
         }),
       })
 
-      const data = await res.json()
+      // Safe JSON parsing - handle empty or malformed responses
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
+        }
+      }
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to disable kill switch')
