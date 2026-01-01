@@ -213,6 +213,26 @@ function GameContent() {
   }, []);
 
   /**
+   * Capture and persist referral parameter on initial page load
+   * This ensures the ref param is not lost if the URL changes before first guess
+   */
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refParam = urlParams.get('ref');
+    if (refParam) {
+      const refFid = parseInt(refParam, 10);
+      if (!isNaN(refFid) && refFid > 0) {
+        // Store in sessionStorage (cleared when browser tab closes)
+        // Don't overwrite if already set (first ref wins)
+        if (!sessionStorage.getItem('referrerFid')) {
+          sessionStorage.setItem('referrerFid', refFid.toString());
+          console.log(`[Referral] Captured referrer FID: ${refFid}`);
+        }
+      }
+    }
+  }, []);
+
+  /**
    * Check if user has seen intro overlay (Milestone 4.3)
    * NOTE: In production, OnboardingManager now handles this via /api/onboarding/status
    * This effect is only for dev mode testing
@@ -716,12 +736,11 @@ function GameContent() {
         requestBody.devFid = effectiveFid;
       }
 
-      // Extract referral parameter from URL (e.g., ?ref=12345)
-      // This is passed on every guess but only used for first-time user creation
-      const urlParams = new URLSearchParams(window.location.search);
-      const refParam = urlParams.get('ref');
-      if (refParam) {
-        const refFid = parseInt(refParam, 10);
+      // Get referral parameter from sessionStorage (captured on initial page load)
+      // This ensures the ref is not lost if URL changed before first guess
+      const storedRef = sessionStorage.getItem('referrerFid');
+      if (storedRef) {
+        const refFid = parseInt(storedRef, 10);
         if (!isNaN(refFid) && refFid > 0) {
           requestBody.ref = refFid;
         }
