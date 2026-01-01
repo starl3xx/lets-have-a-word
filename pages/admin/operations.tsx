@@ -450,10 +450,23 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         method: 'POST',
       })
 
-      const data = await res.json()
+      // Safely parse response - handle empty or invalid JSON
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
+        }
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to start round')
+        throw new Error(data.error || data.message || `Failed to start round (${res.status})`)
+      }
+
+      if (!data.roundId) {
+        throw new Error('Server returned success but no round ID')
       }
 
       setSuccess(`Round #${data.roundId} started successfully! Commit hash: ${data.commitHash?.slice(0, 16)}...`)
