@@ -152,21 +152,27 @@ export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
       {/* Separator */}
       <span className="text-gray-400">|</span>
 
-      {/* Right side: Source breakdown OR "Get more" CTA when empty */}
+      {/* Right side: Source breakdown OR "Add guesses" pill when empty */}
       {totalRemaining === 0 && onGetMore ? (
         <button
           onClick={onGetMore}
-          className="text-sm font-medium whitespace-nowrap flex-1 text-right"
+          className="text-sm whitespace-nowrap inline-flex items-center rounded-full"
           style={{
-            color: '#d97706', // amber-600 (ETH accent)
-            background: 'none',
+            padding: '2px 8px 3px 6px',
+            backgroundColor: 'rgba(34, 197, 94, 0.12)',
+            color: '#166534',
+            fontWeight: 400,
+            lineHeight: 1.2,
             border: 'none',
-            padding: '4px 8px',
-            margin: '-4px -8px',
             cursor: 'pointer',
+            transition: 'background-color 150ms ease-out',
           }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.2)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.12)'}
         >
-          Get more →
+          <span style={{ fontWeight: 400 }}>Add guesses</span>
+          <span>&nbsp;</span>
+          <span style={{ fontWeight: 700 }}>+</span>
         </button>
       ) : (
         <span
