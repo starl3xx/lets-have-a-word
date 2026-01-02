@@ -6,11 +6,10 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { logXpEvent } from '../../../src/lib/xp';
 import { XP_VALUES } from '../../../src/types';
 import type { XpEventType } from '../../../src/types';
 import { db } from '../../../src/db';
-import { users } from '../../../src/db/schema';
+import { users, xpEvents } from '../../../src/db/schema';
 import { eq } from 'drizzle-orm';
 
 // Admin FIDs (same as other admin endpoints)
@@ -93,25 +92,34 @@ export default async function handler(
 
     const xpAmount = XP_VALUES[eventType as XpEventType];
 
-    // Log the XP event
-    await logXpEvent(targetFid, eventType as XpEventType, {
+    // Insert XP event directly (not fire-and-forget, we need to verify it worked)
+    const insertResult = await db.insert(xpEvents).values({
+      fid: targetFid,
+      roundId: null,
+      eventType: eventType as XpEventType,
+      xpAmount,
       metadata: {
         manualAward: true,
         awardedBy: devFid,
         reason: reason || 'Manual admin award',
       },
-    });
+    }).returning({ id: xpEvents.id });
 
-    console.log(`[Admin] XP awarded: FID ${targetFid} received ${xpAmount} XP for ${eventType} (by FID ${devFid})`);
+    if (!insertResult || insertResult.length === 0) {
+      throw new Error('Failed to insert XP event into database');
+    }
+
+    console.log(`[Admin] XP awarded: FID ${targetFid} received ${xpAmount} XP for ${eventType} (by FID ${devFid}, event ID: ${insertResult[0].id})`);
 
     return res.status(200).json({
       success: true,
-      message: `Successfully awarded ${xpAmount} XP to FID ${targetFid}`,
+      message: `Awarded ${xpAmount} XP to FID ${targetFid} (event #${insertResult[0].id})`,
       details: {
         fid: targetFid,
         eventType: eventType as XpEventType,
         xpAmount,
         reason,
+        eventId: insertResult[0].id,
       },
     });
 
