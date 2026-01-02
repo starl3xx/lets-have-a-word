@@ -1293,7 +1293,7 @@ function GameContent() {
           {/* Explanation Card */}
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
             <p className="text-gray-700 text-sm leading-relaxed">
-              <strong>Let's Have A Word</strong> is an onchain word game built for{' '}
+              <strong>Let's Have A Word</strong> is an onchain word game designed for{' '}
               <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Farcaster
               </a>
@@ -1301,9 +1301,9 @@ function GameContent() {
               <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Base
               </a>
-              —decentralized social networks with built-in wallets.
+              {' '}— social apps with built-in wallets. It's free to play.
             </p>
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-400 text-sm">
               A standalone web version may come later.
             </p>
           </div>
