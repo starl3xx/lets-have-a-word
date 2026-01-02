@@ -394,10 +394,10 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     }
   }
 
-  // Status cast generator function
+  // Status cast generator function - fetches fresh data each time
   const generateStatusCast = useCallback(async () => {
-    if (!summary?.currentRound?.roundId) {
-      setStatusCastText("No active round found.")
+    if (!user?.fid) {
+      setStatusCastText("Not authenticated.")
       return
     }
 
@@ -405,13 +405,23 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     setStatusCastCopied(false)
 
     try {
-      const response = await fetch(`/api/round/top-guessers`)
-      const topGuessersData = response.ok ? await response.json() : { topGuessers: [], uniqueGuessersCount: 0 }
+      // Fetch fresh round state and top guessers in parallel
+      const [roundStateRes, topGuessersRes] = await Promise.all([
+        fetch('/api/round-state'),
+        fetch('/api/round/top-guessers'),
+      ])
 
-      const round = summary.currentRound
-      const roundNumber = round.roundId
-      const prizePool = parseFloat(round.prizePoolEth).toFixed(4)
-      const globalGuesses = round.totalGuesses.toLocaleString()
+      const roundState = roundStateRes.ok ? await roundStateRes.json() : null
+      const topGuessersData = topGuessersRes.ok ? await topGuessersRes.json() : { topGuessers: [], uniqueGuessersCount: 0 }
+
+      if (!roundState?.round?.id) {
+        setStatusCastText("No active round found.")
+        return
+      }
+
+      const roundNumber = roundState.round.id
+      const prizePool = parseFloat(roundState.jackpotEth || '0').toFixed(4)
+      const globalGuesses = (roundState.globalGuessCount || 0).toLocaleString()
       const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
 
       let topGuessersStr = ""
@@ -449,7 +459,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     } finally {
       setStatusCastLoading(false)
     }
-  }, [summary])
+  }, [user?.fid])
 
   const copyStatusCast = useCallback(async () => {
     if (!statusCastText) return
@@ -705,16 +715,15 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       {dauChartData.length > 0 && (
         <Module title="Daily Active Users">
-          <div style={styles.chartContainer}>
-            <AnalyticsChart
-              data={dauChartData}
-              type="line"
-              xAxisKey="day"
-              dataKey={["Active Users"]}
-              title="Daily Active Users"
-              colors={["#6366f1"]}
-            />
-          </div>
+          <AnalyticsChart
+            data={dauChartData}
+            type="line"
+            xAxisKey="day"
+            dataKey={["Active Users"]}
+            colors={["#6366f1"]}
+            height={250}
+            embedded
+          />
         </Module>
       )}
 
@@ -723,16 +732,15 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       {guessChartData.length > 0 && (
         <Module title="Free vs Paid Guesses">
-          <div style={styles.chartContainer}>
-            <AnalyticsChart
-              data={guessChartData}
-              type="bar"
-              xAxisKey="day"
-              dataKey={["Free", "Paid"]}
-              title="Free vs Paid Guesses"
-              colors={["#10b981", "#f59e0b"]}
-            />
-          </div>
+          <AnalyticsChart
+            data={guessChartData}
+            type="bar"
+            xAxisKey="day"
+            dataKey={["Free", "Paid"]}
+            colors={["#10b981", "#f59e0b"]}
+            height={250}
+            embedded
+          />
         </Module>
       )}
 
@@ -790,7 +798,8 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           />
         </div>
         {gameplayInsights?.guessDistribution && gameplayInsights.guessDistribution.length > 0 && (
-          <div style={styles.chartContainer}>
+          <div style={{ marginTop: "16px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px" }}>Guess Count Distribution</div>
             <AnalyticsChart
               data={gameplayInsights.guessDistribution.map(d => ({
                 guesses: `${d.guessCount}`,
@@ -799,8 +808,9 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
               type="bar"
               xAxisKey="guesses"
               dataKey={["Rounds"]}
-              title="Guess Count Distribution"
               colors={["#8b5cf6"]}
+              height={200}
+              embedded
             />
           </div>
         )}
@@ -950,7 +960,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
           <button
             onClick={generateStatusCast}
-            disabled={statusCastLoading || !summary?.currentRound?.roundId}
+            disabled={statusCastLoading}
             style={{
               padding: "8px 16px",
               borderRadius: "8px",
