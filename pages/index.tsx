@@ -72,6 +72,7 @@ function GameContent() {
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
+  const [hasCheckedContext, setHasCheckedContext] = useState(false);
 
   // Get connected wallet from Wagmi for CLANKTON bonus check
   const { address: connectedWalletAddress } = useAccount();
@@ -213,18 +214,27 @@ function GameContent() {
             }
           }
         } else {
-          // No FID in context, use dev mode fallback
-          console.log('No FID in context, using dev mode');
-          setFid(12345); // Dev fallback
+          // No FID in context - check if dev mode
+          console.log('No FID in context');
+          if (isClientDevMode()) {
+            console.log('Dev mode enabled, using fallback FID');
+            setFid(12345); // Dev fallback
+          }
           setIsInMiniApp(false);
         }
+
+        setHasCheckedContext(true);
 
         // Signal that the app is ready to the Farcaster mini-app runtime
         sdk.actions.ready();
       } catch (error) {
-        console.log('Not in Farcaster context, using dev mode');
-        setFid(12345); // Dev fallback
+        console.log('Not in Farcaster context');
+        if (isClientDevMode()) {
+          console.log('Dev mode enabled, using fallback FID');
+          setFid(12345); // Dev fallback
+        }
         setIsInMiniApp(false);
+        setHasCheckedContext(true);
       }
     };
 
@@ -1214,6 +1224,67 @@ function GameContent() {
     setResult(null);
     setLetters(['', '', '', '', '']);
   };
+
+  // Show browser fallback when not in mini app and not in dev mode
+  if (hasCheckedContext && !isInMiniApp && !isClientDevMode()) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-6">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <img
+              src="/app-icon.png"
+              alt="Let's Have A Word"
+              className="w-24 h-24 rounded-2xl shadow-lg"
+            />
+          </div>
+
+          {/* Title */}
+          <h1 className="text-3xl font-bold text-gray-900">
+            Let's Have A Word!
+          </h1>
+
+          {/* Message */}
+          <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
+            <p className="text-gray-700 leading-relaxed">
+              <strong>Let's Have A Word!</strong> uses the Farcaster stack. You can play in Farcaster clients like{' '}
+              <a href="https://warpcast.com" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+                Warpcast
+              </a>
+              {' '}and the Base app, which share the same identity and wallet infrastructure.
+            </p>
+            <p className="text-gray-600 text-sm">
+              Standalone web play isn't supported yet. A standalone web version may be explored later.
+            </p>
+          </div>
+
+          {/* CTA Button */}
+          <a
+            href="https://warpcast.com/letshaveaword"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary inline-flex items-center gap-2 px-6 py-3"
+          >
+            <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
+            Find us on Warpcast
+          </a>
+
+          {/* Footer */}
+          <p className="text-xs text-gray-500">
+            Don't have Farcaster?{' '}
+            <a
+              href="https://warpcast.com/~/signup"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 underline"
+            >
+              Sign up here
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
