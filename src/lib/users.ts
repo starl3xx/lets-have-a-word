@@ -17,9 +17,9 @@ export interface UpsertUserParams {
  * Upsert a user from Farcaster authentication context
  *
  * Rules:
- * - If user exists: update signer wallet and spam score
+ * - If user exists: update signer wallet, spam score, and backfill referrer if missing
  * - If user doesn't exist: create new user with referrer (if valid)
- * - Referrer can only be set once (on first creation)
+ * - Referrer can only be set once (first referrer wins, no overwrites)
  * - Self-referral is not allowed
  *
  * @param params User data from Farcaster verification
@@ -47,17 +47,27 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
     .limit(1);
 
   if (existingUser.length > 0) {
-    // User exists - update signer wallet and spam score
+    // User exists - update signer wallet, spam score, and potentially backfill referrer
     const user = existingUser[0];
-    console.log(`[Referral] User FID ${fid} already exists (existing referrerFid=${user.referrerFid}). Referrer NOT updated.`);
-    if (validReferrerFid && !user.referrerFid) {
-      console.log(`[Referral] ⚠️ MISSED REFERRAL: New referrer ${validReferrerFid} provided but user ${fid} already exists without one!`);
+    console.log(`[Referral] User FID ${fid} already exists (existing referrerFid=${user.referrerFid})`);
+
+    // Backfill referrer if user doesn't have one yet (first referrer wins)
+    const shouldBackfillReferrer = validReferrerFid && !user.referrerFid;
+    if (shouldBackfillReferrer) {
+      console.log(`[Referral] ✅ Backfilling referrer ${validReferrerFid} for existing user ${fid}`);
+
+      // Log referral join analytics event (non-blocking)
+      logReferralEvent(AnalyticsEventTypes.REFERRAL_JOIN, fid.toString(), {
+        referrerFid: validReferrerFid,
+        backfilled: true,
+      });
     }
 
-    // Only update if values have changed
+    // Check if any values need updating
     const needsUpdate =
       user.signerWalletAddress !== signerWallet ||
-      user.spamScore !== spamScore;
+      user.spamScore !== spamScore ||
+      shouldBackfillReferrer;
 
     if (needsUpdate) {
       const updated = await db
@@ -65,12 +75,13 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
         .set({
           signerWalletAddress: signerWallet,
           spamScore,
+          ...(shouldBackfillReferrer && { referrerFid: validReferrerFid }),
           updatedAt: new Date(),
         })
         .where(eq(users.fid, fid))
         .returning();
 
-      console.log(`✅ Updated user FID ${fid} with new wallet/spam score`);
+      console.log(`✅ Updated user FID ${fid}${shouldBackfillReferrer ? ` with backfilled referrer ${validReferrerFid}` : ''}`);
       return updated[0];
     }
 
