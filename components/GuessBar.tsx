@@ -159,20 +159,20 @@ export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
           className="text-sm whitespace-nowrap inline-flex items-center rounded-full"
           style={{
             padding: '2px 8px 3px 6px',
-            backgroundColor: 'rgba(34, 197, 94, 0.12)',
-            color: '#166534',
-            fontWeight: 400,
+            backgroundColor: 'rgba(34, 197, 94, 0.18)',
+            color: '#15803d',
+            fontWeight: 500,
             lineHeight: 1.2,
             border: 'none',
             cursor: 'pointer',
             transition: 'background-color 150ms ease-out',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.2)'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.12)'}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.28)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.18)'}
         >
-          <span style={{ fontWeight: 400 }}>Add guesses</span>
-          <span>&nbsp;</span>
           <span style={{ fontWeight: 700 }}>+</span>
+          <span>&nbsp;</span>
+          <span style={{ fontWeight: 500 }}>Add guesses</span>
         </button>
       ) : (
         <span

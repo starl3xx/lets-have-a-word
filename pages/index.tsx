@@ -1612,7 +1612,7 @@ function GameContent() {
                 }}
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
                   isButtonDisabled
-                    ? 'bg-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-300 cursor-not-allowed opacity-60'
                     : 'active:scale-95'
                 }`}
                 style={!isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}}
