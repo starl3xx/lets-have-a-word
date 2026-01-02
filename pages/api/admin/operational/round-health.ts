@@ -10,8 +10,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { guesses, users, rounds } from '../../../../src/db/schema';
-import { eq, isNull, isNotNull, and, sql, notInArray } from 'drizzle-orm';
-import { isAdmin } from '../../../../src/lib/admin';
+import { eq, isNull, isNotNull, and, sql } from 'drizzle-orm';
+import { isAdminFid } from '../me';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../../src/lib/top10-lock';
 
 interface RoundHealthResponse {
@@ -60,7 +60,7 @@ export default async function handler(
 
   // Check admin access
   const devFid = parseInt(req.query.devFid as string, 10);
-  if (!devFid || !isAdmin(devFid)) {
+  if (!devFid || !isAdminFid(devFid)) {
     return res.status(403).json({ error: 'Not authorized' });
   }
 
