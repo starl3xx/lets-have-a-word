@@ -194,10 +194,24 @@ function GameContent() {
           setIsInMiniApp(true);
           console.log('Farcaster FID:', context.user.fid);
 
-          // Debug: Log the full context to understand launch context
-          console.log('[Referral Debug] SDK context:', JSON.stringify(context, null, 2));
-          console.log('[Referral Debug] window.location.search:', window.location.search);
-          console.log('[Referral Debug] window.location.href:', window.location.href);
+          // Extract referral from SDK context.location.embed
+          // When opened from a cast embed, Warpcast stores the original URL here (not in window.location)
+          const location = context.location as { type?: string; embed?: string } | undefined;
+          if (location?.type === 'cast_embed' && location.embed) {
+            try {
+              const embedUrl = new URL(location.embed);
+              const refParam = embedUrl.searchParams.get('ref');
+              if (refParam) {
+                const refFid = parseInt(refParam, 10);
+                if (!isNaN(refFid) && refFid > 0 && !sessionStorage.getItem('referrerFid')) {
+                  sessionStorage.setItem('referrerFid', refFid.toString());
+                  console.log(`[Referral] Captured from SDK context.location.embed: ${refFid}`);
+                }
+              }
+            } catch (e) {
+              console.error('[Referral] Failed to parse embed URL:', e);
+            }
+          }
         } else {
           // No FID in context, use dev mode fallback
           console.log('No FID in context, using dev mode');
@@ -218,27 +232,20 @@ function GameContent() {
   }, []);
 
   /**
-   * Capture and persist referral parameter on initial page load
-   * This ensures the ref param is not lost if the URL changes before first guess
+   * Capture referral from window.location (fallback for non-Warpcast contexts)
+   * Primary capture happens in getFarcasterContext from sdk.context.location.embed
    */
   useEffect(() => {
+    // Only use window.location as fallback if not already captured from SDK context
+    if (sessionStorage.getItem('referrerFid')) return;
+
     const urlParams = new URLSearchParams(window.location.search);
     const refParam = urlParams.get('ref');
-
-    // Debug logging to track referral capture
-    console.log('[Referral] Page load - window.location.search:', window.location.search);
-    console.log('[Referral] Page load - ref param:', refParam);
-    console.log('[Referral] Page load - existing sessionStorage:', sessionStorage.getItem('referrerFid'));
-
     if (refParam) {
       const refFid = parseInt(refParam, 10);
       if (!isNaN(refFid) && refFid > 0) {
-        // Store in sessionStorage (cleared when browser tab closes)
-        // Don't overwrite if already set (first ref wins)
-        if (!sessionStorage.getItem('referrerFid')) {
-          sessionStorage.setItem('referrerFid', refFid.toString());
-          console.log(`[Referral] Captured referrer FID: ${refFid}`);
-        }
+        sessionStorage.setItem('referrerFid', refFid.toString());
+        console.log(`[Referral] Captured from window.location: ${refFid}`);
       }
     }
   }, []);
