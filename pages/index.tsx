@@ -193,6 +193,11 @@ function GameContent() {
           setFid(context.user.fid);
           setIsInMiniApp(true);
           console.log('Farcaster FID:', context.user.fid);
+
+          // Debug: Log the full context to understand launch context
+          console.log('[Referral Debug] SDK context:', JSON.stringify(context, null, 2));
+          console.log('[Referral Debug] window.location.search:', window.location.search);
+          console.log('[Referral Debug] window.location.href:', window.location.href);
         } else {
           // No FID in context, use dev mode fallback
           console.log('No FID in context, using dev mode');
@@ -219,6 +224,12 @@ function GameContent() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const refParam = urlParams.get('ref');
+
+    // Debug logging to track referral capture
+    console.log('[Referral] Page load - window.location.search:', window.location.search);
+    console.log('[Referral] Page load - ref param:', refParam);
+    console.log('[Referral] Page load - existing sessionStorage:', sessionStorage.getItem('referrerFid'));
+
     if (refParam) {
       const refFid = parseInt(refParam, 10);
       if (!isNaN(refFid) && refFid > 0) {
