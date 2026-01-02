@@ -26,6 +26,18 @@ export const MIN_USER_SCORE = 0.6;
 export const SCORE_CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Shorter cache duration for scores near the threshold (1 hour)
+ * This helps users whose scores are borderline get fresh checks more often
+ */
+export const BORDERLINE_SCORE_CACHE_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * Score range considered "borderline" (within 0.1 of threshold)
+ */
+const BORDERLINE_SCORE_LOW = MIN_USER_SCORE - 0.1; // 0.5
+const BORDERLINE_SCORE_HIGH = MIN_USER_SCORE + 0.1; // 0.7
+
+/**
  * Error code for insufficient user score
  */
 export const INSUFFICIENT_USER_SCORE_ERROR = 'INSUFFICIENT_USER_SCORE';
@@ -62,13 +74,29 @@ export async function checkUserQuality(
 
     // Check if we have a cached score that's still valid
     const now = new Date();
-    const scoreStale = !user?.userScoreUpdatedAt ||
-      (now.getTime() - user.userScoreUpdatedAt.getTime()) > SCORE_CACHE_DURATION_MS;
+    const cachedScore = user?.userScore !== null ? parseFloat(user.userScore) : null;
 
-    if (!forceRefresh && user?.userScore !== null && !scoreStale) {
+    // Use shorter cache duration for borderline scores (within 0.1 of threshold)
+    // This ensures users near the threshold get fresher scores
+    const isBorderlineScore = cachedScore !== null &&
+      cachedScore >= BORDERLINE_SCORE_LOW &&
+      cachedScore <= BORDERLINE_SCORE_HIGH;
+
+    const cacheDuration = isBorderlineScore
+      ? BORDERLINE_SCORE_CACHE_DURATION_MS
+      : SCORE_CACHE_DURATION_MS;
+
+    const scoreStale = !user?.userScoreUpdatedAt ||
+      (now.getTime() - user.userScoreUpdatedAt.getTime()) > cacheDuration;
+
+    if (!forceRefresh && cachedScore !== null && !scoreStale) {
       // Use cached score
-      const score = parseFloat(user.userScore);
-      return evaluateScore(fid, score);
+      return evaluateScore(fid, cachedScore);
+    }
+
+    // Log if refreshing due to borderline score
+    if (isBorderlineScore && !forceRefresh) {
+      console.log(`[UserQuality] Refreshing borderline score ${cachedScore?.toFixed(3)} for FID ${fid}`);
     }
 
     // Fetch fresh score from Neynar
