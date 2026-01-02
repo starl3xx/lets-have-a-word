@@ -20,6 +20,12 @@ interface AnalyticsSectionProps {
   }
 }
 
+interface TopGuesser {
+  fid: number
+  username: string | null
+  guessCount: number
+}
+
 interface DashboardSummary {
   today: { dau: number; packPurchases: number; paidGuesses: number; revenueEth: number }
   avg7d: { dau: number; packPurchases: number; paidGuesses: number; revenueEth: number }
@@ -179,6 +185,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
 
+  // Status cast generator state
+  const [statusCastText, setStatusCastText] = useState<string>("")
+  const [statusCastLoading, setStatusCastLoading] = useState(false)
+  const [statusCastCopied, setStatusCastCopied] = useState(false)
+
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchAnalytics = useCallback(async () => {
@@ -229,6 +240,69 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current)
     }
   }, [autoRefresh, fetchAnalytics])
+
+  // Status cast generator function
+  const generateStatusCast = useCallback(async () => {
+    if (!summary?.currentRound?.roundId) {
+      setStatusCastText("No active round found.")
+      return
+    }
+
+    setStatusCastLoading(true)
+    setStatusCastCopied(false)
+
+    try {
+      // Fetch top guessers data
+      const response = await fetch(`/api/round/top-guessers`)
+      const topGuessersData = response.ok ? await response.json() : { topGuessers: [], uniqueGuessersCount: 0 }
+
+      const round = summary.currentRound
+      const roundNumber = round.roundId
+      const prizePool = parseFloat(round.prizePoolEth).toFixed(4)
+      const globalGuesses = round.totalGuesses.toLocaleString()
+      const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
+
+      // Format top guessers (show up to 3-4 usernames with guess counts)
+      let topGuessersStr = ""
+      if (topGuessersData.topGuessers && topGuessersData.topGuessers.length > 0) {
+        const topThree = topGuessersData.topGuessers.slice(0, 3)
+        topGuessersStr = topThree
+          .map((g: TopGuesser) => `@${g.username || `fid:${g.fid}`} (${g.guessCount})`)
+          .join(" ")
+        if (topGuessersData.topGuessers.length > 3) {
+          topGuessersStr += "..."
+        }
+      }
+
+      // Build the cast text
+      const castText = `@letshaveaword status
+🔵 Round: #${roundNumber}
+💰 Prize pool: ${prizePool} ETH
+🎯 Global guesses: ${globalGuesses}
+👥 Players: ${playerCount}
+🏆 Top early guessers: ${topGuessersStr || "N/A"}`
+
+      setStatusCastText(castText)
+    } catch (err) {
+      console.error("[AnalyticsSection] Error generating status cast:", err)
+      setStatusCastText("Error generating status cast. Please try again.")
+    } finally {
+      setStatusCastLoading(false)
+    }
+  }, [summary])
+
+  // Copy to clipboard function
+  const copyStatusCast = useCallback(async () => {
+    if (!statusCastText) return
+
+    try {
+      await navigator.clipboard.writeText(statusCastText)
+      setStatusCastCopied(true)
+      setTimeout(() => setStatusCastCopied(false), 2000)
+    } catch (err) {
+      console.error("[AnalyticsSection] Failed to copy to clipboard:", err)
+    }
+  }, [statusCastText])
 
   const dauChartData = [...dauData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -393,6 +467,67 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           </div>
         </div>
       )}
+
+      {/* Status Cast Generator */}
+      <div style={styles.section}>
+        <h3 style={styles.sectionTitle}>Status Cast Generator</h3>
+        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "12px", fontFamily }}>
+          Generate a formatted status update for Farcaster with current game stats.
+        </p>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          <button
+            onClick={generateStatusCast}
+            disabled={statusCastLoading || !summary?.currentRound?.roundId}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "none",
+              background: statusCastLoading ? "#d1d5db" : "#6366f1",
+              color: "white",
+              fontWeight: 500,
+              cursor: statusCastLoading ? "not-allowed" : "pointer",
+              fontFamily,
+            }}
+          >
+            {statusCastLoading ? "Generating..." : "Generate Status Cast"}
+          </button>
+          {statusCastText && (
+            <button
+              onClick={copyStatusCast}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "1px solid #e5e7eb",
+                background: statusCastCopied ? "#dcfce7" : "white",
+                color: statusCastCopied ? "#16a34a" : "#374151",
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily,
+              }}
+            >
+              {statusCastCopied ? "Copied!" : "Copy to Clipboard"}
+            </button>
+          )}
+        </div>
+        {statusCastText && (
+          <textarea
+            value={statusCastText}
+            readOnly
+            style={{
+              width: "100%",
+              minHeight: "160px",
+              padding: "12px",
+              borderRadius: "8px",
+              border: "1px solid #e5e7eb",
+              background: "#f9fafb",
+              fontFamily: "monospace",
+              fontSize: "13px",
+              lineHeight: "1.5",
+              resize: "vertical",
+            }}
+          />
+        )}
+      </div>
 
     </div>
   )
