@@ -172,17 +172,19 @@ async function fetchUserScoreFromNeynar(fid: number): Promise<number | null> {
 
     const user = userData.users[0];
 
-    // Neynar provides experimental_user_score or similar field
-    // The exact field name may vary based on Neynar SDK version
-    // Common fields: experimental_user_score, power_badge, follower_count
+    // Neynar provides the score at experimental.neynar_user_score
+    // See: https://docs.neynar.com/docs/user-scores
     let score: number | null = null;
 
-    // Try to get the experimental user score (primary method)
-    if ('experimental_user_score' in user && typeof user.experimental_user_score === 'number') {
-      score = user.experimental_user_score;
+    // Primary method: Get score from experimental.neynar_user_score
+    const experimental = (user as any).experimental;
+    if (experimental && typeof experimental.neynar_user_score === 'number') {
+      score = experimental.neynar_user_score;
+      console.log(`[UserQuality] FID ${fid} score from experimental.neynar_user_score: ${score}`);
     }
     // Fallback: Calculate a proxy score based on available metrics
     else if (user.follower_count !== undefined && user.following_count !== undefined) {
+      console.warn(`[UserQuality] FID ${fid} missing experimental.neynar_user_score, using proxy calculation`);
       // Proxy calculation: normalize follower ratio and activity
       // This is a fallback if the experimental_user_score is not available
       const followers = user.follower_count || 0;
