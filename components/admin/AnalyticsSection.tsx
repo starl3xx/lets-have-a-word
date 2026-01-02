@@ -709,8 +709,9 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             <AnalyticsChart
               data={dauChartData}
               type="line"
-              xKey="day"
-              yKeys={["Active Users"]}
+              xAxisKey="day"
+              dataKey={["Active Users"]}
+              title="Daily Active Users"
               colors={["#6366f1"]}
             />
           </div>
@@ -726,10 +727,10 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             <AnalyticsChart
               data={guessChartData}
               type="bar"
-              xKey="day"
-              yKeys={["Free", "Paid"]}
+              xAxisKey="day"
+              dataKey={["Free", "Paid"]}
+              title="Free vs Paid Guesses"
               colors={["#10b981", "#f59e0b"]}
-              stacked
             />
           </div>
         </Module>
@@ -796,8 +797,9 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
                 "Rounds": d.rounds
               }))}
               type="bar"
-              xKey="guesses"
-              yKeys={["Rounds"]}
+              xAxisKey="guesses"
+              dataKey={["Rounds"]}
+              title="Guess Count Distribution"
               colors={["#8b5cf6"]}
             />
           </div>
