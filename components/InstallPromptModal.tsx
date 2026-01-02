@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
+import { useTranslation } from '../src/hooks/useTranslation';
 import { getRandomTemplate, renderShareTemplate } from '../src/lib/shareTemplates';
 
 interface InstallPromptModalProps {
@@ -47,9 +48,13 @@ export default function InstallPromptModal({
   onShareSuccess,
   onInstallSuccess,
 }: InstallPromptModalProps) {
+  const { t, getRandomInterjection } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
+
+  // Get random interjection once when modal mounts
+  const interjection = useMemo(() => getRandomInterjection(), [getRandomInterjection]);
 
   // Select random share template once when modal mounts
   const selectedTemplate = useMemo(() => getRandomTemplate(), []);
@@ -239,12 +244,12 @@ export default function InstallPromptModal({
         className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header with interjection */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">
-            Get another guess
+            {interjection} {t('shareForGuess.titleSuffix')}
           </h2>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-600 mt-3">
             {word ? (
               <>
                 <span className="font-bold">{word.toUpperCase()}</span> wasn't the word, but you're in the hunt!
@@ -253,45 +258,67 @@ export default function InstallPromptModal({
               <>You're in the hunt!</>
             )}
           </p>
+          <p className="text-gray-600 mt-3">
+            {word ? (
+              <>
+                Share your guess <span className="font-bold">{word.toUpperCase()}</span> to unlock{' '}
+                <span className="font-bold text-success-600">+1 free guess</span> today!
+              </>
+            ) : (
+              <>
+                Share to unlock <span className="font-bold text-success-600">+1 free guess</span> today!
+              </>
+            )}
+          </p>
         </div>
 
         {/* Primary action: Share */}
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={handleShare}
-            disabled={isSharing || isInstalling}
-            className={`btn-accent w-full text-lg flex items-center justify-center gap-3 ${
-              (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {!isSharing && (
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
-            )}
-            <span>
-              {isSharing ? 'Opening...' : 'Share your guess → +1 guess'}
-            </span>
-          </button>
-        </div>
+        <button
+          onClick={handleShare}
+          disabled={isSharing || isInstalling}
+          className={`btn-accent w-full text-lg flex items-center justify-center gap-3 ${
+            (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {!isSharing && (
+            <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+          )}
+          <span>
+            {isSharing ? 'Opening…' : 'Share your guess'}
+          </span>
+        </button>
 
-        {/* Secondary: Install section - framed as utility */}
-        <div className="border-t border-gray-100 pt-4">
-          <p className="text-xs text-gray-500 text-center mb-3">
-            Want to know when rounds end or guesses reset?
+        {/* Secondary: Install section */}
+        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+          <p className="text-sm text-gray-700 font-medium">
+            Install the mini app to get notified when:
           </p>
-          <button
-            onClick={handleInstall}
-            disabled={isSharing || isInstalling}
-            className={`w-full text-sm text-gray-500 hover:text-gray-700 transition-colors flex items-center justify-center gap-1 ${
-              (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            <span>
-              {isInstalling ? 'Installing...' : 'Enable notifications'}
-            </span>
-          </button>
+          <ul className="text-sm text-gray-600 space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              Someone finds the word (round ends)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span>
+              Your free guesses reset daily
+            </li>
+          </ul>
         </div>
 
-        {/* Tertiary: Skip */}
+        {/* Install button */}
+        <button
+          onClick={handleInstall}
+          disabled={isSharing || isInstalling}
+          className={`btn-secondary w-full flex items-center justify-center gap-2 ${
+            (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          <span>
+            {isInstalling ? 'Installing…' : 'Install mini app'}
+          </span>
+        </button>
+
+        {/* Skip */}
         <button
           onClick={handleDismiss}
           disabled={isSharing || isInstalling}
