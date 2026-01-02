@@ -156,12 +156,13 @@ export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
       {totalRemaining === 0 && onGetMore ? (
         <button
           onClick={onGetMore}
-          className="text-sm font-medium whitespace-nowrap"
+          className="text-sm font-medium whitespace-nowrap flex-1 text-right"
           style={{
-            color: '#2563eb', // blue-600
+            color: '#d97706', // amber-600 (ETH accent)
             background: 'none',
             border: 'none',
-            padding: 0,
+            padding: '4px 8px',
+            margin: '-4px -8px',
             cursor: 'pointer',
           }}
         >
