@@ -85,6 +85,42 @@ interface ContractStateResponse {
   timestamp: string
 }
 
+interface RoundHealthCheck {
+  ok: boolean
+  roundId: number | null
+  checks: {
+    legacyGuesses: {
+      status: 'ok' | 'warning' | 'error'
+      message: string
+      details: {
+        totalGuesses: number
+        indexedGuesses: number
+        legacyGuesses: number
+        hasIndexedGuesses: boolean
+      }
+    }
+    userRecords: {
+      status: 'ok' | 'warning' | 'error'
+      message: string
+      details: {
+        uniqueGuessers: number
+        missingUserRecords: number
+        missingFids: number[]
+      }
+    }
+    top10Eligibility: {
+      status: 'ok' | 'warning' | 'error'
+      message: string
+      details: {
+        eligibleGuesses: number
+        top10LockThreshold: number
+        isLocked: boolean
+      }
+    }
+  }
+  timestamp: string
+}
+
 interface OperationsSectionProps {
   user?: {
     fid: number
@@ -276,6 +312,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [resetLoading, setResetLoading] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
+  // Round health check state
+  const [roundHealth, setRoundHealth] = useState<RoundHealthCheck | null>(null)
+  const [roundHealthLoading, setRoundHealthLoading] = useState(false)
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -326,6 +366,30 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   useEffect(() => {
     fetchContractState()
   }, [fetchContractState])
+
+  const fetchRoundHealth = useCallback(async () => {
+    if (!user?.fid) return
+
+    try {
+      setRoundHealthLoading(true)
+      const res = await fetch(`/api/admin/operational/round-health?devFid=${user.fid}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch round health')
+      }
+
+      setRoundHealth(data)
+    } catch (err: any) {
+      console.error('Failed to fetch round health:', err)
+    } finally {
+      setRoundHealthLoading(false)
+    }
+  }, [user?.fid])
+
+  useEffect(() => {
+    fetchRoundHealth()
+  }, [fetchRoundHealth])
 
   const handleClearSepoliaRound = async () => {
     if (!user?.fid) return
@@ -886,6 +950,142 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               )}
             </div>
           </div>
+
+          {/* Round Health Check Card */}
+          {status.activeRoundId && (
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>
+                Round Health Check
+                {roundHealth && (
+                  <span style={{
+                    marginLeft: '12px',
+                    fontSize: '12px',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                    background: roundHealth.ok ? '#dcfce7' : '#fef3c7',
+                    color: roundHealth.ok ? '#166534' : '#92400e',
+                  }}>
+                    {roundHealth.ok ? 'HEALTHY' : 'ISSUES DETECTED'}
+                  </span>
+                )}
+              </h2>
+
+              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                Pre-resolution checks to identify potential issues before the round ends.
+              </p>
+
+              {roundHealthLoading && !roundHealth ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280' }}>
+                  Running health checks...
+                </div>
+              ) : roundHealth ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Legacy Guesses Check */}
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: roundHealth.checks.legacyGuesses.status === 'ok' ? '#f0fdf4' :
+                                roundHealth.checks.legacyGuesses.status === 'warning' ? '#fffbeb' : '#fef2f2',
+                    border: `1px solid ${roundHealth.checks.legacyGuesses.status === 'ok' ? '#bbf7d0' :
+                                          roundHealth.checks.legacyGuesses.status === 'warning' ? '#fde68a' : '#fecaca'}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '16px' }}>
+                        {roundHealth.checks.legacyGuesses.status === 'ok' ? '✅' :
+                         roundHealth.checks.legacyGuesses.status === 'warning' ? '⚠️' : '❌'}
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>Guess Indexing</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#374151', marginBottom: '8px' }}>
+                      {roundHealth.checks.legacyGuesses.message}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      Total: {roundHealth.checks.legacyGuesses.details.totalGuesses} |
+                      Indexed: {roundHealth.checks.legacyGuesses.details.indexedGuesses} |
+                      Legacy: {roundHealth.checks.legacyGuesses.details.legacyGuesses}
+                    </div>
+                  </div>
+
+                  {/* User Records Check */}
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: roundHealth.checks.userRecords.status === 'ok' ? '#f0fdf4' :
+                                roundHealth.checks.userRecords.status === 'warning' ? '#fffbeb' : '#fef2f2',
+                    border: `1px solid ${roundHealth.checks.userRecords.status === 'ok' ? '#bbf7d0' :
+                                          roundHealth.checks.userRecords.status === 'warning' ? '#fde68a' : '#fecaca'}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '16px' }}>
+                        {roundHealth.checks.userRecords.status === 'ok' ? '✅' :
+                         roundHealth.checks.userRecords.status === 'warning' ? '⚠️' : '❌'}
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>User Records</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#374151', marginBottom: '8px' }}>
+                      {roundHealth.checks.userRecords.message}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      Unique guessers: {roundHealth.checks.userRecords.details.uniqueGuessers} |
+                      Missing: {roundHealth.checks.userRecords.details.missingUserRecords}
+                      {roundHealth.checks.userRecords.details.missingFids.length > 0 && (
+                        <span style={{ color: '#dc2626' }}>
+                          {' '}(FIDs: {roundHealth.checks.userRecords.details.missingFids.join(', ')})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Top-10 Eligibility Check */}
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: roundHealth.checks.top10Eligibility.status === 'ok' ? '#f0fdf4' :
+                                roundHealth.checks.top10Eligibility.status === 'warning' ? '#fffbeb' : '#fef2f2',
+                    border: `1px solid ${roundHealth.checks.top10Eligibility.status === 'ok' ? '#bbf7d0' :
+                                          roundHealth.checks.top10Eligibility.status === 'warning' ? '#fde68a' : '#fecaca'}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '16px' }}>
+                        {roundHealth.checks.top10Eligibility.status === 'ok' ? '✅' :
+                         roundHealth.checks.top10Eligibility.status === 'warning' ? '⚠️' : '❌'}
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>Top-10 Eligibility</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#374151', marginBottom: '8px' }}>
+                      {roundHealth.checks.top10Eligibility.message}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      Eligible guesses: {roundHealth.checks.top10Eligibility.details.eligibleGuesses} |
+                      Lock threshold: {roundHealth.checks.top10Eligibility.details.top10LockThreshold} |
+                      {roundHealth.checks.top10Eligibility.details.isLocked ? ' 🔒 Locked' : ' 🔓 Open'}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                    <button
+                      onClick={fetchRoundHealth}
+                      style={styles.btnSecondary}
+                      disabled={roundHealthLoading}
+                    >
+                      {roundHealthLoading ? 'Checking...' : 'Re-run Checks'}
+                    </button>
+                    <span style={{ fontSize: '12px', color: '#9ca3af', alignSelf: 'center' }}>
+                      Last checked: {roundHealth.timestamp ? formatDate(roundHealth.timestamp) : 'Never'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={fetchRoundHealth}
+                  style={styles.btnPrimary}
+                  disabled={roundHealthLoading}
+                >
+                  Run Health Check
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Start New Round Card */}
           {!status.killSwitch.enabled && (
