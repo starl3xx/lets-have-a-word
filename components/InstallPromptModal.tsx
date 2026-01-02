@@ -51,6 +51,7 @@ export default function InstallPromptModal({
   const { t, getRandomInterjection } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [hasSharedSuccessfully, setHasSharedSuccessfully] = useState(false);
   const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
 
   // Get random interjection once when modal mounts
@@ -115,7 +116,7 @@ export default function InstallPromptModal({
   const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
 
   /**
-   * Handle share action - opens composer
+   * Handle share action - opens composer, then transitions to success state
    */
   const handleShare = async () => {
     if (!fid) {
@@ -132,10 +133,10 @@ export default function InstallPromptModal({
         embeds: ['https://letshaveaword.fun'],
       });
 
-      // Mark as seen and close
+      // Mark as seen
       markInstallPromptSeen();
 
-      // Try to verify share and award bonus
+      // Try to verify share and award bonus, then transition to success state
       setTimeout(async () => {
         try {
           const response = await fetch('/api/share-callback', {
@@ -151,7 +152,9 @@ export default function InstallPromptModal({
         } catch (err) {
           console.error('[InstallPromptModal] Error verifying share:', err);
         }
-        onClose();
+        // Transition to success state instead of closing
+        setIsSharing(false);
+        setHasSharedSuccessfully(true);
       }, 4000);
     } catch (err) {
       console.error('[InstallPromptModal] Error opening composer:', err);
@@ -247,39 +250,43 @@ export default function InstallPromptModal({
         {/* Header with interjection */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">
-            {interjection} {t('shareForGuess.titleSuffix')}
+            {hasSharedSuccessfully ? '+1 guess unlocked 🎉' : `${interjection} ${t('shareForGuess.titleSuffix')}`}
           </h2>
-          <p className="text-gray-600 mt-3">
-            {word ? (
-              <>
-                Share your guess <span className="font-bold">{word.toUpperCase()}</span> to unlock{' '}
-                <span className="font-bold text-success-600">+1 free guess</span> today!
-              </>
-            ) : (
-              <>
-                Share to unlock <span className="font-bold text-success-600">+1 free guess</span> today!
-              </>
-            )}
-          </p>
+          {!hasSharedSuccessfully && (
+            <p className="text-gray-600 mt-3">
+              {word ? (
+                <>
+                  Share your guess <span className="font-bold">{word.toUpperCase()}</span> to unlock{' '}
+                  <span className="font-bold text-success-600">+1 free guess</span> today!
+                </>
+              ) : (
+                <>
+                  Share to unlock <span className="font-bold text-success-600">+1 free guess</span> today!
+                </>
+              )}
+            </p>
+          )}
         </div>
 
-        {/* Primary action: Share */}
+        {/* Share button - transforms to success state after sharing */}
         <button
           onClick={handleShare}
-          disabled={isSharing || isInstalling}
-          className={`btn-accent w-full text-lg flex items-center justify-center gap-3 ${
-            (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
+          disabled={isSharing || isInstalling || hasSharedSuccessfully}
+          className={`w-full text-lg flex items-center justify-center gap-3 ${
+            hasSharedSuccessfully
+              ? 'bg-green-500 text-white rounded-btn py-3 px-4 font-semibold cursor-default'
+              : `btn-accent ${(isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''}`
           }`}
         >
-          {!isSharing && (
+          {!isSharing && !hasSharedSuccessfully && (
             <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
           )}
           <span>
-            {isSharing ? 'Opening…' : 'Share your guess'}
+            {hasSharedSuccessfully ? '+1 guess granted' : isSharing ? 'Opening…' : 'Share your guess'}
           </span>
         </button>
 
-        {/* Secondary: Install section */}
+        {/* Install section */}
         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
           <p className="text-sm text-gray-700 font-medium">
             Install the mini app to get notified when:
@@ -296,12 +303,14 @@ export default function InstallPromptModal({
           </ul>
         </div>
 
-        {/* Install button */}
+        {/* Install button - becomes primary after successful share */}
         <button
           onClick={handleInstall}
           disabled={isSharing || isInstalling}
-          className={`btn-secondary w-full flex items-center justify-center gap-2 ${
-            (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
+          className={`w-full flex items-center justify-center gap-2 ${
+            hasSharedSuccessfully
+              ? `btn-accent text-lg ${isInstalling ? 'opacity-50 cursor-not-allowed' : ''}`
+              : `btn-secondary ${(isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''}`
           }`}
         >
           <span>
