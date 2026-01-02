@@ -10,7 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { guesses, users, rounds } from '../../../../src/db/schema';
-import { eq, isNull, isNotNull, and, sql } from 'drizzle-orm';
+import { eq, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../../src/lib/top10-lock';
 
@@ -137,7 +137,7 @@ export default async function handler(
       const existingUsers = await db
         .select({ fid: users.fid })
         .from(users)
-        .where(sql`${users.fid} = ANY(${fidList})`);
+        .where(inArray(users.fid, fidList));
 
       const existingFidSet = new Set(existingUsers.map(u => u.fid));
       missingFids = fidList.filter(fid => !existingFidSet.has(fid));
