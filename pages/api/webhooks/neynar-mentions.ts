@@ -138,6 +138,7 @@ async function likeCast(castHash: string): Promise<boolean> {
 
 /**
  * Check if a cast should be auto-liked
+ * Requires BOTH: @letshaveaword mention AND letshaveaword.fun URL embed
  */
 function shouldLikeCast(cast: NeynarCast): boolean {
   // Don't like our own casts
@@ -150,26 +151,22 @@ function shouldLikeCast(cast: NeynarCast): boolean {
     return false;
   }
 
-  // Check for @letshaveaword mention
+  // Must have @letshaveaword mention
   const mentionsUs = cast.mentioned_profiles?.some(
     (profile) => profile.fid === LETSHAVEAWORD_FID
   );
-  if (mentionsUs) {
-    return true;
+  if (!mentionsUs) {
+    return false;
   }
 
-  // Check for letshaveaword.fun URL in text
+  // Must also have letshaveaword.fun URL in text or embeds
   const textLower = (cast.text || '').toLowerCase();
-  if (textLower.includes('letshaveaword.fun')) {
-    return true;
-  }
+  const hasUrlInText = textLower.includes('letshaveaword.fun');
+  const hasUrlInEmbed = cast.embeds?.some(
+    (embed) => embed.url?.toLowerCase().includes('letshaveaword.fun')
+  );
 
-  // Check for letshaveaword.fun URL in embeds
-  if (cast.embeds?.some((embed) => embed.url?.toLowerCase().includes('letshaveaword.fun'))) {
-    return true;
-  }
-
-  return false;
+  return hasUrlInText || hasUrlInEmbed;
 }
 
 /**
