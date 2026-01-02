@@ -1229,72 +1229,80 @@ function GameContent() {
   if (hasCheckedContext && !isInMiniApp && !isClientDevMode()) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full text-center space-y-6">
+        <div className="max-w-md w-full text-center space-y-5">
           {/* Logo */}
           <div className="flex justify-center">
             <img
               src="/LHAW-icon.png"
-              alt="Let’s Have A Word"
-              className="w-24 h-24 rounded-2xl shadow-lg"
+              alt="Let's Have A Word"
+              className="w-20 h-20 rounded-2xl shadow-lg"
             />
           </div>
 
           {/* Title */}
-          <h1 className="text-3xl font-bold text-gray-900">
-            Let’s Have A Word!
+          <h1 className="text-2xl font-bold text-gray-900">
+            Let's Have A Word!
           </h1>
 
-          {/* Message */}
-          <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
-            <p className="text-gray-700 leading-relaxed">
-              <strong>Let’s Have A Word!</strong> uses the Farcaster stack. You can play in{' '}
+          {/* Value Proposition */}
+          <p className="text-lg text-gray-700 font-medium">
+            A daily onchain word game with real ETH prizes.
+          </p>
+
+          {/* Explanation Card */}
+          <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
+            <p className="text-gray-700 text-sm leading-relaxed">
+              <strong>Let's Have A Word!</strong> is built on{' '}
               <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Farcaster
               </a>
-              {' '}and the{' '}
+              {' '}and{' '}
               <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
-                Base app
+                Base
               </a>
-              , which share the same identity and wallet infrastructure.
+              —a decentralized social network with built-in identity and wallets.
             </p>
-            <p className="text-gray-600 text-sm">
-              Standalone web play isn’t supported yet. A standalone web version may be explored later.
+            <p className="text-gray-500 text-sm">
+              A standalone web version may come later.
             </p>
           </div>
 
           {/* CTA Button */}
-          <a
-            href="https://warpcast.com/letshaveaword"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-accent inline-flex items-center gap-2 px-6 py-3"
-          >
-            <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
-            @letshaveaword
-          </a>
+          <div className="space-y-2">
+            <a
+              href="https://warpcast.com/letshaveaword"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-accent inline-flex items-center gap-2 px-6 py-3 text-base font-semibold"
+            >
+              <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
+              Play on Farcaster
+            </a>
+            <p className="text-xs text-gray-500">Live rounds with ETH prize pools</p>
+          </div>
 
           {/* Footer */}
-          <div className="space-y-1">
-            <p className="text-xs text-gray-500">
-              Don’t have Farcaster?{' '}
+          <div className="pt-2 space-y-1">
+            <p className="text-xs text-gray-400">
+              New to Farcaster?{' '}
               <a
                 href="https://farcaster.xyz/~/code/ZFYXLS"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary-600 underline"
               >
-                Sign up here
+                Get started
               </a>
             </p>
-            <p className="text-xs text-gray-500">
-              Don’t have Base app?{' '}
+            <p className="text-xs text-gray-400">
+              Prefer the Base app?{' '}
               <a
                 href="https://base.app/invite/starl3xx/23BC6Y0C"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary-600 underline"
               >
-                Sign up here
+                Join here
               </a>
             </p>
           </div>
