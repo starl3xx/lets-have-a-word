@@ -409,21 +409,14 @@ export async function purchaseGuessesOnChain(
 /**
  * Start next round on smart contract (legacy - without commitment)
  *
- * @deprecated Use startRoundWithCommitmentOnChain for provably fair rounds
- * @returns Transaction hash
+ * @deprecated REMOVED - All rounds must use startRoundWithCommitmentOnChain for provable fairness
+ * @throws Always throws - this function is disabled
  */
 export async function startNextRoundOnChain(): Promise<string> {
-  const contract = getJackpotManagerWithOperator();
-
-  console.log(`[CONTRACT] Starting next round (legacy - no commitment)`);
-
-  const tx = await contract.startNextRound();
-  console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
-
-  const receipt = await tx.wait();
-  console.log(`[CONTRACT] Next round started - Block: ${receipt.blockNumber}`);
-
-  return tx.hash;
+  throw new Error(
+    'startNextRoundOnChain is disabled. All rounds must use startRoundWithCommitmentOnChain ' +
+    'for onchain provable fairness. Use createRound() which handles this automatically.'
+  );
 }
 
 /**
@@ -1018,17 +1011,13 @@ export async function seedJackpotOnSepolia(amountEth: string): Promise<string> {
 
 /**
  * Start next round on Sepolia (uses contract balance, no commitment hash)
+ *
+ * @deprecated REMOVED - All rounds must use startRoundWithCommitmentOnSepolia for provable fairness
+ * @throws Always throws - this function is disabled
  */
 export async function startNextRoundOnSepolia(): Promise<string> {
-  const contract = getSepoliaJackpotManagerWithOperator();
-
-  console.log(`[SEPOLIA] Starting next round (using contract balance)`);
-
-  const tx = await contract.startNextRound();
-  console.log(`[SEPOLIA] Start round transaction submitted: ${tx.hash}`);
-
-  const receipt = await tx.wait();
-  console.log(`[SEPOLIA] Round started - Block: ${receipt.blockNumber}`);
-
-  return tx.hash;
+  throw new Error(
+    'startNextRoundOnSepolia is disabled. All rounds must use startRoundWithCommitmentOnSepolia ' +
+    'for onchain provable fairness.'
+  );
 }
