@@ -6,6 +6,7 @@ import GuessBar from './GuessBar';
 
 interface UserStateProps {
   fid: number | null;
+  onGetMore?: () => void;
 }
 
 /**
@@ -67,7 +68,7 @@ let cachedSourceState: GuessSourceState | null = null;
  * - Never collapses to "Loading..." text
  * - Uses module-level cache to persist state across remounts
  */
-export default function UserState({ fid }: UserStateProps) {
+export default function UserState({ fid, onGetMore }: UserStateProps) {
   const [userState, setUserState] = useState<UserStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -186,6 +187,7 @@ export default function UserState({ fid }: UserStateProps) {
   return (
     <GuessBar
       sourceState={displaySourceState}
+      onGetMore={onGetMore}
     />
   );
 }

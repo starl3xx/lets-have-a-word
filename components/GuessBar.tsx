@@ -28,6 +28,7 @@ import type { GuessSourceState } from '../src/types';
 
 interface GuessBarProps {
   sourceState: GuessSourceState;
+  onGetMore?: () => void;
 }
 
 /**
@@ -81,7 +82,7 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-export default function GuessBar({ sourceState }: GuessBarProps) {
+export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
   const { totalRemaining, free, clankton, share, paid } = sourceState;
 
   // Track decrement pulse animation
@@ -151,49 +152,65 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
       {/* Separator */}
       <span className="text-gray-400">|</span>
 
-      {/* Right side: Source breakdown */}
-      <span
-        className="text-sm whitespace-nowrap"
-        style={{ color: '#4b5563', fontWeight: 400 }}
-      >
-        {/* Free guess (always shown) */}
-        <SourceSegment
-          label="free"
-          value={free.total}
-          isConsumed={freeConsumed}
-          isFirst={true}
-        />
-
-        {/* CLANKTON bonus (only if holder) */}
-        {showClankton && (
+      {/* Right side: Source breakdown OR "Get more" CTA when empty */}
+      {totalRemaining === 0 && onGetMore ? (
+        <button
+          onClick={onGetMore}
+          className="text-sm font-medium whitespace-nowrap"
+          style={{
+            color: '#2563eb', // blue-600
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+        >
+          Get more →
+        </button>
+      ) : (
+        <span
+          className="text-sm whitespace-nowrap"
+          style={{ color: '#4b5563', fontWeight: 400 }}
+        >
+          {/* Free guess (always shown) */}
           <SourceSegment
-            label="CLANKTON"
-            value={clankton.total}
-            isConsumed={clanktonConsumed}
-            color="#7c3aed" // purple-600
+            label="free"
+            value={free.total}
+            isConsumed={freeConsumed}
+            isFirst={true}
           />
-        )}
 
-        {/* Share bonus (only if earned) */}
-        {share.total > 0 && (
-          <SourceSegment
-            label="share"
-            value={share.total}
-            isConsumed={shareConsumed}
-            color="#0891b2" // cyan-600 (social/sharing action)
-          />
-        )}
+          {/* CLANKTON bonus (only if holder) */}
+          {showClankton && (
+            <SourceSegment
+              label="CLANKTON"
+              value={clankton.total}
+              isConsumed={clanktonConsumed}
+              color="#7c3aed" // purple-600
+            />
+          )}
 
-        {/* Paid guesses (only if purchased) */}
-        {showPaid && (
-          <SourceSegment
-            label="paid"
-            value={paid.total}
-            isConsumed={paidConsumed}
-            color="#d97706" // amber-600 (purchased with ETH)
-          />
-        )}
-      </span>
+          {/* Share bonus (only if earned) */}
+          {share.total > 0 && (
+            <SourceSegment
+              label="share"
+              value={share.total}
+              isConsumed={shareConsumed}
+              color="#0891b2" // cyan-600 (social/sharing action)
+            />
+          )}
+
+          {/* Paid guesses (only if purchased) */}
+          {showPaid && (
+            <SourceSegment
+              label="paid"
+              value={paid.total}
+              isConsumed={paidConsumed}
+              color="#d97706" // amber-600 (purchased with ETH)
+            />
+          )}
+        </span>
+      )}
     </div>
   );
 }
