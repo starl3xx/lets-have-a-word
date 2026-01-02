@@ -1270,7 +1270,7 @@ function GameContent() {
             className="btn-accent inline-flex items-center gap-2 px-6 py-3"
           >
             <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
-            Find us on Farcaster
+            @letshaveaword
           </a>
 
           {/* Footer */}
