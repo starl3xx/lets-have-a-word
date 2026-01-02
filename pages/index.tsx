@@ -1258,7 +1258,7 @@ function GameContent() {
               , which share the same identity and wallet infrastructure.
             </p>
             <p className="text-gray-600 text-sm">
-              Standalone web play isn't supported yet. A standalone web version may be explored later.
+              Standalone web play isn’t supported yet. A standalone web version may be explored later.
             </p>
           </div>
 
@@ -1274,28 +1274,30 @@ function GameContent() {
           </a>
 
           {/* Footer */}
-          <p className="text-xs text-gray-500">
-            Don't have Farcaster?{' '}
-            <a
-              href="https://farcaster.xyz/~/code/ZFYXLS"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary-600 underline"
-            >
-              Sign up here
-            </a>
-          </p>
-          <p className="text-xs text-gray-500">
-            Don't have Base app?{' '}
-            <a
-              href="https://base.app/invite/starl3xx/23BC6Y0C"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary-600 underline"
-            >
-              Sign up here
-            </a>
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">
+              Don't have Farcaster?{' '}
+              <a
+                href="https://farcaster.xyz/~/code/ZFYXLS"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 underline"
+              >
+                Sign up here
+              </a>
+            </p>
+            <p className="text-xs text-gray-500">
+              Don't have Base app?{' '}
+              <a
+                href="https://base.app/invite/starl3xx/23BC6Y0C"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 underline"
+              >
+                Sign up here
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     );
