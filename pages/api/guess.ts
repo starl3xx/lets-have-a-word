@@ -310,24 +310,24 @@ export default async function handler(
         spamScore,
         referrerFid,
       });
+    }
 
-      // Milestone 5.3: Check user quality score for anti-bot protection
-      // Skip in development mode
-      if (process.env.USER_QUALITY_GATING_ENABLED === 'true') {
-        const qualityCheck = await checkUserQuality(fid);
+    // Milestone 5.3: Check user quality score for anti-bot protection
+    // Skip in development mode - applies to ALL auth paths (miniApp, frame, signer)
+    if (process.env.USER_QUALITY_GATING_ENABLED === 'true') {
+      const qualityCheck = await checkUserQuality(fid);
 
-        if (!qualityCheck.eligible) {
-          // Log the blocked attempt
-          await logBlockedAttempt(fid, qualityCheck.score, 'guess');
+      if (!qualityCheck.eligible) {
+        // Log the blocked attempt
+        await logBlockedAttempt(fid, qualityCheck.score, 'guess');
 
-          return res.status(403).json({
-            error: qualityCheck.errorCode || INSUFFICIENT_USER_SCORE_ERROR,
-            message: qualityCheck.reason || `User quality score below minimum (${MIN_USER_SCORE})`,
-            score: qualityCheck.score,
-            minRequired: MIN_USER_SCORE,
-            helpUrl: qualityCheck.helpUrl,
-          } as any);
-        }
+        return res.status(403).json({
+          error: qualityCheck.errorCode || INSUFFICIENT_USER_SCORE_ERROR,
+          message: qualityCheck.reason || `User quality score below minimum (${MIN_USER_SCORE})`,
+          score: qualityCheck.score,
+          minRequired: MIN_USER_SCORE,
+          helpUrl: qualityCheck.helpUrl,
+        } as any);
       }
     }
 
