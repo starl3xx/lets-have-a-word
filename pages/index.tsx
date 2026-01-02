@@ -6,6 +6,7 @@ import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
 import SharePromptModal from '../components/SharePromptModal';
+import InstallPromptModal, { hasSeenInstallPrompt } from '../components/InstallPromptModal';
 import WinnerShareCard from '../components/WinnerShareCard';
 import LetterBoxes from '../components/LetterBoxes';
 import ResultBanner, { type ResultBannerVariant } from '../components/ResultBanner';
@@ -103,6 +104,10 @@ function GameContent() {
   // Share modal state (Milestone 4.2)
   const [showShareModal, setShowShareModal] = useState(false);
   const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
+
+  // Install prompt modal state (post-guess prompt for non-installed users)
+  const [showInstallPromptModal, setShowInstallPromptModal] = useState(false);
+  const [hasMiniAppInstalled, setHasMiniAppInstalled] = useState<boolean | null>(null);
 
   // Winner share card state (Milestone 4.14)
   const [showWinnerShareCard, setShowWinnerShareCard] = useState(false);
@@ -313,6 +318,30 @@ function GameContent() {
     }
     // In production, OnboardingManager handles the full onboarding flow
     // including both "How It Works" and OG Hunter thanks modals
+  }, [effectiveFid]);
+
+  /**
+   * Fetch mini app install status for post-guess install prompt
+   * Used to determine if we should show InstallPromptModal after first guess
+   */
+  useEffect(() => {
+    if (!effectiveFid) return;
+
+    const fetchInstallStatus = async () => {
+      try {
+        const response = await fetch(`/api/onboarding/status?fid=${effectiveFid}`);
+        if (response.ok) {
+          const data = await response.json();
+          setHasMiniAppInstalled(data.hasMiniAppInstalled ?? false);
+        }
+      } catch (error) {
+        console.error('[InstallStatus] Error fetching install status:', error);
+        // Default to true on error to avoid showing the modal
+        setHasMiniAppInstalled(true);
+      }
+    };
+
+    fetchInstallStatus();
   }, [effectiveFid]);
 
   /**
@@ -1051,7 +1080,13 @@ function GameContent() {
               // Show appropriate modal based on decision
               switch (decision) {
                 case 'share':
-                  setShowShareModal(true);
+                  // Check if we should show InstallPromptModal instead
+                  // Show to users who haven't installed mini app AND haven't seen this prompt before
+                  if (hasMiniAppInstalled === false && !hasSeenInstallPrompt()) {
+                    setShowInstallPromptModal(true);
+                  } else {
+                    setShowShareModal(true);
+                  }
                   break;
                 case 'pack':
                   setShowGuessPurchaseModal(true);
@@ -1257,6 +1292,23 @@ function GameContent() {
   const handleShareSuccess = () => {
     setUserStateKey(prev => prev + 1);
     setCanClaimShareBonus(false);
+  };
+
+  /**
+   * Handle install prompt modal close
+   */
+  const handleInstallPromptClose = () => {
+    setShowInstallPromptModal(false);
+    setPendingShareResult(null);
+  };
+
+  /**
+   * Handle successful install from InstallPromptModal
+   * Updates hasMiniAppInstalled state and refetches user state
+   */
+  const handleInstallSuccess = () => {
+    setHasMiniAppInstalled(true);
+    setUserStateKey(prev => prev + 1);
   };
 
   /**
@@ -1680,6 +1732,17 @@ function GameContent() {
           guessResult={pendingShareResult}
           onClose={handleShareModalClose}
           onShareSuccess={handleShareSuccess}
+        />
+      )}
+
+      {/* Install Prompt Modal (post-guess prompt for non-installed users) */}
+      {showInstallPromptModal && pendingShareResult && (
+        <InstallPromptModal
+          fid={effectiveFid}
+          guessResult={pendingShareResult}
+          onClose={handleInstallPromptClose}
+          onShareSuccess={handleShareSuccess}
+          onInstallSuccess={handleInstallSuccess}
         />
       )}
 
