@@ -252,15 +252,6 @@ export default function InstallPromptModal({
           <p className="text-gray-600 mt-3">
             {word ? (
               <>
-                <span className="font-bold">{word.toUpperCase()}</span> wasn't the word, but you're in the hunt!
-              </>
-            ) : (
-              <>You're in the hunt!</>
-            )}
-          </p>
-          <p className="text-gray-600 mt-3">
-            {word ? (
-              <>
                 Share your guess <span className="font-bold">{word.toUpperCase()}</span> to unlock{' '}
                 <span className="font-bold text-success-600">+1 free guess</span> today!
               </>
