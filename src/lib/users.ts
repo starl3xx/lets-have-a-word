@@ -28,10 +28,16 @@ export interface UpsertUserParams {
 export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise<UserRow> {
   const { fid, signerWallet, spamScore, referrerFid } = params;
 
+  console.log(`[Referral] upsertUserFromFarcaster called: fid=${fid}, referrerFid=${referrerFid}`);
+
   // Validate referrer (cannot refer yourself)
   // Note: We trust the Farcaster FID is valid - no need to verify the referrer exists in our DB.
   // This allows users to share referral links before making their first guess.
   const validReferrerFid = referrerFid && referrerFid !== fid ? referrerFid : null;
+
+  if (referrerFid && validReferrerFid === null) {
+    console.log(`[Referral] Self-referral blocked: fid=${fid} tried to use referrerFid=${referrerFid}`);
+  }
 
   // Check if user already exists
   const existingUser = await db
@@ -43,6 +49,10 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
   if (existingUser.length > 0) {
     // User exists - update signer wallet and spam score
     const user = existingUser[0];
+    console.log(`[Referral] User FID ${fid} already exists (existing referrerFid=${user.referrerFid}). Referrer NOT updated.`);
+    if (validReferrerFid && !user.referrerFid) {
+      console.log(`[Referral] ⚠️ MISSED REFERRAL: New referrer ${validReferrerFid} provided but user ${fid} already exists without one!`);
+    }
 
     // Only update if values have changed
     const needsUpdate =

@@ -73,6 +73,16 @@ export default async function handler(
       console.log(`[user-state] Using connected wallet: ${walletAddress}`);
     }
 
+    // Check for referral parameter
+    let referrerFid: number | null = null;
+    if (req.query.ref) {
+      const refParam = parseInt(req.query.ref as string, 10);
+      if (!isNaN(refParam) && refParam > 0) {
+        referrerFid = refParam;
+        console.log(`[Referral] user-state received ref=${referrerFid}`);
+      }
+    }
+
     // Check for devFid (development mode)
     if (req.query.devFid) {
       fid = parseInt(req.query.devFid as string, 10);
@@ -150,7 +160,13 @@ export default async function handler(
       const userWallet = walletAddress || farcasterUser?.signerWallet || null;
       const username = farcasterUser?.username || `user-${fid}`;
 
-      console.log(`[user-state] Creating user ${fid} with wallet ${userWallet || 'null'}`);
+      // Validate referrer (cannot refer yourself)
+      const validReferrerFid = referrerFid && referrerFid !== fid ? referrerFid : null;
+      if (referrerFid && validReferrerFid === null && referrerFid === fid) {
+        console.log(`[Referral] Self-referral blocked: fid=${fid}`);
+      }
+
+      console.log(`[user-state] Creating user ${fid} with wallet ${userWallet || 'null'}, referrerFid=${validReferrerFid}`);
       try {
         await db.insert(users).values({
           fid,
@@ -158,8 +174,13 @@ export default async function handler(
           signerWalletAddress: userWallet,
           custodyAddress: farcasterUser?.custodyAddress || null,
           spamScore: farcasterUser?.spamScore || 0,
+          referrerFid: validReferrerFid,
         });
-        console.log(`[user-state] User ${fid} created successfully`);
+        if (validReferrerFid) {
+          console.log(`[Referral] ✅ Created new user FID ${fid} with referrer FID ${validReferrerFid}`);
+        } else {
+          console.log(`[user-state] User ${fid} created successfully`);
+        }
       } catch (insertError) {
         console.error('[user-state] User insert failed:', insertError);
         throw new Error(`Database insert error: ${insertError instanceof Error ? insertError.message : 'Unknown'}`);

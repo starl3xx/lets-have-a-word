@@ -419,6 +419,17 @@ function GameContent() {
         params.append('devFid', effectiveFid.toString());
         if (isInitialLoad) params.append('initialLoad', 'true');
         if (connectedWalletAddress) params.append('walletAddress', connectedWalletAddress);
+
+        // Include referral parameter so user record is created with referrer
+        const storedRef = sessionStorage.getItem('referrerFid');
+        if (storedRef) {
+          const refFid = parseInt(storedRef, 10);
+          if (!isNaN(refFid) && refFid > 0) {
+            params.append('ref', refFid.toString());
+            console.log(`[Referral] Passing ref=${refFid} to user-state API`);
+          }
+        }
+
         const url = `/api/user-state?${params.toString()}`;
 
         const response = await fetch(url);
@@ -808,11 +819,17 @@ function GameContent() {
       // Get referral parameter from sessionStorage (captured on initial page load)
       // This ensures the ref is not lost if URL changed before first guess
       const storedRef = sessionStorage.getItem('referrerFid');
+      console.log(`[Referral] Checking sessionStorage: storedRef=${storedRef}`);
       if (storedRef) {
         const refFid = parseInt(storedRef, 10);
         if (!isNaN(refFid) && refFid > 0) {
           requestBody.ref = refFid;
+          console.log(`[Referral] Added ref=${refFid} to guess request body`);
+        } else {
+          console.log(`[Referral] Invalid refFid parsed: ${refFid} (original: ${storedRef})`);
         }
+      } else {
+        console.log(`[Referral] No referrerFid in sessionStorage`);
       }
 
       // Call API
@@ -977,6 +994,14 @@ function GameContent() {
           try {
             const stateParams = new URLSearchParams({ devFid: effectiveFid.toString() });
             if (connectedWalletAddress) stateParams.append('walletAddress', connectedWalletAddress);
+            // Include referral for consistency (user should exist by now, but belt-and-suspenders)
+            const storedRefForState = sessionStorage.getItem('referrerFid');
+            if (storedRefForState) {
+              const refFidForState = parseInt(storedRefForState, 10);
+              if (!isNaN(refFidForState) && refFidForState > 0) {
+                stateParams.append('ref', refFidForState.toString());
+              }
+            }
             const stateResponse = await fetch(`/api/user-state?${stateParams.toString()}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
