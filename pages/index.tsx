@@ -1234,20 +1234,20 @@ function GameContent() {
           <div className="flex justify-center">
             <img
               src="/LHAW-icon.png"
-              alt="Let's Have A Word"
+              alt="Let’s Have A Word"
               className="w-24 h-24 rounded-2xl shadow-lg"
             />
           </div>
 
           {/* Title */}
           <h1 className="text-3xl font-bold text-gray-900">
-            Let's Have A Word!
+            Let’s Have A Word!
           </h1>
 
           {/* Message */}
           <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
             <p className="text-gray-700 leading-relaxed">
-              <strong>Let's Have A Word!</strong> uses the Farcaster stack. You can play in{' '}
+              <strong>Let’s Have A Word!</strong> uses the Farcaster stack. You can play in{' '}
               <a href="https://farcaster.xyz" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Farcaster
               </a>
