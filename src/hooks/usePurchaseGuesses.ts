@@ -5,6 +5,7 @@
  * Uses wagmi to call purchaseGuesses() on the JackpotManager contract
  */
 
+import { useState, useCallback } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
@@ -53,6 +54,8 @@ export interface UsePurchaseGuessesReturn {
   error: Error | null;
   txHash: `0x${string}` | undefined;
   reset: () => void;
+  /** True if the contract address is not configured */
+  isConfigError: boolean;
 }
 
 /**
@@ -77,7 +80,7 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
     isPending,
     isError: isWriteError,
     error: writeError,
-    reset,
+    reset: resetWrite,
   } = useWriteContract();
 
   const {
@@ -89,9 +92,18 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
     hash: txHash,
   });
 
-  const purchaseGuesses = (params: PurchaseGuessesParams) => {
+  // Track configuration errors separately
+  const [configError, setConfigError] = useState<Error | null>(null);
+  const isConfigError = !JACKPOT_MANAGER_ADDRESS;
+
+  const purchaseGuesses = useCallback((params: PurchaseGuessesParams) => {
+    // Clear any previous config error
+    setConfigError(null);
+
     if (!JACKPOT_MANAGER_ADDRESS) {
+      const error = new Error('Pack purchases are not available. Contract address not configured.');
       console.error('[usePurchaseGuesses] NEXT_PUBLIC_JACKPOT_MANAGER_ADDRESS not configured');
+      setConfigError(error);
       return;
     }
 
@@ -103,16 +115,22 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
       value: parseEther(params.totalPriceEth),
       chainId: base.id,
     });
-  };
+  }, [writeContract]);
+
+  const reset = useCallback(() => {
+    setConfigError(null);
+    resetWrite();
+  }, [resetWrite]);
 
   return {
     purchaseGuesses,
     isPending,
     isConfirming,
     isSuccess,
-    isError: isWriteError || isReceiptError,
-    error: writeError || receiptError || null,
+    isError: isWriteError || isReceiptError || !!configError,
+    error: configError || writeError || receiptError || null,
     txHash,
     reset,
+    isConfigError,
   };
 }

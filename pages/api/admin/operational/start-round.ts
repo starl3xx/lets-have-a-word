@@ -25,10 +25,17 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<StartRoundResponse>
 ) {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    return res.status(204).end();
+  }
+
   if (req.method !== 'POST') {
+    console.log(`[start-round] Received ${req.method} request, expected POST`);
     return res.status(405).json({
       success: false,
-      message: 'Method not allowed',
+      message: `Method ${req.method} not allowed. Use POST.`,
     });
   }
 

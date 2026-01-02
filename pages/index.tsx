@@ -42,7 +42,7 @@ import { useGuessInput } from '../src/hooks/useGuessInput';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
-import { WagmiProvider } from 'wagmi';
+import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 
@@ -72,6 +72,10 @@ function GameContent() {
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
+  const [hasCheckedContext, setHasCheckedContext] = useState(false);
+
+  // Get connected wallet from Wagmi for CLANKTON bonus check
+  const { address: connectedWalletAddress } = useAccount();
 
   // Effective FID: use real Farcaster FID, or dev fallback in dev mode
   // This ensures consistent FID usage across guess submission, user state fetch, and share callbacks
@@ -133,6 +137,14 @@ function GameContent() {
   const INCORRECT_FADED_DURATION_MS = 1500; // Gray state: 1.5s
   const INCORRECT_FADEOUT_DURATION_MS = 1000; // Fade out: 1s
 
+  // Browser fallback: Live round stats for landing page
+  const [browserFallbackStats, setBrowserFallbackStats] = useState<{
+    roundId: number;
+    prizePoolEth: string;
+    globalGuessCount: number;
+    playerCount: number;
+  } | null>(null);
+
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
@@ -190,24 +202,104 @@ function GameContent() {
           setFid(context.user.fid);
           setIsInMiniApp(true);
           console.log('Farcaster FID:', context.user.fid);
+
+          // Extract referral from SDK context.location.embed
+          // When opened from a cast embed, Warpcast stores the original URL here (not in window.location)
+          const location = context.location as { type?: string; embed?: string } | undefined;
+          if (location?.type === 'cast_embed' && location.embed) {
+            try {
+              const embedUrl = new URL(location.embed);
+              const refParam = embedUrl.searchParams.get('ref');
+              if (refParam) {
+                const refFid = parseInt(refParam, 10);
+                if (!isNaN(refFid) && refFid > 0 && !sessionStorage.getItem('referrerFid')) {
+                  sessionStorage.setItem('referrerFid', refFid.toString());
+                  console.log(`[Referral] Captured from SDK context.location.embed: ${refFid}`);
+                }
+              }
+            } catch (e) {
+              console.error('[Referral] Failed to parse embed URL:', e);
+            }
+          }
         } else {
-          // No FID in context, use dev mode fallback
-          console.log('No FID in context, using dev mode');
-          setFid(12345); // Dev fallback
+          // No FID in context - check if dev mode
+          console.log('No FID in context');
+          if (isClientDevMode()) {
+            console.log('Dev mode enabled, using fallback FID');
+            setFid(12345); // Dev fallback
+          }
           setIsInMiniApp(false);
         }
+
+        setHasCheckedContext(true);
 
         // Signal that the app is ready to the Farcaster mini-app runtime
         sdk.actions.ready();
       } catch (error) {
-        console.log('Not in Farcaster context, using dev mode');
-        setFid(12345); // Dev fallback
+        console.log('Not in Farcaster context');
+        if (isClientDevMode()) {
+          console.log('Dev mode enabled, using fallback FID');
+          setFid(12345); // Dev fallback
+        }
         setIsInMiniApp(false);
+        setHasCheckedContext(true);
       }
     };
 
     getFarcasterContext();
   }, []);
+
+  /**
+   * Capture referral from window.location (fallback for non-Warpcast contexts)
+   * Primary capture happens in getFarcasterContext from sdk.context.location.embed
+   */
+  useEffect(() => {
+    // Only use window.location as fallback if not already captured from SDK context
+    if (sessionStorage.getItem('referrerFid')) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const refParam = urlParams.get('ref');
+    if (refParam) {
+      const refFid = parseInt(refParam, 10);
+      if (!isNaN(refFid) && refFid > 0) {
+        sessionStorage.setItem('referrerFid', refFid.toString());
+        console.log(`[Referral] Captured from window.location: ${refFid}`);
+      }
+    }
+  }, []);
+
+  /**
+   * Fetch live round stats for browser fallback landing page
+   * Only runs when user is in a browser (not mini app) and not in dev mode
+   */
+  useEffect(() => {
+    if (!hasCheckedContext || isInMiniApp || isClientDevMode()) return;
+
+    const fetchStats = async () => {
+      try {
+        const [roundRes, guessersRes] = await Promise.all([
+          fetch('/api/round-state'),
+          fetch('/api/round/top-guessers'),
+        ]);
+
+        if (roundRes.ok) {
+          const roundData = await roundRes.json();
+          const guessersData = guessersRes.ok ? await guessersRes.json() : { uniqueGuessersCount: 0 };
+
+          setBrowserFallbackStats({
+            roundId: roundData.roundId,
+            prizePoolEth: roundData.prizePoolEth,
+            globalGuessCount: roundData.globalGuessCount,
+            playerCount: guessersData.uniqueGuessersCount || 0,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching browser fallback stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, [hasCheckedContext, isInMiniApp]);
 
   /**
    * Check if user has seen intro overlay (Milestone 4.3)
@@ -322,9 +414,12 @@ function GameContent() {
         const isInitialLoad = isFirstUserStateFetchRef.current;
         isFirstUserStateFetchRef.current = false;
 
-        const url = isInitialLoad
-          ? `/api/user-state?devFid=${effectiveFid}&initialLoad=true`
-          : `/api/user-state?devFid=${effectiveFid}`;
+        // Build URL with FID and wallet address for CLANKTON bonus check
+        const params = new URLSearchParams();
+        params.append('devFid', effectiveFid.toString());
+        if (isInitialLoad) params.append('initialLoad', 'true');
+        if (connectedWalletAddress) params.append('walletAddress', connectedWalletAddress);
+        const url = `/api/user-state?${params.toString()}`;
 
         const response = await fetch(url);
         if (response.ok) {
@@ -355,7 +450,7 @@ function GameContent() {
     };
 
     fetchUserGuessCount();
-  }, [effectiveFid, userStateKey]); // Re-fetch when effectiveFid or userStateKey changes
+  }, [effectiveFid, userStateKey, connectedWalletAddress]); // Re-fetch when FID, state key, or wallet changes
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
@@ -698,19 +793,23 @@ function GameContent() {
     void haptics.guessSubmitting();
 
     try {
-      // Use effectiveFid (real Farcaster FID or dev fallback)
+      // Build request body with appropriate authentication
       const requestBody: any = { word };
 
-      if (effectiveFid) {
+      if (isInMiniApp && fid) {
+        // In mini app context: use miniAppFid (production)
+        // Warpcast has already authenticated the user via sdk.context
+        requestBody.miniAppFid = fid;
+      } else if (isClientDevMode() && effectiveFid) {
+        // Local development: use devFid
         requestBody.devFid = effectiveFid;
       }
 
-      // Extract referral parameter from URL (e.g., ?ref=12345)
-      // This is passed on every guess but only used for first-time user creation
-      const urlParams = new URLSearchParams(window.location.search);
-      const refParam = urlParams.get('ref');
-      if (refParam) {
-        const refFid = parseInt(refParam, 10);
+      // Get referral parameter from sessionStorage (captured on initial page load)
+      // This ensures the ref is not lost if URL changed before first guess
+      const storedRef = sessionStorage.getItem('referrerFid');
+      if (storedRef) {
+        const refFid = parseInt(storedRef, 10);
         if (!isNaN(refFid) && refFid > 0) {
           requestBody.ref = refFid;
         }
@@ -876,7 +975,9 @@ function GameContent() {
         setTimeout(async () => {
           // Refetch user state to get updated guesses remaining
           try {
-            const stateResponse = await fetch(`/api/user-state?devFid=${effectiveFid}`);
+            const stateParams = new URLSearchParams({ devFid: effectiveFid.toString() });
+            if (connectedWalletAddress) stateParams.append('walletAddress', connectedWalletAddress);
+            const stateResponse = await fetch(`/api/user-state?${stateParams.toString()}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
               const guessesRemaining = stateData.totalGuessesRemaining;
@@ -1159,7 +1260,117 @@ function GameContent() {
     // Immediately dismiss the incorrect banner (no fade needed - user took action)
     setIncorrectState('none');
     setLastSubmittedGuess(null);
+
+    // Clear the result state and reset input boxes for fresh guessing
+    setResult(null);
+    setLetters(['', '', '', '', '']);
   };
+
+  // Show browser fallback when not in mini app and not in dev mode
+  if (hasCheckedContext && !isInMiniApp && !isClientDevMode()) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-5">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <img
+              src="/LHAW-icon.png"
+              alt="Let’s Have A Word"
+              className="w-20 h-20 rounded-2xl shadow-lg"
+            />
+          </div>
+
+          {/* Title */}
+          <h1 className="text-2xl font-bold text-gray-900">
+            Let’s Have A Word!
+          </h1>
+
+          {/* Value Proposition */}
+          <p className="text-lg text-gray-700 font-medium">
+            A global word hunt with real ETH prizes
+          </p>
+
+          {/* Explanation Card */}
+          <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
+            <p className="text-gray-700 text-sm leading-relaxed">
+              <strong>Let’s Have A Word</strong> is an onchain word game designed for{' '}
+              <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+                Farcaster
+              </a>
+              {' '}and{' '}
+              <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+                Base
+              </a>
+              {' '}— social apps with built-in wallets. It’s free to play.
+            </p>
+            <p className="text-gray-400 text-sm">
+              A standalone web version may come later.
+            </p>
+          </div>
+
+          {/* Live Round Stats */}
+          {browserFallbackStats && (
+            <div className="bg-white rounded-xl shadow-card px-4 py-3 border border-green-200">
+              <div className="flex items-center justify-center gap-2 text-sm mb-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span className="font-semibold text-gray-900">Round #{browserFallbackStats.roundId}</span>
+                <span className="text-gray-400">·</span>
+                <span className="font-semibold text-green-600">{parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH</span>
+                <span className="text-sm text-gray-400 font-normal">prize pool</span>
+              </div>
+              <div className="flex justify-center items-center gap-2 text-xs text-gray-500">
+                <span><span className="font-medium text-gray-700">{browserFallbackStats.globalGuessCount.toLocaleString()}</span> guesses</span>
+                <span className="text-gray-400">·</span>
+                <span><span className="font-medium text-gray-700">{browserFallbackStats.playerCount.toLocaleString()}</span> players</span>
+              </div>
+            </div>
+          )}
+
+          {/* CTA Button */}
+          <div>
+            <a
+              href="https://warpcast.com/letshaveaword"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-accent inline-flex items-center gap-2 px-6 py-3 text-base font-semibold"
+            >
+              <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
+              Play on Farcaster
+            </a>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-2 space-y-1">
+            <p className="text-xs text-gray-400">
+              New to Farcaster?{' '}
+              <a
+                href="https://farcaster.xyz/~/code/ZFYXLS"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 underline"
+              >
+                Get started
+              </a>
+            </p>
+            <p className="text-xs text-gray-400">
+              Prefer the Base app?{' '}
+              <a
+                href="https://base.app/invite/starl3xx/23BC6Y0C"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 underline"
+              >
+                Join here
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -1178,6 +1389,7 @@ function GameContent() {
           setCurrentRoundId(roundId);
           setShowArchiveModal(true);
         }}
+        adminFid={effectiveFid ?? undefined}
       />
 
       {/* Game Area Wrapper - contains UserState, game container, and overlays */}

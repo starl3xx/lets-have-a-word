@@ -77,11 +77,11 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid } = req.body;
 
     // Extract request metadata for rate limiting
     const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
-    const rateLimitFid = devFid || metadataFid;
+    const rateLimitFid = miniAppFid || devFid || metadataFid;
 
     // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
     // Runs BEFORE any DB operations to fail fast and cheap
@@ -116,6 +116,7 @@ export default async function handler(
 
     // Normalize word to uppercase
     const normalizedWord = word.toUpperCase();
+    console.log(`📝 [guess] Step 1: Word validated and normalized: ${normalizedWord}`);
 
     // ========================================
     // Milestone 4.8: Dev Mode Early Check
@@ -187,7 +188,9 @@ export default async function handler(
     // If database is unavailable, falls back to offline mock responses.
 
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
+    console.log(`📝 [guess] Step 2: About to call ensureDevMidRound (isDevelopment=${isDevelopment})`);
     await ensureDevMidRound();
+    console.log(`📝 [guess] Step 3: ensureDevMidRound completed`);
 
     // Ensure there's an active round
     let roundId: number | undefined;
@@ -207,7 +210,9 @@ export default async function handler(
       }
     } else {
       // Production: create a normal round if needed
+      console.log(`📝 [guess] Step 4: Production mode - calling ensureActiveRound`);
       await ensureActiveRound();
+      console.log(`📝 [guess] Step 5: ensureActiveRound completed`);
     }
 
     // ========================================
@@ -237,8 +242,30 @@ export default async function handler(
       // This allows the web UI to work in dev mode without requiring auth
       fid = 6500; // Default dev FID
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
+    } else if (miniAppFid) {
+      // Mini app context authentication
+      // The FID is provided by Warpcast's mini app SDK (sdk.context.user.fid)
+      // Warpcast has already authenticated the user, so we trust this FID
+      fid = typeof miniAppFid === 'number' ? miniAppFid : parseInt(miniAppFid, 10);
+      console.log(`📱 Mini app auth: using miniAppFid ${fid}`);
+
+      // Set Sentry context for mini app users
+      Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+      Sentry.setTag('auth_type', 'mini_app');
+
+      // Parse referral parameter
+      const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+
+      // Upsert user with minimal data (we don't have full Farcaster context)
+      await upsertUserFromFarcaster({
+        fid,
+        signerWallet: null,
+        spamScore: null,
+        referrerFid,
+      });
     } else {
       // Production mode: require Farcaster authentication
+      console.log(`📝 [guess] Step 6: Production auth - frameMessage=${!!frameMessage}, signerUuid=${!!signerUuid}`);
 
       // Verify Farcaster request and extract user context
       let farcasterContext;
@@ -261,7 +288,7 @@ export default async function handler(
         }
       } else {
         return res.status(400).json({
-          error: 'Authentication required: provide frameMessage or signerUuid (or devFid in development)',
+          error: 'Authentication required: provide miniAppFid, frameMessage, or signerUuid',
         });
       }
 
@@ -283,24 +310,24 @@ export default async function handler(
         spamScore,
         referrerFid,
       });
+    }
 
-      // Milestone 5.3: Check user quality score for anti-bot protection
-      // Skip in development mode
-      if (process.env.USER_QUALITY_GATING_ENABLED === 'true') {
-        const qualityCheck = await checkUserQuality(fid);
+    // Milestone 5.3: Check user quality score for anti-bot protection
+    // Skip in development mode - applies to ALL auth paths (miniApp, frame, signer)
+    if (process.env.USER_QUALITY_GATING_ENABLED === 'true') {
+      const qualityCheck = await checkUserQuality(fid);
 
-        if (!qualityCheck.eligible) {
-          // Log the blocked attempt
-          await logBlockedAttempt(fid, qualityCheck.score, 'guess');
+      if (!qualityCheck.eligible) {
+        // Log the blocked attempt
+        await logBlockedAttempt(fid, qualityCheck.score, 'guess');
 
-          return res.status(403).json({
-            error: qualityCheck.errorCode || INSUFFICIENT_USER_SCORE_ERROR,
-            message: qualityCheck.reason || `User quality score below minimum (${MIN_USER_SCORE})`,
-            score: qualityCheck.score,
-            minRequired: MIN_USER_SCORE,
-            helpUrl: qualityCheck.helpUrl,
-          } as any);
-        }
+        return res.status(403).json({
+          error: qualityCheck.errorCode || INSUFFICIENT_USER_SCORE_ERROR,
+          message: qualityCheck.reason || `User quality score below minimum (${MIN_USER_SCORE})`,
+          score: qualityCheck.score,
+          minRequired: MIN_USER_SCORE,
+          helpUrl: qualityCheck.helpUrl,
+        } as any);
       }
     }
 

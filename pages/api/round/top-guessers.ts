@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { guesses, rounds, users, userBadges } from '../../../src/db/schema';
-import { eq, and, sql, desc, lte, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, desc, asc, lte, isNull, inArray } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
@@ -168,7 +168,7 @@ export default async function handler(
     const [activeRound] = await db
       .select({ id: rounds.id })
       .from(rounds)
-      .where(eq(rounds.resolvedAt, sql`null`))
+      .where(isNull(rounds.resolvedAt))
       .limit(1);
 
     const currentRoundId = activeRound?.id || null;
@@ -197,17 +197,25 @@ export default async function handler(
               fid: guesses.fid,
               username: users.username,
               guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+              // Track when player made their last guess (for tiebreaker)
+              lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
             })
             .from(guesses)
             .leftJoin(users, eq(guesses.fid, users.fid))
             .where(
               and(
                 eq(guesses.roundId, currentRoundId),
-                lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES)
+                // Include guesses where guessIndexInRound <= 750 OR is NULL
+                // NULL values are treated as eligible (legacy data or edge cases)
+                or(
+                  lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
+                  isNull(guesses.guessIndexInRound)
+                )
               )
             )
             .groupBy(guesses.fid, users.username)
-            .orderBy(desc(sql`count(${guesses.id})`))
+            // Primary: most guesses (desc), Secondary: who reached that count first (asc)
+            .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
             .limit(10),
           // Count total unique guessers
           db
@@ -238,15 +246,39 @@ export default async function handler(
 
         const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
 
+        // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
+        const allFids = topGuessersData.map((g) => g.fid);
+
+        let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
+        if (allFids.length > 0) {
+          try {
+            const userData = await neynarClient.fetchBulkUsers({ fids: allFids });
+            if (userData.users) {
+              for (const user of userData.users) {
+                neynarProfiles.set(user.fid, {
+                  username: user.username || `FID ${user.fid}`,
+                  pfpUrl: user.pfp_url || `https://warpcast.com/avatar/${user.fid}`,
+                });
+              }
+            }
+          } catch (err) {
+            // Neynar fetch failed, fall back to defaults
+            console.warn('[top-guessers] Failed to fetch profiles from Neynar:', err);
+          }
+        }
+
         // Format response with profile picture URLs
-        const topGuessers: TopGuesser[] = topGuessersData.map((g) => ({
-          fid: g.fid,
-          username: g.username || `FID ${g.fid}`,
-          guessCount: Number(g.guessCount),
-          // Using Warpcast's avatar endpoint
-          pfpUrl: `https://warpcast.com/avatar/${g.fid}`,
-          hasOgHunterBadge: badgeFids.has(g.fid),
-        }));
+        // Prefer Neynar data for both username and pfpUrl (more reliable)
+        const topGuessers: TopGuesser[] = topGuessersData.map((g) => {
+          const neynarProfile = neynarProfiles.get(g.fid);
+          return {
+            fid: g.fid,
+            username: neynarProfile?.username || g.username || `FID ${g.fid}`,
+            guessCount: Number(g.guessCount),
+            pfpUrl: neynarProfile?.pfpUrl || `https://warpcast.com/avatar/${g.fid}`,
+            hasOgHunterBadge: badgeFids.has(g.fid),
+          };
+        });
 
         return {
           currentRoundId,
