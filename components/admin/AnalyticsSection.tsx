@@ -414,13 +414,13 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       const roundState = roundStateRes.ok ? await roundStateRes.json() : null
       const topGuessersData = topGuessersRes.ok ? await topGuessersRes.json() : { topGuessers: [], uniqueGuessersCount: 0 }
 
-      if (!roundState?.round?.id) {
+      if (!roundState?.roundId) {
         setStatusCastText("No active round found.")
         return
       }
 
-      const roundNumber = roundState.round.id
-      const prizePool = parseFloat(roundState.jackpotEth || '0').toFixed(4)
+      const roundNumber = roundState.roundId
+      const prizePool = parseFloat(roundState.prizePoolEth || '0').toFixed(4)
       const globalGuesses = (roundState.globalGuessCount || 0).toLocaleString()
       const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
 
