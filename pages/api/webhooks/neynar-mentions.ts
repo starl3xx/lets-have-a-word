@@ -1,18 +1,14 @@
 /**
  * Neynar Mentions Webhook Handler
- * Auto-likes casts that mention @letshaveaword or share the game
- *
- * Neynar sends webhook events when:
- * - Someone mentions @letshaveaword in a cast
- * - Someone embeds a letshaveaword.fun URL
+ * Auto-likes casts that mention @letshaveaword AND embed the game URL
  *
  * SETUP:
- * 1. Create a managed signer for @letshaveaword at https://dev.neynar.com/signers
- * 2. Store the signer UUID in LETSHAVEAWORD_SIGNER_UUID
- * 3. Create a webhook at https://dev.neynar.com/webhooks
+ * 1. Uses existing NEYNAR_SIGNER_UUID (same as announcer bot)
+ * 2. Create a webhook at https://dev.neynar.com/webhooks
  *    - URL: https://letshaveaword.fun/api/webhooks/neynar-mentions
- *    - Filter: cast.created with mention filter for your FID or text filter for domain
- * 4. Store the webhook secret in NEYNAR_WEBHOOK_SECRET
+ *    - Event: cast.created
+ *    - Filter: mentioned_fids contains 1477413
+ * 3. Store the webhook secret in NEYNAR_WEBHOOK_SECRET
  *
  * SECURITY:
  * - Webhook signature verification required in production
@@ -24,7 +20,7 @@ import crypto from 'crypto';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || '';
 const NEYNAR_WEBHOOK_SECRET = process.env.NEYNAR_WEBHOOK_SECRET || '';
-const LETSHAVEAWORD_SIGNER_UUID = process.env.LETSHAVEAWORD_SIGNER_UUID || '';
+const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID || '';
 const LETSHAVEAWORD_FID = parseInt(process.env.ANNOUNCER_FID || '1477413', 10);
 
 // Track recently liked casts to prevent duplicates (in-memory, clears on restart)
@@ -98,8 +94,8 @@ function verifyNeynarSignature(req: NextApiRequest, body: string): boolean {
  * Like a cast using Neynar API
  */
 async function likeCast(castHash: string): Promise<boolean> {
-  if (!NEYNAR_API_KEY || !LETSHAVEAWORD_SIGNER_UUID) {
-    console.error('[NeynarMentions] Missing NEYNAR_API_KEY or LETSHAVEAWORD_SIGNER_UUID');
+  if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID) {
+    console.error('[NeynarMentions] Missing NEYNAR_API_KEY or NEYNAR_SIGNER_UUID');
     return false;
   }
 
@@ -111,7 +107,7 @@ async function likeCast(castHash: string): Promise<boolean> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        signer_uuid: LETSHAVEAWORD_SIGNER_UUID,
+        signer_uuid: NEYNAR_SIGNER_UUID,
         reaction_type: 'like',
         target: castHash,
       }),
