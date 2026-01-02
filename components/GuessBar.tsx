@@ -29,6 +29,7 @@ import type { GuessSourceState } from '../src/types';
 interface GuessBarProps {
   sourceState: GuessSourceState;
   onGetMore?: () => void;
+  onClanktonHintTap?: () => void;
 }
 
 /**
@@ -82,7 +83,7 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
+export default function GuessBar({ sourceState, onGetMore, onClanktonHintTap }: GuessBarProps) {
   const { totalRemaining, free, clankton, share, paid } = sourceState;
 
   // Track decrement pulse animation
@@ -112,7 +113,7 @@ export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
   }, [totalRemaining, prefersReducedMotion]);
 
   // Determine which segments to show
-  const showClankton = clankton.isHolder;
+  // CLANKTON is always shown (as hint for non-holders, normally for holders)
   const showPaid = paid.total > 0;
 
   // Determine which segments are consumed (remaining === 0)
@@ -187,14 +188,32 @@ export default function GuessBar({ sourceState, onGetMore }: GuessBarProps) {
             isFirst={true}
           />
 
-          {/* CLANKTON bonus (only if holder) */}
-          {showClankton && (
+          {/* CLANKTON bonus - always shown */}
+          {/* For holders: normal display with their bonus amount */}
+          {/* For non-holders: crossed-out hint that's tappable */}
+          {clankton.isHolder ? (
             <SourceSegment
               label="CLANKTON"
               value={clankton.total}
               isConsumed={clanktonConsumed}
               color="#7c3aed" // purple-600
             />
+          ) : (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onClanktonHintTap?.();
+              }}
+              className="cursor-pointer transition-opacity hover:opacity-70"
+              style={{
+                color: '#a78bfa', // purple-400 (lighter purple)
+                opacity: 0.5,
+              }}
+            >
+              <span className="line-through">
+                {' '}+2 CLANKTON
+              </span>
+            </span>
           )}
 
           {/* Share bonus (only if earned) */}
