@@ -1275,14 +1275,14 @@ function GameContent() {
           <div className="flex justify-center">
             <img
               src="/LHAW-icon.png"
-              alt="Let's Have A Word"
+              alt="Let’s Have A Word"
               className="w-20 h-20 rounded-2xl shadow-lg"
             />
           </div>
 
           {/* Title */}
           <h1 className="text-2xl font-bold text-gray-900">
-            Let's Have A Word!
+            Let’s Have A Word!
           </h1>
 
           {/* Value Proposition */}
@@ -1293,7 +1293,7 @@ function GameContent() {
           {/* Explanation Card */}
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
             <p className="text-gray-700 text-sm leading-relaxed">
-              <strong>Let's Have A Word</strong> is an onchain word game designed for{' '}
+              <strong>Let’s Have A Word</strong> is an onchain word game designed for{' '}
               <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Farcaster
               </a>
@@ -1301,7 +1301,7 @@ function GameContent() {
               <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Base
               </a>
-              {' '}— social apps with built-in wallets. It's free to play.
+              {' '}— social apps with built-in wallets. It’s free to play.
             </p>
             <p className="text-gray-400 text-sm">
               A standalone web version may come later.
@@ -1319,9 +1319,11 @@ function GameContent() {
                 <span className="font-semibold text-gray-900">Round #{browserFallbackStats.roundId}</span>
                 <span className="text-gray-400">·</span>
                 <span className="font-semibold text-green-600">{parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH</span>
+                <span className="text-xs text-green-600/70 font-medium">PRIZE POOL</span>
               </div>
-              <div className="flex justify-center gap-4 text-xs text-gray-500">
+              <div className="flex justify-center items-center gap-2 text-xs text-gray-500">
                 <span><span className="font-medium text-gray-700">{browserFallbackStats.globalGuessCount.toLocaleString()}</span> guesses</span>
+                <span className="text-gray-400">·</span>
                 <span><span className="font-medium text-gray-700">{browserFallbackStats.playerCount.toLocaleString()}</span> players</span>
               </div>
             </div>
