@@ -103,7 +103,7 @@ async function likeCast(castHash: string): Promise<boolean> {
     const response = await fetch('https://api.neynar.com/v2/farcaster/reaction', {
       method: 'POST',
       headers: {
-        'api_key': NEYNAR_API_KEY,
+        'x-api-key': NEYNAR_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -183,6 +183,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  console.log(`[NeynarMentions] Webhook hit - method: ${req.method}`);
+
   // Only accept POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -190,16 +192,21 @@ export default async function handler(
 
   // Get raw body for signature verification
   const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+  console.log(`[NeynarMentions] Payload received, size: ${rawBody.length} bytes`);
 
   // Verify webhook signature
   if (!verifyNeynarSignature(req, rawBody)) {
+    console.warn('[NeynarMentions] Signature verification failed');
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  console.log('[NeynarMentions] Signature verified');
 
   try {
     const payload: NeynarWebhookPayload = typeof req.body === 'string'
       ? JSON.parse(req.body)
       : req.body;
+
+    console.log(`[NeynarMentions] Event type: ${payload.type}`);
 
     // Only handle cast.created events
     if (payload.type !== 'cast.created') {
@@ -214,6 +221,9 @@ export default async function handler(
     }
 
     console.log(`[NeynarMentions] Received cast ${cast.hash} from @${cast.author.username || cast.author.fid}`);
+    console.log(`[NeynarMentions] Cast text: ${cast.text?.substring(0, 100)}`);
+    console.log(`[NeynarMentions] Mentioned profiles: ${JSON.stringify(cast.mentioned_profiles?.map(p => p.fid))}`);
+    console.log(`[NeynarMentions] Embeds: ${JSON.stringify(cast.embeds?.map(e => e.url))}`);
 
     // Check if we should like this cast
     if (!shouldLikeCast(cast)) {
