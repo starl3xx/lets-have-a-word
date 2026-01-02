@@ -6,6 +6,7 @@
  * - Only users with user_score >= 0.6 may submit guesses or purchase guess packs
  * - Score is cached in DB with a last-checked timestamp (refreshed every 24h)
  * - Blocked attempts are logged for analytics/abuse reviews
+ * - Allowlist FIDs bypass the score check entirely
  */
 
 import { db } from '../db';
@@ -19,6 +20,22 @@ import { logAnalyticsEvent } from './analytics';
  * As of 2025-11-24, ~307,775 Farcaster users meet this threshold
  */
 export const MIN_USER_SCORE = 0.6;
+
+/**
+ * FIDs that bypass the score check entirely
+ * Set via USER_SCORE_ALLOWLIST env var (comma-separated FIDs)
+ */
+function getAllowlistedFids(): Set<number> {
+  const allowlist = process.env.USER_SCORE_ALLOWLIST || '';
+  if (!allowlist.trim()) return new Set();
+
+  return new Set(
+    allowlist
+      .split(',')
+      .map(fid => parseInt(fid.trim(), 10))
+      .filter(fid => !isNaN(fid))
+  );
+}
 
 /**
  * How long to cache user scores (24 hours in milliseconds)
@@ -65,6 +82,17 @@ export async function checkUserQuality(
   forceRefresh: boolean = false
 ): Promise<UserQualityCheckResult> {
   try {
+    // Check allowlist first - bypass score check entirely
+    const allowlist = getAllowlistedFids();
+    if (allowlist.has(fid)) {
+      console.log(`[UserQuality] FID ${fid} is on allowlist, bypassing score check`);
+      return {
+        eligible: true,
+        score: null,
+        reason: 'Allowlisted user',
+      };
+    }
+
     // Fetch user from database
     const [user] = await db
       .select()
