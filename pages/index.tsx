@@ -860,6 +860,14 @@ function GameContent() {
             return; // Don't throw, just set result and return
           }
 
+          // Handle user quality blocked (403 with INSUFFICIENT_USER_SCORE)
+          if (response.status === 403 && errorData.error === 'INSUFFICIENT_USER_SCORE') {
+            console.log('[Guess] User quality blocked - score below threshold');
+            setErrorMessage(`Your Neynar score (${errorData.score?.toFixed(2) || 'unknown'}) is below the minimum (${errorData.minRequired || 0.6}) required to play.`);
+            setIsLoading(false);
+            return; // Don't throw, show specific error
+          }
+
           // Milestone 9.5: Check for operational errors (kill switch, dead day)
           const opError = parseOperationalError(errorData);
           if (opError.isOperational) {
