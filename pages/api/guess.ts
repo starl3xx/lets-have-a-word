@@ -79,6 +79,9 @@ export default async function handler(
   try {
     const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid } = req.body;
 
+    // Debug: Log referral parameter from request body
+    console.log(`[Referral] Backend received ref=${ref} (type: ${typeof ref}) from request body`);
+
     // Extract request metadata for rate limiting
     const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
     const rateLimitFid = miniAppFid || devFid || metadataFid;
@@ -255,8 +258,10 @@ export default async function handler(
 
       // Parse referral parameter
       const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+      console.log(`[Referral] Mini app auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
 
       // Upsert user with minimal data (we don't have full Farcaster context)
+      console.log(`[Referral] Calling upsertUserFromFarcaster with referrerFid=${referrerFid}`);
       await upsertUserFromFarcaster({
         fid,
         signerWallet: null,
@@ -302,8 +307,10 @@ export default async function handler(
 
       // Parse referral parameter
       const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+      console.log(`[Referral] Frame/signer auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
 
       // Upsert user with Farcaster data
+      console.log(`[Referral] Calling upsertUserFromFarcaster with referrerFid=${referrerFid}`);
       await upsertUserFromFarcaster({
         fid,
         signerWallet,
