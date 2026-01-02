@@ -262,16 +262,27 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       const globalGuesses = round.totalGuesses.toLocaleString()
       const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
 
-      // Format top guessers (show up to 3-4 usernames with guess counts)
+      // Format top guessers - group users with same guess count
       let topGuessersStr = ""
       if (topGuessersData.topGuessers && topGuessersData.topGuessers.length > 0) {
-        const topThree = topGuessersData.topGuessers.slice(0, 3)
-        topGuessersStr = topThree
-          .map((g: TopGuesser) => `@${g.username || `fid:${g.fid}`} (${g.guessCount})`)
-          .join(" ")
-        if (topGuessersData.topGuessers.length > 3) {
-          topGuessersStr += "..."
+        const guessers = topGuessersData.topGuessers.slice(0, 10)
+
+        // Group by guess count
+        const grouped: { count: number; usernames: string[] }[] = []
+        for (const g of guessers) {
+          const username = `@${g.username || `fid:${g.fid}`}`
+          const lastGroup = grouped[grouped.length - 1]
+          if (lastGroup && lastGroup.count === g.guessCount) {
+            lastGroup.usernames.push(username)
+          } else {
+            grouped.push({ count: g.guessCount, usernames: [username] })
+          }
         }
+
+        // Format: "@user1 @user2 (count) @user3 (count)"
+        topGuessersStr = grouped
+          .map(g => `${g.usernames.join(" ")} (${g.count})`)
+          .join(" ")
       }
 
       // Build the cast text
@@ -280,7 +291,8 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
 💰 Prize pool: ${prizePool} ETH
 🎯 Global guesses: ${globalGuesses}
 👥 Players: ${playerCount}
-🏆 Top early guessers: ${topGuessersStr || "N/A"}`
+🏆 Top early guessers: ${topGuessersStr || "N/A"}
+🥈 Mini app rank: #`
 
       setStatusCastText(castText)
     } catch (err) {
