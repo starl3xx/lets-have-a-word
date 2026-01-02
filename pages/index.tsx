@@ -1318,8 +1318,8 @@ function GameContent() {
                 </span>
                 <span className="font-semibold text-gray-900">Round #{browserFallbackStats.roundId}</span>
                 <span className="text-gray-400">·</span>
-                <span className="font-semibold text-green-600">{parseFloat(browserFallbackStats.prizePoolEth).toFixed(5)} ETH</span>
-                <span className="text-sm text-green-600/60 font-normal">prize pool</span>
+                <span className="font-semibold text-green-600">{parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH</span>
+                <span className="text-sm text-gray-400 font-normal">prize pool</span>
               </div>
               <div className="flex justify-center items-center gap-2 text-xs text-gray-500">
                 <span><span className="font-medium text-gray-700">{browserFallbackStats.globalGuessCount.toLocaleString()}</span> guesses</span>
