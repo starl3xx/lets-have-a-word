@@ -61,27 +61,22 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   let onChainCommitmentTxHash: string | null = null;
 
   if (!skipOnChainCommitment) {
-    try {
-      // Check if contract is deployed and accessible
-      const contractDeployed = await isContractDeployed();
+    // Check if contract is deployed and accessible
+    const contractDeployed = await isContractDeployed();
 
-      if (contractDeployed) {
-        console.log(`[rounds] Committing answer hash onchain...`);
-        onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
-        console.log(`[rounds] ✅ Onchain commitment successful: ${onChainCommitmentTxHash}`);
-      } else {
-        console.warn(`[rounds] ⚠️ Contract not deployed, skipping onchain commitment`);
-      }
-    } catch (error) {
-      // Onchain commitment failed - this is critical for provable fairness
-      // Log the error but continue with round creation (commitment is in DB)
-      console.error(`[rounds] ❌ Onchain commitment failed:`, error);
-      console.warn(`[rounds] ⚠️ Continuing with off-chain commitment only`);
-      // In strict mode, you might want to throw here instead:
-      // throw new Error(`Onchain commitment failed: ${error}`);
+    if (!contractDeployed) {
+      throw new Error(
+        'Cannot create round: Smart contract is not deployed. ' +
+        'All rounds require onchain commitment for provable fairness.'
+      );
     }
+
+    console.log(`[rounds] Committing answer hash onchain...`);
+    // If this fails, the round will NOT be created - commitment must be onchain first
+    onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
+    console.log(`[rounds] ✅ Onchain commitment successful: ${onChainCommitmentTxHash}`);
   } else {
-    console.log(`[rounds] Skipping onchain commitment (skipOnChainCommitment=true)`);
+    console.log(`[rounds] ⚠️ Skipping onchain commitment (skipOnChainCommitment=true) - FOR TESTING ONLY`);
   }
 
   // Encrypt the answer for storage

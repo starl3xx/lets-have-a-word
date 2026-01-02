@@ -97,6 +97,8 @@ export default function GuessPurchaseModal({
   const [maxPacksPerDay, setMaxPacksPerDay] = useState<number>(3);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -109,11 +111,23 @@ export default function GuessPurchaseModal({
   const reinforcementLoggedRef = useRef(false);
 
   // Milestone 6.4: Handle transaction success - verify on backend
+  // With retry logic for transactions that aren't indexed yet
   useEffect(() => {
     if (isTxSuccess && txHash && fid) {
       // Transaction confirmed onchain, now verify and record on backend
-      const verifyPurchase = async () => {
+      const MAX_VERIFY_ATTEMPTS = 5;
+      const VERIFY_TIMEOUT_MS = 15000; // 15 second timeout per attempt
+      const RETRY_DELAY_MS = 3000; // 3 second delay between retries
+
+      const verifyPurchase = async (attempt: number = 1) => {
+        setIsVerifying(true);
+        setVerifyAttempt(attempt);
+
         try {
+          // Create an AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+
           const response = await fetch('/api/purchase-guess-pack', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -122,12 +136,33 @@ export default function GuessPurchaseModal({
               packCount: selectedPackCount,
               txHash, // Send txHash for onchain verification
             }),
+            signal: controller.signal,
           });
 
-          const data = await response.json();
+          clearTimeout(timeoutId);
+
+          // Handle non-JSON responses
+          const text = await response.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            throw new Error('Invalid server response');
+          }
 
           if (!response.ok) {
-            throw new Error(data.error || 'Failed to verify purchase');
+            // Check if the error is a transient "transaction not found" error
+            const errorMsg = data.error || 'Failed to verify purchase';
+            if (
+              (errorMsg.includes('not found') || errorMsg.includes('not yet mined')) &&
+              attempt < MAX_VERIFY_ATTEMPTS
+            ) {
+              // Retry after delay
+              console.log(`[GuessPurchaseModal] Tx not indexed yet, retry ${attempt}/${MAX_VERIFY_ATTEMPTS}`);
+              await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+              return verifyPurchase(attempt + 1);
+            }
+            throw new Error(errorMsg);
           }
 
           void haptics.packPurchased();
@@ -148,13 +183,25 @@ export default function GuessPurchaseModal({
           }, 1500);
         } catch (err) {
           console.error('[GuessPurchaseModal] Verify error:', err);
-          setError(err instanceof Error ? err.message : 'Failed to verify purchase');
+
+          // Check if it's a timeout/abort error and we can retry
+          if (err instanceof Error && err.name === 'AbortError' && attempt < MAX_VERIFY_ATTEMPTS) {
+            console.log(`[GuessPurchaseModal] Request timeout, retry ${attempt}/${MAX_VERIFY_ATTEMPTS}`);
+            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+            return verifyPurchase(attempt + 1);
+          }
+
+          // Show user-friendly error with tx link for manual verification
+          const baseErrorMsg = err instanceof Error ? err.message : 'Failed to verify purchase';
+          setError(`${baseErrorMsg}. Your transaction was confirmed onchain (tx: ${txHash.slice(0, 10)}...). If packs don't appear, please contact support.`);
         } finally {
           setIsPurchasing(false);
+          setIsVerifying(false);
+          setVerifyAttempt(0);
         }
       };
 
-      verifyPurchase();
+      verifyPurchase(1);
     }
   }, [isTxSuccess, txHash, fid, selectedPackCount, pricingPhase, t, onPurchaseSuccess, onClose]);
 
@@ -432,6 +479,7 @@ export default function GuessPurchaseModal({
                   isPurchasing ||
                   isTxPending ||
                   isTxConfirming ||
+                  isVerifying ||
                   remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage ||
@@ -441,6 +489,7 @@ export default function GuessPurchaseModal({
                   isPurchasing ||
                   isTxPending ||
                   isTxConfirming ||
+                  isVerifying ||
                   remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage ||
@@ -452,7 +501,11 @@ export default function GuessPurchaseModal({
                 {isTxPending ? (
                   'Confirm in wallet...'
                 ) : isTxConfirming ? (
-                  'Confirming...'
+                  'Confirming onchain...'
+                ) : isVerifying ? (
+                  verifyAttempt > 1
+                    ? `Verifying (attempt ${verifyAttempt}/5)...`
+                    : 'Verifying purchase...'
                 ) : isPurchasing ? (
                   t('guessPack.buyButtonLoading')
                 ) : remainingPacks === 0 ? (

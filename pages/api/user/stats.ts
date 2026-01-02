@@ -9,7 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { db } from '../../../src/db';
 import { guesses, rounds, roundPayouts, users, dailyGuessState } from '../../../src/db/schema';
-import { eq, and, sql, count } from 'drizzle-orm';
+import { eq, and, sql, count, isNull } from 'drizzle-orm';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface UserStatsResponse {
@@ -63,7 +63,7 @@ export default async function handler(
         const [activeRound] = await db
           .select({ id: rounds.id })
           .from(rounds)
-          .where(eq(rounds.resolvedAt, sql`null`))
+          .where(isNull(rounds.resolvedAt))
           .limit(1);
 
         const currentRoundId = activeRound?.id || null;
@@ -143,19 +143,27 @@ export default async function handler(
 
         // Milestone 6.3: Calculate new stats
 
-        // Sum bonus guesses from daily state (CLANKTON + share bonus)
+        // Sum bonus guesses ALLOCATED from daily state (CLANKTON + share bonus)
+        // Note: We only track total freeUsed, not which type was used
+        // So we use allocated amounts but cap at actual non-paid guesses
         const bonusStats = await db
           .select({
-            clanktonTotal: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedClankton}), 0)`,
-            shareBonusTotal: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedShareBonus}), 0)`,
+            clanktonAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedClankton}), 0)`,
+            shareBonusAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedShareBonus}), 0)`,
           })
           .from(dailyGuessState)
           .where(eq(dailyGuessState.fid, fid));
 
-        const bonusGuessesAllTime = Number(bonusStats[0]?.clanktonTotal || 0) + Number(bonusStats[0]?.shareBonusTotal || 0);
+        const totalBonusAllocated = Number(bonusStats[0]?.clanktonAllocated || 0) + Number(bonusStats[0]?.shareBonusAllocated || 0);
 
-        // Free guesses = total - paid - bonus
-        const freeGuessesAllTime = Math.max(0, guessesAllTime - paidGuessesAllTime - bonusGuessesAllTime);
+        // Non-paid guesses are what was actually used from free/bonus pool
+        const nonPaidGuesses = guessesAllTime - paidGuessesAllTime;
+
+        // Cap bonus at actual non-paid guesses (can't use more than allocated)
+        const bonusGuessesAllTime = Math.min(totalBonusAllocated, nonPaidGuesses);
+
+        // Free guesses = remaining non-paid guesses after bonus
+        const freeGuessesAllTime = Math.max(0, nonPaidGuesses - bonusGuessesAllTime);
 
         // Guesses per round histogram (last 10 rounds for this user)
         const guessHistogram = await db

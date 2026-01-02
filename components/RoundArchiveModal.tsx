@@ -24,6 +24,16 @@ interface RoundState {
 /**
  * Format a timestamp as "started X ago"
  */
+/**
+ * Format ETH value for display (max 6 decimal places, trim trailing zeros)
+ */
+function formatEthDisplay(value: string | number): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return '0';
+  // Format to 6 decimals, then trim trailing zeros
+  return num.toFixed(6).replace(/\.?0+$/, '');
+}
+
 function formatTimeAgo(isoTimestamp: string): string {
   const startTime = new Date(isoTimestamp).getTime();
   const now = Date.now();
@@ -206,7 +216,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             </h2>
             {roundState && (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-sm font-semibold text-green-600">{roundState.prizePoolEth} ETH</span>
+                <span className="text-sm font-semibold text-green-600">{formatEthDisplay(roundState.prizePoolEth)} ETH</span>
                 <span className="text-xs text-gray-500">prize pool</span>
               </div>
             )}

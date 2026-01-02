@@ -20,6 +20,12 @@ interface AnalyticsSectionProps {
   }
 }
 
+interface TopGuesser {
+  fid: number
+  username: string | null
+  guessCount: number
+}
+
 interface DashboardSummary {
   today: { dau: number; packPurchases: number; paidGuesses: number; revenueEth: number }
   avg7d: { dau: number; packPurchases: number; paidGuesses: number; revenueEth: number }
@@ -70,18 +76,6 @@ interface GuessData {
   day: string
   free_guesses: number
   paid_guesses: number
-}
-
-interface OgHunterData {
-  usersAddedApp: number
-  usersWithVerifiedCast: number
-  badgesAwarded: number
-  splashViews: number
-  addAppClicks: number
-  castIntentClicks: number
-  addAppConversionRate: number
-  castConversionRate: number
-  claimEligibilityRate: number
 }
 
 // =============================================================================
@@ -190,8 +184,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [packPricing, setPackPricing] = useState<PackPricingAnalytics | null>(null)
   const [dauData, setDauData] = useState<DAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
-  const [ogHunterData, setOgHunterData] = useState<OgHunterData | null>(null)
-  const [backfillStatus, setBackfillStatus] = useState<{ loading: boolean; result?: string }>({ loading: false })
+
+  // Status cast generator state
+  const [statusCastText, setStatusCastText] = useState<string>("")
+  const [statusCastLoading, setStatusCastLoading] = useState(false)
+  const [statusCastCopied, setStatusCastCopied] = useState(false)
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -202,12 +199,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       setLoading(true)
       setError(null)
 
-      const [summaryRes, packPricingRes, dauRes, guessRes, ogHunterRes] = await Promise.all([
+      const [summaryRes, packPricingRes, dauRes, guessRes] = await Promise.all([
         fetch(`/api/admin/analytics/dashboard-summary?devFid=${user.fid}`),
         fetch(`/api/admin/analytics/pack-pricing?devFid=${user.fid}`),
         fetch(`/api/admin/analytics/dau?devFid=${user.fid}&range=${timeRange}`),
         fetch(`/api/admin/analytics/free-paid?devFid=${user.fid}&range=${timeRange}`),
-        fetch(`/api/admin/analytics/og-hunter?devFid=${user.fid}&range=${timeRange}`),
       ])
 
       if (!summaryRes.ok) throw new Error("Failed to fetch summary")
@@ -217,13 +213,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       const packPricingData = await packPricingRes.json()
       const dauDataResult = dauRes.ok ? await dauRes.json() : []
       const guessDataResult = guessRes.ok ? await guessRes.json() : []
-      const ogHunterDataResult = ogHunterRes.ok ? await ogHunterRes.json() : null
 
       setSummary(summaryData)
       setPackPricing(packPricingData)
       setDauData(dauDataResult.data || [])
       setGuessData(guessDataResult.data || [])
-      setOgHunterData(ogHunterDataResult)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -247,25 +241,80 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     }
   }, [autoRefresh, fetchAnalytics])
 
-  const handleBackfillAdds = async () => {
-    if (!user?.fid) return
-    setBackfillStatus({ loading: true })
-    try {
-      const res = await fetch(`/api/admin/backfill-og-hunter-adds?devFid=${user.fid}`, {
-        method: 'POST',
-      })
-      const data = await res.json()
-      if (data.success) {
-        const total = (data.updatedCount || 0) + (data.insertedCount || 0)
-        setBackfillStatus({ loading: false, result: `Backfilled ${total} users` })
-        fetchAnalytics() // Refresh data
-      } else {
-        setBackfillStatus({ loading: false, result: `Error: ${data.error}` })
-      }
-    } catch (err) {
-      setBackfillStatus({ loading: false, result: 'Failed to run backfill' })
+  // Status cast generator function
+  const generateStatusCast = useCallback(async () => {
+    if (!summary?.currentRound?.roundId) {
+      setStatusCastText("No active round found.")
+      return
     }
-  }
+
+    setStatusCastLoading(true)
+    setStatusCastCopied(false)
+
+    try {
+      // Fetch top guessers data
+      const response = await fetch(`/api/round/top-guessers`)
+      const topGuessersData = response.ok ? await response.json() : { topGuessers: [], uniqueGuessersCount: 0 }
+
+      const round = summary.currentRound
+      const roundNumber = round.roundId
+      const prizePool = parseFloat(round.prizePoolEth).toFixed(4)
+      const globalGuesses = round.totalGuesses.toLocaleString()
+      const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
+
+      // Format top guessers - group users with same guess count
+      let topGuessersStr = ""
+      if (topGuessersData.topGuessers && topGuessersData.topGuessers.length > 0) {
+        const guessers = topGuessersData.topGuessers.slice(0, 10)
+
+        // Group by guess count
+        const grouped: { count: number; usernames: string[] }[] = []
+        for (const g of guessers) {
+          const username = `@${g.username || `fid:${g.fid}`}`
+          const lastGroup = grouped[grouped.length - 1]
+          if (lastGroup && lastGroup.count === g.guessCount) {
+            lastGroup.usernames.push(username)
+          } else {
+            grouped.push({ count: g.guessCount, usernames: [username] })
+          }
+        }
+
+        // Format: "@user1 @user2 (count) @user3 (count)"
+        topGuessersStr = grouped
+          .map(g => `${g.usernames.join(" ")} (${g.count})`)
+          .join(" ")
+      }
+
+      // Build the cast text
+      const castText = `@letshaveaword status
+🔵 Round: #${roundNumber}
+💰 Prize pool: ${prizePool} ETH
+🎯 Global guesses: ${globalGuesses}
+👥 Players: ${playerCount}
+🏆 Top early guessers: ${topGuessersStr || "N/A"}
+🏅 Mini app rank: #`
+
+      setStatusCastText(castText)
+    } catch (err) {
+      console.error("[AnalyticsSection] Error generating status cast:", err)
+      setStatusCastText("Error generating status cast. Please try again.")
+    } finally {
+      setStatusCastLoading(false)
+    }
+  }, [summary])
+
+  // Copy to clipboard function
+  const copyStatusCast = useCallback(async () => {
+    if (!statusCastText) return
+
+    try {
+      await navigator.clipboard.writeText(statusCastText)
+      setStatusCastCopied(true)
+      setTimeout(() => setStatusCastCopied(false), 2000)
+    } catch (err) {
+      console.error("[AnalyticsSection] Failed to copy to clipboard:", err)
+    }
+  }, [statusCastText])
 
   const dauChartData = [...dauData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -398,53 +447,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         </div>
       )}
 
-      {/* OG Hunter Splash Metrics */}
-      {ogHunterData && (
-        <div style={styles.section}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h3 style={{ ...styles.sectionTitle, margin: 0 }}>OG Hunter Splash</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {backfillStatus.result && (
-                <span style={{ fontSize: "12px", color: "#6b7280" }}>{backfillStatus.result}</span>
-              )}
-              <button
-                onClick={handleBackfillAdds}
-                disabled={backfillStatus.loading}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  background: backfillStatus.loading ? "#e5e7eb" : "#6366f1",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: backfillStatus.loading ? "not-allowed" : "pointer",
-                  fontFamily,
-                }}
-              >
-                {backfillStatus.loading ? "Running..." : "Backfill Adds"}
-              </button>
-            </div>
-          </div>
-          <div style={styles.grid}>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Added App</div>
-              <div style={styles.statValue}>{ogHunterData.usersAddedApp.toLocaleString()}</div>
-              <div style={styles.statSubtext}>{ogHunterData.addAppClicks.toLocaleString()} clicks</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Casted</div>
-              <div style={styles.statValue}>{ogHunterData.usersWithVerifiedCast.toLocaleString()}</div>
-              <div style={styles.statSubtext}>{ogHunterData.castIntentClicks.toLocaleString()} clicks</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Badges Awarded</div>
-              <div style={styles.statValue}>{ogHunterData.badgesAwarded.toLocaleString()}</div>
-              <div style={styles.statSubtext}>{ogHunterData.splashViews.toLocaleString()} splash views</div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* DAU Chart */}
       {dauChartData.length > 0 && (
         <div style={styles.section}>
@@ -477,6 +479,67 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           </div>
         </div>
       )}
+
+      {/* Status Cast Generator */}
+      <div style={styles.section}>
+        <h3 style={styles.sectionTitle}>Status Cast Generator</h3>
+        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "12px", fontFamily }}>
+          Generate a formatted status update for Farcaster with current game stats.
+        </p>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          <button
+            onClick={generateStatusCast}
+            disabled={statusCastLoading || !summary?.currentRound?.roundId}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "none",
+              background: statusCastLoading ? "#d1d5db" : "#6366f1",
+              color: "white",
+              fontWeight: 500,
+              cursor: statusCastLoading ? "not-allowed" : "pointer",
+              fontFamily,
+            }}
+          >
+            {statusCastLoading ? "Generating..." : "Generate Status Cast"}
+          </button>
+          {statusCastText && (
+            <button
+              onClick={copyStatusCast}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "1px solid #e5e7eb",
+                background: statusCastCopied ? "#dcfce7" : "white",
+                color: statusCastCopied ? "#16a34a" : "#374151",
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily,
+              }}
+            >
+              {statusCastCopied ? "Copied!" : "Copy to Clipboard"}
+            </button>
+          )}
+        </div>
+        {statusCastText && (
+          <textarea
+            value={statusCastText}
+            readOnly
+            style={{
+              width: "100%",
+              minHeight: "160px",
+              padding: "12px",
+              borderRadius: "8px",
+              border: "1px solid #e5e7eb",
+              background: "#f9fafb",
+              fontFamily: "monospace",
+              fontSize: "13px",
+              lineHeight: "1.5",
+              resize: "vertical",
+            }}
+          />
+        )}
+      </div>
 
     </div>
   )

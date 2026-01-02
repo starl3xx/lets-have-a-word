@@ -100,9 +100,9 @@ export default async function handler(
     // We need to know the round ID to cache by round
     const activeRound = await getActiveRound();
     if (!activeRound) {
-      // No active round - fetch fresh (this will create one)
-      const roundStatus = await getActiveRoundStatus();
-      return res.status(200).json(roundStatus);
+      // No active round - return 204 No Content
+      // TopTicker will show "Round #1 starting soon" splash
+      return res.status(204).end();
     }
 
     // Use cache-aside pattern for round state

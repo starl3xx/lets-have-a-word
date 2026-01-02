@@ -266,6 +266,10 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   // Start Round state
   const [startRoundLoading, setStartRoundLoading] = useState(false)
 
+  // Reset for Launch state
+  const [resetLoading, setResetLoading] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+
   // Kill Switch confirmation states
   const [showKillSwitchConfirm, setShowKillSwitchConfirm] = useState(false)
   const [killSwitchConfirmText, setKillSwitchConfirmText] = useState("")
@@ -448,12 +452,29 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
       const res = await fetch(`/api/admin/operational/start-round?devFid=${user?.fid}`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
       })
 
-      const data = await res.json()
+      // Safely parse response - handle empty or invalid JSON
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
+        }
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to start round')
+        throw new Error(data.error || data.message || `Failed to start round (${res.status})`)
+      }
+
+      if (!data.roundId) {
+        throw new Error('Server returned success but no round ID')
       }
 
       setSuccess(`Round #${data.roundId} started successfully! Commit hash: ${data.commitHash?.slice(0, 16)}...`)
@@ -462,6 +483,43 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       setError(err.message)
     } finally {
       setStartRoundLoading(false)
+    }
+  }
+
+  const handleResetForLaunch = async () => {
+    try {
+      setResetLoading(true)
+      setError(null)
+
+      const res = await fetch(`/api/admin/reset-for-launch?devFid=${user?.fid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ confirm: 'RESET_FOR_LAUNCH' }),
+      })
+
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `Failed to reset (${res.status})`)
+      }
+
+      setSuccess(`Database reset! Deleted ${data.deletedRounds} rounds and ${data.deletedGuesses} guesses. Ready for Round #1!`)
+      setShowResetConfirm(false)
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -737,6 +795,78 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Reset for Launch Card - for clearing test data */}
+            <div style={{
+              ...styles.card,
+              background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+              border: '2px solid #f59e0b',
+            }}>
+              <h2 style={{ ...styles.cardTitle, color: '#92400e' }}>
+                🔄 Reset for Launch
+              </h2>
+              <p style={{ fontSize: '14px', color: '#78350f', marginBottom: '16px' }}>
+                Clear all test data and reset to Round #1 for a fresh launch.
+              </p>
+              <div style={{
+                background: 'white',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                color: '#374151',
+              }}>
+                <strong>⚠️ This will permanently delete:</strong>
+                <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                  <li>All rounds (including active round)</li>
+                  <li>All guesses</li>
+                  <li>All round archives</li>
+                  <li>Reset round IDs to start at 1</li>
+                </ul>
+              </div>
+              {!showResetConfirm ? (
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  style={{
+                    ...styles.btnSecondary,
+                    width: '100%',
+                    padding: '14px 20px',
+                    fontSize: '16px',
+                    background: '#fef3c7',
+                    borderColor: '#f59e0b',
+                    color: '#92400e',
+                  }}
+                >
+                  Reset Database for Launch
+                </button>
+              ) : (
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    onClick={handleResetForLaunch}
+                    disabled={resetLoading}
+                    style={{
+                      ...styles.btnDanger,
+                      flex: 1,
+                      padding: '14px 20px',
+                      fontSize: '16px',
+                      opacity: resetLoading ? 0.7 : 1,
+                    }}
+                  >
+                    {resetLoading ? 'Resetting...' : '⚠️ CONFIRM RESET'}
+                  </button>
+                  <button
+                    onClick={() => setShowResetConfirm(false)}
+                    style={{
+                      ...styles.btnSecondary,
+                      padding: '14px 20px',
+                      fontSize: '16px',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Start Round Card - only show when no active round */}
