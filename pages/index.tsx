@@ -1290,33 +1290,6 @@ function GameContent() {
             A global word hunt with real ETH prizes
           </p>
 
-          {/* Live Round Stats */}
-          {browserFallbackStats && (
-            <div className="bg-white rounded-xl shadow-card p-4">
-              <p className="text-xl font-bold text-gray-900 mb-1">
-                Round #{browserFallbackStats.roundId}
-              </p>
-              <p className="text-lg font-semibold text-green-600 mb-3">
-                {parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH{' '}
-                <span className="text-gray-500 font-normal text-sm">prize pool</span>
-              </p>
-              <div className="flex justify-center gap-6 text-sm">
-                <div className="bg-gray-50 rounded-full px-4 py-1.5">
-                  <span className="font-semibold text-gray-900">
-                    {browserFallbackStats.globalGuessCount.toLocaleString()}
-                  </span>
-                  <span className="text-gray-500 ml-1">guesses</span>
-                </div>
-                <div className="bg-gray-50 rounded-full px-4 py-1.5">
-                  <span className="font-semibold text-gray-900">
-                    {browserFallbackStats.playerCount.toLocaleString()}
-                  </span>
-                  <span className="text-gray-500 ml-1">players</span>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Explanation Card */}
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
             <p className="text-gray-700 text-sm leading-relaxed">
@@ -1334,6 +1307,25 @@ function GameContent() {
               A standalone web version may come later.
             </p>
           </div>
+
+          {/* Live Round Stats */}
+          {browserFallbackStats && (
+            <div className="bg-white rounded-xl shadow-card px-4 py-3 border border-green-200">
+              <div className="flex items-center justify-center gap-2 text-sm mb-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span className="font-semibold text-gray-900">Round #{browserFallbackStats.roundId}</span>
+                <span className="text-gray-400">·</span>
+                <span className="font-semibold text-green-600">{parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH</span>
+              </div>
+              <div className="flex justify-center gap-4 text-xs text-gray-500">
+                <span><span className="font-medium text-gray-700">{browserFallbackStats.globalGuessCount.toLocaleString()}</span> guesses</span>
+                <span><span className="font-medium text-gray-700">{browserFallbackStats.playerCount.toLocaleString()}</span> players</span>
+              </div>
+            </div>
+          )}
 
           {/* CTA Button */}
           <div>
