@@ -349,6 +349,24 @@ function GameContent() {
   }, [effectiveFid]);
 
   /**
+   * Dev mode: Show InstallPromptModal immediately when ?forceInstallPrompt=1
+   * Bypasses the need to make a guess to see the modal
+   */
+  useEffect(() => {
+    if (router.query.forceInstallPrompt === '1' && effectiveFid) {
+      // Create a mock result to show in the modal
+      setPendingShareResult({
+        status: 'incorrect',
+        word: 'TESTS',
+        message: 'Not the winning word, but you\'re getting closer!',
+        userGuessCount: 1,
+        globalGuessCount: 100,
+      });
+      setShowInstallPromptModal(true);
+    }
+  }, [router.query.forceInstallPrompt, effectiveFid]);
+
+  /**
    * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
    * Wheel now returns all GUESS_WORDS with per-word status
    */
