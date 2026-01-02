@@ -16,7 +16,6 @@ import { eq } from 'drizzle-orm';
 import {
   purchaseGuessesOnSepolia,
   startRoundWithCommitmentOnSepolia,
-  startNextRoundOnSepolia,
   getCurrentJackpotOnSepolia,
   getSepoliaContractBalance,
   getSepoliaRoundInfo,
@@ -159,7 +158,8 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
 
   // Log which contract type we're using
   const fullContractMode = isSepoliaFullContract();
-  log(`Sepolia contract type: ${fullContractMode ? 'FULL (resolveRoundWithPayouts + startNextRound)' : 'SIMPLE (resolveRound only)'}`);
+  log(`Sepolia contract type: ${fullContractMode ? 'FULL (resolveRoundWithPayouts)' : 'SIMPLE (resolveRound only)'}`);
+  log(`All rounds use startRoundWithCommitment for provable fairness`);
 
   try {
     if (config.dryRun) {
@@ -248,20 +248,20 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
           // After resolving, check if we can start a new round
           const postResolveInfo = await getSepoliaRoundInfo();
 
-          // If full contract, use startNextRound if we have enough balance
-          if (!postResolveInfo.isActive && isSepoliaFullContract()) {
-            log(`Using full contract - checking if we can startNextRound...`);
+          // Start round with commitment for provable fairness
+          if (!postResolveInfo.isActive) {
+            log(`Starting round with onchain commitment...`);
             const minimumSeed = await getSepoliaMinimumSeed();
             const currentJackpotEth = await getCurrentJackpotOnSepolia();
             const currentJackpotWei = ethers.parseEther(currentJackpotEth);
 
             if (currentJackpotWei >= minimumSeed) {
               try {
-                const startTxHash = await startNextRoundOnSepolia();
-                log(`✅ Started next round via startNextRound(): ${startTxHash}`);
+                const startTxHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+                log(`✅ Started round with commitment: ${startTxHash}`);
                 sepoliaRoundStarted = true;
               } catch (startErr: any) {
-                log(`❌ Failed to startNextRound: ${startErr.message}`);
+                log(`❌ Failed to start round with commitment: ${startErr.message}`);
               }
             } else {
               log(`Jackpot ${currentJackpotEth} ETH below minimum ${ethers.formatEther(minimumSeed)} ETH`);
@@ -383,16 +383,10 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
               log(`✅ Re-seeded jackpot: ${seedTxHash}`);
             }
 
-            // Start new round - use startNextRound for full contract, otherwise use commitment
-            if (fullContractMode) {
-              log(`Starting new round via startNextRound()...`);
-              const startTxHash = await startNextRoundOnSepolia();
-              log(`✅ Round restarted: ${startTxHash}`);
-            } else {
-              log(`Starting new round with commitment...`);
-              const startTxHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
-              log(`✅ Round restarted: ${startTxHash}`);
-            }
+            // Always use commitment for provable fairness
+            log(`Starting new round with commitment...`);
+            const startTxHash = await startRoundWithCommitmentOnSepolia(round.commitHash);
+            log(`✅ Round restarted: ${startTxHash}`);
 
             await new Promise((resolve) => setTimeout(resolve, 1000));
 
