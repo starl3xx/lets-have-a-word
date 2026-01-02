@@ -20,6 +20,7 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
+import ClanktonBonusModal from '../components/ClanktonBonusModal';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
@@ -160,6 +161,7 @@ function GameContent() {
 
   // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
+  const [showClanktonBonusModal, setShowClanktonBonusModal] = useState(false);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -1506,7 +1508,12 @@ function GameContent() {
         {/* User State (Milestone 4.1) - Minimal */}
         <div className="px-4 pt-1">
           <div className="max-w-md mx-auto">
-            <UserState key={userStateKey} fid={effectiveFid} onGetMore={() => setShowGuessPurchaseModal(true)} />
+            <UserState
+              key={userStateKey}
+              fid={effectiveFid}
+              onGetMore={() => setShowGuessPurchaseModal(true)}
+              onClanktonHintTap={() => setShowClanktonBonusModal(true)}
+            />
           </div>
         </div>
 
@@ -1813,6 +1820,13 @@ function GameContent() {
             // If user closed without purchasing and out of guesses, no modal - just can't play
           }}
           onPurchaseSuccess={handlePackPurchaseSuccess}
+        />
+      )}
+
+      {/* CLANKTON Bonus Modal - explains bonus for non-holders */}
+      {showClanktonBonusModal && (
+        <ClanktonBonusModal
+          onClose={() => setShowClanktonBonusModal(false)}
         />
       )}
 
