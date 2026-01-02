@@ -1,9 +1,11 @@
 /**
  * Archive Section Component
- * Round archive for unified admin dashboard
+ * Comprehensive round archive for unified admin dashboard
+ * Enhanced with distribution charts, error tracking, and detailed round views
  */
 
 import React, { useState, useEffect, useCallback } from "react"
+import { AnalyticsChart } from "./AnalyticsChart"
 
 // =============================================================================
 // Types
@@ -49,11 +51,28 @@ interface ArchivedRound {
   createdAt: string
 }
 
+interface ArchiveError {
+  id: number
+  roundNumber: number
+  errorType: string
+  errorMessage: string
+  errorData: any
+  resolved: boolean
+  resolvedAt: string | null
+  resolvedBy: number | null
+  createdAt: string
+}
+
+interface Distribution {
+  distribution: Array<{ hour: number; count: number }>
+  byPlayer: Array<{ fid: number; count: number }>
+}
+
 // =============================================================================
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+const fontFamily = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   module: {
@@ -72,7 +91,6 @@ const styles = {
   },
   grid: {
     display: "grid" as const,
-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
     gap: "12px",
   },
   statCard: {
@@ -87,12 +105,14 @@ const styles = {
     fontWeight: 500,
     marginBottom: "4px",
     textTransform: "uppercase" as const,
+    letterSpacing: "0.03em",
     fontFamily,
   },
   statValue: {
     fontSize: "22px",
     fontWeight: 600,
     color: "#111827",
+    letterSpacing: "-0.02em",
     fontFamily,
   },
   statSubtext: {
@@ -143,6 +163,16 @@ const styles = {
     fontWeight: 500,
     fontFamily,
   },
+  btnSmall: {
+    padding: "4px 12px",
+    background: "#6366f1",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontFamily,
+  },
   loading: {
     textAlign: "center" as const,
     padding: "48px",
@@ -183,6 +213,25 @@ const styles = {
 }
 
 // =============================================================================
+// Helper Components
+// =============================================================================
+
+function StatCard({ label, value, subtext, loading }: {
+  label: string
+  value: string | number
+  subtext?: string
+  loading?: boolean
+}) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={styles.statValue}>{loading ? "..." : value}</div>
+      {subtext && <div style={styles.statSubtext}>{subtext}</div>}
+    </div>
+  )
+}
+
+// =============================================================================
 // Archive Section Component
 // =============================================================================
 
@@ -193,10 +242,12 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [stats, setStats] = useState<ArchiveStats | null>(null)
   const [rounds, setRounds] = useState<ArchivedRound[]>([])
   const [totalRounds, setTotalRounds] = useState(0)
+  const [errors, setErrors] = useState<ArchiveError[]>([])
   const [page, setPage] = useState(0)
   const [syncResult, setSyncResult] = useState<any>(null)
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null)
-  const pageSize = 10
+  const [distribution, setDistribution] = useState<Distribution | null>(null)
+  const pageSize = 15
 
   const fetchArchiveData = useCallback(async () => {
     if (!user?.fid) return
@@ -205,14 +256,24 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     setError(null)
 
     try {
+      const devFidParam = `?devFid=${user.fid}`
+
+      // Fetch archive list with stats
       const response = await fetch(
-        `/api/archive/list?devFid=${user.fid}&stats=true&limit=${pageSize}&offset=${page * pageSize}`
+        `/api/archive/list${devFidParam}&stats=true&limit=${pageSize}&offset=${page * pageSize}`
       )
       if (!response.ok) throw new Error('Failed to fetch archive list')
       const data = await response.json()
       setRounds(data.rounds)
       setTotalRounds(data.total)
       if (data.stats) setStats(data.stats)
+
+      // Fetch errors
+      const errorsResponse = await fetch(`/api/admin/archive/errors${devFidParam}`)
+      if (errorsResponse.ok) {
+        const errorsData = await errorsResponse.json()
+        setErrors(errorsData.errors || [])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load archive data')
     } finally {
@@ -238,6 +299,22 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       setError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const fetchRoundDetail = async (roundNumber: number) => {
+    if (!user?.fid) return
+
+    try {
+      const response = await fetch(
+        `/api/archive/${roundNumber}?devFid=${user.fid}&distribution=true`
+      )
+      if (!response.ok) throw new Error('Failed to fetch round detail')
+      const data = await response.json()
+      setSelectedRound(data.round)
+      setDistribution(data.distribution)
+    } catch (err) {
+      console.error('Failed to fetch round detail:', err)
     }
   }
 
@@ -272,8 +349,22 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
 
       {/* Sync Result */}
       {syncResult && (
-        <div style={styles.success}>
-          <strong>Sync Complete:</strong> {syncResult.synced || 0} rounds synced, {syncResult.failed || 0} failed
+        <div style={{
+          background: syncResult.failed > 0 ? "#fef3c7" : "#d1fae5",
+          border: `1px solid ${syncResult.failed > 0 ? "#fbbf24" : "#34d399"}`,
+          borderRadius: "8px",
+          padding: "16px",
+          marginBottom: "20px",
+          fontFamily,
+        }}>
+          <strong>Sync Complete:</strong> {syncResult.archived || syncResult.synced || 0} new, {syncResult.alreadyArchived || 0} existing, {syncResult.failed || 0} failed
+          {syncResult.errors?.length > 0 && (
+            <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
+              {syncResult.errors.map((err: string, idx: number) => (
+                <li key={idx}>{err}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -282,44 +373,99 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
         <div style={{ fontSize: "14px", color: "#6b7280", fontFamily }}>
           {totalRounds} archived rounds
         </div>
-        <button
-          onClick={syncArchive}
-          style={styles.btn}
-          disabled={syncing}
-        >
-          {syncing ? 'Syncing...' : 'Sync Archive'}
-        </button>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            onClick={fetchArchiveData}
+            style={styles.btnSecondary}
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          <button
+            onClick={syncArchive}
+            style={styles.btn}
+            disabled={syncing}
+          >
+            {syncing ? 'Syncing...' : 'Sync All Rounds'}
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats Overview */}
       {stats && (
         <div style={styles.module}>
-          <h3 style={styles.moduleHeader}>All-Time Statistics</h3>
-          <div style={styles.grid}>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Rounds Played</div>
-              <div style={styles.statValue}>{stats.totalRounds}</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Total Guesses</div>
-              <div style={styles.statValue}>{stats.totalGuessesAllTime.toLocaleString()}</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Unique Winners</div>
-              <div style={styles.statValue}>{stats.uniqueWinners}</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Total Jackpot Paid</div>
-              <div style={styles.statValue}>{formatEth(stats.totalJackpotDistributed)} ETH</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Avg Guesses/Round</div>
-              <div style={styles.statValue}>{stats.avgGuessesPerRound.toFixed(0)}</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Avg Round Length</div>
-              <div style={styles.statValue}>{Math.floor(stats.avgRoundLengthMinutes / 60)}h {stats.avgRoundLengthMinutes % 60}m</div>
-            </div>
+          <h3 style={styles.moduleHeader}>Archive Statistics</h3>
+          <div style={{ ...styles.grid, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+            <StatCard
+              label="Total Rounds"
+              value={stats.totalRounds.toLocaleString()}
+              subtext="Archived"
+              loading={loading}
+            />
+            <StatCard
+              label="Total Guesses"
+              value={stats.totalGuessesAllTime.toLocaleString()}
+              subtext="All time"
+              loading={loading}
+            />
+            <StatCard
+              label="Unique Winners"
+              value={stats.uniqueWinners.toLocaleString()}
+              subtext="Different players"
+              loading={loading}
+            />
+            <StatCard
+              label="Total Jackpot"
+              value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
+              subtext="Distributed"
+              loading={loading}
+            />
+            <StatCard
+              label="Avg Guesses"
+              value={stats.avgGuessesPerRound.toFixed(1)}
+              subtext="Per round"
+              loading={loading}
+            />
+            <StatCard
+              label="Avg Players"
+              value={stats.avgPlayersPerRound.toFixed(1)}
+              subtext="Per round"
+              loading={loading}
+            />
+            <StatCard
+              label="Avg Duration"
+              value={`${Math.round(stats.avgRoundLengthMinutes)} min`}
+              subtext="Start to end"
+              loading={loading}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Archive Errors */}
+      {errors.length > 0 && (
+        <div style={styles.module}>
+          <h3 style={styles.moduleHeader}>Archive Errors ({errors.length})</h3>
+          <div style={{ background: "#fef3c7", border: "1px solid #fbbf24", borderRadius: "8px", padding: "16px" }}>
+            {errors.slice(0, 5).map((err, idx) => (
+              <div key={idx} style={{
+                padding: "8px 12px",
+                background: "#fffbeb",
+                borderRadius: "6px",
+                marginBottom: "8px",
+                fontSize: "13px",
+              }}>
+                <strong>Round {err.roundNumber}:</strong> {err.errorType} - {err.errorMessage}
+                {err.resolved && (
+                  <span style={{ marginLeft: "8px", color: "#16a34a" }}>(Resolved)</span>
+                )}
+              </div>
+            ))}
+            {errors.length > 5 && (
+              <div style={{ fontSize: "12px", color: "#92400e", marginTop: "8px" }}>
+                ...and {errors.length - 5} more errors
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -333,116 +479,81 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
               <tr>
                 <th style={styles.th}>Round</th>
                 <th style={styles.th}>Word</th>
-                <th style={styles.th}>Jackpot</th>
-                <th style={styles.th}>Guesses</th>
-                <th style={styles.th}>Players</th>
+                <th style={{ ...styles.th, textAlign: "right" }}>Jackpot</th>
+                <th style={{ ...styles.th, textAlign: "right" }}>Guesses</th>
+                <th style={{ ...styles.th, textAlign: "right" }}>Players</th>
                 <th style={styles.th}>Winner</th>
                 <th style={styles.th}>Duration</th>
                 <th style={styles.th}>Date</th>
+                <th style={{ ...styles.th, textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rounds.map(round => (
-                <tr
-                  key={round.id}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setSelectedRound(selectedRound?.id === round.id ? null : round)}
-                >
-                  <td style={styles.td}>
-                    <span style={{ fontWeight: 600 }}>#{round.roundNumber}</span>
-                  </td>
-                  <td style={styles.td}>
-                    <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px" }}>
-                      {round.targetWord}
-                    </code>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{ color: "#16a34a", fontWeight: 600 }}>
-                      {formatEth(round.finalJackpotEth)} ETH
-                    </span>
-                  </td>
-                  <td style={styles.td}>{round.totalGuesses.toLocaleString()}</td>
-                  <td style={styles.td}>{round.uniquePlayers}</td>
-                  <td style={styles.td}>
-                    {round.winnerFid ? (
-                      <span style={{ color: "#6366f1" }}>FID {round.winnerFid}</span>
-                    ) : (
-                      <span style={{ color: "#9ca3af" }}>-</span>
-                    )}
-                  </td>
-                  <td style={styles.td}>{formatDuration(round.startTime, round.endTime)}</td>
-                  <td style={styles.td}>
-                    {new Date(round.endTime).toLocaleDateString()}
+              {rounds.length === 0 ? (
+                <tr>
+                  <td colSpan={9} style={{ ...styles.td, textAlign: "center", color: "#6b7280", padding: "24px" }}>
+                    No archived rounds. Click "Sync All Rounds" to archive completed rounds.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                rounds.map(round => (
+                  <tr
+                    key={round.id}
+                    style={{
+                      background: selectedRound?.id === round.id ? "#eff6ff" : "transparent",
+                    }}
+                  >
+                    <td style={styles.td}>
+                      <span style={{ fontWeight: 600 }}>#{round.roundNumber}</span>
+                    </td>
+                    <td style={styles.td}>
+                      <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px" }}>
+                        {round.targetWord}
+                      </code>
+                    </td>
+                    <td style={{ ...styles.td, textAlign: "right" }}>
+                      <span style={{ color: "#16a34a", fontWeight: 600 }}>
+                        {formatEth(round.finalJackpotEth)} ETH
+                      </span>
+                    </td>
+                    <td style={{ ...styles.td, textAlign: "right" }}>{round.totalGuesses.toLocaleString()}</td>
+                    <td style={{ ...styles.td, textAlign: "right" }}>{round.uniquePlayers}</td>
+                    <td style={styles.td}>
+                      {round.winnerFid ? (
+                        <span style={{ color: "#6366f1" }}>FID {round.winnerFid}</span>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
+                    </td>
+                    <td style={styles.td}>{formatDuration(round.startTime, round.endTime)}</td>
+                    <td style={styles.td}>
+                      {new Date(round.endTime).toLocaleDateString()}
+                    </td>
+                    <td style={{ ...styles.td, textAlign: "center" }}>
+                      <button
+                        onClick={() => fetchRoundDetail(round.roundNumber)}
+                        style={styles.btnSmall}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-
-        {/* Selected Round Detail */}
-        {selectedRound && (
-          <div style={{
-            marginTop: "16px",
-            padding: "16px",
-            background: "#f9fafb",
-            borderRadius: "8px",
-            border: "1px solid #e5e7eb",
-          }}>
-            <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: 600, fontFamily }}>
-              Round #{selectedRound.roundNumber} Details
-            </h4>
-            <div style={{ ...styles.grid, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-              <div>
-                <div style={styles.statLabel}>Target Word</div>
-                <code style={{ fontSize: "18px", fontWeight: 600 }}>{selectedRound.targetWord}</code>
-              </div>
-              <div>
-                <div style={styles.statLabel}>Seed</div>
-                <div>{formatEth(selectedRound.seedEth)} ETH</div>
-              </div>
-              <div>
-                <div style={styles.statLabel}>Final Jackpot</div>
-                <div style={{ color: "#16a34a", fontWeight: 600 }}>{formatEth(selectedRound.finalJackpotEth)} ETH</div>
-              </div>
-              <div>
-                <div style={styles.statLabel}>Winner Guess #</div>
-                <div>{selectedRound.winnerGuessNumber || '-'}</div>
-              </div>
-              <div>
-                <div style={styles.statLabel}>CLANKTON Bonuses</div>
-                <div>{selectedRound.clanktonBonusCount}</div>
-              </div>
-              <div>
-                <div style={styles.statLabel}>Referral Bonuses</div>
-                <div>{selectedRound.referralBonusCount}</div>
-              </div>
-            </div>
-            {selectedRound.payoutsJson && (
-              <div style={{ marginTop: "16px" }}>
-                <div style={styles.statLabel}>Payouts</div>
-                <pre style={{
-                  background: "#1f2937",
-                  color: "#e5e7eb",
-                  padding: "12px",
-                  borderRadius: "6px",
-                  fontSize: "11px",
-                  overflow: "auto",
-                  maxHeight: "200px",
-                }}>
-                  {JSON.stringify(selectedRound.payoutsJson, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={styles.pagination}>
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
-              style={styles.btnSecondary}
+              style={{
+                ...styles.btnSecondary,
+                opacity: page === 0 ? 0.5 : 1,
+                cursor: page === 0 ? "not-allowed" : "pointer",
+              }}
               disabled={page === 0}
             >
               Previous
@@ -452,7 +563,11 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             </span>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-              style={styles.btnSecondary}
+              style={{
+                ...styles.btnSecondary,
+                opacity: page >= totalPages - 1 ? 0.5 : 1,
+                cursor: page >= totalPages - 1 ? "not-allowed" : "pointer",
+              }}
               disabled={page >= totalPages - 1}
             >
               Next
@@ -461,6 +576,188 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
         )}
       </div>
 
+      {/* Selected Round Detail */}
+      {selectedRound && (
+        <div style={styles.module}>
+          <h3 style={styles.moduleHeader}>Round #{selectedRound.roundNumber} Details</h3>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+            {/* Left Column - Basic Info */}
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", fontFamily }}>Round Information</div>
+              <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px" }}>
+                <table style={{ width: "100%", fontSize: "13px" }}>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Target Word:</td>
+                      <td style={{ padding: "6px 0", fontFamily: "monospace", fontWeight: 600 }}>{selectedRound.targetWord}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Start Time:</td>
+                      <td style={{ padding: "6px 0" }}>{new Date(selectedRound.startTime).toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>End Time:</td>
+                      <td style={{ padding: "6px 0" }}>{new Date(selectedRound.endTime).toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Duration:</td>
+                      <td style={{ padding: "6px 0" }}>{formatDuration(selectedRound.startTime, selectedRound.endTime)}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Seed ETH:</td>
+                      <td style={{ padding: "6px 0" }}>{formatEth(selectedRound.seedEth)} ETH</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Final Jackpot:</td>
+                      <td style={{ padding: "6px 0", fontWeight: 600 }}>{formatEth(selectedRound.finalJackpotEth)} ETH</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Salt:</td>
+                      <td style={{ padding: "6px 0", fontFamily: "monospace", fontSize: "11px", wordBreak: "break-all" }}>{selectedRound.salt}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ fontSize: "14px", fontWeight: 600, margin: "20px 0 12px 0", fontFamily }}>Winner Details</div>
+              <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px" }}>
+                <table style={{ width: "100%", fontSize: "13px" }}>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Winner FID:</td>
+                      <td style={{ padding: "6px 0" }}>{selectedRound.winnerFid || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Winning Guess #:</td>
+                      <td style={{ padding: "6px 0" }}>{selectedRound.winnerGuessNumber || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Referrer FID:</td>
+                      <td style={{ padding: "6px 0" }}>{selectedRound.referrerFid || 'None'}</td>
+                    </tr>
+                    {selectedRound.winnerCastHash && (
+                      <tr>
+                        <td style={{ padding: "6px 0", color: "#6b7280" }}>Cast Hash:</td>
+                        <td style={{ padding: "6px 0", fontFamily: "monospace", fontSize: "11px" }}>{selectedRound.winnerCastHash}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Right Column - Payouts & Stats */}
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", fontFamily }}>Payouts</div>
+              {selectedRound.payoutsJson && (
+                <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px", fontSize: "13px" }}>
+                  {selectedRound.payoutsJson.winner && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <strong>Winner (FID {selectedRound.payoutsJson.winner.fid}):</strong>{' '}
+                      {formatEth(selectedRound.payoutsJson.winner.amountEth)} ETH
+                    </div>
+                  )}
+                  {selectedRound.payoutsJson.referrer && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <strong>Referrer (FID {selectedRound.payoutsJson.referrer.fid}):</strong>{' '}
+                      {formatEth(selectedRound.payoutsJson.referrer.amountEth)} ETH
+                    </div>
+                  )}
+                  {selectedRound.payoutsJson.topGuessers?.length > 0 && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <strong>Top Guessers ({selectedRound.payoutsJson.topGuessers.length}):</strong>
+                      <ul style={{ margin: "4px 0 0 20px", padding: 0 }}>
+                        {selectedRound.payoutsJson.topGuessers.map((g: any, idx: number) => (
+                          <li key={idx}>#{g.rank} FID {g.fid}: {formatEth(g.amountEth)} ETH</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedRound.payoutsJson.seed && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <strong>Seed:</strong> {formatEth(selectedRound.payoutsJson.seed.amountEth)} ETH
+                    </div>
+                  )}
+                  {selectedRound.payoutsJson.creator && (
+                    <div>
+                      <strong>Creator:</strong> {formatEth(selectedRound.payoutsJson.creator.amountEth)} ETH
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ fontSize: "14px", fontWeight: 600, margin: "20px 0 12px 0", fontFamily }}>Round Stats</div>
+              <div style={{ ...styles.grid, gridTemplateColumns: "1fr 1fr" }}>
+                <StatCard label="Total Guesses" value={selectedRound.totalGuesses.toLocaleString()} />
+                <StatCard label="Unique Players" value={selectedRound.uniquePlayers} />
+                <StatCard label="CLANKTON Bonuses" value={selectedRound.clanktonBonusCount} />
+                <StatCard label="Referral Signups" value={selectedRound.referralBonusCount} />
+              </div>
+            </div>
+          </div>
+
+          {/* Guess Distribution Histogram */}
+          {distribution && distribution.distribution.length > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <AnalyticsChart
+                data={distribution.distribution.map((d) => ({
+                  hour: `${d.hour}:00`,
+                  "Guesses": d.count
+                }))}
+                type="bar"
+                dataKey="Guesses"
+                xAxisKey="hour"
+                title="Guess Distribution by Hour"
+                colors={["#8b5cf6"]}
+                height={200}
+              />
+            </div>
+          )}
+
+          {/* Top Guessers */}
+          {distribution && distribution.byPlayer.length > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", fontFamily }}>Top Guessers This Round</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>#</th>
+                    <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>FID</th>
+                    <th style={{ padding: "8px", textAlign: "right", fontWeight: 600 }}>Guesses</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {distribution.byPlayer.slice(0, 10).map((p, idx) => (
+                    <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "8px" }}>{idx + 1}</td>
+                      <td style={{ padding: "8px" }}>{p.fid}</td>
+                      <td style={{ padding: "8px", textAlign: "right" }}>{p.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <button
+            onClick={() => { setSelectedRound(null); setDistribution(null); }}
+            style={{
+              marginTop: "24px",
+              padding: "8px 16px",
+              background: "#6b7280",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontFamily,
+            }}
+          >
+            Close Details
+          </button>
+        </div>
+      )}
     </div>
   )
 }
