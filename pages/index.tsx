@@ -137,6 +137,14 @@ function GameContent() {
   const INCORRECT_FADED_DURATION_MS = 1500; // Gray state: 1.5s
   const INCORRECT_FADEOUT_DURATION_MS = 1000; // Fade out: 1s
 
+  // Browser fallback: Live round stats for landing page
+  const [browserFallbackStats, setBrowserFallbackStats] = useState<{
+    roundId: number;
+    prizePoolEth: string;
+    globalGuessCount: number;
+    playerCount: number;
+  } | null>(null);
+
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
@@ -259,6 +267,39 @@ function GameContent() {
       }
     }
   }, []);
+
+  /**
+   * Fetch live round stats for browser fallback landing page
+   * Only runs when user is in a browser (not mini app) and not in dev mode
+   */
+  useEffect(() => {
+    if (!hasCheckedContext || isInMiniApp || isClientDevMode()) return;
+
+    const fetchStats = async () => {
+      try {
+        const [roundRes, guessersRes] = await Promise.all([
+          fetch('/api/round-state'),
+          fetch('/api/round/top-guessers'),
+        ]);
+
+        if (roundRes.ok) {
+          const roundData = await roundRes.json();
+          const guessersData = guessersRes.ok ? await guessersRes.json() : { uniqueGuessersCount: 0 };
+
+          setBrowserFallbackStats({
+            roundId: roundData.roundId,
+            prizePoolEth: roundData.prizePoolEth,
+            globalGuessCount: roundData.globalGuessCount,
+            playerCount: guessersData.uniqueGuessersCount || 0,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching browser fallback stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, [hasCheckedContext, isInMiniApp]);
 
   /**
    * Check if user has seen intro overlay (Milestone 4.3)
@@ -1246,13 +1287,40 @@ function GameContent() {
 
           {/* Value Proposition */}
           <p className="text-lg text-gray-700 font-medium">
-            A daily onchain word game with real ETH prizes.
+            A global word hunt with real ETH prizes
           </p>
+
+          {/* Live Round Stats */}
+          {browserFallbackStats && (
+            <div className="bg-white rounded-xl shadow-card p-4">
+              <p className="text-xl font-bold text-gray-900 mb-1">
+                Round #{browserFallbackStats.roundId}
+              </p>
+              <p className="text-lg font-semibold text-green-600 mb-3">
+                {parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH{' '}
+                <span className="text-gray-500 font-normal text-sm">prize pool</span>
+              </p>
+              <div className="flex justify-center gap-6 text-sm">
+                <div className="bg-gray-50 rounded-full px-4 py-1.5">
+                  <span className="font-semibold text-gray-900">
+                    {browserFallbackStats.globalGuessCount.toLocaleString()}
+                  </span>
+                  <span className="text-gray-500 ml-1">guesses</span>
+                </div>
+                <div className="bg-gray-50 rounded-full px-4 py-1.5">
+                  <span className="font-semibold text-gray-900">
+                    {browserFallbackStats.playerCount.toLocaleString()}
+                  </span>
+                  <span className="text-gray-500 ml-1">players</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Explanation Card */}
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
             <p className="text-gray-700 text-sm leading-relaxed">
-              <strong>Let's Have A Word!</strong> is built on{' '}
+              <strong>Let's Have A Word</strong> is an onchain word game built for{' '}
               <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Farcaster
               </a>
@@ -1260,7 +1328,7 @@ function GameContent() {
               <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Base
               </a>
-              —a decentralized social network with built-in identity and wallets.
+              —decentralized social networks with built-in wallets.
             </p>
             <p className="text-gray-500 text-sm">
               A standalone web version may come later.
@@ -1268,7 +1336,7 @@ function GameContent() {
           </div>
 
           {/* CTA Button */}
-          <div className="space-y-2">
+          <div>
             <a
               href="https://warpcast.com/letshaveaword"
               target="_blank"
@@ -1278,7 +1346,6 @@ function GameContent() {
               <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
               Play on Farcaster
             </a>
-            <p className="text-xs text-gray-500">Live rounds with ETH prize pools</p>
           </div>
 
           {/* Footer */}
