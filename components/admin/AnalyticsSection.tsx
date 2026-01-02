@@ -292,7 +292,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
 🎯 Global guesses: ${globalGuesses}
 👥 Players: ${playerCount}
 🏆 Top early guessers: ${topGuessersStr || "N/A"}
-🥈 Mini app rank: #`
+🏅 Mini app rank: #`
 
       setStatusCastText(castText)
     } catch (err) {
