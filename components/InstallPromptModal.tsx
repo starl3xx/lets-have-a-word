@@ -242,7 +242,7 @@ export default function InstallPromptModal({
         {/* Header */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">
-            Nice guess!
+            Get another guess
           </h2>
           <p className="text-gray-600 mt-2">
             {word ? (
@@ -255,26 +255,8 @@ export default function InstallPromptModal({
           </p>
         </div>
 
-        {/* Install prompt section */}
-        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-          <p className="text-sm text-gray-700 font-medium">
-            Install the app to get notified when:
-          </p>
-          <ul className="text-sm text-gray-600 space-y-1">
-            <li className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              Someone finds the word (round ends)
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
-              Your free guesses reset daily
-            </li>
-          </ul>
-        </div>
-
-        {/* Buttons */}
+        {/* Primary action: Share */}
         <div className="flex flex-col gap-3">
-          {/* Primary: Share */}
           <button
             onClick={handleShare}
             disabled={isSharing || isInstalling}
@@ -286,32 +268,37 @@ export default function InstallPromptModal({
               <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
             )}
             <span>
-              {isSharing ? 'Opening...' : 'Share your guess'}
+              {isSharing ? 'Opening...' : 'Share your guess → +1 guess'}
             </span>
           </button>
+        </div>
 
-          {/* Secondary: Install */}
+        {/* Secondary: Install section - framed as utility */}
+        <div className="border-t border-gray-100 pt-4">
+          <p className="text-xs text-gray-500 text-center mb-3">
+            Want to know when rounds end or guesses reset?
+          </p>
           <button
             onClick={handleInstall}
             disabled={isSharing || isInstalling}
-            className={`btn-secondary w-full flex items-center justify-center gap-2 ${
+            className={`w-full text-sm text-gray-500 hover:text-gray-700 transition-colors flex items-center justify-center gap-1 ${
               (isSharing || isInstalling) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             <span>
-              {isInstalling ? 'Installing...' : 'Install mini app'}
+              {isInstalling ? 'Installing...' : 'Enable notifications'}
             </span>
           </button>
-
-          {/* Tertiary: Skip */}
-          <button
-            onClick={handleDismiss}
-            disabled={isSharing || isInstalling}
-            className="text-sm text-gray-400 hover:text-gray-500 transition-colors"
-          >
-            Not now
-          </button>
         </div>
+
+        {/* Tertiary: Skip */}
+        <button
+          onClick={handleDismiss}
+          disabled={isSharing || isInstalling}
+          className="w-full text-sm text-gray-400 hover:text-gray-500 transition-colors"
+        >
+          Not now
+        </button>
       </div>
     </div>
   );
