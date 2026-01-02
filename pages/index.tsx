@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
 import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
@@ -59,6 +60,9 @@ const queryClient = new QueryClient();
  * to the game page only, preventing them from affecting other pages like /admin/analytics.
  */
 function GameContent() {
+  // Router for dev query params
+  const router = useRouter();
+
   // Word input state - now managed as array of 5 letters (Milestone 4.3)
   const [letters, setLetters] = useState<string[]>(['', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -1082,7 +1086,9 @@ function GameContent() {
                 case 'share':
                   // Check if we should show InstallPromptModal instead
                   // Show to users who haven't installed mini app AND haven't seen this prompt before
-                  if (hasMiniAppInstalled === false && !hasSeenInstallPrompt()) {
+                  // Dev override: ?forceInstallPrompt=1 bypasses the checks
+                  const forceInstallPrompt = router.query.forceInstallPrompt === '1';
+                  if (forceInstallPrompt || (hasMiniAppInstalled === false && !hasSeenInstallPrompt())) {
                     setShowInstallPromptModal(true);
                   } else {
                     setShowShareModal(true);
