@@ -1247,12 +1247,12 @@ function GameContent() {
           {/* Message */}
           <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
             <p className="text-gray-700 leading-relaxed">
-              <strong>Let’s Have A Word!</strong> uses the Farcaster stack. You can play in{' '}
-              <a href="https://farcaster.xyz" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+              <strong>Let's Have A Word!</strong> uses the Farcaster stack. You can play in{' '}
+              <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Farcaster
               </a>
               {' '}and the{' '}
-              <a href="https://join.base.app" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+              <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Base app
               </a>
               , which share the same identity and wallet infrastructure.
@@ -1278,6 +1278,17 @@ function GameContent() {
             Don't have Farcaster?{' '}
             <a
               href="https://farcaster.xyz/~/code/ZFYXLS"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 underline"
+            >
+              Sign up here
+            </a>
+          </p>
+          <p className="text-xs text-gray-500">
+            Don't have Base app?{' '}
+            <a
+              href="https://base.app/invite/starl3xx/23BC6Y0C"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary-600 underline"
