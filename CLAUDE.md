@@ -85,6 +85,10 @@ NEXT_PUBLIC_LHAW_DEV_MODE=true    # No onchain calls, mock data, always shows tu
 NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 ```
 
+## Code Style
+
+- **Apostrophes**: Use curly apostrophes (') not straight ones (') in UI text
+
 ## Required Environment Variables
 
 - `DATABASE_URL` - PostgreSQL connection
