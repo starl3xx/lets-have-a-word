@@ -1430,7 +1430,7 @@ function GameContent() {
         {/* User State (Milestone 4.1) - Minimal */}
         <div className="px-4 pt-1">
           <div className="max-w-md mx-auto">
-            <UserState key={userStateKey} fid={effectiveFid} />
+            <UserState key={userStateKey} fid={effectiveFid} onGetMore={() => setShowGuessPurchaseModal(true)} />
           </div>
         </div>
 
