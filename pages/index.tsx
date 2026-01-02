@@ -1233,7 +1233,7 @@ function GameContent() {
           {/* Logo */}
           <div className="flex justify-center">
             <img
-              src="/app-icon.png"
+              src="/LHAW-icon.png"
               alt="Let's Have A Word"
               className="w-24 h-24 rounded-2xl shadow-lg"
             />
@@ -1247,11 +1247,15 @@ function GameContent() {
           {/* Message */}
           <div className="bg-white rounded-xl shadow-card p-6 space-y-4">
             <p className="text-gray-700 leading-relaxed">
-              <strong>Let's Have A Word!</strong> uses the Farcaster stack. You can play in Farcaster clients like{' '}
-              <a href="https://warpcast.com" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
-                Warpcast
+              <strong>Let's Have A Word!</strong> uses the Farcaster stack. You can play in{' '}
+              <a href="https://farcaster.xyz" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+                Farcaster
               </a>
-              {' '}and the Base app, which share the same identity and wallet infrastructure.
+              {' '}and the{' '}
+              <a href="https://join.base.app" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+                Base app
+              </a>
+              , which share the same identity and wallet infrastructure.
             </p>
             <p className="text-gray-600 text-sm">
               Standalone web play isn't supported yet. A standalone web version may be explored later.
@@ -1263,10 +1267,10 @@ function GameContent() {
             href="https://warpcast.com/letshaveaword"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-primary inline-flex items-center gap-2 px-6 py-3"
+            className="btn-accent inline-flex items-center gap-2 px-6 py-3"
           >
             <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
-            Find us on Warpcast
+            Find us on Farcaster
           </a>
 
           {/* Footer */}
