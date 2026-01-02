@@ -70,10 +70,10 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
         {/* Body */}
         <div className="text-center space-y-3">
           <p className="text-gray-700">
-            Holding 100M $CLANKTON unlocks bonus guesses every round
+            Holding ≥100M $CLANKTON unlocks bonus guesses every day
           </p>
           <p className="text-sm text-gray-500">
-            $CLANKTON holders receive extra guesses in addition to daily free guesses
+            Holders receive extra guesses in addition to the free daily guess
           </p>
         </div>
 
