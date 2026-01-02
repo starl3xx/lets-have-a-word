@@ -1277,7 +1277,7 @@ function GameContent() {
           <p className="text-xs text-gray-500">
             Don't have Farcaster?{' '}
             <a
-              href="https://warpcast.com/~/signup"
+              href="https://farcaster.xyz/~/code/ZFYXLS"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary-600 underline"
