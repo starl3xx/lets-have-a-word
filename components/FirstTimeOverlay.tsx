@@ -97,6 +97,19 @@ export default function FirstTimeOverlay({
         console.log('Mini app added with notifications enabled');
       }
 
+      // Record the add to set addedMiniAppAt timestamp
+      if (fid) {
+        try {
+          await fetch('/api/og-hunter/record-add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fid }),
+          });
+        } catch (err) {
+          console.error('[FirstTimeOverlay] Failed to record add:', err);
+        }
+      }
+
       triggerHaptic('success');
       logOnboardingEvent('onboarding_add_app_accepted', fid, {
         notificationsEnabled,
