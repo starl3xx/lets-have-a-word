@@ -315,6 +315,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Round health check state
   const [roundHealth, setRoundHealth] = useState<RoundHealthCheck | null>(null)
   const [roundHealthLoading, setRoundHealthLoading] = useState(false)
+  const [roundHealthError, setRoundHealthError] = useState<string | null>(null)
 
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
@@ -372,6 +373,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
     try {
       setRoundHealthLoading(true)
+      setRoundHealthError(null)
       const res = await fetch(`/api/admin/operational/round-health?devFid=${user.fid}`)
       const data = await res.json()
 
@@ -382,6 +384,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setRoundHealth(data)
     } catch (err: any) {
       console.error('Failed to fetch round health:', err)
+      setRoundHealthError(err.message || 'Failed to fetch round health')
     } finally {
       setRoundHealthLoading(false)
     }
@@ -974,6 +977,12 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 Pre-resolution checks to identify potential issues before the round ends.
               </p>
 
+              {roundHealthError && (
+                <div style={styles.alert('error')}>
+                  {roundHealthError}
+                </div>
+              )}
+
               {roundHealthLoading && !roundHealth ? (
                 <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280' }}>
                   Running health checks...
@@ -1110,68 +1119,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </button>
             </div>
           )}
-
-          {/* Reset for Launch Card */}
-          <div style={{
-            ...styles.card,
-            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-            border: '2px solid #f59e0b',
-          }}>
-            <h2 style={{ ...styles.cardTitle, color: '#92400e' }}>
-              Reset for Launch
-            </h2>
-            <p style={{ fontSize: '14px', color: '#78350f', marginBottom: '16px' }}>
-              Clear all test data and reset to Round #1 for a fresh launch.
-            </p>
-            <div style={{
-              background: 'white',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              marginBottom: '16px',
-              fontSize: '13px',
-              color: '#374151',
-            }}>
-              <strong>This will permanently delete:</strong>
-              <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                <li>All rounds (including active round)</li>
-                <li>All guesses</li>
-                <li>All round archives</li>
-                <li>Reset round IDs to start at 1</li>
-              </ul>
-            </div>
-            {!showResetConfirm ? (
-              <button
-                onClick={() => setShowResetConfirm(true)}
-                style={{
-                  ...styles.btnSecondary,
-                  background: '#fef3c7',
-                  borderColor: '#f59e0b',
-                  color: '#92400e',
-                }}
-              >
-                Reset Database for Launch
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button
-                  onClick={handleResetForLaunch}
-                  disabled={resetLoading}
-                  style={{
-                    ...styles.btnDanger,
-                    opacity: resetLoading ? 0.7 : 1,
-                  }}
-                >
-                  {resetLoading ? 'Resetting...' : 'CONFIRM RESET'}
-                </button>
-                <button
-                  onClick={() => setShowResetConfirm(false)}
-                  style={styles.btnSecondary}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
 
           {/* Kill Switch Card */}
           <div style={styles.card}>
