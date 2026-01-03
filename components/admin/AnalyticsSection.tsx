@@ -474,12 +474,12 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   }, [statusCastText])
 
   const dauChartData = [...dauData].reverse().map(d => ({
-    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
     "Active Users": d.active_users
   }))
 
   const guessChartData = [...guessData].reverse().map(d => ({
-    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
     "Free": d.free_guesses,
     "Paid": d.paid_guesses
   }))
