@@ -246,27 +246,14 @@ export default async function handler(
       fid = 6500; // Default dev FID
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
     } else if (miniAppFid) {
-      // Mini app context authentication
-      // The FID is provided by Warpcast's mini app SDK (sdk.context.user.fid)
-      // Warpcast has already authenticated the user, so we trust this FID
-      fid = typeof miniAppFid === 'number' ? miniAppFid : parseInt(miniAppFid, 10);
-      console.log(`📱 Mini app auth: using miniAppFid ${fid}`);
-
-      // Set Sentry context for mini app users
-      Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
-      Sentry.setTag('auth_type', 'mini_app');
-
-      // Parse referral parameter
-      const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
-      console.log(`[Referral] Mini app auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
-
-      // Upsert user with minimal data (we don't have full Farcaster context)
-      console.log(`[Referral] Calling upsertUserFromFarcaster with referrerFid=${referrerFid}`);
-      await upsertUserFromFarcaster({
-        fid,
-        signerWallet: null,
-        spamScore: null,
-        referrerFid,
+      // SECURITY: miniAppFid from client cannot be trusted without verification
+      // The Farcaster SDK context is client-side only - anyone can spoof this value
+      // TODO: Implement proper SIWF (Sign In With Farcaster) authentication
+      // For now, reject unverified miniAppFid requests
+      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require frameMessage or signerUuid.`);
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'Please sign in with Farcaster to play. Refresh the app and try again.',
       });
     } else {
       // Production mode: require Farcaster authentication
@@ -293,7 +280,7 @@ export default async function handler(
         }
       } else {
         return res.status(400).json({
-          error: 'Authentication required: provide miniAppFid, frameMessage, or signerUuid',
+          error: 'Authentication required: provide frameMessage or signerUuid',
         });
       }
 
