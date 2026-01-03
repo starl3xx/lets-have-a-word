@@ -1500,7 +1500,6 @@ function GameContent() {
           setCurrentRoundId(roundId);
           setShowArchiveModal(true);
         }}
-        adminFid={effectiveFid ?? undefined}
       />
 
       {/* Game Area Wrapper - contains UserState, game container, and overlays */}
