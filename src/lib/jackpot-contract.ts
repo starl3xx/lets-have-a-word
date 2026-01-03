@@ -480,7 +480,10 @@ export async function startRoundWithCommitmentOnChain(commitHash: string): Promi
     throw error;
   }
 
-  const tx = await contract.startRoundWithCommitment(bytes32Hash);
+  // Try with explicit gas limit to bypass estimateGas and get actual revert reason
+  const tx = await contract.startRoundWithCommitment(bytes32Hash, {
+    gasLimit: 500000n, // Explicit gas limit to bypass estimateGas
+  });
   console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
