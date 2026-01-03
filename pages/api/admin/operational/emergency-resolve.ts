@@ -14,7 +14,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
-import { isAdminFid } from '../../me';
+import { isAdminFid } from '../me';
 import { db } from '../../../../src/db';
 import { users, rounds, guesses } from '../../../../src/db/schema';
 import { eq, desc, and, isNull } from 'drizzle-orm';
