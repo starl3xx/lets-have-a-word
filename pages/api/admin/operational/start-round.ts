@@ -8,8 +8,10 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
 import { createRound, getActiveRound } from '../../../../src/lib/rounds';
+import { getJackpotManagerReadOnly } from '../../../../src/lib/jackpot-contract';
 
 interface StartRoundResponse {
   success: boolean;
@@ -76,6 +78,34 @@ export default async function handler(
         prizePoolEth: existingRound.prizePoolEth,
         startedAt: existingRound.startedAt.toISOString(),
       });
+    }
+
+    // Pre-flight check: Verify operator wallet authorization
+    try {
+      const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+      if (!operatorPrivateKey) {
+        return res.status(500).json({
+          success: false,
+          message: 'OPERATOR_PRIVATE_KEY not configured. Cannot sign contract transactions.',
+        });
+      }
+
+      const ourWallet = new ethers.Wallet(operatorPrivateKey);
+      const contract = getJackpotManagerReadOnly();
+      const contractOperator = await contract.operatorWallet() as string;
+
+      if (ourWallet.address.toLowerCase() !== contractOperator.toLowerCase()) {
+        console.error(`[start-round] OPERATOR MISMATCH: Contract expects ${contractOperator} but we have ${ourWallet.address}`);
+        return res.status(500).json({
+          success: false,
+          message: `Operator wallet mismatch! Contract expects ${contractOperator} but backend is configured with ${ourWallet.address}. Update OPERATOR_PRIVATE_KEY to the correct wallet.`,
+        });
+      }
+
+      console.log(`[start-round] Operator authorization verified: ${ourWallet.address}`);
+    } catch (operatorError) {
+      console.error('[start-round] Failed to verify operator:', operatorError);
+      // Continue anyway - let the contract call fail with its error
     }
 
     // Create new round
