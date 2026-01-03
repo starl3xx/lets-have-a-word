@@ -439,33 +439,29 @@ export async function startRoundWithCommitmentOnChain(commitHash: string): Promi
   console.log(`[CONTRACT] Starting round with onchain commitment`);
   console.log(`[CONTRACT] Commit hash: ${bytes32Hash}`);
 
-  // Pre-flight diagnostics
+  // Pre-flight diagnostics using getCurrentRoundInfo (works with all contract versions)
   try {
-    const [currentRound, currentJackpot, minSeed, operatorWallet] = await Promise.all([
-      readOnlyContract.currentRound() as Promise<bigint>,
-      readOnlyContract.currentJackpot() as Promise<bigint>,
+    const [roundInfo, minSeed, operatorWallet] = await Promise.all([
+      getContractRoundInfo(),
       readOnlyContract.MINIMUM_SEED() as Promise<bigint>,
       readOnlyContract.operatorWallet() as Promise<string>,
     ]);
 
     console.log(`[CONTRACT] Pre-flight check:`);
-    console.log(`  - Current round: ${currentRound}`);
-    console.log(`  - Current jackpot: ${ethers.formatEther(currentJackpot)} ETH`);
+    console.log(`  - Current round: ${roundInfo.roundNumber}`);
+    console.log(`  - Current jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
     console.log(`  - Minimum seed: ${ethers.formatEther(minSeed)} ETH`);
+    console.log(`  - Round isActive: ${roundInfo.isActive}`);
     console.log(`  - Contract operator: ${operatorWallet}`);
 
     // Check if current round is active
-    if (currentRound > 0n) {
-      const roundInfo = await readOnlyContract.getRound(currentRound);
-      console.log(`  - Round ${currentRound} isActive: ${roundInfo.isActive}`);
-      if (roundInfo.isActive) {
-        throw new Error(`Cannot start new round: Round ${currentRound} is still active on contract`);
-      }
+    if (roundInfo.isActive) {
+      throw new Error(`Cannot start new round: Round ${roundInfo.roundNumber} is still active on contract`);
     }
 
     // Check minimum seed
-    if (currentJackpot < minSeed) {
-      throw new Error(`Insufficient seed: ${ethers.formatEther(currentJackpot)} ETH < ${ethers.formatEther(minSeed)} ETH minimum`);
+    if (roundInfo.jackpot < minSeed) {
+      throw new Error(`Insufficient seed: ${ethers.formatEther(roundInfo.jackpot)} ETH < ${ethers.formatEther(minSeed)} ETH minimum`);
     }
 
     // Check operator matches
