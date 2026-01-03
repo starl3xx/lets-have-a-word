@@ -162,6 +162,13 @@ function GameContent() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
 
+  // SIWF (Sign In With Farcaster) credential for secure authentication
+  const [siwfCredential, setSiwfCredential] = useState<{
+    message: string;
+    signature: string;
+    nonce: string;
+  } | null>(null);
+
   // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
   const [showClanktonBonusModal, setShowClanktonBonusModal] = useState(false);
@@ -234,6 +241,32 @@ function GameContent() {
             } catch (e) {
               console.error('[Referral] Failed to parse embed URL:', e);
             }
+          }
+
+          // Auto sign-in with Farcaster for secure backend authentication
+          // This happens transparently without user interaction
+          try {
+            console.log('[SIWF] Starting auto sign-in...');
+            const nonceRes = await fetch('/api/auth/nonce');
+            if (nonceRes.ok) {
+              const { nonce } = await nonceRes.json();
+              console.log('[SIWF] Got nonce, requesting signature...');
+
+              // Request SIWF signature from Warpcast
+              const signInResult = await sdk.actions.signIn({ nonce });
+              console.log('[SIWF] Got signature, storing credential');
+
+              // Store the credential for use in API requests
+              setSiwfCredential({
+                message: signInResult.message,
+                signature: signInResult.signature,
+                nonce,
+              });
+              console.log('[SIWF] Auto sign-in complete');
+            }
+          } catch (signInError) {
+            console.error('[SIWF] Auto sign-in failed:', signInError);
+            // Continue without SIWF - will fall back to other auth methods
           }
         } else {
           // No FID in context - check if dev mode
@@ -864,9 +897,13 @@ function GameContent() {
       // Build request body with appropriate authentication
       const requestBody: any = { word };
 
-      if (isInMiniApp && fid) {
-        // In mini app context: use miniAppFid (production)
-        // Warpcast has already authenticated the user via sdk.context
+      if (isInMiniApp && fid && siwfCredential) {
+        // In mini app context: use SIWF credential for verified authentication
+        requestBody.siwfCredential = siwfCredential;
+      } else if (isInMiniApp && fid) {
+        // Fallback: mini app without SIWF credential (shouldn't happen normally)
+        // This will be rejected by the server for security
+        console.warn('[Guess] No SIWF credential available, request may be rejected');
         requestBody.miniAppFid = fid;
       } else if (isClientDevMode() && effectiveFid) {
         // Local development: use devFid

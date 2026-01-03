@@ -25,6 +25,12 @@ import {
   extractRequestMetadata,
 } from '../../src/lib/rateLimit';
 import { AppErrorCodes } from '../../src/lib/appErrors';
+import { createAppClient, viemConnector } from '@farcaster/auth-client';
+
+// Create Farcaster auth client for SIWF verification
+const farcasterAuthClient = createAppClient({
+  ethereum: viemConnector(),
+});
 
 /**
  * POST /api/guess
@@ -77,14 +83,15 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid, siwfCredential } = req.body;
 
     // Debug: Log referral parameter from request body
     console.log(`[Referral] Backend received ref=${ref} (type: ${typeof ref}) from request body`);
 
     // Extract request metadata for rate limiting
     const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
-    const rateLimitFid = miniAppFid || devFid || metadataFid;
+    // For SIWF, we don't have FID until verified, so use other identifiers for initial rate limit
+    const rateLimitFid = devFid || metadataFid;
 
     // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
     // Runs BEFORE any DB operations to fail fast and cheap
@@ -245,15 +252,66 @@ export default async function handler(
       // This allows the web UI to work in dev mode without requiring auth
       fid = 6500; // Default dev FID
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
+    } else if (siwfCredential) {
+      // SIWF (Sign In With Farcaster) - verified authentication for mini app users
+      const { message, signature, nonce } = siwfCredential;
+
+      if (!message || !signature || !nonce) {
+        return res.status(400).json({
+          error: 'Invalid SIWF credential',
+          message: 'Missing message, signature, or nonce',
+        });
+      }
+
+      try {
+        console.log(`📱 [SIWF] Verifying signature...`);
+        const verifyResult = await farcasterAuthClient.verifySignInMessage({
+          message,
+          signature: signature as `0x${string}`,
+          domain: 'letshaveaword.fun',
+          nonce,
+        });
+
+        if (!verifyResult.success || !verifyResult.fid) {
+          console.error(`📱 [SIWF] Verification failed:`, verifyResult);
+          return res.status(401).json({
+            error: 'Invalid SIWF signature',
+            message: 'Authentication failed. Please refresh and try again.',
+          });
+        }
+
+        fid = verifyResult.fid;
+        console.log(`📱 [SIWF] Verified FID ${fid}`);
+
+        // Set Sentry context
+        Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+        Sentry.setTag('auth_type', 'siwf');
+
+        // Parse referral parameter
+        const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+        console.log(`[Referral] SIWF auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
+
+        // Upsert user
+        await upsertUserFromFarcaster({
+          fid,
+          signerWallet: null,
+          spamScore: null,
+          referrerFid,
+        });
+      } catch (verifyError: any) {
+        console.error(`📱 [SIWF] Verification error:`, verifyError);
+        return res.status(401).json({
+          error: 'SIWF verification failed',
+          message: 'Authentication error. Please refresh and try again.',
+        });
+      }
     } else if (miniAppFid) {
-      // SECURITY: miniAppFid from client cannot be trusted without verification
+      // SECURITY: miniAppFid without SIWF credential cannot be trusted
       // The Farcaster SDK context is client-side only - anyone can spoof this value
-      // TODO: Implement proper SIWF (Sign In With Farcaster) authentication
-      // For now, reject unverified miniAppFid requests
-      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require frameMessage or signerUuid.`);
+      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require SIWF credential.`);
       return res.status(401).json({
         error: 'Authentication required',
-        message: 'Please sign in with Farcaster to play. Refresh the app and try again.',
+        message: 'Please refresh the app to sign in securely.',
       });
     } else {
       // Production mode: require Farcaster authentication
