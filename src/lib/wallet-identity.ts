@@ -37,6 +37,10 @@ export interface WalletIdentityResult {
  * - Paid guess purchases (passed to smart contract)
  * - Round resolution (winner payout address)
  *
+ * Resolution priority:
+ * 1. signerWalletAddress (primary - from Farcaster mini app)
+ * 2. custodyAddress (fallback - Farcaster custody wallet)
+ *
  * @param fid - Farcaster ID of the user
  * @returns Wallet identity result with resolved address
  */
@@ -58,7 +62,8 @@ export async function resolveWalletIdentity(fid: number): Promise<WalletIdentity
       };
     }
 
-    const walletAddress = user.signerWalletAddress;
+    // Try signer wallet first, then custody address as fallback
+    const walletAddress = user.signerWalletAddress || user.custodyAddress;
 
     // Validate wallet address
     if (!walletAddress) {
@@ -66,7 +71,7 @@ export async function resolveWalletIdentity(fid: number): Promise<WalletIdentity
         fid,
         walletAddress: '',
         isValid: false,
-        error: `User FID ${fid} has no signer wallet configured`,
+        error: `User FID ${fid} has no wallet configured (neither signer nor custody)`,
       };
     }
 
@@ -81,6 +86,10 @@ export async function resolveWalletIdentity(fid: number): Promise<WalletIdentity
 
     // Normalize to checksum address
     const checksumAddress = ethers.getAddress(walletAddress);
+
+    // Log which wallet type was used
+    const walletType = user.signerWalletAddress ? 'signer' : 'custody';
+    console.log(`[WALLET] Resolved FID ${fid} using ${walletType} wallet: ${checksumAddress.slice(0, 10)}...`);
 
     return {
       fid,
