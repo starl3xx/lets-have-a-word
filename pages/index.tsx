@@ -106,6 +106,9 @@ function GameContent() {
   // User guess count state (Milestone 4.6)
   const [hasGuessesLeft, setHasGuessesLeft] = useState(true);
 
+  // Round status - disabled input when no active round
+  const [hasActiveRound, setHasActiveRound] = useState(true);
+
   // Share modal state (Milestone 4.2)
   const [showShareModal, setShowShareModal] = useState(false);
   const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
@@ -637,7 +640,8 @@ function GameContent() {
       if (e.key === 'Enter') {
         e.preventDefault();
         // Milestone 6.4: Respect same validation as GUESS button
-        if (!isGuessButtonEnabled(currentInputState) || isLoading) {
+        // Also block when no active round
+        if (!isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound) {
           return;
         }
         handleSubmit();
@@ -647,7 +651,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay, showTutorial]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay, showTutorial, hasActiveRound]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
@@ -1289,7 +1293,8 @@ function GameContent() {
   const stateErrorMessage = getErrorMessage(currentInputState);
 
   // Check if GUESS button should be enabled (Milestone 4.6)
-  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading;
+  // Also disable when no active round
+  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound;
 
   /**
    * Handle share modal close
@@ -1500,6 +1505,7 @@ function GameContent() {
           setCurrentRoundId(roundId);
           setShowArchiveModal(true);
         }}
+        onRoundStatusChange={setHasActiveRound}
       />
 
       {/* Game Area Wrapper - contains UserState, game container, and overlays */}
@@ -1619,7 +1625,7 @@ function GameContent() {
                 <LetterBoxes
                   letters={letters}
                   onChange={handleLettersChange}
-                  disabled={isLoading}
+                  disabled={isLoading || !hasActiveRound}
                   isShaking={isShaking}
                   resultState={boxResultState}
                   inputState={currentInputState}
@@ -1751,7 +1757,7 @@ function GameContent() {
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
-          disabled={isLoading}
+          disabled={isLoading || !hasActiveRound}
         />
       </div>
 

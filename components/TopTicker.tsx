@@ -4,6 +4,7 @@ import type { RoundStatus } from '../src/lib/wheel';
 interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;
   adminFid?: number; // Pass admin FID to enable start round button
+  onRoundStatusChange?: (hasActiveRound: boolean) => void; // Notify parent when round status changes
 }
 
 /**
@@ -52,7 +53,7 @@ function formatUsd(value: string | number): string {
  *
  * Polls /api/round-state every 15 seconds for live updates.
  */
-export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
+export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange }: TopTickerProps) {
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +144,15 @@ export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
     // Cleanup on unmount
     return () => clearInterval(interval);
   }, []);
+
+  /**
+   * Notify parent when round status changes
+   */
+  useEffect(() => {
+    if (onRoundStatusChange) {
+      onRoundStatusChange(status !== null);
+    }
+  }, [status, onRoundStatusChange]);
 
   /**
    * Loading state
