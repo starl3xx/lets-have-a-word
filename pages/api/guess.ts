@@ -298,7 +298,8 @@ export default async function handler(
       }
 
       fid = farcasterContext.fid;
-      signerWallet = farcasterContext.signerWallet;
+      // Priority: primary wallet > signer wallet (verified addresses)
+      signerWallet = farcasterContext.primaryWallet || farcasterContext.signerWallet;
       spamScore = farcasterContext.spamScore;
 
       // Milestone 9.2: Set Sentry user context for error tracking

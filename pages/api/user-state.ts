@@ -157,7 +157,8 @@ export default async function handler(
 
       // Create user record
       // If Neynar data available, use it; otherwise create minimal record
-      const userWallet = walletAddress || farcasterUser?.signerWallet || null;
+      // Priority: SDK wallet > Neynar primary wallet > Neynar signer wallet
+      const userWallet = walletAddress || farcasterUser?.primaryWallet || farcasterUser?.signerWallet || null;
       const username = farcasterUser?.username || `user-${fid}`;
 
       // Validate referrer (cannot refer yourself)
