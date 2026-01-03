@@ -792,7 +792,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const handleStartRound = async () => {
     if (!user?.fid) return
 
-    if (!confirm('Start a new round? This will create Round 1 with a random target word.')) {
+    if (!confirm('Start a new round? This will create a new round with a random target word.')) {
       return
     }
 
