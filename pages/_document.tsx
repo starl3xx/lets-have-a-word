@@ -20,8 +20,7 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* Page title and favicon */}
-        <title>Let's Have A Word! | Onchain word game</title>
+        {/* Favicon */}
         <link rel="icon" type="image/png" href="/LHAW-icon.png" />
         <link rel="apple-touch-icon" href="/LHAW-icon.png" />
         {/* Base App verification */}

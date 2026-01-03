@@ -1885,6 +1885,7 @@ export default function Home() {
   return (
     <>
       <Head>
+        <title>Let's Have A Word! | Onchain word game</title>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
       <WagmiProvider config={config}>
