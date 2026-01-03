@@ -142,6 +142,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
  * Get the current active round (latest unresolved round)
  *
  * Milestone 9.5: Excludes cancelled rounds - a cancelled round is not active
+ * Also excludes rounds where winnerFid is set (round locked, payouts in progress)
  */
 export async function getActiveRound(): Promise<Round | null> {
   return trackSlowQuery('query:getActiveRound', async () => {
@@ -150,6 +151,7 @@ export async function getActiveRound(): Promise<Round | null> {
       .from(rounds)
       .where(and(
         isNull(rounds.resolvedAt),
+        isNull(rounds.winnerFid), // Round is locked once winner is set
         eq(rounds.status, 'active') // Exclude cancelled rounds
       ))
       .orderBy(desc(rounds.startedAt))
@@ -183,6 +185,8 @@ export async function getActiveRound(): Promise<Round | null> {
  * from modifying it until this transaction commits. Used to prevent race
  * conditions when resolving rounds.
  *
+ * Also checks winnerFid to ensure round isn't already locked by a winning guess.
+ *
  * @param tx - The transaction context
  * @returns The active round (locked) or null if no active round
  */
@@ -192,6 +196,7 @@ export async function getActiveRoundForUpdate(tx: typeof db): Promise<Round | nu
     .from(rounds)
     .where(and(
       isNull(rounds.resolvedAt),
+      isNull(rounds.winnerFid), // Round is locked once winner is set
       eq(rounds.status, 'active')
     ))
     .orderBy(desc(rounds.startedAt))
