@@ -46,6 +46,41 @@ function formatUsd(value: string | number): string {
 }
 
 /**
+ * Format guess percentage for display
+ * Shows whole number with ≈ prefix if not exact
+ *
+ * @param guessCount - Current number of guesses
+ * @param totalWords - Total words in dictionary
+ * @returns Formatted percentage string (e.g. "≈19%" or "25%")
+ */
+function formatGuessPercentage(guessCount: number, totalWords: number): string {
+  const exactPercent = (guessCount / totalWords) * 100;
+  const roundedPercent = Math.round(exactPercent);
+  const isExact = exactPercent === roundedPercent;
+
+  return isExact ? `${roundedPercent}%` : `≈${roundedPercent}%`;
+}
+
+/**
+ * Get color for guess percentage based on thresholds
+ * Subtle color progression as dictionary gets exhausted
+ *
+ * @param guessCount - Current number of guesses
+ * @param totalWords - Total words in dictionary
+ * @returns CSS color class or style
+ */
+function getPercentageColor(guessCount: number, totalWords: number): string {
+  const percent = (guessCount / totalWords) * 100;
+
+  if (percent >= 50) {
+    return 'rgb(251, 146, 60)'; // orange-400 - warning
+  } else if (percent >= 25) {
+    return 'rgb(251, 191, 36)'; // amber-400 - caution
+  }
+  return 'rgba(255, 255, 255, 0.6)'; // gray/white - normal
+}
+
+/**
  * TopTicker Component
  * Milestone 3.2: Displays live round status with polished formatting
  * Milestone 5.4: Round number is clickable to open archive modal
@@ -244,8 +279,11 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
           </p>
           <p className="text-lg font-bold">
             {status.globalGuessCount.toLocaleString()}
-            <span className="text-sm font-normal opacity-60 ml-1.5">
-              ({((status.globalGuessCount / TOTAL_WORD_COUNT) * 100).toFixed(1)}%)
+            <span
+              className="text-sm font-normal ml-1.5"
+              style={{ color: getPercentageColor(status.globalGuessCount, TOTAL_WORD_COUNT) }}
+            >
+              ({formatGuessPercentage(status.globalGuessCount, TOTAL_WORD_COUNT)})
             </span>
           </p>
         </div>
