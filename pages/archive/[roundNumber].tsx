@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
-import sdk from '@farcaster/frame-sdk';
+import sdk from '@farcaster/miniapp-sdk';
 import OgHunterBadge from '../../components/OgHunterBadge';
 import ClanktonHolderBadge from '../../components/ClanktonHolderBadge';
 
