@@ -2,6 +2,8 @@
  * Admin API to lookup usernames for FIDs
  *
  * GET /api/admin/usernames?fids=123,456,789
+ *
+ * First checks local database, then falls back to Neynar for missing FIDs
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -9,6 +11,7 @@ import { isAdminFid } from './me';
 import { db } from '../../../src/db';
 import { users } from '../../../src/db/schema';
 import { sql } from 'drizzle-orm';
+import { neynarClient } from '../../../src/lib/farcaster';
 
 export default async function handler(
   req: NextApiRequest,
@@ -38,15 +41,37 @@ export default async function handler(
   }
 
   try {
+    const usernames: Record<number, string> = {};
+
+    // First, check local database
     const userRows = await db
       .select({ fid: users.fid, username: users.username })
       .from(users)
       .where(sql`${users.fid} IN (${sql.join(fids.map(f => sql`${f}`), sql`, `)})`);
 
-    const usernames: Record<number, string> = {};
     for (const row of userRows) {
       if (row.username) {
         usernames[row.fid] = row.username;
+      }
+    }
+
+    // Find FIDs not in local database
+    const missingFids = fids.filter(f => !usernames[f]);
+
+    // Fetch missing usernames from Neynar
+    if (missingFids.length > 0) {
+      try {
+        const response = await neynarClient.fetchBulkUsers({ fids: missingFids });
+        if (response?.users) {
+          for (const user of response.users) {
+            if (user.username) {
+              usernames[user.fid] = user.username;
+            }
+          }
+        }
+      } catch (neynarError) {
+        // Log but don't fail - we still have local usernames
+        console.error('[usernames] Neynar fallback failed:', neynarError);
       }
     }
 
