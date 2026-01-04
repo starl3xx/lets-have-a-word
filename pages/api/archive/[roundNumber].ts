@@ -30,6 +30,7 @@ export default async function handler(
   try {
     const { roundNumber } = req.query;
     const includeDistribution = req.query.distribution === 'true';
+    const noCache = req.query.nocache === 'true';
 
     if (!roundNumber || typeof roundNumber !== 'string') {
       return res.status(400).json({ error: 'Round number is required' });
@@ -41,10 +42,12 @@ export default async function handler(
     }
 
     // Use cache for immutable archive data (1 hour TTL)
+    // Pass TTL of 0 to bypass cache when nocache=true
     const cacheKey = CacheKeys.archiveRound(roundNum);
+    const cacheTTL = noCache ? 0 : CacheTTL.archiveRound;
     const cachedRound = await cacheAside<ArchiveDetailResponse>(
       cacheKey,
-      CacheTTL.archiveRound,
+      cacheTTL,
       async () => {
         const round = await getArchivedRoundWithUsernames(roundNum);
 

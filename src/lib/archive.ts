@@ -447,7 +447,9 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     // Fetch profiles from Neynar for all FIDs (for accurate usernames and PFPs)
     if (uniqueFids.length > 0) {
       try {
+        console.log(`[archive] Fetching ${uniqueFids.length} profiles from Neynar:`, uniqueFids);
         const neynarData = await neynarClient.fetchBulkUsers({ fids: uniqueFids });
+        console.log(`[archive] Neynar returned ${neynarData.users?.length || 0} users`);
         if (neynarData.users) {
           for (const user of neynarData.users) {
             const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
@@ -457,6 +459,12 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
               username: user.username || existing.username,
               pfpUrl: user.pfp_url || null,
             });
+          }
+          // Log any FIDs that Neynar didn't return data for
+          const returnedFids = new Set(neynarData.users.map(u => u.fid));
+          const missingFids = uniqueFids.filter(fid => !returnedFids.has(fid));
+          if (missingFids.length > 0) {
+            console.warn(`[archive] Neynar missing data for FIDs:`, missingFids);
           }
         }
       } catch (error) {
@@ -513,11 +521,12 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     }
 
     // Build extended response with usernames and PFPs
+    // Use FID as fallback if username not available from Neynar
     const topGuessersWithUsernames = (archived.payoutsJson?.topGuessers || []).map(guesser => {
       const userData = userDataMap.get(guesser.fid);
       return {
         fid: guesser.fid,
-        username: userData?.username || null,
+        username: userData?.username || `fid:${guesser.fid}`,
         pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
         amountEth: guesser.amountEth,
         rank: guesser.rank,
@@ -531,9 +540,9 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
 
     return {
       ...archived,
-      winnerUsername: winnerData?.username || null,
+      winnerUsername: winnerData?.username || (archived.winnerFid ? `fid:${archived.winnerFid}` : null),
       winnerPfpUrl: winnerData?.pfpUrl || (archived.winnerFid ? `https://avatar.vercel.sh/${archived.winnerFid}` : null),
-      referrerUsername: referrerData?.username || null,
+      referrerUsername: referrerData?.username || (archived.referrerFid ? `fid:${archived.referrerFid}` : null),
       referrerPfpUrl: referrerData?.pfpUrl || (archived.referrerFid ? `https://avatar.vercel.sh/${archived.referrerFid}` : null),
       topGuessersWithUsernames,
     };
