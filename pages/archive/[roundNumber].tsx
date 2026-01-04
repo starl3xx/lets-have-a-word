@@ -14,6 +14,7 @@ interface TopGuesserWithUsername {
   username: string | null;
   pfpUrl: string | null;
   amountEth: string;
+  guessCount: number;
   rank: number;
   hasClanktonBadge?: boolean;
   hasOgHunterBadge?: boolean;
@@ -330,28 +331,28 @@ export default function RoundDetailPage() {
                     {round.topGuessersWithUsernames.map((guesser, index) => (
                       <div
                         key={guesser.fid}
-                        className={`px-4 py-3 flex items-center gap-3 ${
+                        className={`px-3 py-2 flex items-center gap-2 ${
                           index < round.topGuessersWithUsernames.length - 1 ? 'border-b border-gray-100' : ''
                         }`}
                       >
                         {/* Rank */}
-                        <div className="text-gray-500 font-medium w-6 text-right">
+                        <div className="text-gray-400 text-sm font-medium w-5 text-right flex-shrink-0">
                           {guesser.rank}.
                         </div>
                         {/* PFP */}
                         <img
                           src={guesser.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`}
                           alt={guesser.username || 'User'}
-                          className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                          className="w-7 h-7 rounded-full object-cover border border-gray-200 flex-shrink-0"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
                           }}
                         />
-                        {/* Username + Badges + ETH Payout */}
-                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                        {/* Username + Badges */}
+                        <div className="flex-1 flex items-center gap-1 min-w-0">
                           <button
                             onClick={() => openProfile(guesser.fid)}
-                            className="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors"
+                            className="text-sm font-medium text-gray-900 truncate hover:text-blue-600 transition-colors"
                           >
                             {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || 'unknown'}`}
                           </button>
@@ -361,9 +362,10 @@ export default function RoundDetailPage() {
                           {guesser.hasClanktonBadge && (
                             <ClanktonHolderBadge size="sm" showTooltip={true} />
                           )}
-                          <span className="text-gray-400 text-sm tabular-nums whitespace-nowrap">
-                            (.{guesser.amountEth.substring(2, 6)} ETH)
-                          </span>
+                        </div>
+                        {/* Guess Count */}
+                        <div className="text-sm text-gray-500 tabular-nums flex-shrink-0">
+                          ({guesser.guessCount})
                         </div>
                       </div>
                     ))}
