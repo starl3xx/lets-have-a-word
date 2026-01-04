@@ -21,9 +21,10 @@ import {
   type RoundArchiveRow,
   type RoundArchiveErrorInsert,
 } from '../db/schema';
-import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, or, isNull } from 'drizzle-orm';
 import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
+import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 
 /**
  * Data required to archive a round (can be passed explicitly or computed)
@@ -156,22 +157,18 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       winnerCastHash = announcerEvent.castHash;
     }
 
-    // Get payouts and construct payouts JSON
-    // Order by amount descending for top_guesser to reconstruct correct ranking
-    // (tiered payouts: rank 1 = 19%, rank 2 = 16%, etc.)
+    // Get payouts for winner, referrer, seed from round_payouts
     const payoutRecords = await db
       .select()
       .from(roundPayouts)
-      .where(eq(roundPayouts.roundId, roundId))
-      .orderBy(desc(roundPayouts.amountEth));
+      .where(eq(roundPayouts.roundId, roundId));
 
     const payoutsJson: RoundArchivePayouts = {
       topGuessers: [],
     };
 
-    // Collect top_guesser payouts first, then sort by amount to determine rank
-    const topGuesserPayouts: { fid: number; amountEth: string }[] = [];
-
+    // Get winner, referrer, seed payouts from DB
+    let topGuesserPoolEth = 0;
     for (const payout of payoutRecords) {
       switch (payout.role) {
         case 'winner':
@@ -185,12 +182,8 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           }
           break;
         case 'top_guesser':
-          if (payout.fid) {
-            topGuesserPayouts.push({
-              fid: payout.fid,
-              amountEth: payout.amountEth,
-            });
-          }
+          // Sum up what was allocated to top guessers (for calculating individual amounts)
+          topGuesserPoolEth += parseFloat(payout.amountEth);
           break;
         case 'seed':
           payoutsJson.seed = { amountEth: payout.amountEth };
@@ -201,17 +194,55 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       }
     }
 
-    // Sort top guessers by amount descending (higher amount = higher rank)
-    // and assign ranks
-    topGuesserPayouts
-      .sort((a, b) => parseFloat(b.amountEth) - parseFloat(a.amountEth))
-      .forEach((payout, index) => {
+    // CRITICAL: Compute correct Top 10 from guesses table (ALL guesses count, not just paid)
+    // This ensures the archive shows the TRUE ranking, not who was incorrectly paid
+    const topGuessersFromGuesses = await db
+      .select({
+        fid: guesses.fid,
+        guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+        firstGuessTime: sql<Date>`min(${guesses.createdAt})`,
+      })
+      .from(guesses)
+      .where(
+        and(
+          eq(guesses.roundId, roundId),
+          // Only count guesses within the Top-10 lock window (first 750)
+          or(
+            lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
+            isNull(guesses.guessIndexInRound) // Legacy data
+          )
+        )
+      )
+      .groupBy(guesses.fid)
+      .orderBy(desc(sql`count(${guesses.id})`), asc(sql`min(${guesses.createdAt})`))
+      .limit(11); // Get 11 to exclude winner
+
+    // Filter out the winner and take top 10
+    const top10Fids = topGuessersFromGuesses
+      .filter(g => g.fid !== round.winnerFid)
+      .slice(0, 10);
+
+    // Tiered payout percentages (basis points out of 10000)
+    const TIER_BPS = [1900, 1600, 1400, 1100, 1000, 600, 600, 600, 600, 600];
+
+    // Calculate normalized percentages based on how many are in top 10
+    const numGuessers = top10Fids.length;
+    if (numGuessers > 0) {
+      const activeBps = TIER_BPS.slice(0, numGuessers);
+      const totalBps = activeBps.reduce((sum, bp) => sum + bp, 0);
+
+      top10Fids.forEach((guesser, index) => {
+        // Calculate this guesser's share of the pool
+        const normalizedBps = (activeBps[index] * 10000) / totalBps;
+        const amountEth = (topGuesserPoolEth * normalizedBps) / 10000;
+
         payoutsJson.topGuessers.push({
-          fid: payout.fid,
-          amountEth: payout.amountEth,
+          fid: guesser.fid,
+          amountEth: amountEth.toFixed(18),
           rank: index + 1,
         });
       });
+    }
 
     // Compute CLANKTON bonus count
     // Count users who used clankton bonus during this round's active period
