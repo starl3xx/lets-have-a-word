@@ -22,6 +22,9 @@ const neynarClient = new NeynarAPIClient(config);
  */
 export interface FarcasterContext {
   fid: number;
+  /** Primary wallet from Neynar (user.primary.eth_address) - preferred */
+  primaryWallet: string | null;
+  /** First verified ETH address (user.verified_addresses.eth_addresses[0]) - fallback */
   signerWallet: string | null;
   custodyAddress: string | null;
   spamScore: number | null;
@@ -56,6 +59,7 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
     }
 
     // Get additional user data including spam score
+    let primaryWallet: string | null = null;
     let signerWallet: string | null = null;
     let custodyAddress: string | null = null;
     let spamScore: number | null = null;
@@ -69,7 +73,14 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
 
-        // Get verified addresses (signer wallet)
+        // Get primary wallet (preferred - user's designated primary address)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const userAny = user as any;
+        if (userAny.primary?.eth_address) {
+          primaryWallet = userAny.primary.eth_address;
+        }
+
+        // Get verified addresses (signer wallet) as fallback
         if (user.verified_addresses?.eth_addresses && user.verified_addresses.eth_addresses.length > 0) {
           signerWallet = user.verified_addresses.eth_addresses[0];
         }
@@ -97,6 +108,7 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
 
     return {
       fid,
+      primaryWallet,
       signerWallet,
       custodyAddress,
       spamScore,
@@ -135,6 +147,7 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
     const fid = signer.fid;
 
     // Get full user data
+    let primaryWallet: string | null = null;
     let signerWallet: string | null = null;
     let custodyAddress: string | null = null;
     let spamScore: number | null = null;
@@ -146,6 +159,13 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
+
+        // Get primary wallet (preferred - user's designated primary address)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const userAny = user as any;
+        if (userAny.primary?.eth_address) {
+          primaryWallet = userAny.primary.eth_address;
+        }
 
         if (user.verified_addresses?.eth_addresses && user.verified_addresses.eth_addresses.length > 0) {
           signerWallet = user.verified_addresses.eth_addresses[0];
@@ -169,6 +189,7 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
 
     return {
       fid,
+      primaryWallet,
       signerWallet,
       custodyAddress,
       spamScore,
@@ -202,8 +223,14 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
 
     const user = userData.users[0];
 
+    // Get primary wallet (preferred - user's designated primary address)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userAny = user as any;
+    const primaryWallet = userAny.primary?.eth_address || null;
+
     return {
       fid,
+      primaryWallet,
       signerWallet: user.verified_addresses?.eth_addresses?.[0] || null,
       custodyAddress: user.custody_address || null,
       spamScore: user.follower_count || null,

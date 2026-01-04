@@ -4,6 +4,7 @@ import type { RoundStatus } from '../src/lib/wheel';
 interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;
   adminFid?: number; // Pass admin FID to enable start round button
+  onRoundStatusChange?: (hasActiveRound: boolean) => void; // Notify parent when round status changes
 }
 
 /**
@@ -52,7 +53,7 @@ function formatUsd(value: string | number): string {
  *
  * Polls /api/round-state every 15 seconds for live updates.
  */
-export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
+export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange }: TopTickerProps) {
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +146,15 @@ export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
   }, []);
 
   /**
+   * Notify parent when round status changes
+   */
+  useEffect(() => {
+    if (onRoundStatusChange) {
+      onRoundStatusChange(status !== null);
+    }
+  }, [status, onRoundStatusChange]);
+
+  /**
    * Loading state
    */
   if (isLoading) {
@@ -171,7 +181,7 @@ export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
   }
 
   /**
-   * No active round - show "Round #1 starting soon" splash
+   * No active round - show "Next round starting soon" splash
    * If adminFid is provided, show a Start Round button
    */
   if (!status) {
@@ -179,7 +189,7 @@ export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
       <div className="bg-brand text-white py-4 px-4 shadow-md">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-2xl font-bold animate-pulse">
-            Round #1 starting soon
+            Next round starting soon
           </p>
           <p className="text-sm opacity-80 mt-1">
             Get ready to guess the secret word!
@@ -191,7 +201,7 @@ export default function TopTicker({ onRoundClick, adminFid }: TopTickerProps) {
                 disabled={isStartingRound}
                 className="px-6 py-2 bg-white text-brand font-bold rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isStartingRound ? 'Starting...' : 'Start Round 1'}
+                {isStartingRound ? 'Starting...' : 'Start Round'}
               </button>
               {startError && (
                 <p className="text-red-200 text-xs mt-2">{startError}</p>

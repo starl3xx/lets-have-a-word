@@ -11,11 +11,40 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
-## 🎯 Current Status: Milestone 12 Complete
+## 🎯 Current Status: Milestone 13 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, **and OG Hunter prelaunch campaign with enhanced Farcaster mini app integration** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, OG Hunter prelaunch campaign, **and secure Quick Auth authentication to prevent FID spoofing** are fully implemented and production-ready:
 
-### ✅ Milestone 12 - OG Hunter Prelaunch & Mini App Enhancements (Latest)
+### ✅ Milestone 13 - Security: Quick Auth Authentication (Latest)
+
+Secure authentication using Farcaster Quick Auth to prevent FID spoofing attacks:
+
+- **Quick Auth Integration** (`pages/index.tsx`, `pages/api/guess.ts`)
+  - Uses `@farcaster/quick-auth` for JWT-based authentication
+  - Client obtains token via `quickAuth.getToken()` from miniapp-sdk
+  - Server verifies JWT and extracts FID from `sub` claim
+  - Cryptographic proof that user owns the claimed FID
+
+- **Security Fix: Block Unverified miniAppFid**
+  - Previously, `miniAppFid` from SDK context was trusted without verification
+  - Anyone could spoof requests with arbitrary FIDs
+  - Now requires cryptographically signed Quick Auth JWT token
+  - Unverified `miniAppFid` requests are rejected with 401
+
+- **Authentication Flow**
+  1. App loads, SDK provides user context with FID
+  2. Client calls `quickAuth.getToken()` to get signed JWT
+  3. JWT sent with guess requests as `authToken`
+  4. Server verifies JWT via Quick Auth client
+  5. FID extracted from verified JWT payload (`sub` field)
+  6. Only verified FIDs can submit guesses
+
+- **Backward Compatibility**
+  - Dev mode still supports `devFid` for local testing
+  - Frame requests (`frameMessage`) and signer UUID (`signerUuid`) still supported
+  - Only mini app SDK context requires Quick Auth token
+
+### ✅ Milestone 12 - OG Hunter Prelaunch & Mini App Enhancements
 
 Prelaunch campaign system and enhanced Farcaster mini app integration:
 

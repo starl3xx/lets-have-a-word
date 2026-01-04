@@ -260,6 +260,7 @@ letshaveaword.fun`;
     eventType: 'round_started',
     roundId: round.id,
     text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
   });
 }
 
@@ -394,6 +395,7 @@ letshaveaword.fun`;
     eventType: 'round_resolved',
     roundId: round.id,
     text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
   });
 }
 
@@ -442,6 +444,7 @@ letshaveaword.fun`;
         roundId: round.id,
         milestoneKey,
         text,
+        embeds: [{ url: 'https://letshaveaword.fun' }],
       });
     }
   }
@@ -477,6 +480,7 @@ letshaveaword.fun`;
         roundId: round.id,
         milestoneKey,
         text,
+        embeds: [{ url: 'https://letshaveaword.fun' }],
       });
     }
   }
@@ -511,5 +515,6 @@ letshaveaword.fun`;
     roundId: round.id,
     text,
     replyToHash: resolvedCastHash,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
   });
 }

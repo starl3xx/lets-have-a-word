@@ -21,6 +21,8 @@ export interface OnboardingStatusResponse {
   hasSeenOgHunterThanks: boolean;
   isOgHunter: boolean;
   ogHunterAwarded: boolean;
+  /** Whether user has installed the mini app (addedMiniAppAt is set) */
+  hasMiniAppInstalled: boolean;
 }
 
 export default async function handler(
@@ -60,6 +62,7 @@ export default async function handler(
         hasSeenOgHunterThanks: false,
         isOgHunter: false,
         ogHunterAwarded: false,
+        hasMiniAppInstalled: false,
       });
     }
 
@@ -88,6 +91,7 @@ export default async function handler(
       hasSeenOgHunterThanks: user.hasSeenOgHunterThanks,
       isOgHunter,
       ogHunterAwarded,
+      hasMiniAppInstalled: !!user.addedMiniAppAt,
     });
   } catch (error) {
     console.error('[onboarding/status] Error:', error);

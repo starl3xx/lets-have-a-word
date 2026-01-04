@@ -28,6 +28,8 @@ import type { GuessSourceState } from '../src/types';
 
 interface GuessBarProps {
   sourceState: GuessSourceState;
+  onGetMore?: () => void;
+  onClanktonHintTap?: () => void;
 }
 
 /**
@@ -81,7 +83,7 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-export default function GuessBar({ sourceState }: GuessBarProps) {
+export default function GuessBar({ sourceState, onGetMore, onClanktonHintTap }: GuessBarProps) {
   const { totalRemaining, free, clankton, share, paid } = sourceState;
 
   // Track decrement pulse animation
@@ -111,7 +113,7 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
   }, [totalRemaining, prefersReducedMotion]);
 
   // Determine which segments to show
-  const showClankton = clankton.isHolder;
+  // CLANKTON is always shown (as hint for non-holders, normally for holders)
   const showPaid = paid.total > 0;
 
   // Determine which segments are consumed (remaining === 0)
@@ -151,49 +153,90 @@ export default function GuessBar({ sourceState }: GuessBarProps) {
       {/* Separator */}
       <span className="text-gray-400">|</span>
 
-      {/* Right side: Source breakdown */}
-      <span
-        className="text-sm whitespace-nowrap"
-        style={{ color: '#4b5563', fontWeight: 400 }}
-      >
-        {/* Free guess (always shown) */}
-        <SourceSegment
-          label="free"
-          value={free.total}
-          isConsumed={freeConsumed}
-          isFirst={true}
-        />
-
-        {/* CLANKTON bonus (only if holder) */}
-        {showClankton && (
+      {/* Right side: Source breakdown OR "Add guesses" pill when empty */}
+      {totalRemaining === 0 && onGetMore ? (
+        <button
+          onClick={onGetMore}
+          className="text-sm whitespace-nowrap inline-flex items-center rounded-full"
+          style={{
+            padding: '2px 8px 3px 6px',
+            backgroundColor: 'rgba(34, 197, 94, 0.18)',
+            color: '#15803d',
+            fontWeight: 500,
+            lineHeight: 1.2,
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'background-color 150ms ease-out',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.28)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.18)'}
+        >
+          <span style={{ fontWeight: 700 }}>+</span>
+          <span>&nbsp;</span>
+          <span style={{ fontWeight: 500 }}>Add guesses</span>
+        </button>
+      ) : (
+        <span
+          className="text-sm whitespace-nowrap"
+          style={{ color: '#4b5563', fontWeight: 400 }}
+        >
+          {/* Free guess (always shown) */}
           <SourceSegment
-            label="CLANKTON"
-            value={clankton.total}
-            isConsumed={clanktonConsumed}
-            color="#7c3aed" // purple-600
+            label="free"
+            value={free.total}
+            isConsumed={freeConsumed}
+            isFirst={true}
           />
-        )}
 
-        {/* Share bonus (only if earned) */}
-        {share.total > 0 && (
-          <SourceSegment
-            label="share"
-            value={share.total}
-            isConsumed={shareConsumed}
-            color="#0891b2" // cyan-600 (social/sharing action)
-          />
-        )}
+          {/* CLANKTON bonus - always shown */}
+          {/* For holders: normal display with their bonus amount */}
+          {/* For non-holders: crossed-out hint that's tappable */}
+          {clankton.isHolder ? (
+            <SourceSegment
+              label="CLANKTON"
+              value={clankton.total}
+              isConsumed={clanktonConsumed}
+              color="#7c3aed" // purple-600
+            />
+          ) : (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onClanktonHintTap?.();
+              }}
+              className="cursor-pointer transition-opacity hover:opacity-70"
+              style={{
+                color: '#a78bfa', // purple-400 (lighter purple)
+                opacity: 0.5,
+              }}
+            >
+              <span className="line-through">
+                {' '}+2 CLANKTON
+              </span>
+            </span>
+          )}
 
-        {/* Paid guesses (only if purchased) */}
-        {showPaid && (
-          <SourceSegment
-            label="paid"
-            value={paid.total}
-            isConsumed={paidConsumed}
-            color="#d97706" // amber-600 (purchased with ETH)
-          />
-        )}
-      </span>
+          {/* Share bonus (only if earned) */}
+          {share.total > 0 && (
+            <SourceSegment
+              label="share"
+              value={share.total}
+              isConsumed={shareConsumed}
+              color="#0891b2" // cyan-600 (social/sharing action)
+            />
+          )}
+
+          {/* Paid guesses (only if purchased) */}
+          {showPaid && (
+            <SourceSegment
+              label="paid"
+              value={paid.total}
+              isConsumed={paidConsumed}
+              color="#d97706" // amber-600 (purchased with ETH)
+            />
+          )}
+        </span>
+      )}
     </div>
   );
 }

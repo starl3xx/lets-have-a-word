@@ -514,7 +514,7 @@ export default function VerifyPage() {
                 </div>
                 <ul className="text-sm text-gray-500 space-y-1">
                   <li>• <strong>Salt:</strong> A random 64-character hex string, generated before the round starts</li>
-                  <li>• <strong>Word:</strong> The 5-letter answer (lowercase)</li>
+                  <li>• <strong>Word:</strong> The 5-letter answer (UPPERCASE)</li>
                 </ul>
               </div>
 

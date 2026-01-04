@@ -911,11 +911,14 @@ client.publishFrameNotifications({
 
 ### SDK Setup
 ```typescript
-import sdk from '@farcaster/miniapp-sdk';
+import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 
 // Get user context
 const context = await sdk.context;
 const fid = context?.user?.fid;
+
+// Get Quick Auth token for secure API calls
+const { token } = await quickAuth.getToken();
 
 // Add mini app (for notifications)
 const result = await sdk.actions.addFrame();
@@ -924,12 +927,40 @@ if (result.added && result.notificationDetails) {
 }
 ```
 
-### Authentication Flow
-1. App loads in Farcaster frame
-2. SDK provides user context
-3. Extract FID from context
-4. Use FID for all API calls
-5. Fallback to `devFid` in development
+### Authentication Flow (Quick Auth)
+
+**SECURITY**: The SDK context FID (`context.user.fid`) is client-side only and can be spoofed. All API calls that need verified identity must use Quick Auth JWT tokens.
+
+**Flow:**
+1. App loads in Farcaster mini app
+2. SDK provides user context with FID (used for UI display only)
+3. Client calls `quickAuth.getToken()` to get cryptographically signed JWT
+4. JWT token sent with API requests as `authToken` in request body
+5. Server verifies JWT using `@farcaster/quick-auth` package
+6. FID extracted from verified JWT payload (`sub` field)
+7. Only verified FIDs can perform authenticated actions
+
+**Server-side verification:**
+```typescript
+import { createClient as createQuickAuthClient } from '@farcaster/quick-auth';
+
+const quickAuthClient = createQuickAuthClient();
+
+// In API handler
+const { authToken } = req.body;
+const verifyResult = await quickAuthClient.verifyJwt({ token: authToken });
+const fid = verifyResult.sub; // Verified FID
+```
+
+**Why Quick Auth?**
+- **Prevents FID spoofing**: Anyone could previously submit guesses as any user
+- **Cryptographic proof**: JWT signed by Farcaster auth server
+- **Simple integration**: No nonce management, single token flow
+- **Transparent UX**: Token obtained automatically, no user interaction
+
+**Development mode:**
+- When `LHAW_DEV_MODE=true`, `devFid` parameter is accepted for testing
+- Bypasses Quick Auth verification for local development
 
 ### Composer Integration
 ```typescript
@@ -2064,6 +2095,75 @@ dailyGuessState {
 - `src/lib/clankton.ts` - Tier upgrade logic
 - `src/lib/guesses.ts` - Guess index tracking
 - `components/admin/OperationsSection.tsx` - Force resolve, contract state UI
+
+### Milestone 12: OG Hunter Prelaunch & Mini App Enhancements
+- **Status**: ✅ Complete
+- **Goal**: Prelaunch campaign system and enhanced Farcaster mini app integration
+
+#### OG Hunter Campaign
+- Prelaunch campaign at `/splash` where early users earn permanent badges
+- Users add the mini app + share a cast to qualify
+- 500 XP bonus for completing both actions
+- "Verified" badge after webhook confirmation
+- Database tables: `user_badges`, `og_hunter_cast_proofs`
+
+#### Mini App Improvements
+- Added `fc:miniapp` meta tag alongside `fc:frame` for better embed support
+- Share flows use `sdk.actions.composeCast()` with `embeds` parameter
+- Embeds auto-load in Farcaster clients
+- External links use `sdk.actions.openUrl()` for proper in-app navigation
+
+#### Admin Start Round Button
+- Green "Start Round" card appears when no active round exists
+- One-click round creation from admin dashboard
+- Creates round with random word and onchain commitment
+
+#### Environment Variables
+- `NEXT_PUBLIC_PRELAUNCH_MODE` - Set to `1` for splash page, `0` for game
+
+### Milestone 13: Security - Quick Auth Authentication
+- **Status**: ✅ Complete
+- **Goal**: Secure authentication using Farcaster Quick Auth to prevent FID spoofing attacks
+
+#### The Problem
+The previous authentication flow trusted `miniAppFid` from the Farcaster SDK context without verification. Since this is client-side data, anyone could spoof requests with arbitrary FIDs, allowing them to submit guesses as other users.
+
+#### The Solution: Quick Auth
+Quick Auth provides cryptographically signed JWT tokens that prove the user owns a Farcaster account.
+
+**Client-side (`pages/index.tsx`):**
+```typescript
+import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
+
+// Get Quick Auth token (automatic, no user interaction)
+const { token } = await quickAuth.getToken();
+
+// Send with API requests
+fetch('/api/guess', {
+  body: JSON.stringify({ word, authToken: token })
+});
+```
+
+**Server-side (`pages/api/guess.ts`):**
+```typescript
+import { createClient as createQuickAuthClient } from '@farcaster/quick-auth';
+
+const quickAuthClient = createQuickAuthClient();
+
+// Verify token and extract FID
+const { authToken } = req.body;
+const verifyResult = await quickAuthClient.verifyJwt({ token: authToken });
+const fid = verifyResult.sub; // Verified FID from JWT
+```
+
+#### Security Enforcement
+- Unverified `miniAppFid` requests are rejected with 401 error
+- Only cryptographically verified JWTs can authenticate users
+- Dev mode (`devFid`) still works for local testing
+- Frame and signer UUID auth paths unchanged
+
+#### Dependencies Added
+- `@farcaster/quick-auth` - Server-side JWT verification
 
 ### Planned / Future Enhancements
 - **Status**: Wishlist

@@ -1,9 +1,9 @@
 import { db, guesses, users, rounds } from '../db';
 import { eq, and, desc, sql, count } from 'drizzle-orm';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
-import { getActiveRound, getActiveRoundForUpdate, resolveRound } from './rounds';
+import { getActiveRound, getActiveRoundForUpdate } from './rounds';
 import { isValidGuess } from './word-lists';
-import { applyPaidGuessEconomicEffects } from './economics';
+import { applyPaidGuessEconomicEffects, resolveRoundAndCreatePayouts } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
 import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
@@ -239,14 +239,15 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       console.warn(`Could not find user ${fid} for referrer lookup:`, error);
     }
 
-    // Use a transaction to ensure atomicity
-    // This prevents race conditions where two correct guesses happen simultaneously
+    // PHASE 1: Lock the round and record the winning guess
+    // This transaction MUST succeed to prevent other guesses from being accepted
+    // Even if payouts fail later, the round is locked
     try {
       await db.transaction(async (tx) => {
         // Re-check that round is still unresolved with FOR UPDATE lock
         // This acquires a row-level lock, blocking other winning guesses until we commit
         const currentRound = await getActiveRoundForUpdate(tx);
-        if (!currentRound || currentRound.resolvedAt !== null) {
+        if (!currentRound || currentRound.resolvedAt !== null || currentRound.winnerFid !== null) {
           throw new Error('ROUND_ALREADY_RESOLVED');
         }
 
@@ -269,9 +270,29 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           await applyPaidGuessEconomicEffects(round.id, DAILY_LIMITS_RULES.paidGuessPackPriceEth);
         }
 
-        // Resolve the round
-        await resolveRound(round.id, fid, referrerFid);
+        // CRITICAL: Lock the round by setting winnerFid BEFORE payouts
+        // This prevents any more guesses from being accepted even if payouts fail
+        await tx
+          .update(rounds)
+          .set({
+            winnerFid: fid,
+            referrerFid: referrerFid || null,
+          })
+          .where(eq(rounds.id, round.id));
+
+        console.log(`🔒 Round ${round.id} locked with winner FID ${fid}`);
       });
+
+      // PHASE 2: Process payouts (can fail safely - round is already locked)
+      // If this fails, use Emergency Resolution in admin panel to retry
+      try {
+        await resolveRoundAndCreatePayouts(round.id, fid);
+      } catch (payoutError) {
+        console.error(`❌ Payout processing failed for round ${round.id}:`, payoutError);
+        console.error(`⚠️  Round is locked but payouts not processed. Use Emergency Resolution to complete.`);
+        // Don't re-throw - the round is locked and winner recorded
+        // Admin can use emergency resolution to complete payouts
+      }
 
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
