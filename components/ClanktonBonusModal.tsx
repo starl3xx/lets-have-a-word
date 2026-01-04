@@ -60,8 +60,18 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
         className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header with Logo */}
         <div className="text-center">
+          {/* CLANKTON Logo */}
+          <div className="flex justify-center mb-3">
+            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-purple-200 bg-white">
+              <img
+                src="/clankton-logo.png"
+                alt="CLANKTON"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
           <h2 className="text-2xl font-bold text-gray-900">
             CLANKTON bonus
           </h2>
@@ -73,7 +83,7 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
             Holding ≥100M $CLANKTON unlocks bonus guesses every day
           </p>
           <p className="text-sm text-gray-500">
-            Holders receive extra guesses in addition to the free daily guess
+            Holders receive extra guesses in addition to the free daily guess 😏
           </p>
         </div>
 
@@ -82,7 +92,8 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
           {/* Primary CTA */}
           <button
             onClick={handleLearnMore}
-            className="btn-accent w-full text-lg flex items-center justify-center gap-2"
+            className="w-full text-lg flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white font-semibold transition-colors"
+            style={{ backgroundColor: '#8268ce' }}
           >
             <span>Learn how to get CLANKTON →</span>
           </button>
