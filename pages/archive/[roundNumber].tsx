@@ -6,8 +6,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
-import OgHunterBadge from '../../components/OgHunterBadge';
-import ClanktonHolderBadge from '../../components/ClanktonHolderBadge';
+import BadgeStack from '../../components/BadgeStack';
 
 interface TopGuesserWithUsername {
   fid: number;
@@ -359,12 +358,11 @@ export default function RoundDetailPage() {
                           >
                             {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || 'unknown'}`}
                           </button>
-                          {guesser.hasOgHunterBadge && (
-                            <OgHunterBadge size="sm" showTooltip={true} />
-                          )}
-                          {guesser.hasClanktonBadge && (
-                            <ClanktonHolderBadge size="sm" showTooltip={true} />
-                          )}
+                          <BadgeStack
+                            hasOgHunterBadge={guesser.hasOgHunterBadge}
+                            hasClanktonBadge={guesser.hasClanktonBadge}
+                            size="sm"
+                          />
                         </div>
                         {/* Guess Count */}
                         <div className="text-sm text-gray-500 tabular-nums flex-shrink-0">
