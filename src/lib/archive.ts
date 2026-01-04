@@ -391,7 +391,7 @@ export async function getArchivedRounds(options: {
   offset?: number;
   orderBy?: 'asc' | 'desc';
 }): Promise<{
-  rounds: RoundArchiveRow[];
+  rounds: (RoundArchiveRow & { winnerUsername?: string | null })[];
   total: number;
 }> {
   const { limit = 20, offset = 0, orderBy = 'desc' } = options;
@@ -401,9 +401,31 @@ export async function getArchivedRounds(options: {
       .select({ count: count() })
       .from(roundArchive);
 
+    // Join with users table to get winner username
     const archivedRounds = await db
-      .select()
+      .select({
+        id: roundArchive.id,
+        roundNumber: roundArchive.roundNumber,
+        targetWord: roundArchive.targetWord,
+        seedEth: roundArchive.seedEth,
+        finalJackpotEth: roundArchive.finalJackpotEth,
+        totalGuesses: roundArchive.totalGuesses,
+        uniquePlayers: roundArchive.uniquePlayers,
+        winnerFid: roundArchive.winnerFid,
+        winnerCastHash: roundArchive.winnerCastHash,
+        winnerGuessNumber: roundArchive.winnerGuessNumber,
+        startTime: roundArchive.startTime,
+        endTime: roundArchive.endTime,
+        referrerFid: roundArchive.referrerFid,
+        payoutsJson: roundArchive.payoutsJson,
+        salt: roundArchive.salt,
+        clanktonBonusCount: roundArchive.clanktonBonusCount,
+        referralBonusCount: roundArchive.referralBonusCount,
+        createdAt: roundArchive.createdAt,
+        winnerUsername: users.username,
+      })
       .from(roundArchive)
+      .leftJoin(users, eq(roundArchive.winnerFid, users.fid))
       .orderBy(orderBy === 'desc' ? desc(roundArchive.roundNumber) : asc(roundArchive.roundNumber))
       .limit(limit)
       .offset(offset);

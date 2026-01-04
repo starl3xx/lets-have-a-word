@@ -13,6 +13,7 @@ interface ArchivedRound {
   totalGuesses: number;
   uniquePlayers: number;
   winnerFid: number | null;
+  winnerUsername: string | null;
   startTime: string;
   endTime: string;
 }
@@ -81,7 +82,7 @@ export default function ArchiveListPage() {
   return (
     <>
       <Head>
-        <title>Round Archive | Let's Have A Word</title>
+        <title>Round archive | Let's Have A Word</title>
         <meta name="description" content="Browse historical rounds from Let's Have A Word" />
       </Head>
 
@@ -99,7 +100,7 @@ export default function ArchiveListPage() {
               ← Back to game
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">
-              Round Archive
+              Round archive
             </h1>
             <p className="text-sm text-gray-500 mt-1">
               Browse completed rounds and their statistics
@@ -183,7 +184,9 @@ export default function ArchiveListPage() {
                             {formatEth(round.finalJackpotEth)} ETH
                           </div>
                           <div className="text-xs text-gray-400">
-                            {round.winnerFid ? `FID ${round.winnerFid}` : 'No winner'}
+                            {round.winnerFid
+                              ? (round.winnerUsername ? `@${round.winnerUsername}` : `FID ${round.winnerFid}`)
+                              : 'No winner'}
                           </div>
                         </div>
                         <span className="text-gray-300 text-lg">›</span>
