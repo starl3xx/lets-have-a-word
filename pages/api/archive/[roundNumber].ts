@@ -8,12 +8,11 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getArchivedRound, getRoundGuessDistribution } from '../../../src/lib/archive';
-import type { RoundArchiveRow } from '../../../src/db/schema';
+import { getArchivedRoundWithUsernames, getRoundGuessDistribution, type ArchivedRoundWithUsernames } from '../../../src/lib/archive';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface ArchiveDetailResponse {
-  round: RoundArchiveRow | null;
+  round: ArchivedRoundWithUsernames | null;
   distribution?: {
     distribution: Array<{ hour: number; count: number }>;
     byPlayer: Array<{ fid: number; count: number }>;
@@ -47,7 +46,7 @@ export default async function handler(
       cacheKey,
       CacheTTL.archiveRound,
       async () => {
-        const round = await getArchivedRound(roundNum);
+        const round = await getArchivedRoundWithUsernames(roundNum);
 
         if (!round) {
           return { round: null };
@@ -80,7 +79,7 @@ export default async function handler(
 /**
  * Serialize archive row for JSON response
  */
-function serializeArchiveRow(row: RoundArchiveRow): any {
+function serializeArchiveRow(row: ArchivedRoundWithUsernames): any {
   return {
     ...row,
     seedEth: row.seedEth.toString(),

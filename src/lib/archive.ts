@@ -384,6 +384,72 @@ export async function getArchivedRound(roundNumber: number): Promise<RoundArchiv
 }
 
 /**
+ * Extended round data with usernames for display
+ */
+export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
+  winnerUsername: string | null;
+  referrerUsername: string | null;
+  topGuessersWithUsernames: Array<{
+    fid: number;
+    username: string | null;
+    amountEth: string;
+    rank: number;
+  }>;
+}
+
+/**
+ * Get archived round with usernames for winner, referrer, and top guessers
+ */
+export async function getArchivedRoundWithUsernames(roundNumber: number): Promise<ArchivedRoundWithUsernames | null> {
+  return trackSlowQuery(`query:getArchivedRoundWithUsernames:${roundNumber}`, async () => {
+    const archived = await getArchivedRound(roundNumber);
+    if (!archived) return null;
+
+    // Collect all FIDs we need to look up
+    const fidsToLookup: number[] = [];
+    if (archived.winnerFid) fidsToLookup.push(archived.winnerFid);
+    if (archived.referrerFid) fidsToLookup.push(archived.referrerFid);
+    if (archived.payoutsJson?.topGuessers) {
+      for (const guesser of archived.payoutsJson.topGuessers) {
+        fidsToLookup.push(guesser.fid);
+      }
+    }
+
+    // Lookup usernames for all FIDs in one query
+    const uniqueFids = [...new Set(fidsToLookup)];
+    const usernameMap = new Map<number, string>();
+
+    if (uniqueFids.length > 0) {
+      const userRecords = await db
+        .select({ fid: users.fid, username: users.username })
+        .from(users)
+        .where(sql`${users.fid} IN ${uniqueFids}`);
+
+      for (const user of userRecords) {
+        if (user.username) {
+          usernameMap.set(user.fid, user.username);
+        }
+      }
+    }
+
+    // Build extended response
+    const topGuessersWithUsernames = (archived.payoutsJson?.topGuessers || []).map(guesser => ({
+      fid: guesser.fid,
+      username: usernameMap.get(guesser.fid) || null,
+      amountEth: guesser.amountEth,
+      rank: guesser.rank,
+    }));
+
+    return {
+      ...archived,
+      winnerUsername: archived.winnerFid ? usernameMap.get(archived.winnerFid) || null : null,
+      referrerUsername: archived.referrerFid ? usernameMap.get(archived.referrerFid) || null : null,
+      topGuessersWithUsernames,
+    };
+  });
+}
+
+/**
  * Get list of archived rounds with pagination
  */
 export async function getArchivedRounds(options: {
