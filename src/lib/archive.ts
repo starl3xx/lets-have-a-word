@@ -12,6 +12,7 @@ import {
   guesses,
   roundPayouts,
   users,
+  userBadges,
   dailyGuessState,
   announcerEvents,
   roundArchive,
@@ -394,6 +395,8 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
     username: string | null;
     amountEth: string;
     rank: number;
+    hasClanktonBadge?: boolean;
+    hasOgHunterBadge?: boolean;
   }>;
 }
 
@@ -401,6 +404,9 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
  * Get archived round with usernames for winner, referrer, and top guessers
  */
 export async function getArchivedRoundWithUsernames(roundNumber: number): Promise<ArchivedRoundWithUsernames | null> {
+  // Dynamic import to avoid circular dependencies
+  const { hasClanktonBonus } = await import('./clankton');
+
   return trackSlowQuery(`query:getArchivedRoundWithUsernames:${roundNumber}`, async () => {
     const archived = await getArchivedRound(roundNumber);
     if (!archived) return null;
@@ -415,35 +421,81 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       }
     }
 
-    // Lookup usernames for all FIDs in one query
+    // Lookup usernames and wallets for all FIDs in one query
     const uniqueFids = [...new Set(fidsToLookup)];
-    const usernameMap = new Map<number, string>();
+    const userDataMap = new Map<number, { username: string | null; wallet: string | null }>();
 
     if (uniqueFids.length > 0) {
       const userRecords = await db
-        .select({ fid: users.fid, username: users.username })
+        .select({ fid: users.fid, username: users.username, signerWalletAddress: users.signerWalletAddress })
         .from(users)
         .where(sql`${users.fid} IN ${uniqueFids}`);
 
       for (const user of userRecords) {
-        if (user.username) {
-          usernameMap.set(user.fid, user.username);
+        userDataMap.set(user.fid, {
+          username: user.username,
+          wallet: user.signerWalletAddress,
+        });
+      }
+    }
+
+    // Get top guesser FIDs only (for badge checks)
+    const topGuesserFids = (archived.payoutsJson?.topGuessers || []).map(g => g.fid);
+
+    // Check OG Hunter badges for top guessers
+    const ogHunterBadgeFids = new Set<number>();
+    if (topGuesserFids.length > 0) {
+      const badgeRecords = await db
+        .select({ fid: userBadges.fid })
+        .from(userBadges)
+        .where(
+          and(
+            sql`${userBadges.fid} IN ${topGuesserFids}`,
+            eq(userBadges.badgeType, 'OG_HUNTER')
+          )
+        );
+      for (const badge of badgeRecords) {
+        ogHunterBadgeFids.add(badge.fid);
+      }
+    }
+
+    // Check CLANKTON balances for top guessers (only those with wallets)
+    const clanktonHolderFids = new Set<number>();
+    const walletsToCheck = topGuesserFids
+      .filter(fid => userDataMap.get(fid)?.wallet)
+      .map(fid => ({ fid, wallet: userDataMap.get(fid)!.wallet! }));
+
+    if (walletsToCheck.length > 0) {
+      try {
+        const clanktonResults = await Promise.all(
+          walletsToCheck.map(async ({ fid, wallet }) => ({
+            fid,
+            hasClankton: await hasClanktonBonus(wallet),
+          }))
+        );
+        for (const { fid, hasClankton } of clanktonResults) {
+          if (hasClankton) clanktonHolderFids.add(fid);
         }
+      } catch (error) {
+        console.warn('[archive] Error checking CLANKTON balances:', error);
+        // Continue without CLANKTON badges on error
       }
     }
 
     // Build extended response
     const topGuessersWithUsernames = (archived.payoutsJson?.topGuessers || []).map(guesser => ({
       fid: guesser.fid,
-      username: usernameMap.get(guesser.fid) || null,
+      username: userDataMap.get(guesser.fid)?.username || null,
       amountEth: guesser.amountEth,
       rank: guesser.rank,
+      hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
+      hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
     }));
 
     return {
       ...archived,
-      winnerUsername: archived.winnerFid ? usernameMap.get(archived.winnerFid) || null : null,
-      referrerUsername: archived.referrerFid ? usernameMap.get(archived.referrerFid) || null : null,
+      winnerUsername: archived.winnerFid ? userDataMap.get(archived.winnerFid)?.username || null : null,
+      referrerUsername: archived.referrerFid ? userDataMap.get(archived.referrerFid)?.username || null : null,
       topGuessersWithUsernames,
     };
   });
