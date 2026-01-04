@@ -184,9 +184,7 @@ export default function ArchiveListPage() {
                             {formatEth(round.finalJackpotEth)} ETH
                           </div>
                           <div className="text-xs text-gray-400">
-                            {round.winnerFid
-                              ? (round.winnerUsername ? `@${round.winnerUsername}` : `FID ${round.winnerFid}`)
-                              : 'No winner'}
+                            {round.winnerUsername ? `@${round.winnerUsername}` : 'No winner'}
                           </div>
                         </div>
                         <span className="text-gray-300 text-lg">›</span>
