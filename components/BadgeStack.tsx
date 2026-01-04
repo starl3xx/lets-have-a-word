@@ -48,7 +48,7 @@ export default function BadgeStack({
       {/* OG Hunter Badge (shown first/behind) */}
       {hasOgHunterBadge && (
         <div
-          className={`${config.badge} bg-purple-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-10 border-2 border-amber-700`}
+          className={`${config.badge} bg-purple-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-10 ring-1 ring-amber-400`}
           onMouseEnter={() => setTooltipText('OG Hunter')}
           onTouchStart={() => setTooltipText('OG Hunter')}
         >
@@ -59,7 +59,7 @@ export default function BadgeStack({
       {/* CLANKTON Badge (shown second/on top, overlapping if both present) */}
       {hasClanktonBadge && (
         <div
-          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center bg-amber-100 relative z-20 border-2 border-purple-200 ${hasBothBadges ? config.overlap : ''}`}
+          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center bg-amber-100 relative z-20 ring-1 ring-purple-200 ${hasBothBadges ? config.overlap : ''}`}
           onMouseEnter={() => setTooltipText('CLANKTON holder')}
           onTouchStart={() => setTooltipText('CLANKTON holder')}
         >
