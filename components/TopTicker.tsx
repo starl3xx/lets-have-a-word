@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { RoundStatus } from '../src/lib/wheel';
 
+// Total words in the game dictionary (for percentage calculation)
+const TOTAL_WORD_COUNT = 4358;
+
 interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;
   adminFid?: number; // Pass admin FID to enable start round button
@@ -241,6 +244,9 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
           </p>
           <p className="text-lg font-bold">
             {status.globalGuessCount.toLocaleString()}
+            <span className="text-sm font-normal opacity-60 ml-1.5">
+              ({((status.globalGuessCount / TOTAL_WORD_COUNT) * 100).toFixed(1)}%)
+            </span>
           </p>
         </div>
 
