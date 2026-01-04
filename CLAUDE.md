@@ -88,6 +88,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 ## Code Style
 
 - **Apostrophes**: Use curly apostrophes (') not straight ones (') in UI text
+- **No CLI scripts**: The user does not run anything via command line. Always create API endpoints (in `/pages/api/admin/operational/`) for admin tasks, data migrations, backfills, etc. Never suggest running npm scripts or CLI commands for operational tasks.
 
 ## Required Environment Variables
 
