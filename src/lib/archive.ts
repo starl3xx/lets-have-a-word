@@ -478,17 +478,18 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     // Query the actual top 10 guessers by guess count (excluding winner)
     // IMPORTANT: Only count guesses within the Top-10 lock window (first 750)
     // Uses a simple subquery: get first 750 guesses ordered by index/timestamp, then aggregate
+    // Tiebreaker: who reached that count first (lower max guess_index = reached count earlier)
     const actualTopGuessers = await db.execute<{ fid: number; guess_count: number }>(sql`
       SELECT fid, COUNT(*)::int as guess_count
       FROM (
-        SELECT id, fid
+        SELECT id, fid, guess_index_in_round
         FROM guesses
         WHERE round_id = ${archived.roundNumber}
         ORDER BY guess_index_in_round ASC NULLS LAST, created_at ASC
         LIMIT 750
       ) first_750
       GROUP BY fid
-      ORDER BY COUNT(*) DESC
+      ORDER BY COUNT(*) DESC, MAX(guess_index_in_round) ASC
       LIMIT 11
     `);
 
