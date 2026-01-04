@@ -247,6 +247,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [syncResult, setSyncResult] = useState<any>(null)
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null)
   const [distribution, setDistribution] = useState<Distribution | null>(null)
+  const [usernames, setUsernames] = useState<Record<number, string>>({})
   const pageSize = 15
 
   const fetchArchiveData = useCallback(async () => {
@@ -313,9 +314,51 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       const data = await response.json()
       setSelectedRound(data.round)
       setDistribution(data.distribution)
+
+      // Collect all FIDs that need usernames
+      const fids: number[] = []
+      if (data.round?.winnerFid) fids.push(data.round.winnerFid)
+      if (data.round?.referrerFid) fids.push(data.round.referrerFid)
+      if (data.round?.payoutsJson?.winner?.fid) fids.push(data.round.payoutsJson.winner.fid)
+      if (data.round?.payoutsJson?.referrer?.fid) fids.push(data.round.payoutsJson.referrer.fid)
+      if (data.round?.payoutsJson?.topGuessers) {
+        data.round.payoutsJson.topGuessers.forEach((g: any) => {
+          if (g.fid) fids.push(g.fid)
+        })
+      }
+      if (data.distribution?.byPlayer) {
+        data.distribution.byPlayer.slice(0, 10).forEach((p: any) => {
+          if (p.fid) fids.push(p.fid)
+        })
+      }
+
+      // Fetch usernames for all unique FIDs
+      const uniqueFids = [...new Set(fids)]
+      if (uniqueFids.length > 0) {
+        try {
+          const usernamesRes = await fetch(
+            `/api/admin/usernames?devFid=${user.fid}&fids=${uniqueFids.join(',')}`
+          )
+          if (usernamesRes.ok) {
+            const usernamesData = await usernamesRes.json()
+            if (usernamesData.usernames) {
+              setUsernames(usernamesData.usernames)
+            }
+          }
+        } catch {
+          // Usernames are optional - don't fail if we can't get them
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch round detail:', err)
     }
+  }
+
+  // Helper to display FID with username
+  const formatFid = (fid: number | null | undefined) => {
+    if (!fid) return 'N/A'
+    const username = usernames[fid]
+    return username ? `@${username} (${fid})` : `FID ${fid}`
   }
 
   useEffect(() => {
@@ -434,38 +477,15 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             />
             <StatCard
               label="Avg Duration"
-              value={`${Math.round(stats.avgRoundLengthMinutes)} min`}
+              value={(() => {
+                const totalMinutes = Math.round(stats.avgRoundLengthMinutes)
+                const hours = Math.floor(totalMinutes / 60)
+                const minutes = totalMinutes % 60
+                return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
+              })()}
               subtext="Start to end"
               loading={loading}
             />
-          </div>
-        </div>
-      )}
-
-      {/* Archive Errors */}
-      {errors.length > 0 && (
-        <div style={styles.module}>
-          <h3 style={styles.moduleHeader}>Archive Errors ({errors.length})</h3>
-          <div style={{ background: "#fef3c7", border: "1px solid #fbbf24", borderRadius: "8px", padding: "16px" }}>
-            {errors.slice(0, 5).map((err, idx) => (
-              <div key={idx} style={{
-                padding: "8px 12px",
-                background: "#fffbeb",
-                borderRadius: "6px",
-                marginBottom: "8px",
-                fontSize: "13px",
-              }}>
-                <strong>Round {err.roundNumber}:</strong> {err.errorType} - {err.errorMessage}
-                {err.resolved && (
-                  <span style={{ marginLeft: "8px", color: "#16a34a" }}>(Resolved)</span>
-                )}
-              </div>
-            ))}
-            {errors.length > 5 && (
-              <div style={{ fontSize: "12px", color: "#92400e", marginTop: "8px" }}>
-                ...and {errors.length - 5} more errors
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -520,7 +540,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     <td style={{ ...styles.td, textAlign: "right" }}>{round.uniquePlayers}</td>
                     <td style={styles.td}>
                       {round.winnerFid ? (
-                        <span style={{ color: "#6366f1" }}>FID {round.winnerFid}</span>
+                        <span style={{ color: "#6366f1" }}>{formatFid(round.winnerFid)}</span>
                       ) : (
                         <span style={{ color: "#9ca3af" }}>-</span>
                       )}
@@ -625,16 +645,16 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                 <table style={{ width: "100%", fontSize: "13px" }}>
                   <tbody>
                     <tr>
-                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Winner FID:</td>
-                      <td style={{ padding: "6px 0" }}>{selectedRound.winnerFid || 'N/A'}</td>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Winner:</td>
+                      <td style={{ padding: "6px 0" }}>{formatFid(selectedRound.winnerFid)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>Winning Guess #:</td>
                       <td style={{ padding: "6px 0" }}>{selectedRound.winnerGuessNumber || 'N/A'}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Referrer FID:</td>
-                      <td style={{ padding: "6px 0" }}>{selectedRound.referrerFid || 'None'}</td>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Referrer:</td>
+                      <td style={{ padding: "6px 0" }}>{selectedRound.referrerFid ? formatFid(selectedRound.referrerFid) : 'None'}</td>
                     </tr>
                     {selectedRound.winnerCastHash && (
                       <tr>
@@ -654,13 +674,13 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                 <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px", fontSize: "13px" }}>
                   {selectedRound.payoutsJson.winner && (
                     <div style={{ marginBottom: "8px" }}>
-                      <strong>Winner (FID {selectedRound.payoutsJson.winner.fid}):</strong>{' '}
+                      <strong>Winner ({formatFid(selectedRound.payoutsJson.winner.fid)}):</strong>{' '}
                       {formatEth(selectedRound.payoutsJson.winner.amountEth)} ETH
                     </div>
                   )}
                   {selectedRound.payoutsJson.referrer && (
                     <div style={{ marginBottom: "8px" }}>
-                      <strong>Referrer (FID {selectedRound.payoutsJson.referrer.fid}):</strong>{' '}
+                      <strong>Referrer ({formatFid(selectedRound.payoutsJson.referrer.fid)}):</strong>{' '}
                       {formatEth(selectedRound.payoutsJson.referrer.amountEth)} ETH
                     </div>
                   )}
@@ -669,7 +689,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                       <strong>Top Guessers ({selectedRound.payoutsJson.topGuessers.length}):</strong>
                       <ul style={{ margin: "4px 0 0 20px", padding: 0 }}>
                         {selectedRound.payoutsJson.topGuessers.map((g: any, idx: number) => (
-                          <li key={idx}>#{g.rank} FID {g.fid}: {formatEth(g.amountEth)} ETH</li>
+                          <li key={idx}>#{g.rank} {formatFid(g.fid)}: {formatEth(g.amountEth)} ETH</li>
                         ))}
                       </ul>
                     </div>
@@ -723,7 +743,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
                     <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>#</th>
-                    <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>FID</th>
+                    <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>Player</th>
                     <th style={{ padding: "8px", textAlign: "right", fontWeight: 600 }}>Guesses</th>
                   </tr>
                 </thead>
@@ -731,7 +751,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                   {distribution.byPlayer.slice(0, 10).map((p, idx) => (
                     <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
                       <td style={{ padding: "8px" }}>{idx + 1}</td>
-                      <td style={{ padding: "8px" }}>{p.fid}</td>
+                      <td style={{ padding: "8px" }}>{formatFid(p.fid)}</td>
                       <td style={{ padding: "8px", textAlign: "right" }}>{p.count}</td>
                     </tr>
                   ))}
@@ -741,7 +761,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
           )}
 
           <button
-            onClick={() => { setSelectedRound(null); setDistribution(null); }}
+            onClick={() => { setSelectedRound(null); setDistribution(null); setUsernames({}); }}
             style={{
               marginTop: "24px",
               padding: "8px 16px",
