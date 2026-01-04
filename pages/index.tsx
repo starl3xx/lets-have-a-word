@@ -162,12 +162,8 @@ function GameContent() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
 
-  // SIWF (Sign In With Farcaster) credential for secure authentication
-  const [siwfCredential, setSiwfCredential] = useState<{
-    message: string;
-    signature: string;
-    nonce: string;
-  } | null>(null);
+  // Quick Auth token for secure authentication (JWT from Farcaster auth server)
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
@@ -243,30 +239,20 @@ function GameContent() {
             }
           }
 
-          // Auto sign-in with Farcaster for secure backend authentication
+          // Get Quick Auth token for secure backend authentication
           // This happens transparently without user interaction
           try {
-            console.log('[SIWF] Starting auto sign-in...');
-            const nonceRes = await fetch('/api/auth/nonce');
-            if (nonceRes.ok) {
-              const { nonce } = await nonceRes.json();
-              console.log('[SIWF] Got nonce, requesting signature...');
-
-              // Request SIWF signature from Warpcast
-              const signInResult = await sdk.actions.signIn({ nonce });
-              console.log('[SIWF] Got signature, storing credential');
-
-              // Store the credential for use in API requests
-              setSiwfCredential({
-                message: signInResult.message,
-                signature: signInResult.signature,
-                nonce,
-              });
-              console.log('[SIWF] Auto sign-in complete');
+            console.log('[QuickAuth] Getting auth token...');
+            const token = await sdk.experimental.quickAuth();
+            if (token) {
+              setAuthToken(token);
+              console.log('[QuickAuth] Token obtained successfully');
+            } else {
+              console.warn('[QuickAuth] No token returned');
             }
-          } catch (signInError) {
-            console.error('[SIWF] Auto sign-in failed:', signInError);
-            // Continue without SIWF - will fall back to other auth methods
+          } catch (authError) {
+            console.error('[QuickAuth] Failed to get token:', authError);
+            // Continue without auth token - will fall back to other auth methods
           }
         } else {
           // No FID in context - check if dev mode
@@ -897,13 +883,13 @@ function GameContent() {
       // Build request body with appropriate authentication
       const requestBody: any = { word };
 
-      if (isInMiniApp && fid && siwfCredential) {
-        // In mini app context: use SIWF credential for verified authentication
-        requestBody.siwfCredential = siwfCredential;
+      if (isInMiniApp && fid && authToken) {
+        // In mini app context: use Quick Auth token for verified authentication
+        requestBody.authToken = authToken;
       } else if (isInMiniApp && fid) {
-        // Fallback: mini app without SIWF credential (shouldn't happen normally)
+        // Fallback: mini app without auth token (shouldn't happen normally)
         // This will be rejected by the server for security
-        console.warn('[Guess] No SIWF credential available, request may be rejected');
+        console.warn('[Guess] No auth token available, request may be rejected');
         requestBody.miniAppFid = fid;
       } else if (isClientDevMode() && effectiveFid) {
         // Local development: use devFid
