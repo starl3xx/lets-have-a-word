@@ -251,27 +251,30 @@ export default async function handler(
         const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
 
         // Check CLANKTON balances for users with wallets
+        // Wrapped in defensive try/catch since this makes RPC calls that could fail
         const clanktonHolders = new Set<number>();
-        const walletsToCheck = topGuessersData
-          .filter((g) => g.signerWalletAddress)
-          .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
+        try {
+          const walletsToCheck = topGuessersData
+            .filter((g) => g.signerWalletAddress)
+            .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
 
-        if (walletsToCheck.length > 0) {
-          try {
-            // Check all wallets in parallel
-            const clanktonResults = await Promise.all(
+          if (walletsToCheck.length > 0) {
+            // Check all wallets in parallel with individual error handling
+            const clanktonResults = await Promise.allSettled(
               walletsToCheck.map(async ({ fid, wallet }) => ({
                 fid,
                 hasClankton: await hasClanktonBonus(wallet),
               }))
             );
-            for (const { fid, hasClankton } of clanktonResults) {
-              if (hasClankton) clanktonHolders.add(fid);
+            for (const result of clanktonResults) {
+              if (result.status === 'fulfilled' && result.value.hasClankton) {
+                clanktonHolders.add(result.value.fid);
+              }
             }
-          } catch (error) {
-            console.warn('[top-guessers] Error checking CLANKTON balances:', error);
-            // Continue without CLANKTON badges on error
           }
+        } catch (error) {
+          console.warn('[top-guessers] Error checking CLANKTON balances:', error);
+          // Continue without CLANKTON badges on error
         }
 
         // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
