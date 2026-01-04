@@ -157,6 +157,16 @@ export default function SocialSection({ user }: SocialSectionProps) {
     tweetUrl?: string
   } | null>(null)
 
+  // Push notification state
+  const [notifTitle, setNotifTitle] = useState<string>("")
+  const [notifBody, setNotifBody] = useState<string>("")
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifResult, setNotifResult] = useState<{
+    success: boolean
+    message: string
+    recipientCount?: number
+  } | null>(null)
+
   // Status cast generator function - fetches fresh data each time
   const generateStatusCast = useCallback(async () => {
     if (!user?.fid) {
@@ -302,6 +312,58 @@ export default function SocialSection({ user }: SocialSectionProps) {
     }
   }, [statusCastText])
 
+  // Push notification functions
+  const sendNotification = useCallback(async () => {
+    if (!notifTitle.trim() || !notifBody.trim()) {
+      setNotifResult({ success: false, message: "Title and body are required." })
+      return
+    }
+
+    if (!user?.fid) {
+      setNotifResult({ success: false, message: "Not authenticated." })
+      return
+    }
+
+    setNotifLoading(true)
+    setNotifResult(null)
+
+    try {
+      const response = await fetch(`/api/admin/send-notification?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: notifTitle, body: notifBody }),
+        credentials: 'include',
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setNotifResult({
+          success: true,
+          message: `Notification sent to ${data.recipientCount?.toLocaleString() || 'all'} users!`,
+          recipientCount: data.recipientCount,
+        })
+        setNotifTitle("")
+        setNotifBody("")
+      } else {
+        setNotifResult({
+          success: false,
+          message: data.error || "Failed to send notification.",
+        })
+      }
+    } catch (err) {
+      console.error("[SocialSection] Error sending notification:", err)
+      setNotifResult({
+        success: false,
+        message: "Network error. Please try again.",
+      })
+    } finally {
+      setNotifLoading(false)
+    }
+  }, [notifTitle, notifBody, user?.fid])
+
   return (
     <div>
       {/* Two-column layout */}
@@ -399,6 +461,110 @@ export default function SocialSection({ user }: SocialSectionProps) {
           </div>
         </Module>
       </div>
+
+      {/* ================================================================== */}
+      {/* PUSH NOTIFICATIONS */}
+      {/* ================================================================== */}
+      <Module title="Push Notifications (Mini App)">
+        <p style={styles.description}>
+          Send push notifications to users who have enabled notifications for the mini app.
+        </p>
+
+        {notifResult && (
+          <div style={styles.alert(notifResult.success ? 'success' : 'error')}>
+            {notifResult.message}
+          </div>
+        )}
+
+        <div style={{ marginBottom: "12px" }}>
+          <label style={{ display: "block", fontSize: "12px", color: "#6b7280", marginBottom: "4px", fontFamily }}>
+            Title (max 50 characters)
+          </label>
+          <input
+            type="text"
+            value={notifTitle}
+            onChange={(e) => setNotifTitle(e.target.value)}
+            placeholder="e.g., Round #3 is live!"
+            maxLength={50}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              border: "1px solid #d1d5db",
+              background: "white",
+              fontFamily,
+              fontSize: "14px",
+            }}
+          />
+          <div style={{ fontSize: "11px", color: notifTitle.length > 50 ? "#dc2626" : "#9ca3af", textAlign: "right", marginTop: "4px" }}>
+            {notifTitle.length}/50
+          </div>
+        </div>
+
+        <div style={{ marginBottom: "12px" }}>
+          <label style={{ display: "block", fontSize: "12px", color: "#6b7280", marginBottom: "4px", fontFamily }}>
+            Body (max 200 characters)
+          </label>
+          <textarea
+            value={notifBody}
+            onChange={(e) => setNotifBody(e.target.value)}
+            placeholder="e.g., The hunt for the secret word begins. One correct guess wins the jackpot."
+            maxLength={200}
+            style={{
+              width: "100%",
+              minHeight: "80px",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              border: "1px solid #d1d5db",
+              background: "white",
+              fontFamily,
+              fontSize: "14px",
+              resize: "vertical",
+            }}
+          />
+          <div style={{ fontSize: "11px", color: notifBody.length > 200 ? "#dc2626" : "#9ca3af", textAlign: "right", marginTop: "4px" }}>
+            {notifBody.length}/200
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {[
+              { label: "Round Live", title: "Round is live!", body: "The hunt for the secret word begins. One correct guess wins the jackpot." },
+              { label: "Daily Reset", title: "Today's guesses are live", body: "Your daily free guesses have been refreshed. Good luck!" },
+              { label: "New Day", title: "New day, new guesses", body: "A fresh batch of guesses awaits. Will you find today's word?" },
+            ].map((template, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setNotifTitle(template.title)
+                  setNotifBody(template.body)
+                }}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "4px",
+                  border: "1px solid #e5e7eb",
+                  background: "#f9fafb",
+                  color: "#374151",
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily,
+                }}
+              >
+                {template.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={sendNotification}
+            disabled={notifLoading || !notifTitle.trim() || !notifBody.trim()}
+            style={styles.button(notifLoading || !notifTitle.trim() || !notifBody.trim(), "#8b5cf6")}
+          >
+            {notifLoading ? "Sending..." : "Send Notification"}
+          </button>
+        </div>
+      </Module>
 
       {/* ================================================================== */}
       {/* QUICK TEMPLATES */}

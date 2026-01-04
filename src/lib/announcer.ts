@@ -18,6 +18,7 @@ import type { RoundRow, RoundPayoutRow } from '../db/schema';
 import { getPlaintextAnswer } from './encryption';
 import { getCurrentJackpotOnChain } from './jackpot-contract';
 import { postTweet } from './twitter';
+import { notifyRoundStarted, notifyRoundResolved, type NotificationResult } from './notifications';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -264,12 +265,17 @@ The secret word is locked onchain 🔒
 Happy hunting 🕵️‍♂️
 letshaveaword.fun`;
 
-  return await recordAndCastAnnouncerEvent({
+  // Send push notification to mini app users
+  const notification = await notifyRoundStarted(roundNumber);
+
+  const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
     roundId: round.id,
     text,
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
+
+  return { ...result, notification };
 }
 
 /**
@@ -399,12 +405,18 @@ Provably fair:
 New round starts soon 👀
 letshaveaword.fun`;
 
-  return await recordAndCastAnnouncerEvent({
+  // Send push notification to mini app users
+  const winnerUsernameClean = winnerUsername?.replace('@', '');
+  const notification = await notifyRoundResolved(roundNumber, winnerUsernameClean, jackpotEth);
+
+  const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
     roundId: round.id,
     text,
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
+
+  return { ...result, notification };
 }
 
 /**
