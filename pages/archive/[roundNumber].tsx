@@ -249,7 +249,7 @@ export default function RoundDetailPage() {
                             onClick={() => openProfile(round.winnerFid!)}
                             className="font-semibold text-gray-900 text-lg hover:text-blue-600 transition-colors text-left"
                           >
-                            @{round.winnerUsername || `fid:${round.winnerFid}`}
+                            {round.winnerUsername?.startsWith('fid:') ? round.winnerUsername : `@${round.winnerUsername || 'unknown'}`}
                           </button>
                           {round.winnerGuessNumber && (
                             <div className="text-sm text-gray-500 mt-0.5">
@@ -271,7 +271,7 @@ export default function RoundDetailPage() {
                           onClick={() => openProfile(round.referrerFid!)}
                           className="text-gray-900 font-medium hover:text-blue-600 transition-colors"
                         >
-                          @{round.referrerUsername || `fid:${round.referrerFid}`}
+                          {round.referrerUsername?.startsWith('fid:') ? round.referrerUsername : `@${round.referrerUsername || 'unknown'}`}
                         </button>
                         {round.payoutsJson.referrer && (
                           <span className="text-green-600 font-medium">
@@ -353,7 +353,7 @@ export default function RoundDetailPage() {
                             onClick={() => openProfile(guesser.fid)}
                             className="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors"
                           >
-                            @{guesser.username || 'unknown'}
+                            {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || 'unknown'}`}
                           </button>
                           {guesser.hasOgHunterBadge && (
                             <OgHunterBadge size="sm" showTooltip={true} />
