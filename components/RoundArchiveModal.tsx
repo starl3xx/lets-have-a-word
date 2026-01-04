@@ -324,10 +324,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             {/* Early Guessers List */}
             <div>
               <div className="text-center mb-1.5">
-                <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                   Top 10 Early Guessers
                 </h3>
-                <p className="text-sm text-gray-500 mt-0.5">(ranked from the first 750 guesses)</p>
+                <p className="text-xs text-gray-500 mt-0.5">(ranked from the first 750 guesses)</p>
               </div>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
@@ -342,34 +342,34 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               )}
 
               {topGuessers.length === 0 ? (
-                <div className="text-center text-gray-400 py-4">
+                <div className="text-center text-gray-400 py-4 text-sm">
                   No guesses yet this round
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {topGuessers.slice(0, 10).map((guesser, index) => {
                     const rank = index + 1;
                     const top10PoolEth = breakdown ? parseFloat(breakdown.topGuessers.eth) : 0;
                     const rankPayout = getRankPayout(rank, top10PoolEth);
 
                     return (
-                      <div key={guesser.fid} className="flex items-center gap-3">
+                      <div key={guesser.fid} className="flex items-center gap-2">
                         {/* Rank */}
-                        <div className="text-gray-500 font-medium w-6 text-right">
+                        <div className="text-gray-500 text-sm font-medium w-5 text-right">
                           {rank}.
                         </div>
                         {/* Avatar */}
                         <img
                           src={guesser.pfpUrl}
                           alt={guesser.username}
-                          className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                          className="w-7 h-7 rounded-full object-cover border border-gray-200"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
                           }}
                         />
                         {/* Username + Badges + ETH Payout */}
-                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                          <span className="font-medium text-gray-900 truncate">
+                        <div className="flex-1 flex items-center gap-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 truncate">
                             {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || `fid:${guesser.fid}`}`}
                           </span>
                           <BadgeStack
@@ -382,7 +382,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           </span>
                         </div>
                         {/* Guess Count */}
-                        <div className="text-gray-900 font-bold tabular-nums mr-1">
+                        <div className="text-sm text-gray-900 font-bold tabular-nums mr-1">
                           {guesser.guessCount}
                         </div>
                       </div>
