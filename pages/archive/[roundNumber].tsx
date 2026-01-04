@@ -181,7 +181,7 @@ export default function RoundDetailPage() {
           </div>
         </div>
 
-        {/* Target Word Display - styled like word wheel input boxes */}
+        {/* Target Word Display - styled exactly like word wheel input boxes */}
         {!loading && round && (
           <div className="bg-white border-b border-gray-200">
             <div className="max-w-2xl mx-auto px-4 py-8 text-center">
@@ -189,7 +189,7 @@ export default function RoundDetailPage() {
                 {round.targetWord.split('').map((letter, index) => (
                   <div
                     key={index}
-                    className="w-12 h-14 sm:w-14 sm:h-16 border-2 border-blue-400 rounded-lg bg-white flex items-center justify-center"
+                    className="w-14 h-14 sm:w-16 sm:h-16 border-4 border-blue-500 rounded-lg bg-white flex items-center justify-center shadow-md"
                   >
                     <span className="text-2xl sm:text-3xl font-bold text-gray-900 uppercase">
                       {letter}
