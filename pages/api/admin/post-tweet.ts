@@ -6,12 +6,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { isAdminFid } from './me';
 import { postTweet, convertToTwitterText } from '../../../src/lib/twitter';
-
-// Admin FIDs allowed to use this endpoint (same as other admin endpoints)
-const ADMIN_FIDS = [
-  1477413, // letshaveaword
-];
 
 export default async function handler(
   req: NextApiRequest,
@@ -21,10 +17,13 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Simple auth check - require admin secret or check via header
-  const adminSecret = req.headers['x-admin-secret'];
-  if (adminSecret !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  // Auth check (same pattern as other admin endpoints)
+  const devFid = req.query.devFid ? parseInt(req.query.devFid as string, 10) : null;
+  const fidFromCookie = req.cookies.siwn_fid ? parseInt(req.cookies.siwn_fid, 10) : null;
+  const fid = devFid || fidFromCookie;
+
+  if (!fid || !isAdminFid(fid)) {
+    return res.status(403).json({ error: 'Admin access required' });
   }
 
   const { text } = req.body;
@@ -33,11 +32,16 @@ export default async function handler(
     return res.status(400).json({ error: 'Missing or invalid text' });
   }
 
+  if (text.length > 320) {
+    return res.status(400).json({ error: 'Text too long (max 320 characters)' });
+  }
+
   try {
     const twitterText = convertToTwitterText(text);
     const result = await postTweet(text);
 
     if (result) {
+      console.log(`[post-tweet] Tweet posted by FID ${fid}: ${result.id}`);
       return res.status(200).json({
         success: true,
         tweetId: result.id,
