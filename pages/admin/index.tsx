@@ -85,7 +85,7 @@ interface OperationalStatus {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   page: {
