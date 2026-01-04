@@ -181,12 +181,21 @@ export default function RoundDetailPage() {
           </div>
         </div>
 
-        {/* Target Word Display */}
+        {/* Target Word Display - styled like word wheel input boxes */}
         {!loading && round && (
           <div className="bg-white border-b border-gray-200">
             <div className="max-w-2xl mx-auto px-4 py-8 text-center">
-              <div className="font-mono text-4xl font-bold tracking-[0.3em] text-blue-600 uppercase mb-2">
-                {round.targetWord}
+              <div className="flex justify-center gap-2 mb-3">
+                {round.targetWord.split('').map((letter, index) => (
+                  <div
+                    key={index}
+                    className="w-12 h-14 sm:w-14 sm:h-16 border-2 border-blue-400 rounded-lg bg-white flex items-center justify-center"
+                  >
+                    <span className="text-2xl sm:text-3xl font-bold text-gray-900 uppercase">
+                      {letter}
+                    </span>
+                  </div>
+                ))}
               </div>
               <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
                 The secret word
