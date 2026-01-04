@@ -17,6 +17,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
 import { getPlaintextAnswer } from './encryption';
 import { getCurrentJackpotOnChain } from './jackpot-contract';
+import { postTweet } from './twitter';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -171,28 +172,35 @@ export async function recordAndCastAnnouncerEvent(params: AnnouncerEventParams) 
       })
       .returning();
 
-    // Publish the cast
+    // Publish the cast to Farcaster
     const cast = await castFromAnnouncer(params.text, {
       replyToHash: params.replyToHash,
       embeds: params.embeds,
     });
 
-    // Update with cast hash if successful
-    if (cast?.hash) {
+    // Cross-post to Twitter/X
+    const tweet = await postTweet(params.text);
+
+    // Update with cast hash and tweet ID if successful
+    if (cast?.hash || tweet?.id) {
       await db
         .update(announcerEvents)
         .set({
-          castHash: cast.hash,
+          castHash: cast?.hash ?? null,
           postedAt: new Date(),
+          payload: {
+            text: params.text,
+            tweetId: tweet?.id ?? null,
+          },
         })
         .where(eq(announcerEvents.id, created[0].id));
     }
 
-    return { created: created[0], cast };
+    return { created: created[0], cast, tweet };
   } catch (error) {
     console.error('[announcer] ERROR: Failed to record and cast event:', error);
     // Don't throw - announcer failures should never break the game
-    return { created: null, cast: null };
+    return { created: null, cast: null, tweet: null };
   }
 }
 
