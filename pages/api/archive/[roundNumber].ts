@@ -8,11 +8,18 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { db, rounds } from '../../../src/db';
+import { eq } from 'drizzle-orm';
 import { getArchivedRoundWithUsernames, getRoundGuessDistribution, type ArchivedRoundWithUsernames } from '../../../src/lib/archive';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
+import { getCommitHashOnChain, isContractDeployed } from '../../../src/lib/jackpot-contract';
 
 export interface ArchiveDetailResponse {
-  round: ArchivedRoundWithUsernames | null;
+  round: (ArchivedRoundWithUsernames & {
+    commitHash?: string;
+    hasOnChainCommitment?: boolean;
+    onChainCommitHash?: string;
+  }) | null;
   distribution?: {
     distribution: Array<{ hour: number; count: number }>;
     byPlayer: Array<{ fid: number; count: number }>;
@@ -57,6 +64,32 @@ export default async function handler(
 
         // Serialize decimal/date values
         const serialized = serializeArchiveRow(round);
+
+        // Fetch commit hash from rounds table
+        const [roundData] = await db
+          .select({ commitHash: rounds.commitHash })
+          .from(rounds)
+          .where(eq(rounds.id, roundNum))
+          .limit(1);
+
+        if (roundData) {
+          serialized.commitHash = roundData.commitHash;
+        }
+
+        // Fetch onchain commitment if available
+        try {
+          const contractDeployed = await isContractDeployed();
+          if (contractDeployed) {
+            const onChainCommitHash = await getCommitHashOnChain(roundNum);
+            serialized.hasOnChainCommitment = onChainCommitHash !== null;
+            serialized.onChainCommitHash = onChainCommitHash || undefined;
+          } else {
+            serialized.hasOnChainCommitment = false;
+          }
+        } catch (error) {
+          console.error('[api/archive] Failed to fetch onchain commitment:', error);
+          serialized.hasOnChainCommitment = false;
+        }
 
         // Optionally include guess distribution
         let distribution;

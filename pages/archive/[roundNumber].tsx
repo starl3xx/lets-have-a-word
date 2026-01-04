@@ -49,6 +49,9 @@ interface ArchivedRound {
   salt: string;
   clanktonBonusCount: number;
   referralBonusCount: number;
+  commitHash?: string;
+  hasOnChainCommitment?: boolean;
+  onChainCommitHash?: string;
 }
 
 interface Distribution {
@@ -412,26 +415,61 @@ export default function RoundDetailPage() {
                   <InfoRow label="Ended" value={formatDate(round.endTime)} />
                   <InfoRow label="Seed ETH" value={`${formatEth(round.seedEth)} ETH`} />
                   <InfoRow label="CLANKTON bonuses" value={round.clanktonBonusCount.toString()} />
-                  <InfoRow label="Referral signups" value={round.referralBonusCount.toString()} isLast />
+                  <InfoRow label="Referral signups" value={round.referralBonusCount.toString()} />
+
+                  {/* Onchain secret word commitment */}
+                  <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
+                    <span className="text-gray-500">Onchain secret word commitment</span>
+                    {round.hasOnChainCommitment ? (
+                      <button
+                        onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <span>View on BaseScan</span>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">Database only</span>
+                    )}
+                  </div>
+
+                  {/* Prize pool distribution tx */}
+                  <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
+                    <span className="text-gray-500">Prize pool distribution tx</span>
+                    {round.roundNumber === 1 ? (
+                      <button
+                        onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/0xb5dde8065b2ea6a7d2101f8cdb92849659c63a1d4b97b0fdbfb69acd1d4bdffb`)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <span>View on BaseScan</span>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <span>View on BaseScan</span>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </Section>
 
-              {/* Verification */}
-              <Section title="Verification (commit-reveal)">
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                  <div className="mb-3">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">
-                      Salt
-                    </div>
-                    <div className="font-mono text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 break-all text-gray-700">
-                      {round.salt}
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    Verify: SHA256(salt + word) should match the commit hash published at round start
-                  </p>
-                </div>
-              </Section>
+              {/* Verify Round Button */}
+              <button
+                onClick={() => sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`)}
+                className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
+              >
+                Verify round
+              </button>
             </>
           )}
         </div>
