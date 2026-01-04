@@ -397,6 +397,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
     username: string | null;
     pfpUrl: string | null;
     amountEth: string;
+    guessCount: number;
     rank: number;
     hasClanktonBadge?: boolean;
     hasOgHunterBadge?: boolean;
@@ -473,8 +474,30 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       }
     }
 
-    // Get top guesser FIDs only (for badge checks)
+    // Get top guesser FIDs only (for badge checks and guess counts)
     const topGuesserFids = (archived.payoutsJson?.topGuessers || []).map(g => g.fid);
+
+    // Fetch guess counts for top guessers from guesses table
+    const guessCountMap = new Map<number, number>();
+    if (topGuesserFids.length > 0) {
+      const guessCounts = await db
+        .select({
+          fid: guesses.fid,
+          count: sql<number>`cast(count(${guesses.id}) as int)`,
+        })
+        .from(guesses)
+        .where(
+          and(
+            eq(guesses.roundId, archived.roundNumber),
+            sql`${guesses.fid} IN ${topGuesserFids}`
+          )
+        )
+        .groupBy(guesses.fid);
+
+      for (const row of guessCounts) {
+        guessCountMap.set(row.fid, row.count);
+      }
+    }
 
     // Check OG Hunter badges for top guessers
     const ogHunterBadgeFids = new Set<number>();
@@ -529,6 +552,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         username: userData?.username || `fid:${guesser.fid}`,
         pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
         amountEth: guesser.amountEth,
+        guessCount: guessCountMap.get(guesser.fid) || 0,
         rank: guesser.rank,
         hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
         hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
