@@ -332,19 +332,21 @@ export default async function handler(
       // Priority: primary wallet > signer wallet (verified addresses)
       signerWallet = farcasterContext.primaryWallet || farcasterContext.signerWallet;
       spamScore = farcasterContext.spamScore;
+      const username = farcasterContext.username;
 
       // Milestone 9.2: Set Sentry user context for error tracking
-      Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+      Sentry.setUser({ id: fid.toString(), username: username || `fid:${fid}` });
       Sentry.setTag('wallet', signerWallet || 'unknown');
 
       // Parse referral parameter
       const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
       console.log(`[Referral] Frame/signer auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
 
-      // Upsert user with Farcaster data
-      console.log(`[Referral] Calling upsertUserFromFarcaster with referrerFid=${referrerFid}`);
+      // Upsert user with Farcaster data (including username from Neynar)
+      console.log(`[Referral] Calling upsertUserFromFarcaster with username=${username}, referrerFid=${referrerFid}`);
       await upsertUserFromFarcaster({
         fid,
+        username,
         signerWallet,
         spamScore,
         referrerFid,
