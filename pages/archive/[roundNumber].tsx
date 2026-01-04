@@ -374,7 +374,7 @@ export default function RoundDetailPage() {
                           />
                         </div>
                         {/* Guess Count */}
-                        <div className="text-sm text-gray-500 tabular-nums flex-shrink-0">
+                        <div className="text-sm text-gray-900 font-bold tabular-nums flex-shrink-0">
                           {guesser.guessCount}
                         </div>
                       </div>
