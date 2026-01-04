@@ -44,11 +44,16 @@ const WalletSection = dynamic(
   { ssr: false, loading: () => <SectionLoader name="Wallet" /> }
 )
 
+const SocialSection = dynamic(
+  () => import("../../components/admin/SocialSection"),
+  { ssr: false, loading: () => <SectionLoader name="Social" /> }
+)
+
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet'
+type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet' | 'social'
 
 interface DashboardContentProps {
   user?: {
@@ -246,6 +251,7 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '3' },
   { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '4' },
   { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '👛', shortcut: '5' },
+  { id: 'social', label: 'Social', color: '#1DA1F2', icon: '📣', shortcut: '6' },
 ]
 
 // =============================================================================
@@ -436,6 +442,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         case '5':
           handleTabChange('wallet')
           break
+        case '6':
+          handleTabChange('social')
+          break
       }
     }
 
@@ -502,6 +511,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         {activeTab === 'archive' && <ArchiveSection user={user} />}
         {activeTab === 'economics' && <EconomicsSection user={user} />}
         {activeTab === 'wallet' && <WalletSection user={user} />}
+        {activeTab === 'social' && <SocialSection user={user} />}
       </div>
     </div>
   )
