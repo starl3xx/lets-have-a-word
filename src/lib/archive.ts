@@ -30,6 +30,7 @@ import { getPlaintextAnswer } from './encryption';
  */
 export interface ArchiveRoundData {
   roundId: number;
+  force?: boolean; // If true, delete existing archive and re-archive
 }
 
 /**
@@ -52,10 +53,10 @@ export interface ArchiveRoundResult {
  * @returns Result indicating success/failure and the archived record
  */
 export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRoundResult> {
-  const { roundId } = data;
+  const { roundId, force } = data;
 
   try {
-    // Check if already archived (idempotent)
+    // Check if already archived
     const existingArchive = await db
       .select()
       .from(roundArchive)
@@ -63,11 +64,19 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       .limit(1);
 
     if (existingArchive.length > 0) {
-      return {
-        success: true,
-        archived: existingArchive[0],
-        alreadyArchived: true,
-      };
+      if (force) {
+        // Delete existing archive to re-compute
+        await db
+          .delete(roundArchive)
+          .where(eq(roundArchive.roundNumber, roundId));
+        console.log(`[archive] Force re-archiving round ${roundId} - deleted existing record`);
+      } else {
+        return {
+          success: true,
+          archived: existingArchive[0],
+          alreadyArchived: true,
+        };
+      }
     }
 
     // Get the round
@@ -148,16 +157,21 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     }
 
     // Get payouts and construct payouts JSON
+    // Order by amount descending for top_guesser to reconstruct correct ranking
+    // (tiered payouts: rank 1 = 19%, rank 2 = 16%, etc.)
     const payoutRecords = await db
       .select()
       .from(roundPayouts)
-      .where(eq(roundPayouts.roundId, roundId));
+      .where(eq(roundPayouts.roundId, roundId))
+      .orderBy(desc(roundPayouts.amountEth));
 
     const payoutsJson: RoundArchivePayouts = {
       topGuessers: [],
     };
 
-    let topGuesserRank = 1;
+    // Collect top_guesser payouts first, then sort by amount to determine rank
+    const topGuesserPayouts: { fid: number; amountEth: string }[] = [];
+
     for (const payout of payoutRecords) {
       switch (payout.role) {
         case 'winner':
@@ -172,10 +186,9 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           break;
         case 'top_guesser':
           if (payout.fid) {
-            payoutsJson.topGuessers.push({
+            topGuesserPayouts.push({
               fid: payout.fid,
               amountEth: payout.amountEth,
-              rank: topGuesserRank++,
             });
           }
           break;
@@ -187,6 +200,18 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           break;
       }
     }
+
+    // Sort top guessers by amount descending (higher amount = higher rank)
+    // and assign ranks
+    topGuesserPayouts
+      .sort((a, b) => parseFloat(b.amountEth) - parseFloat(a.amountEth))
+      .forEach((payout, index) => {
+        payoutsJson.topGuessers.push({
+          fid: payout.fid,
+          amountEth: payout.amountEth,
+          rank: index + 1,
+        });
+      });
 
     // Compute CLANKTON bonus count
     // Count users who used clankton bonus during this round's active period
@@ -264,14 +289,16 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 /**
  * Archive all unarchived resolved rounds
  *
+ * @param options.force - If true, re-archive all rounds (delete and recreate)
  * @returns Summary of sync operation
  */
-export async function syncAllRounds(): Promise<{
+export async function syncAllRounds(options?: { force?: boolean }): Promise<{
   archived: number;
   alreadyArchived: number;
   failed: number;
   errors: string[];
 }> {
+  const { force = false } = options || {};
   const result = {
     archived: 0,
     alreadyArchived: 0,
@@ -286,10 +313,10 @@ export async function syncAllRounds(): Promise<{
     .where(isNotNull(rounds.resolvedAt))
     .orderBy(asc(rounds.id));
 
-  console.log(`[archive] Syncing ${resolvedRounds.length} resolved rounds...`);
+  console.log(`[archive] Syncing ${resolvedRounds.length} resolved rounds${force ? ' (FORCE)' : ''}...`);
 
   for (const round of resolvedRounds) {
-    const archiveResult = await archiveRound({ roundId: round.id });
+    const archiveResult = await archiveRound({ roundId: round.id, force });
 
     if (archiveResult.success) {
       if (archiveResult.alreadyArchived) {
