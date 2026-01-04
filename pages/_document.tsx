@@ -20,6 +20,9 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
+        {/* Favicon */}
+        <link rel="icon" type="image/png" href="/LHAW-icon.png" />
+        <link rel="apple-touch-icon" href="/LHAW-icon.png" />
         {/* Base App verification */}
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
         {/* Viewport meta tag for iOS Safari safe area support */}

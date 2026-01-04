@@ -6,6 +6,7 @@
  * - Only users with user_score >= 0.6 may submit guesses or purchase guess packs
  * - Score is cached in DB with a last-checked timestamp (refreshed every 24h)
  * - Blocked attempts are logged for analytics/abuse reviews
+ * - Allowlist FIDs bypass the score check entirely
  */
 
 import { db } from '../db';
@@ -21,9 +22,37 @@ import { logAnalyticsEvent } from './analytics';
 export const MIN_USER_SCORE = 0.6;
 
 /**
+ * FIDs that bypass the score check entirely
+ * Set via USER_SCORE_ALLOWLIST env var (comma-separated FIDs)
+ */
+function getAllowlistedFids(): Set<number> {
+  const allowlist = process.env.USER_SCORE_ALLOWLIST || '';
+  if (!allowlist.trim()) return new Set();
+
+  return new Set(
+    allowlist
+      .split(',')
+      .map(fid => parseInt(fid.trim(), 10))
+      .filter(fid => !isNaN(fid))
+  );
+}
+
+/**
  * How long to cache user scores (24 hours in milliseconds)
  */
 export const SCORE_CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Shorter cache duration for scores near the threshold (1 hour)
+ * This helps users whose scores are borderline get fresh checks more often
+ */
+export const BORDERLINE_SCORE_CACHE_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * Score range considered "borderline" (within 0.1 of threshold)
+ */
+const BORDERLINE_SCORE_LOW = MIN_USER_SCORE - 0.1; // 0.5
+const BORDERLINE_SCORE_HIGH = MIN_USER_SCORE + 0.1; // 0.7
 
 /**
  * Error code for insufficient user score
@@ -53,6 +82,17 @@ export async function checkUserQuality(
   forceRefresh: boolean = false
 ): Promise<UserQualityCheckResult> {
   try {
+    // Check allowlist first - bypass score check entirely
+    const allowlist = getAllowlistedFids();
+    if (allowlist.has(fid)) {
+      console.log(`[UserQuality] FID ${fid} is on allowlist, bypassing score check`);
+      return {
+        eligible: true,
+        score: null,
+        reason: 'Allowlisted user',
+      };
+    }
+
     // Fetch user from database
     const [user] = await db
       .select()
@@ -62,13 +102,29 @@ export async function checkUserQuality(
 
     // Check if we have a cached score that's still valid
     const now = new Date();
-    const scoreStale = !user?.userScoreUpdatedAt ||
-      (now.getTime() - user.userScoreUpdatedAt.getTime()) > SCORE_CACHE_DURATION_MS;
+    const cachedScore = user?.userScore !== null ? parseFloat(user.userScore) : null;
 
-    if (!forceRefresh && user?.userScore !== null && !scoreStale) {
+    // Use shorter cache duration for borderline scores (within 0.1 of threshold)
+    // This ensures users near the threshold get fresher scores
+    const isBorderlineScore = cachedScore !== null &&
+      cachedScore >= BORDERLINE_SCORE_LOW &&
+      cachedScore <= BORDERLINE_SCORE_HIGH;
+
+    const cacheDuration = isBorderlineScore
+      ? BORDERLINE_SCORE_CACHE_DURATION_MS
+      : SCORE_CACHE_DURATION_MS;
+
+    const scoreStale = !user?.userScoreUpdatedAt ||
+      (now.getTime() - user.userScoreUpdatedAt.getTime()) > cacheDuration;
+
+    if (!forceRefresh && cachedScore !== null && !scoreStale) {
       // Use cached score
-      const score = parseFloat(user.userScore);
-      return evaluateScore(fid, score);
+      return evaluateScore(fid, cachedScore);
+    }
+
+    // Log if refreshing due to borderline score
+    if (isBorderlineScore && !forceRefresh) {
+      console.log(`[UserQuality] Refreshing borderline score ${cachedScore?.toFixed(3)} for FID ${fid}`);
     }
 
     // Fetch fresh score from Neynar
@@ -144,17 +200,19 @@ async function fetchUserScoreFromNeynar(fid: number): Promise<number | null> {
 
     const user = userData.users[0];
 
-    // Neynar provides experimental_user_score or similar field
-    // The exact field name may vary based on Neynar SDK version
-    // Common fields: experimental_user_score, power_badge, follower_count
+    // Neynar provides the score at experimental.neynar_user_score
+    // See: https://docs.neynar.com/docs/user-scores
     let score: number | null = null;
 
-    // Try to get the experimental user score (primary method)
-    if ('experimental_user_score' in user && typeof user.experimental_user_score === 'number') {
-      score = user.experimental_user_score;
+    // Primary method: Get score from experimental.neynar_user_score
+    const experimental = (user as any).experimental;
+    if (experimental && typeof experimental.neynar_user_score === 'number') {
+      score = experimental.neynar_user_score;
+      console.log(`[UserQuality] FID ${fid} score from experimental.neynar_user_score: ${score}`);
     }
     // Fallback: Calculate a proxy score based on available metrics
     else if (user.follower_count !== undefined && user.following_count !== undefined) {
+      console.warn(`[UserQuality] FID ${fid} missing experimental.neynar_user_score, using proxy calculation`);
       // Proxy calculation: normalize follower ratio and activity
       // This is a fallback if the experimental_user_score is not available
       const followers = user.follower_count || 0;

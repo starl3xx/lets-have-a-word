@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
 import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
 import SharePromptModal from '../components/SharePromptModal';
+import InstallPromptModal, { hasSeenInstallPrompt } from '../components/InstallPromptModal';
 import WinnerShareCard from '../components/WinnerShareCard';
 import LetterBoxes from '../components/LetterBoxes';
 import ResultBanner, { type ResultBannerVariant } from '../components/ResultBanner';
@@ -18,6 +20,7 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
+import ClanktonBonusModal from '../components/ClanktonBonusModal';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
@@ -40,7 +43,7 @@ import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
 import { useGuessInput } from '../src/hooks/useGuessInput';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
-import sdk from '@farcaster/miniapp-sdk';
+import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -58,6 +61,9 @@ const queryClient = new QueryClient();
  * to the game page only, preventing them from affecting other pages like /admin/analytics.
  */
 function GameContent() {
+  // Router for dev query params
+  const router = useRouter();
+
   // Word input state - now managed as array of 5 letters (Milestone 4.3)
   const [letters, setLetters] = useState<string[]>(['', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,9 +106,16 @@ function GameContent() {
   // User guess count state (Milestone 4.6)
   const [hasGuessesLeft, setHasGuessesLeft] = useState(true);
 
+  // Round status - disabled input when no active round
+  const [hasActiveRound, setHasActiveRound] = useState(true);
+
   // Share modal state (Milestone 4.2)
   const [showShareModal, setShowShareModal] = useState(false);
   const [pendingShareResult, setPendingShareResult] = useState<SubmitGuessResult | null>(null);
+
+  // Install prompt modal state (post-guess prompt for non-installed users)
+  const [showInstallPromptModal, setShowInstallPromptModal] = useState(false);
+  const [hasMiniAppInstalled, setHasMiniAppInstalled] = useState<boolean | null>(null);
 
   // Winner share card state (Milestone 4.14)
   const [showWinnerShareCard, setShowWinnerShareCard] = useState(false);
@@ -149,8 +162,12 @@ function GameContent() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
 
+  // Quick Auth token for secure authentication (JWT from Farcaster auth server)
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
   // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
+  const [showClanktonBonusModal, setShowClanktonBonusModal] = useState(false);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -220,6 +237,22 @@ function GameContent() {
             } catch (e) {
               console.error('[Referral] Failed to parse embed URL:', e);
             }
+          }
+
+          // Get Quick Auth token for secure backend authentication
+          // This happens transparently without user interaction
+          try {
+            console.log('[QuickAuth] Getting auth token...');
+            const { token } = await quickAuth.getToken();
+            if (token) {
+              setAuthToken(token);
+              console.log('[QuickAuth] Token obtained successfully');
+            } else {
+              console.warn('[QuickAuth] No token returned');
+            }
+          } catch (authError) {
+            console.error('[QuickAuth] Failed to get token:', authError);
+            // Continue without auth token - will fall back to other auth methods
           }
         } else {
           // No FID in context - check if dev mode
@@ -314,6 +347,48 @@ function GameContent() {
     // In production, OnboardingManager handles the full onboarding flow
     // including both "How It Works" and OG Hunter thanks modals
   }, [effectiveFid]);
+
+  /**
+   * Fetch mini app install status for post-guess install prompt
+   * Used to determine if we should show InstallPromptModal after first guess
+   */
+  useEffect(() => {
+    if (!effectiveFid) return;
+
+    const fetchInstallStatus = async () => {
+      try {
+        const response = await fetch(`/api/onboarding/status?fid=${effectiveFid}`);
+        if (response.ok) {
+          const data = await response.json();
+          setHasMiniAppInstalled(data.hasMiniAppInstalled ?? false);
+        }
+      } catch (error) {
+        console.error('[InstallStatus] Error fetching install status:', error);
+        // Default to true on error to avoid showing the modal
+        setHasMiniAppInstalled(true);
+      }
+    };
+
+    fetchInstallStatus();
+  }, [effectiveFid]);
+
+  /**
+   * Dev mode: Show InstallPromptModal immediately when ?forceInstallPrompt=1
+   * Bypasses the need to make a guess to see the modal
+   */
+  useEffect(() => {
+    if (router.query.forceInstallPrompt === '1' && effectiveFid) {
+      // Create a mock result to show in the modal
+      setPendingShareResult({
+        status: 'incorrect',
+        word: 'TESTS',
+        message: 'Not the winning word, but you\'re getting closer!',
+        userGuessCount: 1,
+        globalGuessCount: 100,
+      });
+      setShowInstallPromptModal(true);
+    }
+  }, [router.query.forceInstallPrompt, effectiveFid]);
 
   /**
    * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
@@ -419,6 +494,17 @@ function GameContent() {
         params.append('devFid', effectiveFid.toString());
         if (isInitialLoad) params.append('initialLoad', 'true');
         if (connectedWalletAddress) params.append('walletAddress', connectedWalletAddress);
+
+        // Include referral parameter so user record is created with referrer
+        const storedRef = sessionStorage.getItem('referrerFid');
+        if (storedRef) {
+          const refFid = parseInt(storedRef, 10);
+          if (!isNaN(refFid) && refFid > 0) {
+            params.append('ref', refFid.toString());
+            console.log(`[Referral] Passing ref=${refFid} to user-state API`);
+          }
+        }
+
         const url = `/api/user-state?${params.toString()}`;
 
         const response = await fetch(url);
@@ -573,7 +659,8 @@ function GameContent() {
       if (e.key === 'Enter') {
         e.preventDefault();
         // Milestone 6.4: Respect same validation as GUESS button
-        if (!isGuessButtonEnabled(currentInputState) || isLoading) {
+        // Also block when no active round
+        if (!isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound) {
           return;
         }
         handleSubmit();
@@ -583,7 +670,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay, showTutorial]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay, showTutorial, hasActiveRound]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
@@ -796,9 +883,13 @@ function GameContent() {
       // Build request body with appropriate authentication
       const requestBody: any = { word };
 
-      if (isInMiniApp && fid) {
-        // In mini app context: use miniAppFid (production)
-        // Warpcast has already authenticated the user via sdk.context
+      if (isInMiniApp && fid && authToken) {
+        // In mini app context: use Quick Auth token for verified authentication
+        requestBody.authToken = authToken;
+      } else if (isInMiniApp && fid) {
+        // Fallback: mini app without auth token (shouldn't happen normally)
+        // This will be rejected by the server for security
+        console.warn('[Guess] No auth token available, request may be rejected');
         requestBody.miniAppFid = fid;
       } else if (isClientDevMode() && effectiveFid) {
         // Local development: use devFid
@@ -808,11 +899,17 @@ function GameContent() {
       // Get referral parameter from sessionStorage (captured on initial page load)
       // This ensures the ref is not lost if URL changed before first guess
       const storedRef = sessionStorage.getItem('referrerFid');
+      console.log(`[Referral] Checking sessionStorage: storedRef=${storedRef}`);
       if (storedRef) {
         const refFid = parseInt(storedRef, 10);
         if (!isNaN(refFid) && refFid > 0) {
           requestBody.ref = refFid;
+          console.log(`[Referral] Added ref=${refFid} to guess request body`);
+        } else {
+          console.log(`[Referral] Invalid refFid parsed: ${refFid} (original: ${storedRef})`);
         }
+      } else {
+        console.log(`[Referral] No referrerFid in sessionStorage`);
       }
 
       // Call API
@@ -841,6 +938,14 @@ function GameContent() {
             setResult(rateLimitResult);
             setIsLoading(false);
             return; // Don't throw, just set result and return
+          }
+
+          // Handle user quality blocked (403 with INSUFFICIENT_USER_SCORE)
+          if (response.status === 403 && errorData.error === 'INSUFFICIENT_USER_SCORE') {
+            console.log('[Guess] User quality blocked - score below threshold');
+            setErrorMessage(`Your Neynar score (${errorData.score?.toFixed(2) || 'unknown'}) is below the minimum (${errorData.minRequired || 0.6}) required to play.`);
+            setIsLoading(false);
+            return; // Don't throw, show specific error
           }
 
           // Milestone 9.5: Check for operational errors (kill switch, dead day)
@@ -977,6 +1082,14 @@ function GameContent() {
           try {
             const stateParams = new URLSearchParams({ devFid: effectiveFid.toString() });
             if (connectedWalletAddress) stateParams.append('walletAddress', connectedWalletAddress);
+            // Include referral for consistency (user should exist by now, but belt-and-suspenders)
+            const storedRefForState = sessionStorage.getItem('referrerFid');
+            if (storedRefForState) {
+              const refFidForState = parseInt(storedRefForState, 10);
+              if (!isNaN(refFidForState) && refFidForState > 0) {
+                stateParams.append('ref', refFidForState.toString());
+              }
+            }
             const stateResponse = await fetch(`/api/user-state?${stateParams.toString()}`);
             if (stateResponse.ok) {
               const stateData: UserStateResponse = await stateResponse.json();
@@ -1018,7 +1131,15 @@ function GameContent() {
               // Show appropriate modal based on decision
               switch (decision) {
                 case 'share':
-                  setShowShareModal(true);
+                  // Check if we should show InstallPromptModal instead
+                  // Show to users who haven't installed mini app AND haven't seen this prompt before
+                  // Dev override: ?forceInstallPrompt=1 bypasses the checks
+                  const forceInstallPrompt = router.query.forceInstallPrompt === '1';
+                  if (forceInstallPrompt || (hasMiniAppInstalled === false && !hasSeenInstallPrompt())) {
+                    setShowInstallPromptModal(true);
+                  } else {
+                    setShowShareModal(true);
+                  }
                   break;
                 case 'pack':
                   setShowGuessPurchaseModal(true);
@@ -1195,7 +1316,8 @@ function GameContent() {
   const stateErrorMessage = getErrorMessage(currentInputState);
 
   // Check if GUESS button should be enabled (Milestone 4.6)
-  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading;
+  // Also disable when no active round
+  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound;
 
   /**
    * Handle share modal close
@@ -1224,6 +1346,23 @@ function GameContent() {
   const handleShareSuccess = () => {
     setUserStateKey(prev => prev + 1);
     setCanClaimShareBonus(false);
+  };
+
+  /**
+   * Handle install prompt modal close
+   */
+  const handleInstallPromptClose = () => {
+    setShowInstallPromptModal(false);
+    setPendingShareResult(null);
+  };
+
+  /**
+   * Handle successful install from InstallPromptModal
+   * Updates hasMiniAppInstalled state and refetches user state
+   */
+  const handleInstallSuccess = () => {
+    setHasMiniAppInstalled(true);
+    setUserStateKey(prev => prev + 1);
   };
 
   /**
@@ -1389,7 +1528,7 @@ function GameContent() {
           setCurrentRoundId(roundId);
           setShowArchiveModal(true);
         }}
-        adminFid={effectiveFid ?? undefined}
+        onRoundStatusChange={setHasActiveRound}
       />
 
       {/* Game Area Wrapper - contains UserState, game container, and overlays */}
@@ -1397,7 +1536,12 @@ function GameContent() {
         {/* User State (Milestone 4.1) - Minimal */}
         <div className="px-4 pt-1">
           <div className="max-w-md mx-auto">
-            <UserState key={userStateKey} fid={effectiveFid} />
+            <UserState
+              key={userStateKey}
+              fid={effectiveFid}
+              onGetMore={() => setShowGuessPurchaseModal(true)}
+              onClanktonHintTap={() => setShowClanktonBonusModal(true)}
+            />
           </div>
         </div>
 
@@ -1504,7 +1648,7 @@ function GameContent() {
                 <LetterBoxes
                   letters={letters}
                   onChange={handleLettersChange}
-                  disabled={isLoading}
+                  disabled={isLoading || !hasActiveRound}
                   isShaking={isShaking}
                   resultState={boxResultState}
                   inputState={currentInputState}
@@ -1579,7 +1723,7 @@ function GameContent() {
                 }}
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
                   isButtonDisabled
-                    ? 'bg-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-300 cursor-not-allowed opacity-60'
                     : 'active:scale-95'
                 }`}
                 style={!isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}}
@@ -1636,7 +1780,7 @@ function GameContent() {
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
-          disabled={isLoading}
+          disabled={isLoading || !hasActiveRound}
         />
       </div>
 
@@ -1647,6 +1791,17 @@ function GameContent() {
           guessResult={pendingShareResult}
           onClose={handleShareModalClose}
           onShareSuccess={handleShareSuccess}
+        />
+      )}
+
+      {/* Install Prompt Modal (post-guess prompt for non-installed users) */}
+      {showInstallPromptModal && pendingShareResult && (
+        <InstallPromptModal
+          fid={effectiveFid}
+          guessResult={pendingShareResult}
+          onClose={handleInstallPromptClose}
+          onShareSuccess={handleShareSuccess}
+          onInstallSuccess={handleInstallSuccess}
         />
       )}
 
@@ -1693,6 +1848,13 @@ function GameContent() {
             // If user closed without purchasing and out of guesses, no modal - just can't play
           }}
           onPurchaseSuccess={handlePackPurchaseSuccess}
+        />
+      )}
+
+      {/* CLANKTON Bonus Modal - explains bonus for non-holders */}
+      {showClanktonBonusModal && (
+        <ClanktonBonusModal
+          onClose={() => setShowClanktonBonusModal(false)}
         />
       )}
 
@@ -1746,6 +1908,7 @@ export default function Home() {
   return (
     <>
       <Head>
+        <title>Let's Have A Word! | Onchain word game</title>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
       <WagmiProvider config={config}>

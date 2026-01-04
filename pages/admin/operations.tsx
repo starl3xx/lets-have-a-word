@@ -278,6 +278,50 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   // Copy feedback state
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
 
+  // XP Award state
+  const [xpTargetFid, setXpTargetFid] = useState("")
+  const [xpEventType, setXpEventType] = useState("")
+  const [xpReason, setXpReason] = useState("")
+  const [xpLoading, setXpLoading] = useState(false)
+
+  // Emergency Resolution state
+  const [emergencyFid, setEmergencyFid] = useState("")
+  const [emergencyWallet, setEmergencyWallet] = useState("")
+  const [emergencyLoading, setEmergencyLoading] = useState(false)
+  const [emergencyLookup, setEmergencyLookup] = useState<{
+    found: boolean
+    user?: {
+      fid: number
+      username: string | null
+      signerWalletAddress: string | null
+      custodyAddress: string | null
+      hasValidWallet: boolean
+    }
+  } | null>(null)
+  const [emergencyRound, setEmergencyRound] = useState<{
+    id: number
+    status: string
+    answer: string
+    prizePoolEth: string
+    globalGuessCount: number
+    isActive: boolean
+  } | null>(null)
+  const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false)
+
+  // XP event options with labels and values
+  const xpEventOptions = [
+    { value: 'DAILY_PARTICIPATION', label: 'Daily participation (+10 XP)', xp: 10 },
+    { value: 'GUESS', label: 'Valid guess (+2 XP)', xp: 2 },
+    { value: 'WIN', label: 'Winning jackpot (+2500 XP)', xp: 2500 },
+    { value: 'TOP_TEN_GUESSER', label: 'Top 10 placement (+50 XP)', xp: 50 },
+    { value: 'REFERRAL_FIRST_GUESS', label: 'Referred user first guess (+20 XP)', xp: 20 },
+    { value: 'STREAK_DAY', label: 'Consecutive day streak (+15 XP)', xp: 15 },
+    { value: 'CLANKTON_BONUS_DAY', label: 'CLANKTON holder daily (+10 XP)', xp: 10 },
+    { value: 'SHARE_CAST', label: 'Sharing to Farcaster (+15 XP)', xp: 15 },
+    { value: 'PACK_PURCHASE', label: 'Buying guess pack (+20 XP)', xp: 20 },
+    { value: 'OG_HUNTER_AWARD', label: 'OG Hunter badge (+500 XP)', xp: 500 },
+  ]
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -639,6 +683,187 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
       document.body.removeChild(textarea)
       setCopyFeedback('Copied!')
       setTimeout(() => setCopyFeedback(null), 2000)
+    }
+  }
+
+  const handleAwardXp = async () => {
+    if (!user?.fid) return
+
+    const targetFid = parseInt(xpTargetFid, 10)
+    if (isNaN(targetFid) || targetFid <= 0) {
+      setError('Please enter a valid FID')
+      return
+    }
+
+    if (!xpEventType) {
+      setError('Please select an XP event type')
+      return
+    }
+
+    try {
+      setXpLoading(true)
+      setError(null)
+      setSuccess(null)
+
+      const res = await fetch('/api/admin/award-xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          targetFid,
+          eventType: xpEventType,
+          reason: xpReason || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to award XP')
+      }
+
+      setSuccess(`${data.message}`)
+      // Clear form on success
+      setXpTargetFid('')
+      setXpEventType('')
+      setXpReason('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setXpLoading(false)
+    }
+  }
+
+  // ==========================================================================
+  // Emergency Resolution handlers
+  // ==========================================================================
+
+  const handleEmergencyLookup = async () => {
+    if (!user?.fid || !emergencyFid) return
+
+    try {
+      setEmergencyLoading(true)
+      setError(null)
+      setEmergencyLookup(null)
+      setEmergencyRound(null)
+
+      // Fetch round info and user lookup in parallel
+      const [roundRes, lookupRes] = await Promise.all([
+        fetch('/api/admin/operational/emergency-resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            devFid: user.fid,
+            action: 'get-round-info',
+          }),
+        }),
+        fetch('/api/admin/operational/emergency-resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            devFid: user.fid,
+            action: 'lookup-winner',
+            targetFid: emergencyFid,
+          }),
+        }),
+      ])
+
+      const roundData = await roundRes.json()
+      const lookupData = await lookupRes.json()
+
+      if (!roundRes.ok) {
+        throw new Error(roundData.error || 'Failed to get round info')
+      }
+      if (!lookupRes.ok) {
+        throw new Error(lookupData.error || 'Failed to lookup user')
+      }
+
+      setEmergencyRound(roundData.round)
+      setEmergencyLookup(lookupData)
+
+      if (lookupData.found && lookupData.user?.signerWalletAddress) {
+        setEmergencyWallet(lookupData.user.signerWalletAddress)
+      } else if (lookupData.found && lookupData.user?.custodyAddress) {
+        setEmergencyWallet(lookupData.user.custodyAddress)
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setEmergencyLoading(false)
+    }
+  }
+
+  const handleEmergencyUpdateWallet = async () => {
+    if (!user?.fid || !emergencyFid || !emergencyWallet) return
+
+    try {
+      setEmergencyLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/admin/operational/emergency-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: 'update-wallet',
+          targetFid: emergencyFid,
+          walletAddress: emergencyWallet,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update wallet')
+      }
+
+      setSuccess(data.message)
+
+      // Re-lookup to refresh state
+      await handleEmergencyLookup()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setEmergencyLoading(false)
+    }
+  }
+
+  const handleEmergencyResolve = async () => {
+    if (!user?.fid || !emergencyFid) return
+
+    try {
+      setEmergencyLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/admin/operational/emergency-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: 'resolve-round',
+          targetFid: emergencyFid,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to resolve round')
+      }
+
+      setSuccess(`🎉 ${data.message} - Prize pool: ${data.prizePoolEth} ETH`)
+      setShowEmergencyConfirm(false)
+      setEmergencyFid('')
+      setEmergencyWallet('')
+      setEmergencyLookup(null)
+      setEmergencyRound(null)
+
+      // Refresh status
+      await fetchStatus()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setEmergencyLoading(false)
     }
   }
 
@@ -1234,6 +1459,285 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 </>
               )}
             </div>
+
+            {/* Manual XP Award Card */}
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>Manual XP Award</h2>
+              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                Award XP events to users manually. Useful for correcting missed XP or compensating users.
+              </p>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Target FID</label>
+                <input
+                  type="number"
+                  style={styles.input}
+                  placeholder="e.g., 310815"
+                  value={xpTargetFid}
+                  onChange={(e) => setXpTargetFid(e.target.value)}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>XP Event Type</label>
+                <select
+                  style={{ ...styles.input, cursor: 'pointer' }}
+                  value={xpEventType}
+                  onChange={(e) => setXpEventType(e.target.value)}
+                >
+                  <option value="">Select an event type...</option>
+                  {xpEventOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Reason (optional)</label>
+                <input
+                  type="text"
+                  style={styles.input}
+                  placeholder="e.g., Missed referral XP"
+                  value={xpReason}
+                  onChange={(e) => setXpReason(e.target.value)}
+                />
+              </div>
+
+              <button
+                onClick={handleAwardXp}
+                style={{
+                  ...styles.btnPrimary,
+                  opacity: xpLoading || !xpTargetFid || !xpEventType ? 0.6 : 1,
+                  cursor: xpLoading || !xpTargetFid || !xpEventType ? 'not-allowed' : 'pointer',
+                }}
+                disabled={xpLoading || !xpTargetFid || !xpEventType}
+              >
+                {xpLoading ? 'Awarding...' : 'Award XP'}
+              </button>
+            </div>
+
+            {/* Emergency Winner Resolution Card */}
+            {status.activeRoundId && (
+              <div style={{
+                ...styles.card,
+                background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                border: '2px solid #dc2626',
+              }}>
+                <h2 style={{ ...styles.cardTitle, color: '#991b1b' }}>
+                  🚨 Emergency Winner Resolution
+                </h2>
+                <p style={{ fontSize: '14px', color: '#7f1d1d', marginBottom: '16px' }}>
+                  Use this if a winner found the correct word but resolution failed due to missing wallet.
+                  This will update the user's wallet and complete the round resolution.
+                </p>
+
+                {/* Step 1: Enter FID */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={styles.label}>Winner FID</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="number"
+                      style={{ ...styles.input, flex: 1 }}
+                      placeholder="e.g., 1317071"
+                      value={emergencyFid}
+                      onChange={(e) => {
+                        setEmergencyFid(e.target.value)
+                        setEmergencyLookup(null)
+                        setEmergencyRound(null)
+                        setShowEmergencyConfirm(false)
+                      }}
+                    />
+                    <button
+                      onClick={handleEmergencyLookup}
+                      style={{
+                        ...styles.btnPrimary,
+                        opacity: emergencyLoading || !emergencyFid ? 0.6 : 1,
+                      }}
+                      disabled={emergencyLoading || !emergencyFid}
+                    >
+                      {emergencyLoading ? 'Looking up...' : 'Look Up'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Round Info */}
+                {emergencyRound && (
+                  <div style={{
+                    background: 'white',
+                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    marginBottom: '16px',
+                    border: '1px solid #fecaca',
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: '8px', color: '#991b1b' }}>
+                      Round #{emergencyRound.id} Info
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Status</span>
+                      <span style={styles.infoValue}>{emergencyRound.status}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Answer</span>
+                      <span style={{ ...styles.infoValue, fontFamily: 'monospace', letterSpacing: '2px' }}>
+                        {emergencyRound.answer}
+                      </span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Prize Pool</span>
+                      <span style={styles.infoValue}>{emergencyRound.prizePoolEth} ETH</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Total Guesses</span>
+                      <span style={styles.infoValue}>{emergencyRound.globalGuessCount}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* User Lookup Results */}
+                {emergencyLookup && (
+                  <div style={{
+                    background: 'white',
+                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    marginBottom: '16px',
+                    border: `1px solid ${emergencyLookup.found ? '#bbf7d0' : '#fecaca'}`,
+                  }}>
+                    {emergencyLookup.found && emergencyLookup.user ? (
+                      <>
+                        <div style={{ fontWeight: 600, marginBottom: '8px', color: '#166534' }}>
+                          ✓ User Found: @{emergencyLookup.user.username || `fid-${emergencyLookup.user.fid}`}
+                        </div>
+                        <div style={styles.infoRow}>
+                          <span style={styles.infoLabel}>FID</span>
+                          <span style={styles.infoValue}>{emergencyLookup.user.fid}</span>
+                        </div>
+                        <div style={styles.infoRow}>
+                          <span style={styles.infoLabel}>Signer Wallet</span>
+                          <span style={{
+                            ...styles.infoValue,
+                            color: emergencyLookup.user.signerWalletAddress ? '#166534' : '#dc2626',
+                          }}>
+                            {emergencyLookup.user.signerWalletAddress || '❌ NOT SET'}
+                          </span>
+                        </div>
+                        <div style={styles.infoRow}>
+                          <span style={styles.infoLabel}>Custody Address</span>
+                          <span style={{
+                            ...styles.infoValue,
+                            color: emergencyLookup.user.custodyAddress ? '#166534' : '#6b7280',
+                          }}>
+                            {emergencyLookup.user.custodyAddress || '(not set)'}
+                          </span>
+                        </div>
+                        <div style={styles.infoRow}>
+                          <span style={styles.infoLabel}>Has Valid Wallet</span>
+                          <span style={{
+                            ...styles.infoValue,
+                            color: emergencyLookup.user.hasValidWallet ? '#166534' : '#dc2626',
+                          }}>
+                            {emergencyLookup.user.hasValidWallet ? '✅ YES' : '❌ NO'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ color: '#dc2626', fontWeight: 600 }}>
+                        ❌ User FID {emergencyFid} not found in database
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 2: Enter/Update Wallet */}
+                {emergencyLookup && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={styles.label}>
+                      Winner Wallet Address
+                      {!emergencyLookup.user?.hasValidWallet && (
+                        <span style={{ color: '#dc2626', marginLeft: '8px' }}>
+                          (required - look up from Neynar)
+                        </span>
+                      )}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        style={{ ...styles.input, flex: 1, fontFamily: 'monospace', fontSize: '13px' }}
+                        placeholder="0x..."
+                        value={emergencyWallet}
+                        onChange={(e) => setEmergencyWallet(e.target.value)}
+                      />
+                      <button
+                        onClick={handleEmergencyUpdateWallet}
+                        style={{
+                          ...styles.btnPrimary,
+                          background: '#f59e0b',
+                          opacity: emergencyLoading || !emergencyWallet ? 0.6 : 1,
+                        }}
+                        disabled={emergencyLoading || !emergencyWallet}
+                      >
+                        {emergencyLoading ? 'Updating...' : 'Update Wallet'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Resolve Round */}
+                {emergencyLookup?.user?.hasValidWallet && emergencyRound?.isActive && (
+                  <>
+                    {!showEmergencyConfirm ? (
+                      <button
+                        onClick={() => setShowEmergencyConfirm(true)}
+                        style={{
+                          ...styles.btnDanger,
+                          width: '100%',
+                          padding: '14px 20px',
+                          fontSize: '16px',
+                        }}
+                      >
+                        🎯 Resolve Round with Winner
+                      </button>
+                    ) : (
+                      <div style={{
+                        background: '#fef2f2',
+                        border: '2px solid #dc2626',
+                        borderRadius: '8px',
+                        padding: '16px',
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '8px' }}>
+                          ⚠️ Confirm Resolution
+                        </div>
+                        <p style={{ fontSize: '13px', color: '#7f1d1d', marginBottom: '12px' }}>
+                          This will submit the winning guess "{emergencyRound.answer}" as FID {emergencyFid},
+                          triggering the onchain payout of {emergencyRound.prizePoolEth} ETH.
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <button
+                            onClick={() => setShowEmergencyConfirm(false)}
+                            style={styles.btnSecondary}
+                            disabled={emergencyLoading}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleEmergencyResolve}
+                            style={{
+                              ...styles.btnDanger,
+                              flex: 1,
+                              opacity: emergencyLoading ? 0.6 : 1,
+                            }}
+                            disabled={emergencyLoading}
+                          >
+                            {emergencyLoading ? '⏳ Resolving...' : '🚀 CONFIRM RESOLUTION'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Cancelled Rounds / Refunds Card */}
             {status.cancelledRounds.length > 0 && (

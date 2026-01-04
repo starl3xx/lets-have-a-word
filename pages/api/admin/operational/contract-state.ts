@@ -22,6 +22,8 @@ import {
   resolveSepoliaPreviousRound,
   getContractConfig,
   getSepoliaContractConfig,
+  getJackpotManagerReadOnly,
+  getSepoliaJackpotManagerReadOnly,
 } from '../../../../src/lib/jackpot-contract';
 
 interface ContractState {
@@ -38,6 +40,10 @@ interface ContractState {
   mismatchAmount: string;
   mismatchPercent: number;
   canResolve: boolean;
+  // Operator wallet diagnostics
+  contractOperatorWallet: string;
+  ourSigningWallet: string;
+  operatorAuthorized: boolean;
   error?: string;
 }
 
@@ -45,11 +51,25 @@ async function getMainnetState(): Promise<ContractState> {
   const config = getContractConfig();
   const rpcUrl = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 
+  // Get our signing wallet address from OPERATOR_PRIVATE_KEY
+  let ourSigningWallet = 'NOT_CONFIGURED';
   try {
-    const [roundInfo, internalJackpot, actualBalance] = await Promise.all([
+    const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+    if (operatorPrivateKey) {
+      const wallet = new ethers.Wallet(operatorPrivateKey);
+      ourSigningWallet = wallet.address;
+    }
+  } catch {
+    ourSigningWallet = 'INVALID_KEY';
+  }
+
+  try {
+    const contract = getJackpotManagerReadOnly();
+    const [roundInfo, internalJackpot, actualBalance, contractOperatorWallet] = await Promise.all([
       getContractRoundInfo(),
       getCurrentJackpotOnChain(),
       getMainnetContractBalance(),
+      contract.operatorWallet() as Promise<string>,
     ]);
 
     const jackpotWei = ethers.parseEther(internalJackpot);
@@ -59,6 +79,8 @@ async function getMainnetState(): Promise<ContractState> {
     const mismatchPercent = jackpotWei > 0n
       ? Number((absDiff * 10000n) / jackpotWei) / 100
       : 0;
+
+    const operatorAuthorized = ourSigningWallet.toLowerCase() === contractOperatorWallet.toLowerCase();
 
     return {
       network: 'mainnet',
@@ -74,6 +96,9 @@ async function getMainnetState(): Promise<ContractState> {
       mismatchAmount: ethers.formatEther(absDiff),
       mismatchPercent,
       canResolve: roundInfo.isActive && balanceWei >= jackpotWei,
+      contractOperatorWallet,
+      ourSigningWallet,
+      operatorAuthorized,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -91,6 +116,9 @@ async function getMainnetState(): Promise<ContractState> {
       mismatchAmount: '0',
       mismatchPercent: 0,
       canResolve: false,
+      contractOperatorWallet: 'UNKNOWN',
+      ourSigningWallet,
+      operatorAuthorized: false,
       error: message,
     };
   }
@@ -100,11 +128,25 @@ async function getSepoliaState(): Promise<ContractState> {
   const config = getSepoliaContractConfig();
   const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
+  // Get our signing wallet address from OPERATOR_PRIVATE_KEY
+  let ourSigningWallet = 'NOT_CONFIGURED';
   try {
-    const [roundInfo, internalJackpot, actualBalance] = await Promise.all([
+    const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+    if (operatorPrivateKey) {
+      const wallet = new ethers.Wallet(operatorPrivateKey);
+      ourSigningWallet = wallet.address;
+    }
+  } catch {
+    ourSigningWallet = 'INVALID_KEY';
+  }
+
+  try {
+    const contract = getSepoliaJackpotManagerReadOnly();
+    const [roundInfo, internalJackpot, actualBalance, contractOperatorWallet] = await Promise.all([
       getSepoliaRoundInfo(),
       getCurrentJackpotOnSepolia(),
       getSepoliaContractBalance(),
+      contract.operatorWallet() as Promise<string>,
     ]);
 
     const jackpotWei = ethers.parseEther(internalJackpot);
@@ -114,6 +156,8 @@ async function getSepoliaState(): Promise<ContractState> {
     const mismatchPercent = jackpotWei > 0n
       ? Number((absDiff * 10000n) / jackpotWei) / 100
       : 0;
+
+    const operatorAuthorized = ourSigningWallet.toLowerCase() === contractOperatorWallet.toLowerCase();
 
     return {
       network: 'sepolia',
@@ -129,6 +173,9 @@ async function getSepoliaState(): Promise<ContractState> {
       mismatchAmount: ethers.formatEther(absDiff),
       mismatchPercent,
       canResolve: roundInfo.isActive && balanceWei >= jackpotWei,
+      contractOperatorWallet,
+      ourSigningWallet,
+      operatorAuthorized,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -146,6 +193,9 @@ async function getSepoliaState(): Promise<ContractState> {
       mismatchAmount: '0',
       mismatchPercent: 0,
       canResolve: false,
+      contractOperatorWallet: 'UNKNOWN',
+      ourSigningWallet,
+      operatorAuthorized: false,
       error: message,
     };
   }
@@ -179,16 +229,20 @@ export default async function handler(
         sepolia,
         timestamp: new Date().toISOString(),
         recommendations: {
-          mainnet: mainnet.hasMismatch
-            ? `⚠️ Contract balance (${mainnet.actualBalance} ETH) is less than internal jackpot (${mainnet.internalJackpot} ETH). Resolution will fail. Contact developer to diagnose.`
-            : mainnet.isActive
-              ? '✅ Contract state is healthy. Resolution should work.'
-              : 'ℹ️ No active round.',
-          sepolia: sepolia.hasMismatch
-            ? `⚠️ Use "Clear Sepolia Round" to reset contract state. This pays the jackpot to the operator wallet.`
-            : sepolia.isActive
-              ? '✅ Contract state is healthy. Simulation should work.'
-              : 'ℹ️ No active round. Start a simulation to create one.',
+          mainnet: !mainnet.operatorAuthorized
+            ? `🚫 OPERATOR MISMATCH! Contract expects ${mainnet.contractOperatorWallet} but we're signing with ${mainnet.ourSigningWallet}. All contract writes will fail.`
+            : mainnet.hasMismatch
+              ? `⚠️ Contract balance (${mainnet.actualBalance} ETH) is less than internal jackpot (${mainnet.internalJackpot} ETH). Resolution will fail. Contact developer to diagnose.`
+              : mainnet.isActive
+                ? '✅ Contract state is healthy. Resolution should work.'
+                : '✅ No active round. Ready to start new round.',
+          sepolia: !sepolia.operatorAuthorized
+            ? `🚫 OPERATOR MISMATCH! Contract expects ${sepolia.contractOperatorWallet} but we're signing with ${sepolia.ourSigningWallet}. All contract writes will fail.`
+            : sepolia.hasMismatch
+              ? `⚠️ Use "Clear Sepolia Round" to reset contract state. This pays the jackpot to the operator wallet.`
+              : sepolia.isActive
+                ? '✅ Contract state is healthy. Simulation should work.'
+                : 'ℹ️ No active round. Start a simulation to create one.',
         },
       });
     }

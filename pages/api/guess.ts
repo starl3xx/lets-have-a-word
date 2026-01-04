@@ -25,6 +25,10 @@ import {
   extractRequestMetadata,
 } from '../../src/lib/rateLimit';
 import { AppErrorCodes } from '../../src/lib/appErrors';
+import { createClient as createQuickAuthClient } from '@farcaster/quick-auth';
+
+// Create Quick Auth client for JWT verification
+const quickAuthClient = createQuickAuthClient();
 
 /**
  * POST /api/guess
@@ -77,11 +81,15 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid, authToken } = req.body;
+
+    // Debug: Log referral parameter from request body
+    console.log(`[Referral] Backend received ref=${ref} (type: ${typeof ref}) from request body`);
 
     // Extract request metadata for rate limiting
     const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
-    const rateLimitFid = miniAppFid || devFid || metadataFid;
+    // For SIWF, we don't have FID until verified, so use other identifiers for initial rate limit
+    const rateLimitFid = devFid || metadataFid;
 
     // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
     // Runs BEFORE any DB operations to fail fast and cheap
@@ -242,26 +250,54 @@ export default async function handler(
       // This allows the web UI to work in dev mode without requiring auth
       fid = 6500; // Default dev FID
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
+    } else if (authToken) {
+      // Quick Auth - JWT token verification for mini app users
+      try {
+        console.log(`📱 [QuickAuth] Verifying JWT token...`);
+        const verifyResult = await quickAuthClient.verifyJwt({
+          token: authToken,
+        });
+
+        if (!verifyResult || !verifyResult.sub) {
+          console.error(`📱 [QuickAuth] Verification failed: no FID in response`);
+          return res.status(401).json({
+            error: 'Invalid auth token',
+            message: 'Authentication failed. Please refresh and try again.',
+          });
+        }
+
+        fid = verifyResult.sub;
+        console.log(`📱 [QuickAuth] Verified FID ${fid}`);
+
+        // Set Sentry context
+        Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+        Sentry.setTag('auth_type', 'quick_auth');
+
+        // Parse referral parameter
+        const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+        console.log(`[Referral] QuickAuth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
+
+        // Upsert user
+        await upsertUserFromFarcaster({
+          fid,
+          signerWallet: null,
+          spamScore: null,
+          referrerFid,
+        });
+      } catch (verifyError: any) {
+        console.error(`📱 [QuickAuth] Verification error:`, verifyError);
+        return res.status(401).json({
+          error: 'Auth token verification failed',
+          message: 'Authentication error. Please refresh and try again.',
+        });
+      }
     } else if (miniAppFid) {
-      // Mini app context authentication
-      // The FID is provided by Warpcast's mini app SDK (sdk.context.user.fid)
-      // Warpcast has already authenticated the user, so we trust this FID
-      fid = typeof miniAppFid === 'number' ? miniAppFid : parseInt(miniAppFid, 10);
-      console.log(`📱 Mini app auth: using miniAppFid ${fid}`);
-
-      // Set Sentry context for mini app users
-      Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
-      Sentry.setTag('auth_type', 'mini_app');
-
-      // Parse referral parameter
-      const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
-
-      // Upsert user with minimal data (we don't have full Farcaster context)
-      await upsertUserFromFarcaster({
-        fid,
-        signerWallet: null,
-        spamScore: null,
-        referrerFid,
+      // SECURITY: miniAppFid without auth token cannot be trusted
+      // The Farcaster SDK context is client-side only - anyone can spoof this value
+      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require auth token.`);
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'Please refresh the app to sign in securely.',
       });
     } else {
       // Production mode: require Farcaster authentication
@@ -288,12 +324,13 @@ export default async function handler(
         }
       } else {
         return res.status(400).json({
-          error: 'Authentication required: provide miniAppFid, frameMessage, or signerUuid',
+          error: 'Authentication required: provide frameMessage or signerUuid',
         });
       }
 
       fid = farcasterContext.fid;
-      signerWallet = farcasterContext.signerWallet;
+      // Priority: primary wallet > signer wallet (verified addresses)
+      signerWallet = farcasterContext.primaryWallet || farcasterContext.signerWallet;
       spamScore = farcasterContext.spamScore;
 
       // Milestone 9.2: Set Sentry user context for error tracking
@@ -302,8 +339,10 @@ export default async function handler(
 
       // Parse referral parameter
       const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
+      console.log(`[Referral] Frame/signer auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
 
       // Upsert user with Farcaster data
+      console.log(`[Referral] Calling upsertUserFromFarcaster with referrerFid=${referrerFid}`);
       await upsertUserFromFarcaster({
         fid,
         signerWallet,

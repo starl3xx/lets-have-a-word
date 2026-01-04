@@ -284,6 +284,26 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Copy feedback state
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
 
+  // XP Award state
+  const [xpTargetFid, setXpTargetFid] = useState("")
+  const [xpEventType, setXpEventType] = useState("")
+  const [xpReason, setXpReason] = useState("")
+  const [xpLoading, setXpLoading] = useState(false)
+
+  // XP event options with labels and values
+  const xpEventOptions = [
+    { value: 'DAILY_PARTICIPATION', label: 'Daily participation (+10 XP)', xp: 10 },
+    { value: 'GUESS', label: 'Valid guess (+2 XP)', xp: 2 },
+    { value: 'WIN', label: 'Winning jackpot (+2500 XP)', xp: 2500 },
+    { value: 'TOP_TEN_GUESSER', label: 'Top 10 placement (+50 XP)', xp: 50 },
+    { value: 'REFERRAL_FIRST_GUESS', label: 'Referred user first guess (+20 XP)', xp: 20 },
+    { value: 'STREAK_DAY', label: 'Consecutive day streak (+15 XP)', xp: 15 },
+    { value: 'CLANKTON_BONUS_DAY', label: 'CLANKTON holder daily (+10 XP)', xp: 10 },
+    { value: 'SHARE_CAST', label: 'Sharing to Farcaster (+15 XP)', xp: 15 },
+    { value: 'PACK_PURCHASE', label: 'Buying guess pack (+20 XP)', xp: 20 },
+    { value: 'OG_HUNTER_AWARD', label: 'OG Hunter badge (+500 XP)', xp: 500 },
+  ]
+
   // Contract state
   const [contractState, setContractState] = useState<ContractStateResponse | null>(null)
   const [contractStateLoading, setContractStateLoading] = useState(false)
@@ -772,7 +792,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const handleStartRound = async () => {
     if (!user?.fid) return
 
-    if (!confirm('Start a new round? This will create Round 1 with a random target word.')) {
+    if (!confirm('Start a new round? This will create a new round with a random target word.')) {
       return
     }
 
@@ -852,6 +872,54 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setError(err.message)
     } finally {
       setResetLoading(false)
+    }
+  }
+
+  const handleAwardXp = async () => {
+    if (!user?.fid) return
+
+    const targetFid = parseInt(xpTargetFid, 10)
+    if (isNaN(targetFid) || targetFid <= 0) {
+      setError('Please enter a valid FID')
+      return
+    }
+
+    if (!xpEventType) {
+      setError('Please select an XP event type')
+      return
+    }
+
+    try {
+      setXpLoading(true)
+      setError(null)
+      setSuccess(null)
+
+      const res = await fetch('/api/admin/award-xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          targetFid,
+          eventType: xpEventType,
+          reason: xpReason || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to award XP')
+      }
+
+      setSuccess(`${data.message}`)
+      // Clear form on success
+      setXpTargetFid('')
+      setXpEventType('')
+      setXpReason('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setXpLoading(false)
     }
   }
 
@@ -1909,6 +1977,64 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Manual XP Award Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>Manual XP Award</h2>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Award XP events to users manually. Useful for correcting missed XP or compensating users.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Target FID</label>
+              <input
+                type="number"
+                style={styles.input}
+                placeholder="e.g., 310815"
+                value={xpTargetFid}
+                onChange={(e) => setXpTargetFid(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>XP Event Type</label>
+              <select
+                style={{ ...styles.input, cursor: 'pointer' }}
+                value={xpEventType}
+                onChange={(e) => setXpEventType(e.target.value)}
+              >
+                <option value="">Select an event type...</option>
+                {xpEventOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Reason (optional)</label>
+              <input
+                type="text"
+                style={styles.input}
+                placeholder="e.g., Missed referral XP"
+                value={xpReason}
+                onChange={(e) => setXpReason(e.target.value)}
+              />
+            </div>
+
+            <button
+              onClick={handleAwardXp}
+              style={{
+                ...styles.btnPrimary,
+                opacity: xpLoading || !xpTargetFid || !xpEventType ? 0.6 : 1,
+                cursor: xpLoading || !xpTargetFid || !xpEventType ? 'not-allowed' : 'pointer',
+              }}
+              disabled={xpLoading || !xpTargetFid || !xpEventType}
+            >
+              {xpLoading ? 'Awarding...' : 'Award XP'}
+            </button>
           </div>
         </>
       ) : null}

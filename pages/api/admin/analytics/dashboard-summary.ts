@@ -115,11 +115,14 @@ export default async function handler(
         let todayMetrics = { dau: 0, packPurchases: 0, paidGuesses: 0, revenueEth: 0 };
         let avg7dMetrics = { dau: 0, packPurchases: 0, paidGuesses: 0, revenueEth: 0 };
 
+        // Use Central Time for "today" calculations
+        const centralTz = 'America/Chicago';
+
         try {
           const [todayDau] = await db.execute<{ count: number }>(sql`
             SELECT COUNT(DISTINCT user_id)::int as count
             FROM analytics_events
-            WHERE DATE(created_at) = CURRENT_DATE
+            WHERE DATE(created_at AT TIME ZONE ${centralTz}) = (CURRENT_TIMESTAMP AT TIME ZONE ${centralTz})::date
               AND user_id IS NOT NULL
           `);
 
@@ -129,14 +132,14 @@ export default async function handler(
               COALESCE(SUM(CAST(data->>'expected_cost_eth' AS NUMERIC)), 0) as revenue
             FROM analytics_events
             WHERE event_type = 'guess_pack_purchased'
-              AND DATE(created_at) = CURRENT_DATE
+              AND DATE(created_at AT TIME ZONE ${centralTz}) = (CURRENT_TIMESTAMP AT TIME ZONE ${centralTz})::date
           `);
 
           const [todayPaidGuesses] = await db.execute<{ count: number }>(sql`
             SELECT COUNT(*)::int as count
             FROM analytics_events
             WHERE event_type = 'paid_guess_used'
-              AND DATE(created_at) = CURRENT_DATE
+              AND DATE(created_at AT TIME ZONE ${centralTz}) = (CURRENT_TIMESTAMP AT TIME ZONE ${centralTz})::date
           `);
 
           todayMetrics = {
@@ -152,7 +155,7 @@ export default async function handler(
               FROM analytics_events
               WHERE created_at >= NOW() - INTERVAL '7 days'
                 AND user_id IS NOT NULL
-              GROUP BY DATE(created_at)
+              GROUP BY DATE(created_at AT TIME ZONE ${centralTz})
             ) sub
           `);
 
@@ -167,7 +170,7 @@ export default async function handler(
               FROM analytics_events
               WHERE event_type = 'guess_pack_purchased'
                 AND created_at >= NOW() - INTERVAL '7 days'
-              GROUP BY DATE(created_at)
+              GROUP BY DATE(created_at AT TIME ZONE ${centralTz})
             ) sub
           `);
 
@@ -177,7 +180,7 @@ export default async function handler(
               FROM analytics_events
               WHERE event_type = 'paid_guess_used'
                 AND created_at >= NOW() - INTERVAL '7 days'
-              GROUP BY DATE(created_at)
+              GROUP BY DATE(created_at AT TIME ZONE ${centralTz})
             ) sub
           `);
 
