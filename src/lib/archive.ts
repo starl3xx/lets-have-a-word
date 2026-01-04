@@ -477,24 +477,16 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     // Get top guesser FIDs only (for badge checks and guess counts)
     // Query the actual top 10 guessers by guess count (excluding winner)
     // IMPORTANT: Only count guesses within the Top-10 lock window (first 750)
-    // For legacy data without guessIndexInRound, use timestamp-based ordering
+    // Uses a simple subquery: get first 750 guesses ordered by index/timestamp, then aggregate
     const actualTopGuessers = await db.execute<{ fid: number; guess_count: number }>(sql`
-      WITH first_750_guesses AS (
+      SELECT fid, COUNT(*)::int as guess_count
+      FROM (
         SELECT id, fid
         FROM guesses
         WHERE round_id = ${archived.roundNumber}
-          AND (
-            guess_index_in_round <= ${TOP10_LOCK_AFTER_GUESSES}
-            OR (guess_index_in_round IS NULL AND id IN (
-              SELECT id FROM guesses
-              WHERE round_id = ${archived.roundNumber}
-              ORDER BY created_at ASC
-              LIMIT ${TOP10_LOCK_AFTER_GUESSES}
-            ))
-          )
-      )
-      SELECT fid, COUNT(*)::int as guess_count
-      FROM first_750_guesses
+        ORDER BY guess_index_in_round ASC NULLS LAST, created_at ASC
+        LIMIT 750
+      ) first_750
       GROUP BY fid
       ORDER BY COUNT(*) DESC
       LIMIT 11
