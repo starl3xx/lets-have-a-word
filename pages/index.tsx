@@ -43,7 +43,7 @@ import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
 import { useGuessInput } from '../src/hooks/useGuessInput';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
-import sdk from '@farcaster/miniapp-sdk';
+import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -243,7 +243,7 @@ function GameContent() {
           // This happens transparently without user interaction
           try {
             console.log('[QuickAuth] Getting auth token...');
-            const token = await sdk.experimental.quickAuth();
+            const { token } = await quickAuth.getToken();
             if (token) {
               setAuthToken(token);
               console.log('[QuickAuth] Token obtained successfully');
