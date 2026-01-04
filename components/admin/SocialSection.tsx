@@ -243,15 +243,19 @@ export default function SocialSection({ user }: SocialSectionProps) {
       return
     }
 
+    if (!user?.fid) {
+      setTweetResult({ success: false, message: "Not authenticated." })
+      return
+    }
+
     setTweetLoading(true)
     setTweetResult(null)
 
     try {
-      const response = await fetch('/api/admin/post-tweet', {
+      const response = await fetch(`/api/admin/post-tweet?devFid=${user.fid}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-secret': '', // Will use cookies/session instead
         },
         body: JSON.stringify({ text: tweetText }),
         credentials: 'include',
@@ -281,7 +285,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
     } finally {
       setTweetLoading(false)
     }
-  }, [tweetText])
+  }, [tweetText, user?.fid])
 
   const loadStatusCastToTweet = useCallback(() => {
     if (statusCastText) {
