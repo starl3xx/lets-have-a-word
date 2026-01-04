@@ -25,12 +25,10 @@ import {
   extractRequestMetadata,
 } from '../../src/lib/rateLimit';
 import { AppErrorCodes } from '../../src/lib/appErrors';
-import { createAppClient, viemConnector } from '@farcaster/auth-client';
+import { createClient as createQuickAuthClient } from '@farcaster/quick-auth';
 
-// Create Farcaster auth client for SIWF verification
-const farcasterAuthClient = createAppClient({
-  ethereum: viemConnector(),
-});
+// Create Quick Auth client for JWT verification
+const quickAuthClient = createQuickAuthClient();
 
 /**
  * POST /api/guess
@@ -83,7 +81,7 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid, siwfCredential } = req.body;
+    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid, authToken } = req.body;
 
     // Debug: Log referral parameter from request body
     console.log(`[Referral] Backend received ref=${ref} (type: ${typeof ref}) from request body`);
@@ -252,44 +250,32 @@ export default async function handler(
       // This allows the web UI to work in dev mode without requiring auth
       fid = 6500; // Default dev FID
       console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
-    } else if (siwfCredential) {
-      // SIWF (Sign In With Farcaster) - verified authentication for mini app users
-      const { message, signature, nonce } = siwfCredential;
-
-      if (!message || !signature || !nonce) {
-        return res.status(400).json({
-          error: 'Invalid SIWF credential',
-          message: 'Missing message, signature, or nonce',
-        });
-      }
-
+    } else if (authToken) {
+      // Quick Auth - JWT token verification for mini app users
       try {
-        console.log(`📱 [SIWF] Verifying signature...`);
-        const verifyResult = await farcasterAuthClient.verifySignInMessage({
-          message,
-          signature: signature as `0x${string}`,
-          domain: 'letshaveaword.fun',
-          nonce,
+        console.log(`📱 [QuickAuth] Verifying JWT token...`);
+        const verifyResult = await quickAuthClient.verifyJwt({
+          token: authToken,
         });
 
-        if (!verifyResult.success || !verifyResult.fid) {
-          console.error(`📱 [SIWF] Verification failed:`, verifyResult);
+        if (!verifyResult || !verifyResult.sub) {
+          console.error(`📱 [QuickAuth] Verification failed: no FID in response`);
           return res.status(401).json({
-            error: 'Invalid SIWF signature',
+            error: 'Invalid auth token',
             message: 'Authentication failed. Please refresh and try again.',
           });
         }
 
-        fid = verifyResult.fid;
-        console.log(`📱 [SIWF] Verified FID ${fid}`);
+        fid = verifyResult.sub;
+        console.log(`📱 [QuickAuth] Verified FID ${fid}`);
 
         // Set Sentry context
         Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
-        Sentry.setTag('auth_type', 'siwf');
+        Sentry.setTag('auth_type', 'quick_auth');
 
         // Parse referral parameter
         const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
-        console.log(`[Referral] SIWF auth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
+        console.log(`[Referral] QuickAuth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
 
         // Upsert user
         await upsertUserFromFarcaster({
@@ -299,16 +285,16 @@ export default async function handler(
           referrerFid,
         });
       } catch (verifyError: any) {
-        console.error(`📱 [SIWF] Verification error:`, verifyError);
+        console.error(`📱 [QuickAuth] Verification error:`, verifyError);
         return res.status(401).json({
-          error: 'SIWF verification failed',
+          error: 'Auth token verification failed',
           message: 'Authentication error. Please refresh and try again.',
         });
       }
     } else if (miniAppFid) {
-      // SECURITY: miniAppFid without SIWF credential cannot be trusted
+      // SECURITY: miniAppFid without auth token cannot be trusted
       // The Farcaster SDK context is client-side only - anyone can spoof this value
-      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require SIWF credential.`);
+      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require auth token.`);
       return res.status(401).json({
         error: 'Authentication required',
         message: 'Please refresh the app to sign in securely.',
