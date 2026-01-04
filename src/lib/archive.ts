@@ -476,13 +476,23 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
 
     // Get top guesser FIDs only (for badge checks and guess counts)
     // Query the actual top 10 guessers by guess count (excluding winner)
+    // IMPORTANT: Only count guesses within the Top-10 lock window (first 750)
     const actualTopGuessers = await db
       .select({
         fid: guesses.fid,
         guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
       })
       .from(guesses)
-      .where(eq(guesses.roundId, archived.roundNumber))
+      .where(
+        and(
+          eq(guesses.roundId, archived.roundNumber),
+          // Only count guesses within the Top-10 lock window (first 750)
+          or(
+            lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
+            isNull(guesses.guessIndexInRound) // Legacy data
+          )
+        )
+      )
       .groupBy(guesses.fid)
       .orderBy(desc(sql`count(${guesses.id})`))
       .limit(11); // Get 11 to allow filtering out winner
