@@ -385,14 +385,17 @@ export async function getArchivedRound(roundNumber: number): Promise<RoundArchiv
 }
 
 /**
- * Extended round data with usernames for display
+ * Extended round data with usernames and PFPs for display
  */
 export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerUsername: string | null;
+  winnerPfpUrl: string | null;
   referrerUsername: string | null;
+  referrerPfpUrl: string | null;
   topGuessersWithUsernames: Array<{
     fid: number;
     username: string | null;
+    pfpUrl: string | null;
     amountEth: string;
     rank: number;
     hasClanktonBadge?: boolean;
@@ -404,8 +407,9 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
  * Get archived round with usernames for winner, referrer, and top guessers
  */
 export async function getArchivedRoundWithUsernames(roundNumber: number): Promise<ArchivedRoundWithUsernames | null> {
-  // Dynamic import to avoid circular dependencies
+  // Dynamic imports to avoid circular dependencies
   const { hasClanktonBonus } = await import('./clankton');
+  const { neynarClient } = await import('./farcaster');
 
   return trackSlowQuery(`query:getArchivedRoundWithUsernames:${roundNumber}`, async () => {
     const archived = await getArchivedRound(roundNumber);
@@ -421,9 +425,9 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       }
     }
 
-    // Lookup usernames and wallets for all FIDs in one query
+    // Lookup usernames and wallets for all FIDs from local DB
     const uniqueFids = [...new Set(fidsToLookup)];
-    const userDataMap = new Map<number, { username: string | null; wallet: string | null }>();
+    const userDataMap = new Map<number, { username: string | null; wallet: string | null; pfpUrl: string | null }>();
 
     if (uniqueFids.length > 0) {
       const userRecords = await db
@@ -435,7 +439,29 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         userDataMap.set(user.fid, {
           username: user.username,
           wallet: user.signerWalletAddress,
+          pfpUrl: null, // Will be filled from Neynar
         });
+      }
+    }
+
+    // Fetch profiles from Neynar for all FIDs (for accurate usernames and PFPs)
+    if (uniqueFids.length > 0) {
+      try {
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: uniqueFids });
+        if (neynarData.users) {
+          for (const user of neynarData.users) {
+            const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
+            userDataMap.set(user.fid, {
+              ...existing,
+              // Prefer Neynar username over local DB (more up-to-date)
+              username: user.username || existing.username,
+              pfpUrl: user.pfp_url || null,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[archive] Error fetching profiles from Neynar:', error);
+        // Continue with local data
       }
     }
 
@@ -486,20 +512,29 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       // Continue without CLANKTON badges on error
     }
 
-    // Build extended response
-    const topGuessersWithUsernames = (archived.payoutsJson?.topGuessers || []).map(guesser => ({
-      fid: guesser.fid,
-      username: userDataMap.get(guesser.fid)?.username || null,
-      amountEth: guesser.amountEth,
-      rank: guesser.rank,
-      hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
-      hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
-    }));
+    // Build extended response with usernames and PFPs
+    const topGuessersWithUsernames = (archived.payoutsJson?.topGuessers || []).map(guesser => {
+      const userData = userDataMap.get(guesser.fid);
+      return {
+        fid: guesser.fid,
+        username: userData?.username || null,
+        pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
+        amountEth: guesser.amountEth,
+        rank: guesser.rank,
+        hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
+        hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
+      };
+    });
+
+    const winnerData = archived.winnerFid ? userDataMap.get(archived.winnerFid) : null;
+    const referrerData = archived.referrerFid ? userDataMap.get(archived.referrerFid) : null;
 
     return {
       ...archived,
-      winnerUsername: archived.winnerFid ? userDataMap.get(archived.winnerFid)?.username || null : null,
-      referrerUsername: archived.referrerFid ? userDataMap.get(archived.referrerFid)?.username || null : null,
+      winnerUsername: winnerData?.username || null,
+      winnerPfpUrl: winnerData?.pfpUrl || (archived.winnerFid ? `https://avatar.vercel.sh/${archived.winnerFid}` : null),
+      referrerUsername: referrerData?.username || null,
+      referrerPfpUrl: referrerData?.pfpUrl || (archived.referrerFid ? `https://avatar.vercel.sh/${archived.referrerFid}` : null),
       topGuessersWithUsernames,
     };
   });

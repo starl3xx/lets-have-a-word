@@ -5,12 +5,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
+import sdk from '@farcaster/frame-sdk';
 import OgHunterBadge from '../../components/OgHunterBadge';
 import ClanktonHolderBadge from '../../components/ClanktonHolderBadge';
 
 interface TopGuesserWithUsername {
   fid: number;
   username: string | null;
+  pfpUrl: string | null;
   amountEth: string;
   rank: number;
   hasClanktonBadge?: boolean;
@@ -27,12 +29,14 @@ interface ArchivedRound {
   uniquePlayers: number;
   winnerFid: number | null;
   winnerUsername: string | null;
+  winnerPfpUrl: string | null;
   winnerCastHash: string | null;
   winnerGuessNumber: number | null;
   startTime: string;
   endTime: string;
   referrerFid: number | null;
   referrerUsername: string | null;
+  referrerPfpUrl: string | null;
   topGuessersWithUsernames: TopGuesserWithUsername[];
   payoutsJson: {
     winner?: { fid: number; amountEth: string };
@@ -92,6 +96,15 @@ export default function RoundDetailPage() {
   }, [roundNumber]);
 
   const formatEth = (eth: string) => parseFloat(eth).toFixed(4);
+
+  // Open profile using Farcaster SDK (stays in-app)
+  const openProfile = async (fid: number) => {
+    try {
+      await sdk.actions.viewProfile({ fid });
+    } catch (error) {
+      console.error('Error opening profile:', error);
+    }
+  };
 
   const formatDuration = (startTime: string, endTime: string) => {
     const start = new Date(startTime);
@@ -220,15 +233,30 @@ export default function RoundDetailPage() {
                 {round.winnerFid ? (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-gray-900 text-lg">
-                          @{round.winnerUsername || 'unknown'}
+                      <div className="flex items-center gap-3">
+                        {/* Winner PFP */}
+                        <img
+                          src={round.winnerPfpUrl || `https://avatar.vercel.sh/${round.winnerFid}`}
+                          alt={round.winnerUsername || 'Winner'}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-200"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${round.winnerFid}`;
+                          }}
+                        />
+                        <div>
+                          {/* Clickable username */}
+                          <button
+                            onClick={() => openProfile(round.winnerFid!)}
+                            className="font-semibold text-gray-900 text-lg hover:text-blue-600 transition-colors text-left"
+                          >
+                            @{round.winnerUsername || `fid:${round.winnerFid}`}
+                          </button>
+                          {round.winnerGuessNumber && (
+                            <div className="text-sm text-gray-500 mt-0.5">
+                              Won on guess #{round.winnerGuessNumber}
+                            </div>
+                          )}
                         </div>
-                        {round.winnerGuessNumber && (
-                          <div className="text-sm text-gray-500 mt-0.5">
-                            Won on guess #{round.winnerGuessNumber}
-                          </div>
-                        )}
                       </div>
                       {round.payoutsJson.winner && (
                         <div className="text-xl font-bold text-green-600">
@@ -237,11 +265,17 @@ export default function RoundDetailPage() {
                       )}
                     </div>
                     {round.referrerFid && (
-                      <div className="mt-3 pt-3 border-t border-green-200 text-sm text-gray-600">
-                        Referred by @{round.referrerUsername || 'unknown'}
+                      <div className="mt-3 pt-3 border-t border-green-200 text-sm text-gray-600 flex items-center gap-2">
+                        <span>Referred by</span>
+                        <button
+                          onClick={() => openProfile(round.referrerFid!)}
+                          className="text-gray-900 font-medium hover:text-blue-600 transition-colors"
+                        >
+                          @{round.referrerUsername || `fid:${round.referrerFid}`}
+                        </button>
                         {round.payoutsJson.referrer && (
                           <span className="text-green-600 font-medium">
-                            {' '}(earned {formatEth(round.payoutsJson.referrer.amountEth)} ETH)
+                            (earned {formatEth(round.payoutsJson.referrer.amountEth)} ETH)
                           </span>
                         )}
                       </div>
@@ -304,11 +338,23 @@ export default function RoundDetailPage() {
                         <div className="text-gray-500 font-medium w-6 text-right">
                           {guesser.rank}.
                         </div>
+                        {/* PFP */}
+                        <img
+                          src={guesser.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`}
+                          alt={guesser.username || 'User'}
+                          className="w-8 h-8 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
+                          }}
+                        />
                         {/* Username + Badges + ETH Payout */}
                         <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                          <span className="font-medium text-gray-900 truncate">
+                          <button
+                            onClick={() => openProfile(guesser.fid)}
+                            className="font-medium text-gray-900 truncate hover:text-blue-600 transition-colors"
+                          >
                             @{guesser.username || 'unknown'}
-                          </span>
+                          </button>
                           {guesser.hasOgHunterBadge && (
                             <OgHunterBadge size="sm" showTooltip={true} />
                           )}
