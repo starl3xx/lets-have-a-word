@@ -705,7 +705,7 @@ export async function resolveRoundAndCreatePayouts(
  * Guesses after the lock threshold do not count toward Top-10 ranking.
  *
  * Ranking criteria:
- * - By total paid guess count (volume) - only eligible guesses
+ * - By total guess count (volume) - ALL guesses count (free + paid)
  * - Tiebreaker: earliest first guess time
  *
  * @param roundId - The round ID
@@ -714,7 +714,7 @@ export async function resolveRoundAndCreatePayouts(
  */
 async function getTop10Guessers(roundId: number, winnerFid: number): Promise<number[]> {
 
-  // Get all TOP-10 ELIGIBLE paid guesses for this round
+  // Get all TOP-10 ELIGIBLE guesses for this round (both free and paid)
   // Only guesses with guessIndexInRound <= TOP10_LOCK_AFTER_GUESSES count
   const eligibleGuesses = await db
     .select({
@@ -726,7 +726,6 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
     .where(
       and(
         eq(guesses.roundId, roundId),
-        eq(guesses.isPaid, true),
         // Only include guesses within the Top-10 eligibility window
         // Handle legacy guesses without index (treat as eligible for backwards compat)
         // New guesses will always have an index
@@ -745,12 +744,7 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
       guessIndexInRound: guesses.guessIndexInRound,
     })
     .from(guesses)
-    .where(
-      and(
-        eq(guesses.roundId, roundId),
-        eq(guesses.isPaid, true)
-      )
-    )
+    .where(eq(guesses.roundId, roundId))
     .orderBy(guesses.createdAt);
 
   // Combine: use indexed guesses if available, fall back to all guesses for legacy rounds
