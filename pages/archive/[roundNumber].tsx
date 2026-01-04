@@ -5,12 +5,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
+import OgHunterBadge from '../../components/OgHunterBadge';
+import ClanktonHolderBadge from '../../components/ClanktonHolderBadge';
 
 interface TopGuesserWithUsername {
   fid: number;
   username: string | null;
   amountEth: string;
   rank: number;
+  hasClanktonBadge?: boolean;
+  hasOgHunterBadge?: boolean;
 }
 
 interface ArchivedRound {
@@ -300,11 +304,17 @@ export default function RoundDetailPage() {
                         <div className="text-gray-500 font-medium w-6 text-right">
                           {guesser.rank}.
                         </div>
-                        {/* Username + ETH Payout */}
-                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                        {/* Username + Badges + ETH Payout */}
+                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
                           <span className="font-medium text-gray-900 truncate">
                             @{guesser.username || 'unknown'}
                           </span>
+                          {guesser.hasOgHunterBadge && (
+                            <OgHunterBadge size="sm" showTooltip={true} />
+                          )}
+                          {guesser.hasClanktonBadge && (
+                            <ClanktonHolderBadge size="sm" showTooltip={true} />
+                          )}
                           <span className="text-gray-400 text-sm tabular-nums whitespace-nowrap">
                             (.{guesser.amountEth.substring(2, 6)} ETH)
                           </span>

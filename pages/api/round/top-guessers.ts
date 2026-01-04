@@ -13,6 +13,7 @@ import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
+import { hasClanktonBonus } from '../../../src/lib/clankton';
 
 export interface TopGuesser {
   fid: number;
@@ -20,6 +21,7 @@ export interface TopGuesser {
   guessCount: number;
   pfpUrl: string; // Farcaster profile picture URL
   hasOgHunterBadge: boolean;
+  hasClanktonBadge: boolean;
 }
 
 export interface TopGuessersResponse {
@@ -115,6 +117,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       guessCount: guessCounts[i],
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       hasOgHunterBadge: false, // Dev mode: no badges
+      hasClanktonBadge: false, // Dev mode: no badges
     };
   });
 
@@ -196,6 +199,7 @@ export default async function handler(
             .select({
               fid: guesses.fid,
               username: users.username,
+              signerWalletAddress: users.signerWalletAddress,
               guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
               // Track when player made their last guess (for tiebreaker)
               lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
@@ -213,7 +217,7 @@ export default async function handler(
                 )
               )
             )
-            .groupBy(guesses.fid, users.username)
+            .groupBy(guesses.fid, users.username, users.signerWalletAddress)
             // Primary: most guesses (desc), Secondary: who reached that count first (asc)
             .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
             .limit(10),
@@ -246,6 +250,30 @@ export default async function handler(
 
         const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
 
+        // Check CLANKTON balances for users with wallets
+        const clanktonHolders = new Set<number>();
+        const walletsToCheck = topGuessersData
+          .filter((g) => g.signerWalletAddress)
+          .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
+
+        if (walletsToCheck.length > 0) {
+          try {
+            // Check all wallets in parallel
+            const clanktonResults = await Promise.all(
+              walletsToCheck.map(async ({ fid, wallet }) => ({
+                fid,
+                hasClankton: await hasClanktonBonus(wallet),
+              }))
+            );
+            for (const { fid, hasClankton } of clanktonResults) {
+              if (hasClankton) clanktonHolders.add(fid);
+            }
+          } catch (error) {
+            console.warn('[top-guessers] Error checking CLANKTON balances:', error);
+            // Continue without CLANKTON badges on error
+          }
+        }
+
         // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
         const allFids = topGuessersData.map((g) => g.fid);
 
@@ -277,6 +305,7 @@ export default async function handler(
             guessCount: Number(g.guessCount),
             pfpUrl: neynarProfile?.pfpUrl || `https://warpcast.com/avatar/${g.fid}`,
             hasOgHunterBadge: badgeFids.has(g.fid),
+            hasClanktonBadge: clanktonHolders.has(g.fid),
           };
         });
 
