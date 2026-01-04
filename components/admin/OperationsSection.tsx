@@ -134,6 +134,8 @@ interface OperationsSectionProps {
 // Styles
 // =============================================================================
 
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+
 const styles = {
   card: {
     background: "white",
@@ -141,12 +143,14 @@ const styles = {
     border: "1px solid #e5e7eb",
     padding: "24px",
     marginBottom: "24px",
+    fontFamily,
   },
   cardTitle: {
     fontSize: "16px",
     fontWeight: 600,
     color: "#111827",
     margin: "0 0 16px 0",
+    fontFamily,
   },
   statusBadge: (status: string) => ({
     display: "inline-block",
