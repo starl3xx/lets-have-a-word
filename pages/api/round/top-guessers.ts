@@ -167,6 +167,9 @@ export default async function handler(
       });
     }
 
+    // Check for cache bypass
+    const noCache = req.query.nocache === 'true';
+
     // Get current active round
     const [activeRound] = await db
       .select({ id: rounds.id })
@@ -185,10 +188,12 @@ export default async function handler(
     }
 
     // Milestone 9.2: Cache top guessers data
+    // Pass TTL of 0 to bypass cache when nocache=true
     const cacheKey = CacheKeys.topGuessers(currentRoundId);
+    const cacheTTL = noCache ? 0 : CacheTTL.topGuessers;
     const cachedResponse = await cacheAside<TopGuessersResponse>(
       cacheKey,
-      CacheTTL.topGuessers,
+      cacheTTL,
       async () => {
         // Get top 10 guessers for the current round
         // Group by FID, count guesses, join with users for username
@@ -283,13 +288,21 @@ export default async function handler(
         let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
         if (allFids.length > 0) {
           try {
+            console.log(`[top-guessers] Fetching ${allFids.length} profiles from Neynar:`, allFids);
             const userData = await neynarClient.fetchBulkUsers({ fids: allFids });
+            console.log(`[top-guessers] Neynar returned ${userData.users?.length || 0} users`);
             if (userData.users) {
               for (const user of userData.users) {
                 neynarProfiles.set(user.fid, {
-                  username: user.username || `FID ${user.fid}`,
-                  pfpUrl: user.pfp_url || `https://warpcast.com/avatar/${user.fid}`,
+                  username: user.username || `fid:${user.fid}`,
+                  pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
                 });
+              }
+              // Log which FIDs are missing from Neynar
+              const returnedFids = new Set(userData.users.map(u => u.fid));
+              const missingFids = allFids.filter(fid => !returnedFids.has(fid));
+              if (missingFids.length > 0) {
+                console.warn(`[top-guessers] Neynar missing data for FIDs:`, missingFids);
               }
             }
           } catch (err) {
@@ -300,13 +313,16 @@ export default async function handler(
 
         // Format response with profile picture URLs
         // Prefer Neynar data for both username and pfpUrl (more reliable)
+        // IMPORTANT: Always use fid:XXX format as fallback, never "unknown"
         const topGuessers: TopGuesser[] = topGuessersData.map((g) => {
           const neynarProfile = neynarProfiles.get(g.fid);
+          // Only use local DB username if it's a real username (not null, empty, or "unknown")
+          const localUsername = g.username && g.username !== 'unknown' ? g.username : null;
           return {
             fid: g.fid,
-            username: neynarProfile?.username || g.username || `FID ${g.fid}`,
+            username: neynarProfile?.username || localUsername || `fid:${g.fid}`,
             guessCount: Number(g.guessCount),
-            pfpUrl: neynarProfile?.pfpUrl || `https://warpcast.com/avatar/${g.fid}`,
+            pfpUrl: neynarProfile?.pfpUrl || `https://avatar.vercel.sh/${g.fid}`,
             hasOgHunterBadge: badgeFids.has(g.fid),
             hasClanktonBadge: clanktonHolders.has(g.fid),
           };

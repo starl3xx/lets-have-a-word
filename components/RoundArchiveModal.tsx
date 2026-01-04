@@ -371,7 +371,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                         {/* Username + Badges + ETH Payout */}
                         <div className="flex-1 flex items-center gap-1.5 min-w-0">
                           <span className="font-medium text-gray-900 truncate">
-                            {guesser.username || `fid:${guesser.fid}`}
+                            {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || `fid:${guesser.fid}`}`}
                           </span>
                           {guesser.hasOgHunterBadge && (
                             <OgHunterBadge size="sm" showTooltip={true} />
