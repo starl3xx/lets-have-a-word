@@ -132,3 +132,41 @@ export function getRandomAnswerWord(): string {
   const index = randomInt(WORDS.length);
   return WORDS[index];
 }
+
+/**
+ * Select multiple unique random words for bonus words
+ * Bonus Words Feature: Selects 10 unique words excluding the secret word
+ *
+ * Uses crypto.randomInt() for cryptographically secure random selection.
+ * Guarantees no duplicates and excludes specified words.
+ *
+ * @param count Number of bonus words to select (default 10)
+ * @param excludeWords Words to exclude (e.g., the secret word)
+ * @returns Array of unique bonus words
+ */
+export function selectBonusWords(
+  count: number = 10,
+  excludeWords: string[] = []
+): string[] {
+  const excludeSet = new Set(excludeWords.map(w => w.toUpperCase()));
+  const available = WORDS.filter(w => !excludeSet.has(w));
+
+  if (available.length < count) {
+    throw new Error(
+      `Not enough words available: need ${count}, but only ${available.length} after exclusions`
+    );
+  }
+
+  const selected: string[] = [];
+  const usedIndices = new Set<number>();
+
+  while (selected.length < count) {
+    const index = randomInt(available.length);
+    if (!usedIndices.has(index)) {
+      usedIndices.add(index);
+      selected.push(available[index]);
+    }
+  }
+
+  return selected;
+}
