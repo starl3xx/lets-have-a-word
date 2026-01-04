@@ -477,25 +477,28 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     // Get top guesser FIDs only (for badge checks and guess counts)
     // Query the actual top 10 guessers by guess count (excluding winner)
     // IMPORTANT: Only count guesses within the Top-10 lock window (first 750)
-    const actualTopGuessers = await db
-      .select({
-        fid: guesses.fid,
-        guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
-      })
-      .from(guesses)
-      .where(
-        and(
-          eq(guesses.roundId, archived.roundNumber),
-          // Only count guesses within the Top-10 lock window (first 750)
-          or(
-            lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
-            isNull(guesses.guessIndexInRound) // Legacy data
+    // For legacy data without guessIndexInRound, use timestamp-based ordering
+    const actualTopGuessers = await db.execute<{ fid: number; guess_count: number }>(sql`
+      WITH first_750_guesses AS (
+        SELECT id, fid
+        FROM guesses
+        WHERE round_id = ${archived.roundNumber}
+          AND (
+            guess_index_in_round <= ${TOP10_LOCK_AFTER_GUESSES}
+            OR (guess_index_in_round IS NULL AND id IN (
+              SELECT id FROM guesses
+              WHERE round_id = ${archived.roundNumber}
+              ORDER BY created_at ASC
+              LIMIT ${TOP10_LOCK_AFTER_GUESSES}
+            ))
           )
-        )
       )
-      .groupBy(guesses.fid)
-      .orderBy(desc(sql`count(${guesses.id})`))
-      .limit(11); // Get 11 to allow filtering out winner
+      SELECT fid, COUNT(*)::int as guess_count
+      FROM first_750_guesses
+      GROUP BY fid
+      ORDER BY COUNT(*) DESC
+      LIMIT 11
+    `);
 
     // Filter out the winner and take top 10
     const top10Guessers = actualTopGuessers
@@ -505,7 +508,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     const topGuesserFids = top10Guessers.map(g => g.fid);
     const guessCountMap = new Map<number, number>();
     for (const g of top10Guessers) {
-      guessCountMap.set(g.fid, g.guessCount);
+      guessCountMap.set(g.fid, g.guess_count);
     }
 
     // Fetch user data for top guessers (usernames and wallets)
@@ -598,7 +601,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         username: userData?.username || `fid:${guesser.fid}`,
         pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
         amountEth: payoutEntry?.amountEth || '0',
-        guessCount: guesser.guessCount,
+        guessCount: guesser.guess_count,
         rank: index + 1,
         hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
         hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
