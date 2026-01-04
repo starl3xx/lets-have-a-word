@@ -284,15 +284,24 @@ export default async function handler(
 
         // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
         const allFids = topGuessersData.map((g) => g.fid);
+        // Filter out invalid FIDs (0, negative, or non-integers)
+        const validFids = allFids.filter(fid => fid > 0 && Number.isInteger(fid));
+        if (validFids.length !== allFids.length) {
+          console.warn(`[top-guessers] Found ${allFids.length - validFids.length} invalid FIDs:`,
+            allFids.filter(fid => !validFids.includes(fid)));
+        }
 
         let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
-        if (allFids.length > 0) {
+        if (validFids.length > 0) {
           try {
-            console.log(`[top-guessers] Fetching ${allFids.length} profiles from Neynar:`, allFids);
-            const userData = await neynarClient.fetchBulkUsers({ fids: allFids });
+            console.log(`[top-guessers] Fetching ${validFids.length} profiles from Neynar:`, validFids);
+            const userData = await neynarClient.fetchBulkUsers({ fids: validFids });
             console.log(`[top-guessers] Neynar returned ${userData.users?.length || 0} users`);
-            if (userData.users) {
+
+            if (userData.users && userData.users.length > 0) {
               for (const user of userData.users) {
+                // Log each user's data for debugging
+                console.log(`[top-guessers] Neynar user ${user.fid}: username="${user.username}", pfp="${user.pfp_url?.substring(0, 50)}..."`);
                 neynarProfiles.set(user.fid, {
                   username: user.username || `fid:${user.fid}`,
                   pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
@@ -300,14 +309,16 @@ export default async function handler(
               }
               // Log which FIDs are missing from Neynar
               const returnedFids = new Set(userData.users.map(u => u.fid));
-              const missingFids = allFids.filter(fid => !returnedFids.has(fid));
+              const missingFids = validFids.filter(fid => !returnedFids.has(fid));
               if (missingFids.length > 0) {
-                console.warn(`[top-guessers] Neynar missing data for FIDs:`, missingFids);
+                console.error(`[top-guessers] CRITICAL: Neynar missing data for FIDs:`, missingFids);
               }
+            } else {
+              console.error(`[top-guessers] CRITICAL: Neynar returned no users for FIDs:`, validFids);
             }
           } catch (err) {
             // Neynar fetch failed, fall back to defaults
-            console.warn('[top-guessers] Failed to fetch profiles from Neynar:', err);
+            console.error('[top-guessers] CRITICAL: Failed to fetch profiles from Neynar:', err);
           }
         }
 
