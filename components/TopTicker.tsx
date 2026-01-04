@@ -265,7 +265,7 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
           <p className="text-lg font-bold">
             {formatEth(status.prizePoolEth)} ETH
             {status.prizePoolUsd && (
-              <span className="text-sm font-normal opacity-90 ml-2">
+              <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
                 ({formatUsd(status.prizePoolUsd)})
               </span>
             )}
