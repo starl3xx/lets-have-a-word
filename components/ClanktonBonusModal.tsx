@@ -20,16 +20,15 @@ const CLANKTON_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
  */
 export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps) {
   /**
-   * Handle learn more - opens CLANKTON token page in Farcaster
+   * Handle learn more - opens CLANKTON token page in Farcaster wallet
    */
   const handleLearnMore = async () => {
     void haptics.buttonTapMinor();
 
     try {
-      // Open the token page via Farcaster SDK
-      // Using Warpcast's native token view URL
-      await sdk.actions.openUrl({
-        url: `https://warpcast.com/~/token/eip155:8453/${CLANKTON_TOKEN_ADDRESS}`,
+      // Open the token page via Farcaster SDK viewToken action
+      await sdk.actions.viewToken({
+        token: `eip155:8453/erc20:${CLANKTON_TOKEN_ADDRESS}`
       });
     } catch (err) {
       // Fallback to standard URL if SDK fails
