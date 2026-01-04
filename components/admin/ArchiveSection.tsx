@@ -238,6 +238,8 @@ function StatCard({ label, value, subtext, loading }: {
 export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [forceSyncing, setForceSyncing] = useState(false)
+  const [rearchiving, setRearchiving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<ArchiveStats | null>(null)
   const [rounds, setRounds] = useState<ArchivedRound[]>([])
@@ -282,15 +284,21 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     }
   }, [user?.fid, page])
 
-  const syncArchive = async () => {
+  const syncArchive = async (force = false) => {
     if (!user?.fid) return
 
-    setSyncing(true)
+    if (force) {
+      setForceSyncing(true)
+    } else {
+      setSyncing(true)
+    }
     setSyncResult(null)
 
     try {
       const response = await fetch(`/api/admin/archive/sync?devFid=${user.fid}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
       })
       if (!response.ok) throw new Error('Failed to sync archive')
       const result = await response.json()
@@ -300,6 +308,32 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       setError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
+      setForceSyncing(false)
+    }
+  }
+
+  const rearchiveRound = async (roundNumber: number) => {
+    if (!user?.fid) return
+
+    setRearchiving(true)
+    setSyncResult(null)
+
+    try {
+      const response = await fetch(`/api/admin/archive/sync?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundId: roundNumber, force: true }),
+      })
+      if (!response.ok) throw new Error('Failed to re-archive round')
+      const result = await response.json()
+      setSyncResult(result)
+      // Refresh the selected round details
+      await fetchRoundDetail(roundNumber)
+      await fetchArchiveData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Re-archive failed')
+    } finally {
+      setRearchiving(false)
     }
   }
 
@@ -425,11 +459,22 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             {loading ? 'Loading...' : 'Refresh'}
           </button>
           <button
-            onClick={syncArchive}
+            onClick={() => syncArchive(false)}
             style={styles.btn}
-            disabled={syncing}
+            disabled={syncing || forceSyncing}
           >
-            {syncing ? 'Syncing...' : 'Sync All Rounds'}
+            {syncing ? 'Syncing...' : 'Sync New'}
+          </button>
+          <button
+            onClick={() => syncArchive(true)}
+            style={{
+              ...styles.btn,
+              background: "#dc2626",
+            }}
+            disabled={syncing || forceSyncing}
+            title="Delete and re-archive all rounds (fixes ranking issues)"
+          >
+            {forceSyncing ? 'Re-syncing...' : 'Force Re-sync All'}
           </button>
         </div>
       </div>
@@ -760,22 +805,41 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             </div>
           )}
 
-          <button
-            onClick={() => { setSelectedRound(null); setDistribution(null); setUsernames({}); }}
-            style={{
-              marginTop: "24px",
-              padding: "8px 16px",
-              background: "#6b7280",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontFamily,
-            }}
-          >
-            Close Details
-          </button>
+          <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+            <button
+              onClick={() => rearchiveRound(selectedRound.roundNumber)}
+              disabled={rearchiving}
+              style={{
+                padding: "8px 16px",
+                background: "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: rearchiving ? "not-allowed" : "pointer",
+                fontSize: "13px",
+                fontFamily,
+                opacity: rearchiving ? 0.6 : 1,
+              }}
+              title="Delete and re-archive this round (fixes ranking issues)"
+            >
+              {rearchiving ? 'Re-archiving...' : 'Re-archive This Round'}
+            </button>
+            <button
+              onClick={() => { setSelectedRound(null); setDistribution(null); setUsernames({}); }}
+              style={{
+                padding: "8px 16px",
+                background: "#6b7280",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontFamily,
+              }}
+            >
+              Close Details
+            </button>
+          </div>
         </div>
       )}
     </div>
