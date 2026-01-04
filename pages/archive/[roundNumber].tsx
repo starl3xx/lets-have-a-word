@@ -368,7 +368,7 @@ export default function RoundDetailPage() {
                         </div>
                         {/* Guess Count */}
                         <div className="text-sm text-gray-500 tabular-nums flex-shrink-0">
-                          ({guesser.guessCount})
+                          {guesser.guessCount}
                         </div>
                       </div>
                     ))}
@@ -419,42 +419,42 @@ export default function RoundDetailPage() {
 
                   {/* Onchain secret word commitment */}
                   <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
-                    <span className="text-gray-500">Onchain secret word commitment</span>
+                    <span className="text-gray-500 text-sm">Onchain commitment</span>
                     {round.hasOnChainCommitment ? (
                       <button
                         onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
                         <span>View on BaseScan</span>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </button>
                     ) : (
-                      <span className="text-gray-400 text-sm">Database only</span>
+                      <span className="text-gray-400 text-xs">Database only</span>
                     )}
                   </div>
 
                   {/* Prize pool distribution tx */}
                   <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
-                    <span className="text-gray-500">Prize pool distribution tx</span>
+                    <span className="text-gray-500 text-sm">Distribution tx</span>
                     {round.roundNumber === 1 ? (
                       <button
                         onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/0xb5dde8065b2ea6a7d2101f8cdb92849659c63a1d4b97b0fdbfb69acd1d4bdffb`)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
                         <span>View on BaseScan</span>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </button>
                     ) : (
                       <button
                         onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
                         <span>View on BaseScan</span>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </button>

@@ -475,27 +475,61 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     }
 
     // Get top guesser FIDs only (for badge checks and guess counts)
-    const topGuesserFids = (archived.payoutsJson?.topGuessers || []).map(g => g.fid);
+    // Query the actual top 10 guessers by guess count (excluding winner)
+    const actualTopGuessers = await db
+      .select({
+        fid: guesses.fid,
+        guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+      })
+      .from(guesses)
+      .where(eq(guesses.roundId, archived.roundNumber))
+      .groupBy(guesses.fid)
+      .orderBy(desc(sql`count(${guesses.id})`))
+      .limit(11); // Get 11 to allow filtering out winner
 
-    // Fetch guess counts for top guessers from guesses table
+    // Filter out the winner and take top 10
+    const top10Guessers = actualTopGuessers
+      .filter(g => g.fid !== archived.winnerFid)
+      .slice(0, 10);
+
+    const topGuesserFids = top10Guessers.map(g => g.fid);
     const guessCountMap = new Map<number, number>();
-    if (topGuesserFids.length > 0) {
-      const guessCounts = await db
-        .select({
-          fid: guesses.fid,
-          count: sql<number>`cast(count(${guesses.id}) as int)`,
-        })
-        .from(guesses)
-        .where(
-          and(
-            eq(guesses.roundId, archived.roundNumber),
-            sql`${guesses.fid} IN ${topGuesserFids}`
-          )
-        )
-        .groupBy(guesses.fid);
+    for (const g of top10Guessers) {
+      guessCountMap.set(g.fid, g.guessCount);
+    }
 
-      for (const row of guessCounts) {
-        guessCountMap.set(row.fid, row.count);
+    // Fetch user data for top guessers (usernames and wallets)
+    if (topGuesserFids.length > 0) {
+      const userRecords = await db
+        .select({ fid: users.fid, username: users.username, signerWalletAddress: users.signerWalletAddress })
+        .from(users)
+        .where(sql`${users.fid} IN ${topGuesserFids}`);
+
+      for (const user of userRecords) {
+        if (!userDataMap.has(user.fid)) {
+          userDataMap.set(user.fid, {
+            username: user.username,
+            wallet: user.signerWalletAddress,
+            pfpUrl: null,
+          });
+        }
+      }
+
+      // Fetch Neynar data for top guessers
+      try {
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: topGuesserFids });
+        if (neynarData.users) {
+          for (const user of neynarData.users) {
+            const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
+            userDataMap.set(user.fid, {
+              ...existing,
+              username: user.username || existing.username,
+              pfpUrl: user.pfp_url || null,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[archive] Error fetching top guesser profiles from Neynar:', error);
       }
     }
 
@@ -544,16 +578,18 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     }
 
     // Build extended response with usernames and PFPs
-    // Use FID as fallback if username not available from Neynar
-    const topGuessersWithUsernames = (archived.payoutsJson?.topGuessers || []).map(guesser => {
+    // Use actual top guessers by guess count (not payout recipients)
+    const topGuessersWithUsernames = top10Guessers.map((guesser, index) => {
       const userData = userDataMap.get(guesser.fid);
+      // Find payout amount for this guesser (if any)
+      const payoutEntry = archived.payoutsJson?.topGuessers?.find(p => p.fid === guesser.fid);
       return {
         fid: guesser.fid,
         username: userData?.username || `fid:${guesser.fid}`,
         pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
-        amountEth: guesser.amountEth,
-        guessCount: guessCountMap.get(guesser.fid) || 0,
-        rank: guesser.rank,
+        amountEth: payoutEntry?.amountEth || '0',
+        guessCount: guesser.guessCount,
+        rank: index + 1,
         hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
         hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
       };
