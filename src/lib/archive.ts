@@ -460,26 +460,30 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     }
 
     // Check CLANKTON balances for top guessers (only those with wallets)
+    // Wrapped in defensive try/catch since this makes RPC calls that could fail
     const clanktonHolderFids = new Set<number>();
-    const walletsToCheck = topGuesserFids
-      .filter(fid => userDataMap.get(fid)?.wallet)
-      .map(fid => ({ fid, wallet: userDataMap.get(fid)!.wallet! }));
+    try {
+      const walletsToCheck = topGuesserFids
+        .filter(fid => userDataMap.get(fid)?.wallet)
+        .map(fid => ({ fid, wallet: userDataMap.get(fid)!.wallet! }));
 
-    if (walletsToCheck.length > 0) {
-      try {
-        const clanktonResults = await Promise.all(
+      if (walletsToCheck.length > 0) {
+        // Check all wallets in parallel with individual error handling
+        const clanktonResults = await Promise.allSettled(
           walletsToCheck.map(async ({ fid, wallet }) => ({
             fid,
             hasClankton: await hasClanktonBonus(wallet),
           }))
         );
-        for (const { fid, hasClankton } of clanktonResults) {
-          if (hasClankton) clanktonHolderFids.add(fid);
+        for (const result of clanktonResults) {
+          if (result.status === 'fulfilled' && result.value.hasClankton) {
+            clanktonHolderFids.add(result.value.fid);
+          }
         }
-      } catch (error) {
-        console.warn('[archive] Error checking CLANKTON balances:', error);
-        // Continue without CLANKTON badges on error
       }
+    } catch (error) {
+      console.warn('[archive] Error checking CLANKTON balances:', error);
+      // Continue without CLANKTON badges on error
     }
 
     // Build extended response
