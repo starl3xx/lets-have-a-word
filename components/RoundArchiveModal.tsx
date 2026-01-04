@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Top10StatusChip from './Top10StatusChip';
-import OgHunterBadge from './OgHunterBadge';
-import ClanktonHolderBadge from './ClanktonHolderBadge';
+import BadgeStack from './BadgeStack';
 
 interface TopGuesser {
   fid: number;
@@ -373,12 +372,11 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           <span className="font-medium text-gray-900 truncate">
                             {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || `fid:${guesser.fid}`}`}
                           </span>
-                          {guesser.hasOgHunterBadge && (
-                            <OgHunterBadge size="sm" showTooltip={true} />
-                          )}
-                          {guesser.hasClanktonBadge && (
-                            <ClanktonHolderBadge size="sm" showTooltip={true} />
-                          )}
+                          <BadgeStack
+                            hasOgHunterBadge={guesser.hasOgHunterBadge}
+                            hasClanktonBadge={guesser.hasClanktonBadge}
+                            size="sm"
+                          />
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
                             (.{rankPayout.replace('0.', '')} ETH)
                           </span>
