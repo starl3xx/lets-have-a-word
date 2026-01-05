@@ -59,12 +59,13 @@ export default function BadgeStack({
       {/* CLANKTON Badge (shown second/on top, overlapping if both present) */}
       {hasClanktonBadge && (
         <div
-          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center bg-amber-100 relative z-20 ring-1 ring-purple-200 ${hasBothBadges ? config.overlap : ''}`}
+          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center relative z-20 ${hasBothBadges ? config.overlap : ''}`}
+          style={{ boxShadow: '0 0 0 1px #8862D3' }}
           onMouseEnter={() => setTooltipText('CLANKTON holder')}
           onTouchStart={() => setTooltipText('CLANKTON holder')}
         >
           <img
-            src="/clankton-logo.png"
+            src="/clankton-logo-light.png"
             alt="CLANKTON holder"
             className="w-full h-full object-cover"
           />

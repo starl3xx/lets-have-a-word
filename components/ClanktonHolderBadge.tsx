@@ -39,13 +39,14 @@ export default function ClanktonHolderBadge({
       onTouchStart={() => showTooltip && setIsTooltipVisible(true)}
       onTouchEnd={() => setTimeout(() => setIsTooltipVisible(false), 1500)}
     >
-      {/* Badge Icon - Circular image */}
+      {/* Badge Icon - Circular image with purple outline */}
       <div
-        className={`${sizeClasses[size]} rounded-full overflow-hidden flex items-center justify-center bg-amber-100`}
+        className={`${sizeClasses[size]} rounded-full overflow-hidden flex items-center justify-center`}
+        style={{ boxShadow: '0 0 0 1.5px #8862D3' }}
         title={showTooltip ? undefined : 'CLANKTON holder'}
       >
         <img
-          src="/clankton-logo.png"
+          src="/clankton-logo-light.png"
           alt="CLANKTON holder"
           className="w-full h-full object-cover"
         />
