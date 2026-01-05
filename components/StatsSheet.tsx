@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { UserStatsResponse } from '../pages/api/user/stats';
+import type { UserProfileResponse } from '../pages/api/user/profile';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import { useTranslation } from '../src/hooks/useTranslation';
@@ -24,6 +25,7 @@ interface StatsSheetProps {
 export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
+  const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [xp, setXp] = useState<number>(0);
   const [hasOgHunterBadge, setHasOgHunterBadge] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,11 +40,12 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       }
 
       try {
-        // Fetch stats, XP, and badge status in parallel
-        const [statsResponse, xpResponse, badgeResponse] = await Promise.all([
+        // Fetch stats, XP, badge status, and profile in parallel
+        const [statsResponse, xpResponse, badgeResponse, profileResponse] = await Promise.all([
           fetch(`/api/user/stats?devFid=${fid}`),
           fetch(`/api/user/xp?fid=${fid}`),
-          fetch(`/api/og-hunter/status?fid=${fid}`)
+          fetch(`/api/og-hunter/status?fid=${fid}`),
+          fetch(`/api/user/profile?fid=${fid}`)
         ]);
 
         if (!statsResponse.ok) {
@@ -60,6 +63,11 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         if (badgeResponse.ok) {
           const badgeData = await badgeResponse.json();
           setHasOgHunterBadge(badgeData.isAwarded || false);
+        }
+
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          setProfile(profileData);
         }
       } catch (err) {
         console.error('Error fetching stats:', err);
@@ -108,11 +116,29 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-gray-900">Your Stats</h2>
-            {hasOgHunterBadge && (
-              <OgHunterBadge size="md" showTooltip={true} />
-            )}
+          <div className="flex items-center gap-3">
+            {/* Profile Picture */}
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-brand-200 flex-shrink-0">
+              {profile?.pfpUrl ? (
+                <img
+                  src={profile.pfpUrl}
+                  alt={profile.username || 'Profile'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-brand-100 flex items-center justify-center">
+                  <span className="text-brand-400 text-lg">?</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-900">
+                {profile?.username || 'Player'} Has A Word!
+              </h2>
+              {hasOgHunterBadge && (
+                <OgHunterBadge size="md" showTooltip={true} />
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="btn-close" aria-label="Close">
             ×
