@@ -42,6 +42,10 @@ import {
  *
  * Note: clanktonBonusGuesses is now dynamic based on market cap (Milestone 5.4c)
  * Use getClanktonHolderBonusGuesses() for the current value
+ *
+ * Pack purchases are now UNCAPPED - users can buy unlimited packs per day.
+ * However, paid guesses still expire at 11:00 UTC daily reset.
+ * Volume-based pricing tiers apply (1×, 1.5×, 2×) - see pack-pricing.ts
  */
 export const DAILY_LIMITS_RULES = {
   freeGuessesPerDayBase: 1,
@@ -50,8 +54,9 @@ export const DAILY_LIMITS_RULES = {
   shareBonusGuesses: 1,
   clanktonThreshold: 100_000_000, // 100M tokens
   paidGuessPackSize: 3,
-  paidGuessPackPriceEth: '0.0003', // ETH
-  maxPaidPacksPerDay: 3,
+  paidGuessPackPriceEth: '0.0003', // ETH (base price, multipliers apply)
+  /** @deprecated Pack purchases are now uncapped. Volume pricing tiers apply instead. */
+  maxPaidPacksPerDay: Infinity,
 } as const;
 
 /**
@@ -353,19 +358,25 @@ export function getFreeGuessesRemaining(state: DailyGuessStateRow): number {
 
 /**
  * Check if user can buy another pack today
+ * Note: Pack purchases are now uncapped, so this always returns true.
+ * Kept for backwards compatibility.
+ * @deprecated Pack purchases are now unlimited
  */
 export async function canBuyAnotherPack(
   fid: number,
   dateStr: string = getTodayUTC()
 ): Promise<boolean> {
-  const state = await getOrCreateDailyState(fid, dateStr);
-  return state.paidPacksPurchased < DAILY_LIMITS_RULES.maxPaidPacksPerDay;
+  // Pack purchases are now uncapped
+  return true;
 }
 
 /**
  * Award a paid guess pack
  * Increments pack count and adds paid guess credits
  * Payment processing handled by purchase flow before calling this
+ *
+ * Note: Pack purchases are now UNCAPPED. Volume-based pricing tiers apply.
+ * Paid guesses still expire at 11:00 UTC daily reset.
  */
 export async function awardPaidPack(
   fid: number,
@@ -373,14 +384,7 @@ export async function awardPaidPack(
 ): Promise<DailyGuessStateRow> {
   const state = await getOrCreateDailyState(fid, dateStr);
 
-  // Check if can buy another pack
-  if (state.paidPacksPurchased >= DAILY_LIMITS_RULES.maxPaidPacksPerDay) {
-    throw new Error(
-      `Cannot buy more packs: already purchased ${state.paidPacksPurchased} of ${DAILY_LIMITS_RULES.maxPaidPacksPerDay} allowed per day`
-    );
-  }
-
-  // Increment pack count and add credits
+  // Increment pack count and add credits (no cap - unlimited purchases allowed)
   const [updated] = await db
     .update(dailyGuessState)
     .set({
@@ -392,7 +396,7 @@ export async function awardPaidPack(
     .returning();
 
   console.log(
-    `💰 Awarded paid pack to FID ${fid}: pack ${updated.paidPacksPurchased}/${DAILY_LIMITS_RULES.maxPaidPacksPerDay}, credits: ${updated.paidGuessCredits}`
+    `💰 Awarded paid pack to FID ${fid}: pack ${updated.paidPacksPurchased} (unlimited), credits: ${updated.paidGuessCredits}`
   );
 
   return updated;
