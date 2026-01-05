@@ -162,9 +162,9 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         {/* Stats Display */}
         {stats && !isLoading && (
           <div className="space-y-4">
-            {/* This Round */}
+            {/* This round */}
             <div className="section-card bg-brand-50">
-              <h3 className="text-base font-semibold text-brand-900">This Round</h3>
+              <h3 className="text-base font-semibold text-brand-900">This round</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-sm text-brand-700">Total guesses</p>
