@@ -501,7 +501,12 @@ export default function GuessPurchaseModal({
                         {option.totalPriceEth} ETH
                       </p>
                       {option.spansTiers && (
-                        <p className="text-xs text-gray-400">spans tiers</p>
+                        <p
+                          className="text-xs text-gray-400 cursor-help"
+                          title="Part of this purchase is priced at a higher tier"
+                        >
+                          spans tiers
+                        </p>
                       )}
                     </div>
                   </button>
