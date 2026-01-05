@@ -285,11 +285,9 @@ export default function RoundDetailPage() {
                           )}
                         </div>
                       </div>
-                      {round.payoutsJson.winner && (
-                        <div className="text-xl font-bold text-green-600">
-                          {formatEth(round.payoutsJson.winner.amountEth)} ETH
-                        </div>
-                      )}
+                      <div className="text-4xl">
+                        🏆
+                      </div>
                     </div>
                     {round.referrerFid && (
                       <div className="mt-3 pt-3 border-t border-green-200 text-sm text-gray-600 flex items-center gap-2">
