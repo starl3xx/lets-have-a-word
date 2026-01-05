@@ -21,7 +21,8 @@ import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
 import ClanktonBonusModal from '../components/ClanktonBonusModal';
-// Bonus Words Feature
+// Bonus Words Feature (hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true)
+const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
 import BonusWordWinModal from '../components/BonusWordWinModal';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
@@ -1015,7 +1016,7 @@ function GameContent() {
         setTimeout(() => {
           setShowWinnerShareCard(true);
         }, 2000); // 2 second delay to let confetti play first
-      } else if (data.status === 'bonus_word') {
+      } else if (data.status === 'bonus_word' && BONUS_WORDS_UI_ENABLED) {
         // Bonus Words Feature: User found a bonus word
         setBoxResultState('correct'); // Show green success state
         // Store bonus word data and show celebration modal
@@ -1025,7 +1026,8 @@ function GameContent() {
           txHash: data.txHash || null,
         });
         setShowBonusWordWinModal(true);
-      } else if (data.status === 'incorrect' || data.status === 'already_guessed_word') {
+      } else if (data.status === 'incorrect' || data.status === 'already_guessed_word' || (data.status === 'bonus_word' && !BONUS_WORDS_UI_ENABLED)) {
+        // Note: When bonus words UI is disabled, bonus_word is treated as incorrect for UI purposes
         setBoxResultState('wrong');
         if (data.status === 'already_guessed_word') {
           triggerShake();
@@ -1258,7 +1260,21 @@ function GameContent() {
         };
 
       case 'bonus_word':
-        // Bonus Words Feature: Show success banner for bonus word
+        // Bonus Words Feature: Show success banner for bonus word (only if UI enabled)
+        if (!BONUS_WORDS_UI_ENABLED) {
+          // When UI is disabled, show as incorrect
+          return {
+            variant: 'error',
+            icon: null,
+            message: (
+              <>
+                <span>Incorrect! </span>
+                <span className="font-bold">{result.word.toUpperCase()}</span>
+                <span> is not the secret word.</span>
+              </>
+            ),
+          };
+        }
         return {
           variant: 'success',
           icon: null,
@@ -1887,8 +1903,8 @@ function GameContent() {
         />
       )}
 
-      {/* Bonus Words Feature: Bonus word win celebration modal */}
-      {showBonusWordWinModal && bonusWordWinData && (
+      {/* Bonus Words Feature: Bonus word win celebration modal (only if UI enabled) */}
+      {BONUS_WORDS_UI_ENABLED && showBonusWordWinModal && bonusWordWinData && (
         <BonusWordWinModal
           word={bonusWordWinData.word}
           clanktonAmount={bonusWordWinData.clanktonAmount}
