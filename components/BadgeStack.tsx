@@ -60,7 +60,7 @@ export default function BadgeStack({
       {hasClanktonBadge && (
         <div
           className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center relative z-20 ${hasBothBadges ? config.overlap : ''}`}
-          style={{ boxShadow: '0 0 0 1px #8862D3' }}
+          style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
           onMouseEnter={() => setTooltipText('CLANKTON holder')}
           onTouchStart={() => setTooltipText('CLANKTON holder')}
         >

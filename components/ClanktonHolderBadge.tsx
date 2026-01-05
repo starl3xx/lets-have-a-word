@@ -42,7 +42,7 @@ export default function ClanktonHolderBadge({
       {/* Badge Icon - Circular image with purple outline */}
       <div
         className={`${sizeClasses[size]} rounded-full overflow-hidden flex items-center justify-center`}
-        style={{ boxShadow: '0 0 0 1.5px #8862D3' }}
+        style={{ boxShadow: '0 0 0 1.5px #C4B5FD' }}
         title={showTooltip ? undefined : 'CLANKTON holder'}
       >
         <img
