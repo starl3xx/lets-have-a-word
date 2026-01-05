@@ -397,6 +397,16 @@ function GameContent() {
   }, [router.query.forceInstallPrompt, effectiveFid]);
 
   /**
+   * Dev mode: Show GuessPurchaseModal immediately when ?forcePurchaseModal=1
+   * Bypasses the need to be out of guesses to see the modal
+   */
+  useEffect(() => {
+    if (router.query.forcePurchaseModal === '1' && effectiveFid) {
+      setShowGuessPurchaseModal(true);
+    }
+  }, [router.query.forcePurchaseModal, effectiveFid]);
+
+  /**
    * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
    * Wheel now returns all GUESS_WORDS with per-word status
    */
