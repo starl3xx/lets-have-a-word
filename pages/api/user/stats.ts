@@ -143,27 +143,29 @@ export default async function handler(
 
         // Milestone 6.3: Calculate new stats
 
-        // Sum bonus guesses ALLOCATED from daily state (CLANKTON + share bonus)
-        // Note: We only track total freeUsed, not which type was used
-        // So we use allocated amounts but cap at actual non-paid guesses
-        const bonusStats = await db
+        // Sum all guess allocations from daily state
+        // Consumption order: free (base) → CLANKTON bonus → share bonus → paid
+        const allocationStats = await db
           .select({
+            baseAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedBase}), 0)`,
             clanktonAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedClankton}), 0)`,
             shareBonusAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedShareBonus}), 0)`,
           })
           .from(dailyGuessState)
           .where(eq(dailyGuessState.fid, fid));
 
-        const totalBonusAllocated = Number(bonusStats[0]?.clanktonAllocated || 0) + Number(bonusStats[0]?.shareBonusAllocated || 0);
+        const totalBaseAllocated = Number(allocationStats[0]?.baseAllocated || 0);
+        const totalBonusAllocated = Number(allocationStats[0]?.clanktonAllocated || 0) + Number(allocationStats[0]?.shareBonusAllocated || 0);
 
         // Non-paid guesses are what was actually used from free/bonus pool
         const nonPaidGuesses = guessesAllTime - paidGuessesAllTime;
 
-        // Cap bonus at actual non-paid guesses (can't use more than allocated)
-        const bonusGuessesAllTime = Math.min(totalBonusAllocated, nonPaidGuesses);
+        // Consumption order: free guesses are used FIRST, then bonus
+        // Free guesses used = min(base allocated, non-paid guesses)
+        const freeGuessesAllTime = Math.min(totalBaseAllocated, nonPaidGuesses);
 
-        // Free guesses = remaining non-paid guesses after bonus
-        const freeGuessesAllTime = Math.max(0, nonPaidGuesses - bonusGuessesAllTime);
+        // Bonus guesses used = min(bonus allocated, remaining non-paid after free)
+        const bonusGuessesAllTime = Math.min(totalBonusAllocated, nonPaidGuesses - freeGuessesAllTime);
 
         // Guesses per round histogram (last 10 rounds for this user)
         const guessHistogram = await db
