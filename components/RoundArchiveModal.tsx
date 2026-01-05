@@ -11,6 +11,18 @@ interface TopGuesser {
   hasClanktonBadge?: boolean;
 }
 
+// Bonus Words Feature: Winner display type
+interface BonusWordWinner {
+  fid: number;
+  username: string;
+  pfpUrl: string;
+  word: string;
+  wordIndex: number;
+  claimedAt: string;
+  txHash: string | null;
+  clanktonAmount: string;
+}
+
 interface RoundState {
   roundId: number;
   prizePoolEth: string;
@@ -93,6 +105,9 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
   const [topGuessers, setTopGuessers] = useState<TopGuesser[]>([]);
   const [uniqueGuessers, setUniqueGuessers] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  // Bonus Words Feature: Bonus word winners state
+  const [bonusWordWinners, setBonusWordWinners] = useState<BonusWordWinner[]>([]);
+  const [totalBonusWords, setTotalBonusWords] = useState<number>(10);
 
   // Track if initial load is complete to avoid flickering on polls
   const hasLoadedRef = useRef(false);
@@ -106,17 +121,28 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
     }
 
     try {
-      // Fetch round state and top guessers in parallel
-      const [roundResponse, guessersResponse] = await Promise.all([
+      // Fetch round state, top guessers, and bonus word winners in parallel
+      const [roundResponse, guessersResponse, bonusWordsResponse] = await Promise.all([
         fetch('/api/round-state'),
         fetch('/api/round/top-guessers'),
+        fetch('/api/round/bonus-word-winners'),
       ]);
 
       if (!roundResponse.ok) throw new Error('Failed to load round state');
       if (!guessersResponse.ok) throw new Error('Failed to load top guessers');
+      // Bonus words API returns 204 if no bonus words (legacy round)
 
       const roundData = await roundResponse.json();
       const guessersData = await guessersResponse.json();
+
+      // Bonus Words Feature: Parse bonus word winners if available
+      if (bonusWordsResponse.ok) {
+        const bonusData = await bonusWordsResponse.json();
+        setBonusWordWinners(bonusData.winners || []);
+      } else if (bonusWordsResponse.status === 204) {
+        // No bonus words for this round (legacy)
+        setBonusWordWinners([]);
+      }
 
       // Only update state if data has actually changed (prevents flickering)
       setRoundState((prev) => {
@@ -391,6 +417,48 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                 </div>
               )}
             </div>
+
+            {/* Bonus Words Feature: Bonus Word Finders Section */}
+            {bonusWordWinners.length > 0 && (
+              <div className="mt-4">
+                <div className="text-center mb-1.5">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                    🎣 Bonus Word Finders
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">5M CLANKTON each</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  {bonusWordWinners.map((winner) => (
+                    <div key={`${winner.fid}-${winner.word}`} className="flex items-center gap-2">
+                      {/* Avatar */}
+                      <img
+                        src={winner.pfpUrl}
+                        alt={winner.username}
+                        className="w-7 h-7 rounded-full object-cover border border-cyan-200"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${winner.fid}`;
+                        }}
+                      />
+                      {/* Username + Word */}
+                      <div className="flex-1 flex items-center gap-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900 truncate">
+                          {winner.username?.startsWith('fid:') ? winner.username : `@${winner.username || `fid:${winner.fid}`}`}
+                        </span>
+                        <span className="text-xs text-cyan-600 font-mono font-bold uppercase">
+                          {winner.word}
+                        </span>
+                        <span className="text-base">🎣</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-gray-400 italic text-center mt-2">
+                  {totalBonusWords - bonusWordWinners.length} bonus words remaining
+                </p>
+              </div>
+            )}
           </>
         )}
 

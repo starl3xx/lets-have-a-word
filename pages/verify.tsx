@@ -36,6 +36,9 @@ interface VerificationResult {
   roundStartedAt?: string;
   roundEndedAt?: string;
   errorMessage?: string;
+  // Bonus Words Feature
+  bonusWordsCommitHash?: string;
+  hasBonusWords?: boolean;
 }
 
 export default function VerifyPage() {
@@ -105,6 +108,8 @@ export default function VerifyPage() {
           onChainCommitHash: roundData.onChainCommitHash,
           hasOnChainCommitment: roundData.hasOnChainCommitment,
           roundStartedAt: roundData.roundStartedAt,
+          bonusWordsCommitHash: roundData.bonusWordsCommitHash,
+          hasBonusWords: roundData.hasBonusWords,
         });
         return;
       }
@@ -121,6 +126,8 @@ export default function VerifyPage() {
           roundStartedAt: roundData.roundStartedAt,
           roundEndedAt: roundData.roundEndedAt,
           errorMessage: 'Round was cancelled before reveal.',
+          bonusWordsCommitHash: roundData.bonusWordsCommitHash,
+          hasBonusWords: roundData.hasBonusWords,
         });
         return;
       }
@@ -146,6 +153,8 @@ export default function VerifyPage() {
           computedHash,
           roundStartedAt: roundData.roundStartedAt,
           roundEndedAt: roundData.roundEndedAt,
+          bonusWordsCommitHash: roundData.bonusWordsCommitHash,
+          hasBonusWords: roundData.hasBonusWords,
         });
       } else {
         setResult({
@@ -362,6 +371,24 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
+                    {/* Bonus Words Feature: Bonus words commitment */}
+                    {result.hasBonusWords && result.bonusWordsCommitHash && (
+                      <div className="bg-cyan-50 rounded-xl px-4 py-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-cyan-600">🎣</span>
+                          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+                            Bonus words commitment
+                          </div>
+                        </div>
+                        <div className="font-mono text-sm break-all text-gray-900">
+                          {result.bonusWordsCommitHash}
+                        </div>
+                        <div className="text-xs text-cyan-600 mt-1">
+                          10 bonus words committed — 5M CLANKTON each
+                        </div>
+                      </div>
+                    )}
+
                     {result.roundStartedAt && (
                       <DataRow
                         label="Round started"
@@ -390,6 +417,24 @@ export default function VerifyPage() {
                       onCopy={(hash) => copyToClipboard(hash, 'onChainHash')}
                       copied={copied === 'onChainHash'}
                     />
+
+                    {/* Bonus Words Feature: Bonus words commitment */}
+                    {result.hasBonusWords && result.bonusWordsCommitHash && (
+                      <div className="bg-cyan-50 rounded-xl px-4 py-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-cyan-600">🎣</span>
+                          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+                            Bonus words commitment
+                          </div>
+                        </div>
+                        <div className="font-mono text-sm break-all text-gray-900">
+                          {result.bonusWordsCommitHash}
+                        </div>
+                        <div className="text-xs text-cyan-600 mt-1">
+                          10 bonus words committed — 5M CLANKTON each
+                        </div>
+                      </div>
+                    )}
 
                     <DataRow
                       label="Revealed word"
