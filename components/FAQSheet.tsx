@@ -196,8 +196,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           </ul>
           <p className="mt-2">If the winner <strong>does not</strong> have a referrer:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li><strong>7.5%</strong> is added to the Top 10 pool</li>
-            <li><strong>2.5%</strong> seeds the next round's prize pool</li>
+            <li><strong>2.5%</strong> is added to the Top 10 pool</li>
+            <li><strong>7.5%</strong> seeds the next round's prize pool</li>
           </ul>
           <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
         </>
