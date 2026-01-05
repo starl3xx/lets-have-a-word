@@ -29,16 +29,21 @@ function logAnalytics(
 /**
  * Pack pricing info (fetched from API)
  * Milestone 7.1: Dynamic late-round pricing
+ * Milestone X.X: Volume-based tiered pricing
  */
 interface PackOption {
   packCount: number;
   guessCount: number;
   totalPriceWei: string;
   totalPriceEth: string;
+  spansTiers?: boolean;
 }
 
 /** Pricing phase from API */
 type PricingPhase = 'BASE' | 'LATE_1' | 'LATE_2';
+
+/** Volume tier from API */
+type VolumeTier = 'BASE' | 'MID' | 'HIGH';
 
 interface GuessPurchaseModalProps {
   fid: number | null;
@@ -47,22 +52,39 @@ interface GuessPurchaseModalProps {
 }
 
 /**
+ * Format time until reset as human-readable string
+ */
+function formatTimeUntilReset(hours: number, minutes: number): string {
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+}
+
+/**
+ * Get volume tier display info
+ */
+function getVolumeTierDisplay(tier: VolumeTier, multiplier: number): { label: string; color: string } {
+  switch (tier) {
+    case 'BASE':
+      return { label: '1×', color: 'text-gray-600' };
+    case 'MID':
+      return { label: '1.5×', color: 'text-amber-600' };
+    case 'HIGH':
+      return { label: '2×', color: 'text-orange-600' };
+  }
+}
+
+/**
  * GuessPurchaseModal
- * Milestone 6.3, Updated Milestone 7.0, 7.1, 7.5
+ * Milestone 6.3, Updated Milestone 7.0, 7.1, 7.5, X.X (Uncapped + Volume Tiers)
  *
  * Modal for purchasing guess packs (3 guesses per pack).
  *
- * Milestone 7.0: Visual polish
- * - Uses unified design token classes
- * - Consistent color palette
- *
- * Milestone 7.1: Dynamic late-round pricing
- * - Price increases after 750 guesses (Top-10 lock)
- *
- * Milestone 7.5: Progressive pricing with minimal UI cues
- * - Shows neutral state label ("Early round pricing" / "Late round pricing")
- * - Early-round purchases show positive reinforcement message
- * - Analytics events for pricing state tracking
+ * Milestone X.X: Uncapped purchases with volume tiers
+ * - Pack purchases are now UNLIMITED
+ * - Volume tiers: 1× for packs 1-3, 1.5× for packs 4-6, 2× for packs 7+
+ * - Clear warning that paid guesses expire at 11:00 UTC
  */
 export default function GuessPurchaseModal({
   fid,
@@ -94,7 +116,6 @@ export default function GuessPurchaseModal({
   // State
   const [selectedPackCount, setSelectedPackCount] = useState<number>(1);
   const [packsPurchasedToday, setPacksPurchasedToday] = useState<number>(0);
-  const [maxPacksPerDay, setMaxPacksPerDay] = useState<number>(3);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -105,6 +126,16 @@ export default function GuessPurchaseModal({
   // Milestone 7.1/7.5: Pricing state
   const [pricingPhase, setPricingPhase] = useState<PricingPhase>('BASE');
   const [isLateRoundPricing, setIsLateRoundPricing] = useState(false);
+
+  // Volume tier state
+  const [volumeTier, setVolumeTier] = useState<VolumeTier>('BASE');
+  const [volumeMultiplier, setVolumeMultiplier] = useState<number>(1);
+  const [packsRemainingAtTier, setPacksRemainingAtTier] = useState<number>(3);
+  const [nextTierMultiplier, setNextTierMultiplier] = useState<number | null>(1.5);
+
+  // Reset time state
+  const [hoursUntilReset, setHoursUntilReset] = useState<number>(0);
+  const [minutesUntilReset, setMinutesUntilReset] = useState<number>(0);
 
   // Milestone 7.5: Track if early-round reinforcement was shown (for analytics)
   const [showEarlyRoundReinforcement, setShowEarlyRoundReinforcement] = useState(false);
@@ -177,6 +208,16 @@ export default function GuessPurchaseModal({
 
           setPacksPurchasedToday((prev) => prev + selectedPackCount);
 
+          // Update volume tier info from response
+          if (data.volumeTier) setVolumeTier(data.volumeTier);
+          if (data.volumeMultiplier) setVolumeMultiplier(data.volumeMultiplier);
+          if (data.packsRemainingAtCurrentTier !== undefined) {
+            setPacksRemainingAtTier(data.packsRemainingAtCurrentTier);
+          }
+          if (data.nextTierMultiplier !== undefined) {
+            setNextTierMultiplier(data.nextTierMultiplier);
+          }
+
           setTimeout(() => {
             onPurchaseSuccess(selectedPackCount);
             onClose();
@@ -224,30 +265,47 @@ export default function GuessPurchaseModal({
       }
 
       try {
-        const [stateResponse, pricingResponse] = await Promise.all([
-          fetch(`/api/user-state?devFid=${fid}`),
-          fetch('/api/guess-pack-pricing'),
-        ]);
-
-        if (stateResponse.ok) {
-          const stateData = await stateResponse.json();
-          setPacksPurchasedToday(stateData.paidPacksPurchased || 0);
-        }
+        // Fetch pricing with user-specific volume tier
+        const pricingResponse = await fetch(`/api/guess-pack-pricing?fid=${fid}`);
 
         if (pricingResponse.ok) {
           const pricingData = await pricingResponse.json();
+
           if (pricingData.packOptions) {
             setPackOptions(pricingData.packOptions);
           }
-          if (pricingData.maxPacksPerDay) {
-            setMaxPacksPerDay(pricingData.maxPacksPerDay);
-          }
-          // Milestone 7.1: Update late-round pricing state
+
+          // Stage-based pricing
           if (pricingData.pricingPhase) {
             setPricingPhase(pricingData.pricingPhase);
           }
           if (typeof pricingData.isLateRoundPricing === 'boolean') {
             setIsLateRoundPricing(pricingData.isLateRoundPricing);
+          }
+
+          // Volume tier info
+          if (typeof pricingData.packsPurchasedToday === 'number') {
+            setPacksPurchasedToday(pricingData.packsPurchasedToday);
+          }
+          if (pricingData.volumeTier) {
+            setVolumeTier(pricingData.volumeTier);
+          }
+          if (typeof pricingData.volumeMultiplier === 'number') {
+            setVolumeMultiplier(pricingData.volumeMultiplier);
+          }
+          if (typeof pricingData.packsRemainingAtCurrentTier === 'number') {
+            setPacksRemainingAtTier(pricingData.packsRemainingAtCurrentTier);
+          }
+          if (pricingData.nextTierMultiplier !== undefined) {
+            setNextTierMultiplier(pricingData.nextTierMultiplier);
+          }
+
+          // Reset time
+          if (typeof pricingData.hoursUntilReset === 'number') {
+            setHoursUntilReset(pricingData.hoursUntilReset);
+          }
+          if (typeof pricingData.minutesUntilReset === 'number') {
+            setMinutesUntilReset(pricingData.minutesUntilReset);
           }
         }
       } catch (err) {
@@ -260,20 +318,18 @@ export default function GuessPurchaseModal({
     fetchPurchaseState();
   }, [fid, t]);
 
-  // Calculate remaining packs allowed
-  const remainingPacks = Math.max(0, maxPacksPerDay - packsPurchasedToday);
-  const maxSelectablePacks = Math.min(3, remainingPacks);
-
   // Get selected pack info
   const selectedOption = packOptions.find(
     (option) => option.packCount === selectedPackCount
   );
 
+  // Volume tier display
+  const tierDisplay = getVolumeTierDisplay(volumeTier, volumeMultiplier);
+
   /**
    * Handle pack selection
    */
   const handleSelectPack = (packCount: number) => {
-    if (packCount > maxSelectablePacks) return;
     void haptics.selectionChanged();
     setSelectedPackCount(packCount);
     setError(null);
@@ -299,11 +355,6 @@ export default function GuessPurchaseModal({
       return;
     }
 
-    if (selectedPackCount > remainingPacks) {
-      setError(t('guessPack.maxPacksReached'));
-      return;
-    }
-
     if (!selectedOption) {
       setError('Please select a pack option');
       return;
@@ -319,6 +370,9 @@ export default function GuessPurchaseModal({
       packCount: selectedPackCount,
       totalPriceEth: selectedOption.totalPriceEth,
       pricingPhase,
+      volumeTier,
+      volumeMultiplier,
+      packsPurchasedToday,
       walletAddress,
     });
 
@@ -340,6 +394,9 @@ export default function GuessPurchaseModal({
       void haptics.inputBecameInvalid();
     }
   };
+
+  // Check if user should see the expiration warning (less than 2 hours)
+  const showExpirationWarning = hoursUntilReset < 2;
 
   return (
     <div
@@ -366,22 +423,36 @@ export default function GuessPurchaseModal({
         {/* Main Content */}
         {!isLoading && (
           <>
-            {/* Pricing state label - shown before pack options for context */}
-            <div className={`rounded-btn px-3 py-1.5 text-center ${
-              isLateRoundPricing
-                ? 'bg-gray-100'
+            {/* Pricing info bar */}
+            <div className="bg-gray-50 rounded-btn px-3 py-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">
+                  {pricingPhase === 'BASE'
+                    ? 'Early round pricing'
+                    : pricingPhase === 'LATE_2'
+                    ? 'Late round (max)'
+                    : 'Late round pricing'}
+                </span>
+                <span className={`font-medium ${tierDisplay.color}`}>
+                  Volume tier: {tierDisplay.label}
+                </span>
+              </div>
+              {/* Show packs until next tier if applicable */}
+              {nextTierMultiplier && packsRemainingAtTier !== Infinity && (
+                <p className="text-xs text-gray-400 mt-1 text-center">
+                  {packsRemainingAtTier} more pack{packsRemainingAtTier !== 1 ? 's' : ''} at {tierDisplay.label} price
+                </p>
+              )}
+            </div>
+
+            {/* Expiration warning */}
+            <div className={`rounded-btn px-3 py-2 text-center ${
+              showExpirationWarning
+                ? 'bg-amber-50 border border-amber-200'
                 : 'bg-gray-50'
             }`}>
-              <p className={`text-xs ${
-                isLateRoundPricing
-                  ? 'text-gray-600'
-                  : 'text-gray-500'
-              }`}>
-                {pricingPhase === 'BASE'
-                  ? 'Early round pricing'
-                  : pricingPhase === 'LATE_2'
-                  ? 'Late round pricing (max)'
-                  : 'Late round pricing'}
+              <p className={`text-xs ${showExpirationWarning ? 'text-amber-700 font-medium' : 'text-gray-500'}`}>
+                ⏰ Paid guesses expire at 11:00 UTC ({formatTimeUntilReset(hoursUntilReset, minutesUntilReset)})
               </p>
             </div>
 
@@ -389,18 +460,15 @@ export default function GuessPurchaseModal({
             <div className="space-y-3">
               {packOptions.map((option) => {
                 const isSelected = selectedPackCount === option.packCount;
-                const isDisabled = option.packCount > maxSelectablePacks;
 
                 return (
                   <button
                     key={option.packCount}
                     onClick={() => handleSelectPack(option.packCount)}
-                    disabled={isDisabled || isPurchasing}
+                    disabled={isPurchasing}
                     className={`w-full p-4 rounded-btn border-2 transition-all duration-fast flex items-center justify-between ${
                       isSelected
                         ? 'border-brand bg-brand-50'
-                        : isDisabled
-                        ? 'border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed'
                         : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-brand-50'
                     }`}
                   >
@@ -432,20 +500,18 @@ export default function GuessPurchaseModal({
                       <p className="font-bold text-gray-900">
                         {option.totalPriceEth} ETH
                       </p>
+                      {option.spansTiers && (
+                        <p className="text-xs text-gray-400">spans tiers</p>
+                      )}
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            {/* Limit Indicator - de-emphasized */}
+            {/* Packs purchased today indicator */}
             <p className="text-xs text-gray-400 text-center">
-              {t('guessPack.limitIndicator', { count: packsPurchasedToday })}
-              {remainingPacks === 0 && (
-                <span className="block text-warning-600 font-medium mt-0.5">
-                  {t('guessPack.maxPacksReached')}
-                </span>
-              )}
+              {packsPurchasedToday} pack{packsPurchasedToday !== 1 ? 's' : ''} purchased today
             </p>
 
             {/* Error Message */}
@@ -480,7 +546,6 @@ export default function GuessPurchaseModal({
                   isTxPending ||
                   isTxConfirming ||
                   isVerifying ||
-                  remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage ||
                   showEarlyRoundReinforcement
@@ -490,7 +555,6 @@ export default function GuessPurchaseModal({
                   isTxPending ||
                   isTxConfirming ||
                   isVerifying ||
-                  remainingPacks === 0 ||
                   !selectedOption ||
                   !!successMessage ||
                   showEarlyRoundReinforcement
@@ -508,8 +572,6 @@ export default function GuessPurchaseModal({
                     : 'Verifying purchase...'
                 ) : isPurchasing ? (
                   t('guessPack.buyButtonLoading')
-                ) : remainingPacks === 0 ? (
-                  t('guessPack.maxPacksReached')
                 ) : (
                   <>
                     {t('guessPack.buyButton')} · {selectedOption?.totalPriceEth} ETH
