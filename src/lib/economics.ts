@@ -333,8 +333,8 @@ async function allocateToSeedAndCreator(
  *   - 10% to referrer
  *   - 10% to top 10 guessers
  * - If winner has NO referrer:
- *   - 17.5% to top 10 guessers (10% + 7.5% from referrer share)
- *   - 2.5% to seed for next round (always, no cap)
+ *   - 12.5% to top 10 guessers (10% + 2.5% from referrer share)
+ *   - 7.5% to seed for next round (always, no cap)
  *
  * Top 10 ranking:
  * - By total paid guess count (volume)
@@ -464,12 +464,12 @@ export async function resolveRoundAndCreatePayouts(
     // Winner has referrer: 80% winner, 10% referrer, 10% top guessers
     toReferrerWei = referrerShareWei;
   } else {
-    // No referrer: 80% winner, 17.5% top guessers, 2.5% seed
-    // 7.5% of referrer share (75% of 10%) goes to top guessers
-    const toTopGuessersBonus = (referrerShareWei * 7500n) / 10000n; // 7.5%
-    toTopGuessersWei = baseTopGuessersWei + toTopGuessersBonus; // 17.5%
-    // 2.5% of referrer share (25% of 10%) goes to seed
-    seedForNextRoundWei = (referrerShareWei * 2500n) / 10000n; // 2.5%
+    // No referrer: 80% winner, 12.5% top guessers, 7.5% seed
+    // 2.5% of referrer share (25% of 10%) goes to top guessers
+    const toTopGuessersBonus = (referrerShareWei * 2500n) / 10000n; // 2.5%
+    toTopGuessersWei = baseTopGuessersWei + toTopGuessersBonus; // 12.5%
+    // 7.5% of referrer share (75% of 10%) goes to seed for next round
+    seedForNextRoundWei = (referrerShareWei * 7500n) / 10000n; // 7.5%
   }
 
   // Note: For Sepolia simulation, seed is ignored since the contract uses
@@ -581,8 +581,8 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Referrer (10%): ${ethers.formatEther(toReferrerWei)} ETH`);
     console.log(`  - Top guessers (10%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
   } else {
-    console.log(`  - Top guessers (17.5%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
-    console.log(`  - Seed for next round (2.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
+    console.log(`  - Top guessers (12.5%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
+    console.log(`  - Seed for next round (7.5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   }
 
   // CRITICAL: Validate all payout addresses before calling contract
