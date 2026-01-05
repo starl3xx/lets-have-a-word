@@ -132,8 +132,9 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               )}
             </div>
             <div className="flex items-center gap-2 min-w-0">
-              <h2 className="text-xl font-bold text-gray-900 truncate">
-                {profile?.username || 'Player'} Has A Word!
+              <h2 className="text-xl font-bold text-gray-900 flex items-baseline min-w-0">
+                <span className="truncate">{profile?.username || 'Player'}</span>
+                <span className="flex-shrink-0">&nbsp;Has A Word!</span>
               </h2>
               {hasOgHunterBadge && (
                 <OgHunterBadge size="md" showTooltip={true} />
