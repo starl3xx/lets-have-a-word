@@ -31,6 +31,11 @@ interface WalletBalances {
     address: string;
     accumulatedEth: string;
   };
+  clanktonRewards?: {
+    tokenAddress: string;
+    balance: string; // Human readable whole number
+    balanceRaw: string;
+  };
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -108,6 +113,11 @@ const styles = {
   grid4: {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '16px',
+  },
+  grid5: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(5, 1fr)',
     gap: '16px',
   },
   statCard: {
@@ -797,7 +807,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               ⚠️ <strong>Contract unavailable:</strong> {balances.contractError}. Jackpot and creator pool values may not be accurate.
             </div>
           )}
-          <div style={styles.grid4}>
+          <div style={styles.grid5}>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Connected Wallet</div>
               <div style={styles.statValue}>{connectedBalance ? parseFloat(connectedBalance).toFixed(4) : '--'}</div>
@@ -815,6 +825,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statValue}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(4)}</div>
               <div style={styles.statSubtext}>ETH (withdrawable)</div>
               <div style={styles.address}>{shortenAddress(balances.creatorPool.address)}</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>CLANKTON Balance</div>
+              <div style={styles.statValue}>{formatClanktonBalance(balances.clanktonRewards?.balance || '0')}</div>
+              <div style={styles.statSubtext}>Bonus word rewards</div>
+              <div style={styles.address}>{shortenAddress(balances.contractAddress)}</div>
             </div>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Pending Refunds</div>
@@ -1115,6 +1131,20 @@ function getChainName(chainId: number): string {
     case 137: return 'Polygon';
     default: return `Chain ${chainId}`;
   }
+}
+
+function formatClanktonBalance(balance: string): string {
+  const num = parseFloat(balance);
+  if (isNaN(num) || num === 0) return '0';
+
+  if (num >= 1_000_000_000) {
+    return `${(num / 1_000_000_000).toFixed(1)}B`;
+  } else if (num >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(1)}M`;
+  } else if (num >= 1_000) {
+    return `${(num / 1_000).toFixed(1)}K`;
+  }
+  return num.toLocaleString();
 }
 
 // TypeScript declaration for window.ethereum
