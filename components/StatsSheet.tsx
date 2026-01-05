@@ -115,8 +115,8 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4 gap-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Profile Picture */}
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-brand-200 flex-shrink-0">
               {profile?.pfpUrl ? (
@@ -131,8 +131,8 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-gray-900">
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="text-xl font-bold text-gray-900 truncate">
                 {profile?.username || 'Player'} Has A Word!
               </h2>
               {hasOgHunterBadge && (
@@ -140,7 +140,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               )}
             </div>
           </div>
-          <button onClick={onClose} className="btn-close" aria-label="Close">
+          <button onClick={onClose} className="btn-close flex-shrink-0" aria-label="Close">
             ×
           </button>
         </div>
