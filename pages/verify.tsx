@@ -14,6 +14,9 @@ import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
 import type { VerifyRoundResponse, VerifyRoundErrorResponse } from './api/verify/round';
 
+// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
+const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+
 // Söhne font family (registered as 'Soehne' in globals.css)
 const FONT_FAMILY = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
@@ -371,8 +374,8 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
-                    {/* Bonus Words Feature: Bonus words commitment */}
-                    {result.hasBonusWords && result.bonusWordsCommitHash && (
+                    {/* Bonus Words Feature: Bonus words commitment (only if UI enabled) */}
+                    {BONUS_WORDS_UI_ENABLED && result.hasBonusWords && result.bonusWordsCommitHash && (
                       <div className="bg-cyan-50 rounded-xl px-4 py-3">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-cyan-600">🎣</span>
@@ -418,8 +421,8 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
-                    {/* Bonus Words Feature: Bonus words commitment */}
-                    {result.hasBonusWords && result.bonusWordsCommitHash && (
+                    {/* Bonus Words Feature: Bonus words commitment (only if UI enabled) */}
+                    {BONUS_WORDS_UI_ENABLED && result.hasBonusWords && result.bonusWordsCommitHash && (
                       <div className="bg-cyan-50 rounded-xl px-4 py-3">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-cyan-600">🎣</span>

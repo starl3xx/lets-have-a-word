@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Top10StatusChip from './Top10StatusChip';
 import BadgeStack from './BadgeStack';
 
+// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
+const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+
 interface TopGuesser {
   fid: number;
   username: string;
@@ -122,11 +125,17 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
     try {
       // Fetch round state, top guessers, and bonus word winners in parallel
-      const [roundResponse, guessersResponse, bonusWordsResponse] = await Promise.all([
+      // Only fetch bonus words if UI is enabled
+      const fetchPromises: Promise<Response>[] = [
         fetch('/api/round-state'),
         fetch('/api/round/top-guessers'),
-        fetch('/api/round/bonus-word-winners'),
-      ]);
+      ];
+      if (BONUS_WORDS_UI_ENABLED) {
+        fetchPromises.push(fetch('/api/round/bonus-word-winners'));
+      }
+      const responses = await Promise.all(fetchPromises);
+      const [roundResponse, guessersResponse] = responses;
+      const bonusWordsResponse = BONUS_WORDS_UI_ENABLED ? responses[2] : null;
 
       if (!roundResponse.ok) throw new Error('Failed to load round state');
       if (!guessersResponse.ok) throw new Error('Failed to load top guessers');
@@ -135,13 +144,15 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
       const roundData = await roundResponse.json();
       const guessersData = await guessersResponse.json();
 
-      // Bonus Words Feature: Parse bonus word winners if available
-      if (bonusWordsResponse.ok) {
-        const bonusData = await bonusWordsResponse.json();
-        setBonusWordWinners(bonusData.winners || []);
-      } else if (bonusWordsResponse.status === 204) {
-        // No bonus words for this round (legacy)
-        setBonusWordWinners([]);
+      // Bonus Words Feature: Parse bonus word winners if available and UI is enabled
+      if (bonusWordsResponse) {
+        if (bonusWordsResponse.ok) {
+          const bonusData = await bonusWordsResponse.json();
+          setBonusWordWinners(bonusData.winners || []);
+        } else if (bonusWordsResponse.status === 204) {
+          // No bonus words for this round (legacy)
+          setBonusWordWinners([]);
+        }
       }
 
       // Only update state if data has actually changed (prevents flickering)
@@ -418,8 +429,8 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               )}
             </div>
 
-            {/* Bonus Words Feature: Bonus Word Finders Section */}
-            {bonusWordWinners.length > 0 && (
+            {/* Bonus Words Feature: Bonus Word Finders Section (only if UI enabled) */}
+            {BONUS_WORDS_UI_ENABLED && bonusWordWinners.length > 0 && (
               <div className="mt-4">
                 <div className="text-center mb-1.5">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">

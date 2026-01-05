@@ -8,6 +8,9 @@ import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
 import BadgeStack from '../../components/BadgeStack';
 
+// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
+const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+
 interface TopGuesserWithUsername {
   fid: number;
   username: string | null;
@@ -395,8 +398,8 @@ export default function RoundDetailPage() {
                 </Section>
               )}
 
-              {/* Bonus Words Feature: Bonus Word Finders */}
-              {round.payoutsJson.bonusWordWinners && round.payoutsJson.bonusWordWinners.length > 0 && (
+              {/* Bonus Words Feature: Bonus Word Finders (only if UI enabled) */}
+              {BONUS_WORDS_UI_ENABLED && round.payoutsJson.bonusWordWinners && round.payoutsJson.bonusWordWinners.length > 0 && (
                 <Section title="🎣 Bonus word finders">
                   <p className="text-xs text-gray-500 mb-3">5M CLANKTON each</p>
                   <div className="bg-white rounded-xl border border-cyan-200 overflow-hidden">
