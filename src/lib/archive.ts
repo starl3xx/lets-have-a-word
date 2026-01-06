@@ -275,9 +275,26 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     // Create archive record
     // Decrypt the answer for storage in archive (revealed after round ends)
+    // Defensive check: ensure answer is a string (data corruption check)
+    let targetWord: string;
+    try {
+      if (typeof round.answer !== 'string') {
+        throw new Error(`Round ${roundId} answer field is not a string (got ${typeof round.answer}). Data may be corrupted.`);
+      }
+      targetWord = getPlaintextAnswer(round.answer);
+    } catch (decryptError) {
+      const errorMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
+      console.error(`[archive] Failed to decrypt answer for round ${roundId}:`, errorMsg);
+      await logArchiveError(roundId, 'decrypt_failed', errorMsg, { answerType: typeof round.answer });
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+
     const archiveData: RoundArchiveInsert = {
       roundNumber: roundId,
-      targetWord: getPlaintextAnswer(round.answer),
+      targetWord,
       seedEth,
       finalJackpotEth: round.prizePoolEth,
       totalGuesses,
