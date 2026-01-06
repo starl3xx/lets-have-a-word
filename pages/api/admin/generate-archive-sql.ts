@@ -1,7 +1,7 @@
 /**
  * Generate Archive SQL API Endpoint
  *
- * GET /api/admin/generate-archive-sql?roundId=2
+ * GET /api/admin/generate-archive-sql?roundId=2&targetWord=TUCKS
  *
  * Generates the raw SQL INSERT statement for manually archiving a round.
  * This is a workaround for Drizzle serialization issues.
@@ -49,6 +49,17 @@ export default async function handler(
       return res.status(404).json({ error: `Round ${roundId} not found` });
     }
 
+    // Get previous round's seedNextRoundEth (this is the seed for THIS round)
+    let seedEthForThisRound = '0';
+    if (roundId > 1) {
+      const [prevRound] = await db.select({
+        seedNextRoundEth: rounds.seedNextRoundEth,
+      }).from(rounds).where(eq(rounds.id, roundId - 1));
+      if (prevRound?.seedNextRoundEth) {
+        seedEthForThisRound = prevRound.seedNextRoundEth;
+      }
+    }
+
     // Get total guesses and unique players
     const [guessStats] = await db.select({
       totalGuesses: sql<number>`COUNT(*)::int`,
@@ -63,27 +74,27 @@ export default async function handler(
       .where(and(eq(guesses.roundId, roundId), eq(guesses.isCorrect, true)))
       .limit(1);
 
-    // Get payouts from round_payouts table
+    // Get payouts from round_payouts table (column is 'role' not 'payout_type')
     const payouts = await db.select().from(roundPayouts).where(eq(roundPayouts.roundId, roundId));
 
-    // Get winner payout
-    const winnerPayout = payouts.find(p => p.payoutType === 'winner');
+    // Get winner payout (role = 'winner')
+    const winnerPayout = payouts.find(p => p.role === 'winner');
 
-    // Get referrer payout
-    const referrerPayout = payouts.find(p => p.payoutType === 'referrer');
+    // Get referrer payout (role = 'referrer')
+    const referrerPayout = payouts.find(p => p.role === 'referrer');
 
-    // Get seed payout (for next round)
-    const seedPayout = payouts.find(p => p.payoutType === 'seed');
+    // Get seed payout (role = 'seed') - this is seed for NEXT round
+    const seedPayout = payouts.find(p => p.role === 'seed');
 
-    // Get creator payout
-    const creatorPayout = payouts.find(p => p.payoutType === 'creator');
+    // Get creator payout (role = 'creator')
+    const creatorPayout = payouts.find(p => p.role === 'creator');
+
+    // Get top_guesser payouts (role = 'top_guesser')
+    const topGuesserPayouts = payouts.filter(p => p.role === 'top_guesser');
 
     // Calculate Top 10 based on FIRST 750 guesses only
-    // This is the Top 10 lock logic - rankings frozen at guess 750
     const TOP_10_LOCK_THRESHOLD = 750;
 
-    // Use Drizzle's query builder for Top 10 calculation
-    // Get guesses ordered by index, limited to first 750
     const first750Guesses = await db.select({
       fid: guesses.fid,
       guessIndexInRound: guesses.guessIndexInRound,
@@ -119,18 +130,17 @@ export default async function handler(
       .filter(row => row.fid !== winnerFid)
       .slice(0, 10);
 
-    // Get top 10 payouts from round_payouts
-    const top10Payouts = payouts
-      .filter(p => p.payoutType === 'top10')
-      .sort((a, b) => (a.rank || 999) - (b.rank || 999));
-
-    // Build topGuessers array with ranks
-    const topGuessers = top10WithoutWinner.map((row, index) => ({
-      fid: row.fid,
-      amountEth: top10Payouts[index]?.amountEth || '0',
-      rank: index + 1,
-      guessCount: row.guessCount,
-    }));
+    // Build topGuessers array with amounts from round_payouts (matched by FID)
+    const topGuessers = top10WithoutWinner.map((row, index) => {
+      // Find the payout for this FID
+      const payout = topGuesserPayouts.find(p => p.fid === row.fid);
+      return {
+        fid: row.fid,
+        amountEth: payout?.amountEth || '0',
+        rank: index + 1,
+        guessCount: row.guessCount,
+      };
+    });
 
     // Build payouts JSON
     const payoutsJson: any = {
@@ -189,7 +199,7 @@ INSERT INTO round_archive (
 ) VALUES (
   ${roundId},
   '${targetWord.toUpperCase()}',
-  '${round.seedEth || '0'}',
+  '${seedEthForThisRound}',
   '${round.prizePoolEth || '0'}',
   ${guessStats.totalGuesses || 0},
   ${guessStats.uniquePlayers || 0},
@@ -215,14 +225,13 @@ INSERT INTO round_archive (
         winnerGuessNumber: winningGuess?.guessIndexInRound,
         startedAt: round.startedAt,
         resolvedAt: round.resolvedAt,
-        seedEth: round.seedEth,
+        seedEthForThisRound,
         prizePoolEth: round.prizePoolEth,
       },
       roundPayoutsFromDb: payouts.map(p => ({
-        payoutType: p.payoutType,
+        role: p.role,
         fid: p.fid,
         amountEth: p.amountEth,
-        rank: p.rank,
       })),
       top10: topGuessers,
       payoutsJson,
