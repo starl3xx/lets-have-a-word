@@ -58,6 +58,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
   const { roundId, force } = data;
 
   try {
+    console.log(`[archive] Step 1: Checking existing archive for round ${roundId}`);
     // Check if already archived
     const existingArchive = await db
       .select()
@@ -81,6 +82,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       }
     }
 
+    console.log(`[archive] Step 2: Fetching round ${roundId}`);
     // Get the round
     const [round] = await db
       .select()
@@ -104,6 +106,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       };
     }
 
+    console.log(`[archive] Step 3: Computing guesses for round ${roundId}`);
     // Compute total guesses
     const [totalGuessesResult] = await db
       .select({ count: count() })
@@ -142,6 +145,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       }
     }
 
+    console.log(`[archive] Step 4: Getting announcer event for round ${roundId}`);
     // Get cast hash for round resolution announcement
     let winnerCastHash: string | null = null;
     const [announcerEvent] = await db
@@ -158,6 +162,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       winnerCastHash = announcerEvent.castHash;
     }
 
+    console.log(`[archive] Step 5: Getting payouts for round ${roundId}`);
     // Get payouts for winner, referrer, seed from round_payouts
     const payoutRecords = await db
       .select()
@@ -245,6 +250,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       });
     }
 
+    console.log(`[archive] Step 6: Computing bonus counts for round ${roundId}`);
     // Compute CLANKTON bonus count
     // Count users who used clankton bonus during this round's active period
     const clanktonBonusCount = await computeClanktonBonusCount(
@@ -259,6 +265,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       round.resolvedAt
     );
 
+    console.log(`[archive] Step 7: Getting previous round seed for round ${roundId}`);
     // Compute seed ETH (this is the prize pool that existed at round start, i.e., from previous round's seed)
     // We need to look at the previous round's seedNextRoundEth
     let seedEth = '0';
@@ -335,6 +342,12 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       };
     }
 
+    console.log(`[archive] Step 8: Building archive data for round ${roundId}`);
+    // Log types of all fields being inserted to debug Date issue
+    console.log(`[archive] Field types: targetWord=${typeof targetWord}, seedEth=${typeof seedEth}, finalJackpotEth=${typeof round.prizePoolEth}, salt=${typeof round.salt}`);
+    console.log(`[archive] Field types: startTime=${round.startedAt instanceof Date ? 'Date' : typeof round.startedAt}, endTime=${round.resolvedAt instanceof Date ? 'Date' : typeof round.resolvedAt}`);
+    console.log(`[archive] Field types: payoutsJson=${typeof payoutsJson}, payoutsJson.winner.amountEth=${typeof payoutsJson.winner?.amountEth}`);
+
     const archiveData: RoundArchiveInsert = {
       roundNumber: roundId,
       targetWord,
@@ -354,6 +367,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       referralBonusCount,
     };
 
+    console.log(`[archive] Step 9: Inserting archive record for round ${roundId}`);
     const [archived] = await db
       .insert(roundArchive)
       .values(archiveData)
