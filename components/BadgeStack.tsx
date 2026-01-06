@@ -9,6 +9,7 @@ import { useState } from 'react';
 interface BadgeStackProps {
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
+  hasBonusWordBadge?: boolean;
   size?: 'sm' | 'md';
 }
 
@@ -28,17 +29,19 @@ const sizeConfig = {
 export default function BadgeStack({
   hasOgHunterBadge = false,
   hasClanktonBadge = false,
+  hasBonusWordBadge = false,
   size = 'sm',
 }: BadgeStackProps) {
   const [tooltipText, setTooltipText] = useState<string | null>(null);
   const config = sizeConfig[size];
 
-  // If neither badge, render nothing
-  if (!hasOgHunterBadge && !hasClanktonBadge) {
+  // If no badges, render nothing
+  if (!hasOgHunterBadge && !hasClanktonBadge && !hasBonusWordBadge) {
     return null;
   }
 
-  const hasBothBadges = hasOgHunterBadge && hasClanktonBadge;
+  // Count how many badges are shown for overlap calculation
+  const badgeCount = [hasOgHunterBadge, hasClanktonBadge, hasBonusWordBadge].filter(Boolean).length;
 
   return (
     <div
@@ -56,10 +59,10 @@ export default function BadgeStack({
         </div>
       )}
 
-      {/* CLANKTON Badge (shown second/on top, overlapping if both present) */}
+      {/* CLANKTON Badge (shown second, overlapping if previous badge present) */}
       {hasClanktonBadge && (
         <div
-          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center relative z-20 ${hasBothBadges ? config.overlap : ''}`}
+          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center relative z-20 ${hasOgHunterBadge ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
           onMouseEnter={() => setTooltipText('CLANKTON holder')}
           onTouchStart={() => setTooltipText('CLANKTON holder')}
@@ -69,6 +72,18 @@ export default function BadgeStack({
             alt="CLANKTON holder"
             className="w-full h-full object-cover"
           />
+        </div>
+      )}
+
+      {/* Bonus Word Finder Badge (shown last, overlapping if previous badges present) */}
+      {hasBonusWordBadge && (
+        <div
+          className={`${config.badge} bg-cyan-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-30 ${(hasOgHunterBadge || hasClanktonBadge) ? config.overlap : ''}`}
+          style={{ boxShadow: '0 0 0 1px #67e8f9' }}
+          onMouseEnter={() => setTooltipText('Bonus word finder')}
+          onTouchStart={() => setTooltipText('Bonus word finder')}
+        >
+          <span role="img" aria-label="Bonus word finder">🎣</span>
         </div>
       )}
 

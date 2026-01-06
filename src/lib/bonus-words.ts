@@ -3,8 +3,8 @@
  * Bonus Words Feature: Query functions for bonus word status and winners
  */
 
-import { db, roundBonusWords, users, rounds } from '../db';
-import { eq, and, isNotNull, isNull, desc } from 'drizzle-orm';
+import { db, roundBonusWords, users, rounds, userBadges } from '../db';
+import { eq, and, isNotNull, isNull, desc, inArray } from 'drizzle-orm';
 import { getPlaintextAnswer } from './encryption';
 
 /**
@@ -172,6 +172,9 @@ export interface BonusWordWinner {
   claimedAt: string;
   txHash: string | null;
   clanktonAmount: string; // "5000000" (5M CLANKTON)
+  hasOgHunterBadge?: boolean;
+  hasClanktonBadge?: boolean;
+  hasBonusWordBadge?: boolean;
 }
 
 /**
@@ -184,16 +187,67 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
     return [];
   }
 
-  return status.claimedWords.map(cw => ({
-    fid: cw.claimedBy.fid,
-    username: cw.claimedBy.username,
-    pfpUrl: cw.claimedBy.pfpUrl,
-    word: cw.word,
-    wordIndex: cw.wordIndex,
-    claimedAt: cw.claimedAt,
-    txHash: cw.txHash,
-    clanktonAmount: '5000000', // 5M CLANKTON per bonus word
-  }));
+  // Get badge data for all winners
+  const winnerFids = status.claimedWords.map(cw => cw.claimedBy.fid);
+  const badgeMap = new Map<number, { hasOgHunter: boolean; hasBonusWord: boolean }>();
+
+  if (winnerFids.length > 0) {
+    // Query badges for all winner FIDs
+    const badges = await db
+      .select({
+        fid: userBadges.fid,
+        badgeType: userBadges.badgeType,
+      })
+      .from(userBadges)
+      .where(inArray(userBadges.fid, winnerFids));
+
+    // Group badges by FID
+    for (const badge of badges) {
+      const existing = badgeMap.get(badge.fid) || { hasOgHunter: false, hasBonusWord: false };
+      if (badge.badgeType === 'OG_HUNTER') {
+        existing.hasOgHunter = true;
+      } else if (badge.badgeType === 'BONUS_WORD_FINDER') {
+        existing.hasBonusWord = true;
+      }
+      badgeMap.set(badge.fid, existing);
+    }
+  }
+
+  // Get CLANKTON holder status via wallet CLANKTON balances
+  // (For now, we'll check the clankton_balances table if it exists, or skip)
+  // NOTE: In the future, query clanktonBalances table
+  const clanktonHolderMap = new Map<number, boolean>();
+  try {
+    const { clanktonBalances } = await import('../db');
+    if (clanktonBalances && winnerFids.length > 0) {
+      const balances = await db
+        .select({ fid: clanktonBalances.fid })
+        .from(clanktonBalances)
+        .where(inArray(clanktonBalances.fid, winnerFids));
+      for (const b of balances) {
+        clanktonHolderMap.set(b.fid, true);
+      }
+    }
+  } catch {
+    // Table doesn't exist or query failed, skip CLANKTON holder check
+  }
+
+  return status.claimedWords.map(cw => {
+    const badges = badgeMap.get(cw.claimedBy.fid);
+    return {
+      fid: cw.claimedBy.fid,
+      username: cw.claimedBy.username,
+      pfpUrl: cw.claimedBy.pfpUrl,
+      word: cw.word,
+      wordIndex: cw.wordIndex,
+      claimedAt: cw.claimedAt,
+      txHash: cw.txHash,
+      clanktonAmount: '5000000', // 5M CLANKTON per bonus word
+      hasOgHunterBadge: badges?.hasOgHunter || false,
+      hasClanktonBadge: clanktonHolderMap.get(cw.claimedBy.fid) || false,
+      hasBonusWordBadge: badges?.hasBonusWord || false,
+    };
+  });
 }
 
 /**
