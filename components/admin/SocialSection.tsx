@@ -194,8 +194,13 @@ export default function SocialSection({ user }: SocialSectionProps) {
 
       const roundNumber = roundState.roundId
       const prizePool = parseFloat(roundState.prizePoolEth || '0').toFixed(4)
-      const globalGuesses = (roundState.globalGuessCount || 0).toLocaleString()
+      const globalGuessCount = roundState.globalGuessCount || 0
+      const globalGuesses = globalGuessCount.toLocaleString()
       const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
+
+      // Calculate percentage of valid words guessed (total valid words ≈ 4400)
+      const totalValidWords = 4400
+      const guessPercentage = Math.round((globalGuessCount / totalValidWords) * 100)
 
       let topGuessersStr = ""
       if (topGuessersData.topGuessers && topGuessersData.topGuessers.length > 0) {
@@ -220,7 +225,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
       const castText = `@letshaveaword status
 🔵 Round: #${roundNumber}
 💰 Prize pool: ${prizePool} ETH
-🎯 Global guesses: ${globalGuesses}
+🎯 Global guesses: ${globalGuesses} (≈${guessPercentage}%)
 👥 Players: ${playerCount}
 🏆 Top early guessers: ${topGuessersStr || "N/A"}
 🏅 Mini app rank: #`
