@@ -22,18 +22,52 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ArchiveSyncResponse | { error: string }>
 ) {
+  // GET: Show a simple form for admin to trigger sync
+  if (req.method === 'GET') {
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Archive Sync</title></head>
+      <body style="font-family: system-ui; max-width: 500px; margin: 50px auto; padding: 20px;">
+        <h2>Archive Sync</h2>
+        <p style="color: #666;">Sync all resolved rounds to the archive.</p>
+        <form method="POST">
+          <div style="margin-bottom: 15px;">
+            <label>Your Admin FID:</label><br/>
+            <input type="number" name="fid" required style="width: 100%; padding: 8px; margin-top: 5px;" placeholder="e.g. 12345" />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label>Round ID (optional - leave blank to sync all):</label><br/>
+            <input type="number" name="roundId" style="width: 100%; padding: 8px; margin-top: 5px;" placeholder="e.g. 2" />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" name="force" value="true" />
+              Force re-archive (delete and recreate existing archives)
+            </label>
+          </div>
+          <button type="submit" style="width: 100%; padding: 10px; background: #2563eb; color: white; border: none; cursor: pointer;">Run Archive Sync</button>
+        </form>
+      </body>
+      </html>
+    `);
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Get FID from dev mode or session
+    // Get FID from dev mode, session, or form body
     let fid: number | null = null;
 
     if (req.query.devFid) {
       fid = parseInt(req.query.devFid as string, 10);
     } else if (req.cookies.siwn_fid) {
       fid = parseInt(req.cookies.siwn_fid, 10);
+    } else if (req.body?.fid) {
+      fid = parseInt(req.body.fid, 10);
     }
 
     if (!fid || isNaN(fid)) {
