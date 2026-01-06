@@ -198,13 +198,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           When a round is won, the prize pool is distributed atomically onchain in a single transaction:
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li><strong>80%</strong> → Jackpot winner</li>
-            <li><strong>10%</strong> → Top 10 early guessers</li>
-            <li><strong>10%</strong> → Referrer (if one exists)</li>
+            <li><strong>10%</strong> → Top 10 Early Guessers</li>
+            <li><strong>5%</strong> → Referrer (if one exists)</li>
+            <li><strong>5%</strong> → Next round seed</li>
           </ul>
           <p className="mt-2">If the winner <strong>does not</strong> have a referrer:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li><strong>2.5%</strong> is added to the Top 10 pool</li>
-            <li><strong>7.5%</strong> seeds the next round's prize pool</li>
+            <li>The 5% referrer share is redirected to the next round seed</li>
+            <li>Next round seed is capped at 0.03 ETH</li>
+            <li>Any overflow above the cap goes to the creator</li>
           </ul>
           <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
         </>
@@ -246,7 +248,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do referrals work?",
       answer: (
         <>
-          Share your unique referral link with friends or on the timeline. If anyone who joins using your link <strong>ever wins a jackpot</strong>, you'll automatically receive <strong>10% of that round's prize pool</strong>.
+          Share your unique referral link with friends or on the timeline. If anyone who joins using your link <strong>ever wins a jackpot</strong>, you'll automatically receive <strong>5% of that round's prize pool</strong>.
           <p className="mt-2">You can track your referrals and earnings in the Refer sheet.</p>
         </>
       ),

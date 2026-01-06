@@ -97,12 +97,14 @@ Pack purchases are **unlimited** — there's no daily cap. Volume multipliers re
 When a round is won, the prize pool is distributed atomically onchain in a single transaction:
 
 - **80%** → Jackpot winner
-- **10%** → Top 10 early guessers
-- **10%** → Referrer (if one exists)
+- **10%** → Top 10 Early Guessers
+- **5%** → Referrer (if one exists)
+- **5%** → Next round seed
 
 If the winner **does not** have a referrer:
-- **7.5%** is added to the Top 10 pool
-- **2.5%** seeds the next round's prize pool
+- The 5% referrer share is redirected to the next round seed
+- Next round seed is capped at 0.03 ETH
+- Any overflow above the cap goes to the creator
 
 Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
 
@@ -133,7 +135,7 @@ This distribution is fixed and always applies when a round is resolved, scaling 
 
 ## How do referrals work?
 
-Share your unique referral link with friends or on the timeline. If anyone who joins using your link **ever wins a jackpot**, you'll automatically receive **10% of that round's prize pool**.
+Share your unique referral link with friends or on the timeline. If anyone who joins using your link **ever wins a jackpot**, you'll automatically receive **5% of that round's prize pool**.
 
 You can track your referrals and earnings in the Refer sheet.
 

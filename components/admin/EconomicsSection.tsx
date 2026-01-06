@@ -1079,7 +1079,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
       {/* E) Pool Split & Referral Analysis */}
       <div style={styles.section}>
         <h3 style={styles.sectionTitle}>
-          <span>💰</span> Pool Split & Referral Sanity (80/10/10)
+          <span>💰</span> Pool Split & Referral Sanity (80/10/5/5)
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
@@ -1125,11 +1125,11 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
               <span style={styles.statValue}>{poolSplit.ethDistribution.toTop10.toFixed(4)} ETH</span>
             </div>
             <div style={styles.statRow}>
-              <span style={styles.statLabel}>To referrers</span>
+              <span style={styles.statLabel}>To referrers (5%)</span>
               <span style={styles.statValue}>{poolSplit.ethDistribution.toReferrals.toFixed(4)} ETH</span>
             </div>
             <div style={styles.statRow}>
-              <span style={styles.statLabel}>To next-round seed</span>
+              <span style={styles.statLabel}>To next-round seed (5%)</span>
               <span style={styles.statValue}>{poolSplit.ethDistribution.toNextRoundSeed.toFixed(4)} ETH</span>
             </div>
           </div>
