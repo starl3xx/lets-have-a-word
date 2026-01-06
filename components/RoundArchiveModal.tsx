@@ -308,9 +308,9 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
           </div>
         ) : (
           <>
-            {/* Prize Breakdown - 2x2 grid for 4 categories */}
+            {/* Prize Breakdown - 3 columns */}
             {breakdown && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {/* Jackpot - highlighted as the main prize */}
                 <div className="border-2 border-green-200 bg-green-50 rounded-xl p-3 text-center flex flex-col">
                   {/* Header region - flex-1 grows to fill space, pushing values to bottom */}
@@ -325,21 +325,6 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                       <span className="text-sm font-medium opacity-50"> ETH</span>
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
-                  </div>
-                </div>
-
-                {/* Early Guessers */}
-                <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center flex flex-col">
-                  <div className="flex-1 flex flex-col justify-start">
-                    <div className="text-xs text-amber-700 uppercase font-semibold">Early Guessers</div>
-                    <div className="text-xs text-amber-600/70">(10% of pool)</div>
-                  </div>
-                  <div className="mt-auto pt-2">
-                    <div className="text-lg leading-tight text-gray-900">
-                      <span className="font-bold">.{breakdown.topGuessers.eth.replace('0.', '')}</span>
-                      <span className="text-sm font-medium opacity-50"> ETH</span>
-                    </div>
-                    <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                   </div>
                 </div>
 
@@ -358,18 +343,18 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   </div>
                 </div>
 
-                {/* Next Round Seed */}
-                <div className="border-2 border-blue-200 bg-blue-50 rounded-xl p-3 text-center flex flex-col">
+                {/* Early Guessers */}
+                <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center flex flex-col">
                   <div className="flex-1 flex flex-col justify-start">
-                    <div className="text-xs text-blue-700 uppercase font-semibold">Next Round</div>
-                    <div className="text-xs text-blue-600/70">(5% of pool)</div>
+                    <div className="text-xs text-amber-700 uppercase font-semibold">Early Guessers</div>
+                    <div className="text-xs text-amber-600/70">(10% of pool)</div>
                   </div>
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
-                      <span className="font-bold">.{breakdown.nextRound.eth.replace('0.', '')}</span>
+                      <span className="font-bold">.{breakdown.topGuessers.eth.replace('0.', '')}</span>
                       <span className="text-sm font-medium opacity-50"> ETH</span>
                     </div>
-                    <div className="text-xs text-gray-400">(${breakdown.nextRound.usd} USD)</div>
+                    <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                   </div>
                 </div>
               </div>
@@ -377,7 +362,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
 
             {/* Payout disclaimer */}
             <p className="text-xs text-gray-400 italic text-center -mt-1">
-              All payouts resolve onchain when the secret word is found
+              5% of prize pool seeds next round's pool; All payouts resolve onchain when the secret word is found
             </p>
 
             {/* Early Guessers List */}
