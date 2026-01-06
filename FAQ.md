@@ -102,7 +102,8 @@ When a round is won, the prize pool is distributed atomically onchain in a singl
 - **5%** → Next round seed
 
 If the winner **does not** have a referrer:
-- The 5% referrer share is redirected to the next round seed
+- **2.5%** of the referrer share is added to the Top 10 pool
+- **2.5%** is added to the next round seed
 - Next round seed is capped at 0.03 ETH
 - Any overflow above the cap goes to the creator
 
