@@ -42,6 +42,7 @@ export default async function handler(
           claimId: bonusWordClaims.id,
           bonusWordId: bonusWordClaims.bonusWordId,
           fid: bonusWordClaims.fid,
+          username: users.username,
           walletAddress: bonusWordClaims.walletAddress,
           txStatus: bonusWordClaims.txStatus,
           txHash: bonusWordClaims.txHash,
@@ -53,6 +54,7 @@ export default async function handler(
         })
         .from(bonusWordClaims)
         .leftJoin(roundBonusWords, eq(bonusWordClaims.bonusWordId, roundBonusWords.id))
+        .leftJoin(users, eq(bonusWordClaims.fid, users.fid))
         .where(or(
           eq(bonusWordClaims.txStatus, 'failed'),
           eq(bonusWordClaims.txStatus, 'pending')
@@ -65,6 +67,7 @@ export default async function handler(
           roundId: roundBonusWords.roundId,
           wordIndex: roundBonusWords.wordIndex,
           claimedByFid: roundBonusWords.claimedByFid,
+          username: users.username,
           claimedAt: roundBonusWords.claimedAt,
           txHash: roundBonusWords.txHash,
         })
