@@ -951,13 +951,13 @@ export interface ArchiveStats {
  */
 export async function getArchiveStats(): Promise<ArchiveStats> {
   return trackSlowQuery('query:getArchiveStats', async () => {
+    // Get basic archive stats
     const result = await db.execute<{
       total_rounds: string;
       total_guesses_all_time: string;
       total_players: string;
       unique_winners: string;
       total_jackpot_distributed: string;
-      total_clankton_bonuses: string;
       avg_guesses_per_round: string;
       avg_players_per_round: string;
       avg_round_length_minutes: string;
@@ -968,11 +968,17 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
         COALESCE(SUM(unique_players), 0) as total_players,
         COUNT(DISTINCT winner_fid) as unique_winners,
         COALESCE(SUM(final_jackpot_eth), 0) as total_jackpot_distributed,
-        COALESCE(SUM(clankton_bonus_count), 0) as total_clankton_bonuses,
         COALESCE(AVG(total_guesses), 0) as avg_guesses_per_round,
         COALESCE(AVG(unique_players), 0) as avg_players_per_round,
         COALESCE(AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60), 0) as avg_round_length_minutes
       FROM round_archive
+    `);
+
+    // Get total CLANKTON distributed (sum of actual amounts from daily_guess_state)
+    const clanktonResult = await db.execute<{ total_clankton: string }>(sql`
+      SELECT COALESCE(SUM(free_allocated_clankton), 0) as total_clankton
+      FROM daily_guess_state
+      WHERE free_allocated_clankton > 0
     `);
 
     const row = result[0];
@@ -982,7 +988,7 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       totalPlayers: parseInt(row?.total_players ?? '0', 10),
       uniqueWinners: parseInt(row?.unique_winners ?? '0', 10),
       totalJackpotDistributed: row?.total_jackpot_distributed ?? '0',
-      totalClanktonBonuses: parseInt(row?.total_clankton_bonuses ?? '0', 10),
+      totalClanktonBonuses: parseInt(clanktonResult[0]?.total_clankton ?? '0', 10),
       avgGuessesPerRound: parseFloat(row?.avg_guesses_per_round ?? '0'),
       avgPlayersPerRound: parseFloat(row?.avg_players_per_round ?? '0'),
       avgRoundLengthMinutes: parseFloat(row?.avg_round_length_minutes ?? '0'),

@@ -224,7 +224,8 @@ export default function RoundDetailPage() {
           <div className="bg-white border-b border-gray-200">
             <div className="max-w-2xl mx-auto px-4 py-4">
               <div className="flex flex-wrap gap-2">
-                <StatChip label="ETH" value={formatEth(round.finalJackpotEth)} highlight />
+                <StatChip label="prize pool" value={`${formatEth(round.finalJackpotEth)} ETH`} variant="green" />
+                <StatChip label="jackpot (80%)" value={`${(parseFloat(round.finalJackpotEth) * 0.8).toFixed(4)} ETH`} variant="green" />
                 <StatChip label="guesses" value={round.totalGuesses.toLocaleString()} />
                 <StatChip label="players" value={round.uniquePlayers.toLocaleString()} />
                 <StatChip label="duration" value={formatDuration(round.startTime, round.endTime)} />
@@ -327,13 +328,27 @@ export default function RoundDetailPage() {
                       </div>
                     </div>
                     {/* Referrer */}
-                    <div className="border-2 border-purple-200 bg-purple-50 rounded-xl p-3 text-center">
-                      <div className="text-xs text-purple-700 uppercase font-semibold">Referrer</div>
-                      <div className="text-xs text-purple-600/70">(10%)</div>
-                      <div className="mt-2 text-lg font-bold text-gray-900">
-                        .{breakdown.referrer.replace('0.', '')}
-                        <span className="text-sm font-medium opacity-50"> ETH</span>
-                      </div>
+                    <div className={`border-2 rounded-xl p-3 text-center ${
+                      round.referrerFid
+                        ? 'border-purple-200 bg-purple-50'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}>
+                      <div className={`text-xs uppercase font-semibold ${
+                        round.referrerFid ? 'text-purple-700' : 'text-gray-500'
+                      }`}>Referrer</div>
+                      <div className={`text-xs ${
+                        round.referrerFid ? 'text-purple-600/70' : 'text-gray-400'
+                      }`}>(10%)</div>
+                      {round.referrerFid ? (
+                        <div className="mt-2 text-lg font-bold text-gray-900">
+                          .{breakdown.referrer.replace('0.', '')}
+                          <span className="text-sm font-medium opacity-50"> ETH</span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-gray-400">
+                          No referrer
+                        </div>
+                      )}
                     </div>
                     {/* Early Guessers */}
                     <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-3 text-center">
@@ -553,24 +568,20 @@ export default function RoundDetailPage() {
 function StatChip({
   label,
   value,
-  highlight,
+  variant = 'default',
 }: {
   label: string;
   value: string;
-  highlight?: boolean;
+  variant?: 'default' | 'green' | 'purple';
 }) {
+  const bgClass = variant === 'green' ? 'bg-green-50' : variant === 'purple' ? 'bg-purple-50' : 'bg-gray-100';
+
   return (
-    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${
-      highlight ? 'bg-green-50' : 'bg-gray-100'
-    }`}>
-      <span className={`font-bold tabular-nums ${
-        highlight ? 'text-green-600' : 'text-gray-900'
-      }`}>
+    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 ${bgClass}`}>
+      <span className="text-sm font-semibold tabular-nums text-gray-900">
         {value}
       </span>
-      <span className={`text-xs ${
-        highlight ? 'text-green-600/70' : 'text-gray-500'
-      }`}>
+      <span className="text-xs text-gray-500">
         {label}
       </span>
     </div>
