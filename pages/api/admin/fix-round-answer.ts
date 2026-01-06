@@ -30,6 +30,10 @@ export default async function handler(
         <h2>Fix Round Answer</h2>
         <form method="POST">
           <div style="margin-bottom: 15px;">
+            <label>Your Admin FID:</label><br/>
+            <input type="number" name="fid" required style="width: 100%; padding: 8px; margin-top: 5px;" placeholder="e.g. 12345" />
+          </div>
+          <div style="margin-bottom: 15px;">
             <label>Round ID:</label><br/>
             <input type="number" name="roundId" required style="width: 100%; padding: 8px; margin-top: 5px;" />
           </div>
