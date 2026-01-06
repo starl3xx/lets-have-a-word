@@ -22,41 +22,40 @@ import {
 } from '../../../../src/lib/pack-pricing';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
+interface PhaseBreakdown {
+  base: { count: number; revenueEth: number; buyers: number };
+  late1: { count: number; revenueEth: number; buyers: number };
+  late2: { count: number; revenueEth: number; buyers: number };
+  total: { count: number; revenueEth: number; buyers: number };
+}
+
+interface PhaseDistribution {
+  base: number;
+  late1: number;
+  late2: number;
+}
+
 export interface PackPricingAnalytics {
   // Current state
   currentPhase: 'BASE' | 'LATE_1' | 'LATE_2';
   currentPhaseLabel: string;
   currentPackPriceEth: string;
   totalGuessesInRound: number;
+  currentRoundId: number | null;
+
+  // Purchases by phase (current round)
+  currentRound: PhaseBreakdown;
 
   // Purchases by phase (last 24h)
-  last24h: {
-    base: { count: number; revenueEth: number; buyers: number };
-    late1: { count: number; revenueEth: number; buyers: number };
-    late2: { count: number; revenueEth: number; buyers: number };
-    total: { count: number; revenueEth: number; buyers: number };
-  };
+  last24h: PhaseBreakdown;
 
   // Purchases by phase (last 7d)
-  last7d: {
-    base: { count: number; revenueEth: number; buyers: number };
-    late1: { count: number; revenueEth: number; buyers: number };
-    late2: { count: number; revenueEth: number; buyers: number };
-    total: { count: number; revenueEth: number; buyers: number };
-  };
+  last7d: PhaseBreakdown;
 
   // Phase distribution percentages
-  phaseDistribution24h: {
-    base: number;
-    late1: number;
-    late2: number;
-  };
-
-  phaseDistribution7d: {
-    base: number;
-    late1: number;
-    late2: number;
-  };
+  phaseDistributionCurrentRound: PhaseDistribution;
+  phaseDistribution24h: PhaseDistribution;
+  phaseDistribution7d: PhaseDistribution;
 
   // Early-round reinforcement
   earlyRoundReinforcementCount: number;
@@ -120,6 +119,13 @@ export default async function handler(
     };
 
     let last7d = {
+      base: { count: 0, revenueEth: 0, buyers: 0 },
+      late1: { count: 0, revenueEth: 0, buyers: 0 },
+      late2: { count: 0, revenueEth: 0, buyers: 0 },
+      total: { count: 0, revenueEth: 0, buyers: 0 },
+    };
+
+    let currentRound = {
       base: { count: 0, revenueEth: 0, buyers: 0 },
       late1: { count: 0, revenueEth: 0, buyers: 0 },
       late2: { count: 0, revenueEth: 0, buyers: 0 },
@@ -201,13 +207,59 @@ export default async function handler(
       `);
       last7d.total.buyers = Number(totalBuyers7d?.buyers) || 0;
 
+      // Current round by phase (if there's an active round)
+      if (activeRound?.id) {
+        const purchasesCurrentRound = await db.execute<{
+          phase: string;
+          count: number;
+          revenue: number;
+          buyers: number;
+        }>(sql`
+          SELECT
+            COALESCE(data->>'pricing_phase', 'BASE') as phase,
+            COUNT(*)::int as count,
+            COALESCE(SUM(CAST(data->>'expected_cost_eth' AS NUMERIC)), 0) as revenue,
+            COUNT(DISTINCT user_id)::int as buyers
+          FROM analytics_events
+          WHERE event_type = 'guess_pack_purchased'
+            AND (data->>'round_id')::int = ${activeRound.id}
+          GROUP BY COALESCE(data->>'pricing_phase', 'BASE')
+        `);
+
+        for (const row of purchasesCurrentRound || []) {
+          const phase = row.phase || 'BASE';
+          const data = { count: Number(row.count), revenueEth: Number(row.revenue), buyers: Number(row.buyers) };
+          if (phase === 'BASE') currentRound.base = data;
+          else if (phase === 'LATE_1') currentRound.late1 = data;
+          else if (phase === 'LATE_2') currentRound.late2 = data;
+          currentRound.total.count += data.count;
+          currentRound.total.revenueEth += data.revenueEth;
+        }
+
+        // Get unique buyers for current round total
+        const [totalBuyersCurrentRound] = await db.execute<{ buyers: number }>(sql`
+          SELECT COUNT(DISTINCT user_id)::int as buyers
+          FROM analytics_events
+          WHERE event_type = 'guess_pack_purchased'
+            AND (data->>'round_id')::int = ${activeRound.id}
+        `);
+        currentRound.total.buyers = Number(totalBuyersCurrentRound?.buyers) || 0;
+      }
+
     } catch (err) {
       console.error('[pack-pricing] Error fetching purchase data:', err);
     }
 
     // Calculate phase distributions
+    const totalCurrentRound = currentRound.total.count || 1;
     const total24h = last24h.total.count || 1;
     const total7d = last7d.total.count || 1;
+
+    const phaseDistributionCurrentRound = {
+      base: (currentRound.base.count / totalCurrentRound) * 100,
+      late1: (currentRound.late1.count / totalCurrentRound) * 100,
+      late2: (currentRound.late2.count / totalCurrentRound) * 100,
+    };
 
     const phaseDistribution24h = {
       base: (last24h.base.count / total24h) * 100,
@@ -247,8 +299,11 @@ export default async function handler(
       currentPhaseLabel: phaseLabels[currentPhase],
       currentPackPriceEth: weiToEthString(currentPackPriceWei),
       totalGuessesInRound,
+      currentRoundId: activeRound?.id || null,
+      currentRound,
       last24h,
       last7d,
+      phaseDistributionCurrentRound,
       phaseDistribution24h,
       phaseDistribution7d,
       earlyRoundReinforcementCount,

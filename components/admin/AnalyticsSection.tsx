@@ -521,24 +521,26 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       <Module title="Pack Pricing Analytics">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-          {/* Last 24h */}
+          {/* Current Round */}
           <div>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>Last 24 hours</div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+              Current Round{packPricing?.currentRoundId ? ` (#${packPricing.currentRoundId})` : ''}
+            </div>
             <div style={{ ...styles.grid, gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #10b981" }}>
                 <div style={styles.statLabel}>Early (BASE)</div>
-                <div style={styles.statValue}>{packPricing?.last24h.base.count || 0}</div>
-                <div style={styles.statSubtext}>{formatEth(packPricing?.last24h.base.revenueEth || 0)} ETH</div>
+                <div style={styles.statValue}>{packPricing?.currentRound?.base.count || 0}</div>
+                <div style={styles.statSubtext}>{formatEth(packPricing?.currentRound?.base.revenueEth || 0)} ETH</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #f59e0b" }}>
                 <div style={styles.statLabel}>Late (LATE_1)</div>
-                <div style={styles.statValue}>{packPricing?.last24h.late1.count || 0}</div>
-                <div style={styles.statSubtext}>{formatEth(packPricing?.last24h.late1.revenueEth || 0)} ETH</div>
+                <div style={styles.statValue}>{packPricing?.currentRound?.late1.count || 0}</div>
+                <div style={styles.statSubtext}>{formatEth(packPricing?.currentRound?.late1.revenueEth || 0)} ETH</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #ef4444" }}>
                 <div style={styles.statLabel}>Capped (LATE_2)</div>
-                <div style={styles.statValue}>{packPricing?.last24h.late2.count || 0}</div>
-                <div style={styles.statSubtext}>{formatEth(packPricing?.last24h.late2.revenueEth || 0)} ETH</div>
+                <div style={styles.statValue}>{packPricing?.currentRound?.late2.count || 0}</div>
+                <div style={styles.statSubtext}>{formatEth(packPricing?.currentRound?.late2.revenueEth || 0)} ETH</div>
               </div>
             </div>
           </div>
@@ -548,18 +550,18 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             <div style={{ ...styles.grid, gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #10b981" }}>
                 <div style={styles.statLabel}>Early (BASE)</div>
-                <div style={styles.statValue}>{packPricing?.last7d.base.count || 0}</div>
-                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d.base || 0)} of total</div>
+                <div style={styles.statValue}>{packPricing?.last7d?.base.count || 0}</div>
+                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d?.base || 0)} of total</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #f59e0b" }}>
                 <div style={styles.statLabel}>Late (LATE_1)</div>
-                <div style={styles.statValue}>{packPricing?.last7d.late1.count || 0}</div>
-                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d.late1 || 0)} of total</div>
+                <div style={styles.statValue}>{packPricing?.last7d?.late1.count || 0}</div>
+                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d?.late1 || 0)} of total</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #ef4444" }}>
                 <div style={styles.statLabel}>Capped (LATE_2)</div>
-                <div style={styles.statValue}>{packPricing?.last7d.late2.count || 0}</div>
-                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d.late2 || 0)} of total</div>
+                <div style={styles.statValue}>{packPricing?.last7d?.late2.count || 0}</div>
+                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d?.late2 || 0)} of total</div>
               </div>
             </div>
           </div>
@@ -708,8 +710,8 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           />
           <StatCard
             label="Hardest Word"
-            value={gameplayInsights?.hardestWords?.[0]?.word || 'N/A'}
-            subtext={gameplayInsights?.hardestWords?.[0] ? `${formatPercent(gameplayInsights.hardestWords[0].solveRate)} solve rate` : ''}
+            value={gameplayInsights?.hardestWords?.[0]?.word?.toUpperCase() || 'N/A'}
+            subtext={gameplayInsights?.hardestWords?.[0] ? `Round #${gameplayInsights.hardestWords[0].roundId} · ${formatPercent(gameplayInsights.hardestWords[0].solveRate)} solve rate` : ''}
             loading={loading}
           />
         </div>

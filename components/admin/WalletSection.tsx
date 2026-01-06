@@ -1102,55 +1102,57 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
             return (
               <>
-                <div style={styles.grid5}>
+                {/* Primary: Connected Wallet Balance */}
+                {connectedWallet && (
+                  <div style={{ ...styles.statCard, marginBottom: '16px', padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={styles.statLabel}>Connected Wallet</div>
+                        <div style={{ ...styles.statValue, fontSize: '28px' }}>
+                          {connectedBalance ? parseFloat(connectedBalance).toFixed(4) : '--'} ETH
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#374151' }}>
+                          {connectedWallet.address}
+                        </div>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(connectedWallet.address)}
+                          style={{ ...styles.btnSecondary, ...styles.btnSmall, marginTop: '8px' }}
+                        >
+                          Copy Address
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Secondary: Other balances in compact grid */}
+                <div style={styles.grid4}>
                   <div style={styles.statCard}>
-                    <div style={styles.statLabel}>Connected Wallet</div>
-                    <div style={styles.statValue}>{connectedBalance ? parseFloat(connectedBalance).toFixed(4) : '--'}</div>
+                    <div style={styles.statLabel}>Prize Pool</div>
+                    <div style={styles.statValueSmall}>{parseFloat(balances.prizePool.currentJackpotEth).toFixed(4)}</div>
                     <div style={styles.statSubtext}>ETH</div>
-                    {connectedWallet && <div style={styles.address}>{shortenAddress(connectedWallet.address)}</div>}
                   </div>
                   <div style={styles.statCard}>
-                    <div style={styles.statLabel}>Prize Pool / Jackpot</div>
-                    <div style={styles.statValue}>{parseFloat(balances.prizePool.currentJackpotEth).toFixed(4)}</div>
-                    <div style={styles.statSubtext}>ETH</div>
-                    <div style={styles.address}>{shortenAddress(balances.prizePool.address)}</div>
-                  </div>
-                  <div style={styles.statCard}>
-                    <div style={styles.statLabel}>Next Round Seed</div>
-                    <div style={styles.statValue}>
-                      <span style={hasShortfall ? { color: '#d97706' } : { color: '#16a34a' }}>
-                        {parseFloat(seedTotal).toFixed(4)}
-                      </span>
+                    <div style={styles.statLabel}>Next Seed</div>
+                    <div style={{ ...styles.statValueSmall, color: hasShortfall ? '#d97706' : '#16a34a' }}>
+                      {parseFloat(seedTotal).toFixed(4)}
                     </div>
                     <div style={styles.statSubtext}>
-                      {hasShortfall ? (
-                        <span style={{ color: '#d97706' }}>
-                          {parseFloat(shortfall).toFixed(4)} below target
-                        </span>
-                      ) : (
-                        <span style={{ color: '#16a34a' }}>0.03 ETH target met</span>
-                      )}
+                      {hasShortfall ? `${parseFloat(shortfall).toFixed(4)} short` : 'Target met'}
                     </div>
                   </div>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Treasury</div>
-                    <div style={styles.statValue}>{treasury ? parseFloat(treasury.balanceEth).toFixed(4) : '--'}</div>
+                    <div style={styles.statValueSmall}>{treasury ? parseFloat(treasury.balanceEth).toFixed(4) : '--'}</div>
                     <div style={styles.statSubtext}>
-                      {treasury?.isWithdrawable ? (
-                        <span style={{ color: '#16a34a' }}>
-                          {parseFloat(treasury.withdrawableEth).toFixed(4)} withdrawable
-                        </span>
-                      ) : (
-                        <span style={{ color: '#6b7280' }}>
-                          {parseFloat(fromTreasury).toFixed(4)} → seed
-                        </span>
-                      )}
+                      {treasury?.isWithdrawable ? `${parseFloat(treasury.withdrawableEth).toFixed(4)} withdraw` : `${parseFloat(fromTreasury).toFixed(4)} → seed`}
                     </div>
-                    {treasury && <div style={styles.address}>{shortenAddress(treasury.address)}</div>}
                   </div>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Pending Refunds</div>
-                    <div style={styles.statValue}>{parseFloat(balances.pendingRefunds.totalEth).toFixed(4)}</div>
+                    <div style={styles.statValueSmall}>{parseFloat(balances.pendingRefunds.totalEth).toFixed(4)}</div>
                     <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending</div>
                   </div>
                 </div>

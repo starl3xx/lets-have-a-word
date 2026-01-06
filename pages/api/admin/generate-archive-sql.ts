@@ -10,8 +10,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from './me';
 import { db } from '../../../src/db';
-import { rounds, guesses, roundPayouts } from '../../../src/db/schema';
-import { eq, sql, and, asc } from 'drizzle-orm';
+import { rounds, guesses, roundPayouts, users } from '../../../src/db/schema';
+import { eq, sql, and, asc, isNotNull, gte, lte, count } from 'drizzle-orm';
 
 export default async function handler(
   req: NextApiRequest,
@@ -172,6 +172,37 @@ export default async function handler(
       });
     }
 
+    // Calculate CLANKTON bonus count
+    // Count distinct users who had freeAllocatedClankton > 0 in daily_guess_state during round
+    let clanktonBonusCount = 0;
+    if (round.startedAt && round.resolvedAt) {
+      const clanktonResult = await db.execute<{ count: string }>(sql`
+        SELECT COUNT(DISTINCT fid) as count
+        FROM daily_guess_state
+        WHERE free_allocated_clankton > 0
+        AND date >= ${round.startedAt.toISOString().split('T')[0]}
+        AND date <= ${round.resolvedAt.toISOString().split('T')[0]}
+      `);
+      clanktonBonusCount = parseInt(clanktonResult[0]?.count ?? '0', 10);
+    }
+
+    // Calculate referral bonus count
+    // Count users who were created with a referrer during the round's active period
+    let referralBonusCount = 0;
+    if (round.startedAt && round.resolvedAt) {
+      const [referralResult] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(
+          and(
+            isNotNull(users.referrerFid),
+            gte(users.createdAt, round.startedAt),
+            lte(users.createdAt, round.resolvedAt)
+          )
+        );
+      referralBonusCount = referralResult?.count ?? 0;
+    }
+
     // Format timestamps for SQL
     const formatTimestamp = (date: Date | null | undefined): string => {
       if (!date) return 'NULL';
@@ -212,8 +243,8 @@ INSERT INTO round_archive (
   ${referrerPayout?.fid || 'NULL'},
   '${JSON.stringify(payoutsJson).replace(/'/g, "''")}',
   '${round.salt}',
-  0,
-  0
+  ${clanktonBonusCount},
+  ${referralBonusCount}
 );
     `.trim();
 
@@ -229,6 +260,8 @@ INSERT INTO round_archive (
         resolvedAt: round.resolvedAt,
         seedEthForThisRound,
         prizePoolEth: round.prizePoolEth,
+        clanktonBonusCount,
+        referralBonusCount,
       },
       roundPayoutsFromDb: payouts.map(p => ({
         role: p.role,
@@ -242,7 +275,7 @@ INSERT INTO round_archive (
         '1. Review the data above to confirm it looks correct',
         '2. Copy the SQL INSERT statement',
         '3. Run it directly in Neon SQL Editor',
-        '4. Verify the archive synced by checking /archive/2',
+        `4. Verify the archive synced by checking /archive/${roundId}`,
       ],
     });
 
