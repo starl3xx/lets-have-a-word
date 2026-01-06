@@ -4,7 +4,7 @@
  *
  * Shows:
  * - When TOP10_OPEN: "Top-10 open • {N} guesses left"
- * - When TOP10_LOCKED: "Top-10 locked • Jackpot still available"
+ * - When TOP10_LOCKED: "Top-10 locked • Jackpot still live"
  *
  * Design:
  * - Compact, inline chip style
@@ -33,7 +33,7 @@ export default function Top10StatusChip({
       >
         <span className="font-medium">Top 10 locked</span>
         <span className="opacity-70">•</span>
-        <span className="opacity-80">Jackpot always available</span>
+        <span className="opacity-80">Jackpot still live</span>
       </div>
     );
   }

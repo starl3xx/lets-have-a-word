@@ -24,6 +24,9 @@ interface BonusWordWinner {
   claimedAt: string;
   txHash: string | null;
   clanktonAmount: string;
+  hasOgHunterBadge?: boolean;
+  hasClanktonBadge?: boolean;
+  hasBonusWordBadge?: boolean;
 }
 
 interface RoundState {
@@ -458,11 +461,17 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${winner.fid}`;
                         }}
                       />
-                      {/* Username */}
+                      {/* Username + Badges */}
                       <div className="flex-1 flex items-center gap-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900 truncate">
                           {winner.username?.startsWith('fid:') ? winner.username : `@${winner.username || `fid:${winner.fid}`}`}
                         </span>
+                        <BadgeStack
+                          hasOgHunterBadge={winner.hasOgHunterBadge}
+                          hasClanktonBadge={winner.hasClanktonBadge}
+                          hasBonusWordBadge={winner.hasBonusWordBadge}
+                          size="sm"
+                        />
                       </div>
                       {/* Word - right aligned */}
                       <div className="text-sm text-cyan-600 font-mono font-bold uppercase mr-1">
