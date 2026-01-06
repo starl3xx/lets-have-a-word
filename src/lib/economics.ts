@@ -67,8 +67,12 @@ export function isSkipOnchainResolution(): boolean {
  * - Overflow beyond cap → creator
  */
 
-const SEED_CAP_ETH = '0.03'; // 0.03 ETH cap for seed accumulation
-const SEED_CAP_WEI = 30000000000000000n; // 0.03 ETH in wei
+// Seed cap: Maximum ETH that can accumulate as seed for next round
+// This also serves as the creator pool withdrawal threshold
+// Below this, funds prioritize seeding future rounds
+export const SEED_CAP_ETH = 0.03; // 0.03 ETH
+export const SEED_CAP_ETH_STRING = '0.03';
+export const SEED_CAP_WEI = 30000000000000000n; // 0.03 ETH in wei
 
 /**
  * Validate that payout amounts sum correctly before calling contract
@@ -206,7 +210,7 @@ export async function applyPaidGuessEconomicEffects(
 
   // Calculate seed update (DB-only concept, not in contract)
   const currentSeed = parseFloat(round.seedNextRoundEth);
-  const seedCap = parseFloat(SEED_CAP_ETH);
+  const seedCap = SEED_CAP_ETH;
 
   let newSeed = currentSeed;
   let toCreator = 0;
@@ -275,7 +279,7 @@ async function allocateToSeedAndCreator(
   }
 
   // Calculate how much can go to seed
-  const seedCap = parseFloat(SEED_CAP_ETH);
+  const seedCap = SEED_CAP_ETH;
   const currentSeed = parseFloat(round.seedNextRoundEth);
   const missing = Math.max(0, seedCap - currentSeed);
   const toSeed = Math.min(missing, amountEth);

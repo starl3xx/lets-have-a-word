@@ -11,9 +11,11 @@ import { getContractConfig, getJackpotManagerReadOnly } from '../../../../src/li
 import { db } from '../../../../src/db';
 import { refunds, rounds } from '../../../../src/db/schema';
 import { eq, sql, desc } from 'drizzle-orm';
+import { SEED_CAP_ETH } from '../../../../src/lib/economics';
 
 // Minimum creator pool balance before withdrawal is allowed
-export const CREATOR_POOL_WITHDRAW_THRESHOLD_ETH = 0.03;
+// This is the same as SEED_CAP_ETH - funds below this threshold prioritize seeding rounds
+export const CREATOR_POOL_WITHDRAW_THRESHOLD_ETH = SEED_CAP_ETH;
 
 export interface WalletBalancesResponse {
   operatorWallet: {
