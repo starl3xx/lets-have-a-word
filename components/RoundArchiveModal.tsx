@@ -444,7 +444,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                   {[...bonusWordWinners]
                     .sort((a, b) => new Date(a.claimedAt).getTime() - new Date(b.claimedAt).getTime())
                     .map((winner, index) => (
-                    <div key={`${winner.fid}-${winner.word}`} className="flex items-end gap-2">
+                    <div key={`${winner.fid}-${winner.word}`} className="flex items-center gap-2">
                       {/* Rank */}
                       <div className="text-gray-500 text-sm font-medium w-5 text-right">
                         {index + 1}.
@@ -459,7 +459,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                         }}
                       />
                       {/* Username */}
-                      <div className="flex-1 flex items-end gap-1 min-w-0">
+                      <div className="flex-1 flex items-center gap-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900 truncate">
                           {winner.username?.startsWith('fid:') ? winner.username : `@${winner.username || `fid:${winner.fid}`}`}
                         </span>
