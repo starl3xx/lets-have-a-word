@@ -21,8 +21,10 @@ interface ArchivedRound {
 interface ArchiveStats {
   totalRounds: number;
   totalGuessesAllTime: number;
+  totalPlayers: number;
   uniqueWinners: number;
   totalJackpotDistributed: string;
+  totalClanktonBonuses: number;
   avgGuessesPerRound: number;
   avgPlayersPerRound: number;
   avgRoundLengthMinutes: number;
@@ -30,6 +32,21 @@ interface ArchiveStats {
 
 // Söhne font family
 const FONT_FAMILY = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
+
+/**
+ * Format number in compact form (1.2K, 5.4M, etc.)
+ */
+function formatCompactNumber(num: number): string {
+  if (num >= 1_000_000) {
+    const millions = num / 1_000_000;
+    return millions >= 10 ? `${Math.round(millions)}M` : `${millions.toFixed(1)}M`;
+  }
+  if (num >= 1_000) {
+    const thousands = num / 1_000;
+    return thousands >= 10 ? `${Math.round(thousands)}K` : `${thousands.toFixed(1)}K`;
+  }
+  return num.toLocaleString();
+}
 
 export default function ArchiveListPage() {
   const [loading, setLoading] = useState(true);
@@ -114,12 +131,17 @@ export default function ArchiveListPage() {
             <div className="max-w-2xl mx-auto px-4 py-4">
               <div className="flex flex-wrap gap-2">
                 <StatChip label="rounds" value={stats.totalRounds.toLocaleString()} />
-                <StatChip label="guesses" value={stats.totalGuessesAllTime.toLocaleString()} />
-                <StatChip label="winners" value={stats.uniqueWinners.toLocaleString()} />
+                <StatChip label="guesses" value={formatCompactNumber(stats.totalGuessesAllTime)} />
+                <StatChip label="players" value={formatCompactNumber(stats.totalPlayers)} />
                 <StatChip
                   label="ETH distributed"
                   value={formatEth(stats.totalJackpotDistributed)}
-                  highlight
+                  variant="green"
+                />
+                <StatChip
+                  label="CLANKTON distributed"
+                  value={formatCompactNumber(stats.totalClanktonBonuses)}
+                  variant="purple"
                 />
               </div>
             </div>
@@ -238,24 +260,20 @@ export default function ArchiveListPage() {
 function StatChip({
   label,
   value,
-  highlight,
+  variant = 'default',
 }: {
   label: string;
   value: string;
-  highlight?: boolean;
+  variant?: 'default' | 'green' | 'purple';
 }) {
+  const bgClass = variant === 'green' ? 'bg-green-50' : variant === 'purple' ? 'bg-purple-50' : 'bg-gray-100';
+
   return (
-    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${
-      highlight ? 'bg-green-50' : 'bg-gray-100'
-    }`}>
-      <span className={`font-bold tabular-nums ${
-        highlight ? 'text-green-600' : 'text-gray-900'
-      }`}>
+    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${bgClass}`}>
+      <span className="font-bold tabular-nums text-gray-900">
         {value}
       </span>
-      <span className={`text-xs ${
-        highlight ? 'text-green-600/70' : 'text-gray-500'
-      }`}>
+      <span className="text-xs text-gray-500">
         {label}
       </span>
     </div>
