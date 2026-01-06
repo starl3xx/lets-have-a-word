@@ -290,9 +290,18 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const filterByTimeRange = (data: any[], range: TimeRange) => {
+  const filterByTimeRange = (data: any[], range: TimeRange, currentRoundStartTime?: string) => {
     if (range === "all") return data
-    const daysBack = range === "7d" ? 7 : 30
+    if (range === "current") {
+      // For "current" range, filter to data from when the current round started
+      if (!currentRoundStartTime) return data
+      const cutoffDate = new Date(currentRoundStartTime)
+      return data.filter(item => {
+        const itemDate = new Date(item.day || item.week_start)
+        return itemDate >= cutoffDate
+      })
+    }
+    const daysBack = range === "7d" ? 7 : range === "30d" ? 30 : 7
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
     return data.filter(item => {
@@ -329,16 +338,23 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         fetch(`/api/admin/analytics/gameplay${devFidParam}${rangeParam}`),
       ])
 
-      if (summaryRes.ok) setSummary(await summaryRes.json())
+      // Parse summary first to get current round start time for filtering
+      let summaryData: DashboardSummary | null = null
+      if (summaryRes.ok) {
+        summaryData = await summaryRes.json()
+        setSummary(summaryData)
+      }
+      const currentRoundStartTime = summaryData?.currentRound?.startedAt || undefined
+
       if (packPricingRes.ok) setPackPricing(await packPricingRes.json())
       if (onboardingRes.ok) setOnboarding(await onboardingRes.json())
       if (dauRes.ok) {
         const dau = await dauRes.json()
-        setDauData(filterByTimeRange(dau.data || dau, timeRange))
+        setDauData(filterByTimeRange(dau.data || dau, timeRange, currentRoundStartTime))
       }
       if (guessRes.ok) {
         const guesses = await guessRes.json()
-        setGuessData(filterByTimeRange(guesses.data || guesses, timeRange))
+        setGuessData(filterByTimeRange(guesses.data || guesses, timeRange, currentRoundStartTime))
       }
       if (economyRes.ok) setEconomyAnalytics(await economyRes.json())
       if (gameplayRes.ok) setGameplayInsights(await gameplayRes.json())

@@ -208,6 +208,7 @@ export default async function handler(
       last7d.total.buyers = Number(totalBuyers7d?.buyers) || 0;
 
       // Current round by phase (if there's an active round)
+      // NOTE: round_id is stored as a column (not in data JSON) in analytics_events
       if (activeRound?.id) {
         const purchasesCurrentRound = await db.execute<{
           phase: string;
@@ -222,7 +223,7 @@ export default async function handler(
             COUNT(DISTINCT user_id)::int as buyers
           FROM analytics_events
           WHERE event_type = 'guess_pack_purchased'
-            AND (data->>'round_id')::int = ${activeRound.id}
+            AND round_id = ${activeRound.id.toString()}
           GROUP BY COALESCE(data->>'pricing_phase', 'BASE')
         `);
 
@@ -241,7 +242,7 @@ export default async function handler(
           SELECT COUNT(DISTINCT user_id)::int as buyers
           FROM analytics_events
           WHERE event_type = 'guess_pack_purchased'
-            AND (data->>'round_id')::int = ${activeRound.id}
+            AND round_id = ${activeRound.id.toString()}
         `);
         currentRound.total.buyers = Number(totalBuyersCurrentRound?.buyers) || 0;
       }
