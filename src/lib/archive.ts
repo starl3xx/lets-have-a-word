@@ -292,6 +292,36 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       };
     }
 
+    // Defensive check: ensure salt is a string (data corruption check)
+    // This can happen if the field was accidentally stored as a Date object
+    if (typeof round.salt !== 'string') {
+      const errorMsg = `Round ${roundId} salt field is not a string (got ${typeof round.salt}, isDate=${round.salt instanceof Date}). Use /api/admin/fix-round-field to fix.`;
+      console.error(`[archive] ${errorMsg}`);
+      await logArchiveError(roundId, 'salt_corrupted', errorMsg, {
+        saltType: typeof round.salt,
+        saltIsDate: round.salt instanceof Date,
+        saltValue: round.salt instanceof Date ? round.salt.toISOString() : String(round.salt),
+      });
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+
+    // Defensive check: ensure commitHash is a string if present
+    if (round.commitHash !== null && typeof round.commitHash !== 'string') {
+      const errorMsg = `Round ${roundId} commitHash field is not a string (got ${typeof round.commitHash}). Use /api/admin/fix-round-field to fix.`;
+      console.error(`[archive] ${errorMsg}`);
+      await logArchiveError(roundId, 'commitHash_corrupted', errorMsg, {
+        commitHashType: typeof round.commitHash,
+        commitHashIsDate: round.commitHash instanceof Date,
+      });
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+
     const archiveData: RoundArchiveInsert = {
       roundNumber: roundId,
       targetWord,
