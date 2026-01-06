@@ -443,7 +443,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               <div className="mt-4">
                 <div className="text-center mb-1.5">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
-                    🎣 Bonus Word Finders
+                    Bonus Word Finders
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">5M CLANKTON each</p>
                 </div>
