@@ -15,6 +15,7 @@ import { bonusWordClaims, roundBonusWords, users } from '../../../../src/db/sche
 import { eq, or, isNull } from 'drizzle-orm';
 import { distributeBonusWordRewardOnChain, getBonusWordRewardsBalanceOnChain } from '../../../../src/lib/jackpot-contract';
 import { isAdminFid } from '../../admin/me';
+import { getUserByFid as getNeynarUserByFid } from '../../../../src/lib/farcaster';
 
 export default async function handler(
   req: NextApiRequest,
@@ -208,18 +209,42 @@ export default async function handler(
           return res.status(404).json({ error: 'Bonus word not found or not claimed' });
         }
 
-        // Get user wallet
+        // Get user wallet from database
         const [user] = await db
-          .select({ wallet: users.signerWalletAddress })
+          .select({ wallet: users.signerWalletAddress, username: users.username })
           .from(users)
           .where(eq(users.fid, bonusWord.claimedByFid));
 
-        if (!user?.wallet) {
-          return res.status(400).json({ error: 'User has no wallet address' });
+        let wallet = user?.wallet;
+
+        // If no wallet in database, look up via Neynar
+        if (!wallet) {
+          console.log(`[retry-bonus-distribution] No wallet in DB for FID ${bonusWord.claimedByFid}, looking up via Neynar...`);
+          const neynarUser = await getNeynarUserByFid(bonusWord.claimedByFid);
+
+          // Use primaryWallet first, then signerWallet, then custodyAddress
+          wallet = neynarUser?.primaryWallet || neynarUser?.signerWallet || neynarUser?.custodyAddress || null;
+
+          if (wallet) {
+            console.log(`[retry-bonus-distribution] Found wallet via Neynar for FID ${bonusWord.claimedByFid}: ${wallet.slice(0, 10)}...`);
+
+            // Update user record with the wallet for future use
+            await db
+              .update(users)
+              .set({ signerWalletAddress: wallet })
+              .where(eq(users.fid, bonusWord.claimedByFid));
+          }
+        }
+
+        if (!wallet) {
+          return res.status(400).json({
+            error: 'User has no wallet address (not in database and not found via Neynar)',
+            fid: bonusWord.claimedByFid,
+          });
         }
 
         const txHash = await distributeBonusWordRewardOnChain(
-          user.wallet,
+          wallet,
           bonusWord.wordIndex
         );
 
@@ -228,7 +253,7 @@ export default async function handler(
           .set({ txHash })
           .where(eq(roundBonusWords.id, bonusWordId));
 
-        return res.status(200).json({ success: true, txHash, walletAddress: user.wallet });
+        return res.status(200).json({ success: true, txHash, walletAddress: wallet });
       }
 
       return res.status(400).json({ error: 'Provide claimId, bonusWordId, or all: true' });
