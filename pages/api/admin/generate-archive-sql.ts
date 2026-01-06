@@ -10,8 +10,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from './me';
 import { db } from '../../../src/db';
-import { rounds, guesses, roundPayouts, users } from '../../../src/db/schema';
-import { eq, sql, and, lte, asc, desc } from 'drizzle-orm';
+import { rounds, guesses, roundPayouts } from '../../../src/db/schema';
+import { eq, sql, and, asc } from 'drizzle-orm';
 
 export default async function handler(
   req: NextApiRequest,
@@ -82,34 +82,40 @@ export default async function handler(
     // This is the Top 10 lock logic - rankings frozen at guess 750
     const TOP_10_LOCK_THRESHOLD = 750;
 
-    const top10Query = await db.execute(sql`
-      WITH first_750 AS (
-        SELECT fid, guess_index_in_round, created_at
-        FROM guesses
-        WHERE round_id = ${roundId}
-        ORDER BY COALESCE(guess_index_in_round, 999999) ASC, created_at ASC
-        LIMIT ${TOP_10_LOCK_THRESHOLD}
-      ),
-      guesser_counts AS (
-        SELECT
-          fid,
-          COUNT(*) as guess_count,
-          MIN(created_at) as first_guess_at
-        FROM first_750
-        GROUP BY fid
-      )
-      SELECT
-        fid,
-        guess_count,
-        first_guess_at
-      FROM guesser_counts
-      ORDER BY guess_count DESC, first_guess_at ASC
-      LIMIT 11
-    `);
+    // Use Drizzle's query builder for Top 10 calculation
+    // Get guesses ordered by index, limited to first 750
+    const first750Guesses = await db.select({
+      fid: guesses.fid,
+      guessIndexInRound: guesses.guessIndexInRound,
+      createdAt: guesses.createdAt,
+    })
+      .from(guesses)
+      .where(eq(guesses.roundId, roundId))
+      .orderBy(asc(guesses.guessIndexInRound), asc(guesses.createdAt))
+      .limit(TOP_10_LOCK_THRESHOLD);
+
+    // Count guesses per FID from first 750
+    const guesserCounts = new Map<number, { count: number; firstGuessAt: Date }>();
+    for (const g of first750Guesses) {
+      const existing = guesserCounts.get(g.fid);
+      if (existing) {
+        existing.count++;
+      } else {
+        guesserCounts.set(g.fid, { count: 1, firstGuessAt: g.createdAt! });
+      }
+    }
+
+    // Sort by count desc, then first guess time asc
+    const sortedGuessers = Array.from(guesserCounts.entries())
+      .map(([fid, data]) => ({ fid, guessCount: data.count, firstGuessAt: data.firstGuessAt }))
+      .sort((a, b) => {
+        if (b.guessCount !== a.guessCount) return b.guessCount - a.guessCount;
+        return a.firstGuessAt.getTime() - b.firstGuessAt.getTime();
+      });
 
     // Filter out winner from top 10
     const winnerFid = winningGuess?.fid || round.winnerFid;
-    const top10WithoutWinner = (top10Query.rows as any[])
+    const top10WithoutWinner = sortedGuessers
       .filter(row => row.fid !== winnerFid)
       .slice(0, 10);
 
@@ -123,7 +129,7 @@ export default async function handler(
       fid: row.fid,
       amountEth: top10Payouts[index]?.amountEth || '0',
       rank: index + 1,
-      guessCount: Number(row.guess_count),
+      guessCount: row.guessCount,
     }));
 
     // Build payouts JSON
