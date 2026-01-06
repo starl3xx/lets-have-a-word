@@ -269,6 +269,19 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
         .where(eq(rounds.id, roundId - 1))
         .limit(1);
       if (previousRound) {
+        // Defensive check: ensure previous round's seedNextRoundEth is a string
+        if (typeof previousRound.seedNextRoundEth !== 'string') {
+          const errorMsg = `Round ${roundId - 1} (previous round) seedNextRoundEth field is not a string (got ${typeof previousRound.seedNextRoundEth}). Use /api/admin/fix-round-field to fix round ${roundId - 1}.`;
+          console.error(`[archive] ${errorMsg}`);
+          await logArchiveError(roundId, 'previous_round_corrupted', errorMsg, {
+            previousRoundId: roundId - 1,
+            seedNextRoundEthType: typeof previousRound.seedNextRoundEth,
+          });
+          return {
+            success: false,
+            error: errorMsg,
+          };
+        }
         seedEth = previousRound.seedNextRoundEth;
       }
     }
