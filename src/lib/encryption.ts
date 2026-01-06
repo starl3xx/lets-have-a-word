@@ -150,6 +150,16 @@ export function isEncryptedAnswer(storedValue: string): boolean {
  * - New rounds: encrypted answer stored as iv:tag:ciphertext
  */
 export function getPlaintextAnswer(storedValue: string): string {
+  // Defensive check: ensure we have a string
+  if (typeof storedValue !== 'string') {
+    console.error(`[encryption] getPlaintextAnswer received non-string value:`, typeof storedValue, storedValue);
+    // If it's a Date, convert to ISO string (this shouldn't happen but provides fallback)
+    if (storedValue instanceof Date) {
+      throw new Error(`Answer field contains a Date instead of string. This indicates data corruption. Value: ${storedValue.toISOString()}`);
+    }
+    throw new Error(`Answer field must be a string, received: ${typeof storedValue}`);
+  }
+
   if (isEncryptedAnswer(storedValue)) {
     return unpackAndDecrypt(storedValue);
   }
