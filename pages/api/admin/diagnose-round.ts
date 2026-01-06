@@ -57,24 +57,37 @@ export default async function handler(
       problem?: string;
     }> = {};
 
-    const stringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth', 'txHash'];
+    // Required string fields (must be strings)
+    const requiredStringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth'];
+    // Optional string fields (can be null)
+    const optionalStringFields = ['txHash'];
 
-    for (const field of stringFields) {
+    for (const field of [...requiredStringFields, ...optionalStringFields]) {
       const value = (round as any)[field];
       const isDate = value instanceof Date;
       const type = typeof value;
       const isNull = value === null;
+      const isUndefined = value === undefined;
+      const isOptional = optionalStringFields.includes(field);
 
       const diagnostic: typeof fieldDiagnostics[string] = {
         type,
         isDate,
         isNull,
-        value: isDate ? value.toISOString() : (isNull ? null : String(value).substring(0, 100)),
+        value: isDate ? value.toISOString() : (isNull || isUndefined ? null : String(value).substring(0, 100)),
       };
 
       // Check for problems
-      if (!isNull && type !== 'string') {
-        diagnostic.problem = `Expected string but got ${type}${isDate ? ' (Date object)' : ''}. Fix with /api/admin/fix-round-field`;
+      if (isOptional) {
+        // Optional: only flag if present but not a string (Date objects, etc.)
+        if (!isNull && !isUndefined && type !== 'string') {
+          diagnostic.problem = `Expected string or null but got ${type}${isDate ? ' (Date object)' : ''}. Fix with /api/admin/fix-round-field`;
+        }
+      } else {
+        // Required: must be a string
+        if (type !== 'string') {
+          diagnostic.problem = `Expected string but got ${type}${isDate ? ' (Date object)' : ''}. Fix with /api/admin/fix-round-field`;
+        }
       }
 
       fieldDiagnostics[field] = diagnostic;

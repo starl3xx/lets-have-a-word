@@ -712,15 +712,16 @@ export async function resolveRoundAndCreatePayouts(
 
   // Execute onchain payouts (use Sepolia or mainnet based on simulation mode)
   // Skip entirely if skipOnchainResolutionFlag is set (contract state issues)
+  let resolveTxHash: string | null = null;
   if (skipOnchainResolutionFlag) {
     console.log(`[economics] ⚠️ SKIPPING onchain resolution (skipOnchainResolution=true)`);
     console.log(`[economics] DB payouts will be created but no onchain transaction`);
   } else {
     try {
-      const txHash = sepoliaSimulationMode
+      resolveTxHash = sepoliaSimulationMode
         ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
         : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
-      console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${txHash}`);
+      console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${resolveTxHash}`);
     } catch (error) {
       console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
       throw error; // Re-throw to prevent marking round as resolved
@@ -747,6 +748,7 @@ export async function resolveRoundAndCreatePayouts(
       winnerFid,
       referrerFid,
       status: 'resolved',
+      txHash: resolveTxHash,
     })
     .where(eq(rounds.id, roundId));
 

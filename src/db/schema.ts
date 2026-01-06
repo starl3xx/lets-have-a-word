@@ -60,6 +60,7 @@ export const rounds = pgTable('rounds', {
   seedNextRoundEth: decimal('seed_next_round_eth', { precision: 20, scale: 18 }).default('0').notNull(),
   winnerFid: integer('winner_fid'), // FK to users.fid
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
+  txHash: varchar('tx_hash', { length: 66 }), // Resolve round transaction hash
   isDevTestRound: boolean('is_dev_test_round').default(false).notNull(), // Milestone 4.5: Mid-round test mode flag
   startedAt: timestamp('started_at').defaultNow().notNull(),
   resolvedAt: timestamp('resolved_at'), // null until someone wins
