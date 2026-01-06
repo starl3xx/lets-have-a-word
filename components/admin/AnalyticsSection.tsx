@@ -294,8 +294,16 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     if (range === "all") return data
     if (range === "current") {
       // For "current" range, filter to data from when the current round started
+      // Compare at day level only (round start date, not time)
       if (!currentRoundStartTime) return data
-      const cutoffDate = new Date(currentRoundStartTime)
+      const roundStartDate = new Date(currentRoundStartTime)
+      // Set to start of day in UTC to compare day-level
+      const cutoffDate = new Date(Date.UTC(
+        roundStartDate.getUTCFullYear(),
+        roundStartDate.getUTCMonth(),
+        roundStartDate.getUTCDate(),
+        0, 0, 0, 0
+      ))
       return data.filter(item => {
         const itemDate = new Date(item.day || item.week_start)
         return itemDate >= cutoffDate

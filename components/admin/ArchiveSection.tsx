@@ -4,7 +4,7 @@
  * Enhanced with distribution charts, error tracking, and detailed round views
  */
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { AnalyticsChart } from "./AnalyticsChart"
 
 // =============================================================================
@@ -253,6 +253,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [resolvingErrorId, setResolvingErrorId] = useState<number | null>(null)
   const [loadingDetailFor, setLoadingDetailFor] = useState<number | null>(null)
   const pageSize = 15
+  const detailSectionRef = useRef<HTMLDivElement>(null)
 
   const fetchArchiveData = useCallback(async () => {
     if (!user?.fid) return
@@ -399,6 +400,10 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
           // Usernames are optional - don't fail if we can't get them
         }
       }
+    // Scroll to details section after setting the data
+      setTimeout(() => {
+        detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
     } catch (err) {
       console.error('Failed to fetch round detail:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch round detail')
@@ -774,7 +779,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
 
       {/* Selected Round Detail */}
       {selectedRound && (
-        <div style={styles.module}>
+        <div ref={detailSectionRef} style={styles.module}>
           <h3 style={styles.moduleHeader}>Round #{selectedRound.roundNumber} Details</h3>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>

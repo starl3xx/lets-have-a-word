@@ -250,7 +250,7 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '2' },
   { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '3' },
   { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '4' },
-  { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '👛', shortcut: '5' },
+  { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '💼', shortcut: '5' },
   { id: 'social', label: 'Social', color: '#1DA1F2', icon: '📣', shortcut: '6' },
 ]
 
@@ -387,6 +387,28 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('operations')
   const [isInitialized, setIsInitialized] = useState(false)
+  const [walletBalance, setWalletBalance] = useState<string | null>(null)
+
+  // Fetch wallet balance for header display
+  useEffect(() => {
+    if (!user?.fid) return
+    const fetchBalance = async () => {
+      try {
+        const res = await fetch(`/api/admin/wallet/balances?devFid=${user.fid}`)
+        if (res.ok) {
+          const data = await res.json()
+          // Use connected wallet balance if available
+          const connected = data.wallets?.find((w: any) => w.name === 'Connected')
+          if (connected?.balance) {
+            setWalletBalance(parseFloat(connected.balance).toFixed(4))
+          }
+        }
+      } catch {
+        // Silent fail - balance display is optional
+      }
+    }
+    fetchBalance()
+  }, [user?.fid])
 
   // Sync tab with URL query param on mount and when query changes
   useEffect(() => {
@@ -462,6 +484,18 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             <p style={styles.subtitle}>Let's Have a Word — Unified Control Panel</p>
           </div>
           <div style={styles.userInfo}>
+            {/* Wallet Balance */}
+            {walletBalance && (
+              <div style={{
+                padding: "8px 14px",
+                background: "#f3f4f6",
+                borderRadius: "8px",
+                marginRight: "12px",
+              }}>
+                <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "2px" }}>Wallet</div>
+                <div style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>{walletBalance} ETH</div>
+              </div>
+            )}
             {user?.pfp_url && (
               <img
                 src={user.pfp_url}
