@@ -22,6 +22,7 @@ export interface TopGuesser {
   pfpUrl: string; // Farcaster profile picture URL
   hasOgHunterBadge: boolean;
   hasClanktonBadge: boolean;
+  hasBonusWordBadge: boolean;
 }
 
 export interface TopGuessersResponse {
@@ -118,6 +119,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       hasOgHunterBadge: false, // Dev mode: no badges
       hasClanktonBadge: false, // Dev mode: no badges
+      hasBonusWordBadge: false, // Dev mode: no badges
     };
   });
 
@@ -240,20 +242,32 @@ export default async function handler(
         // Get FIDs of top guessers to check for badges
         const topGuesserFids = topGuessersData.map((g) => g.fid);
 
-        // Fetch OG Hunter badges for these users
-        const ogHunterBadges = topGuesserFids.length > 0
-          ? await db
-              .select({ fid: userBadges.fid })
-              .from(userBadges)
-              .where(
-                and(
-                  inArray(userBadges.fid, topGuesserFids),
-                  eq(userBadges.badgeType, 'OG_HUNTER')
-                )
-              )
-          : [];
+        // Fetch OG Hunter and Bonus Word badges for these users
+        const [ogHunterBadges, bonusWordBadges] = topGuesserFids.length > 0
+          ? await Promise.all([
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'OG_HUNTER')
+                  )
+                ),
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'BONUS_WORD_FINDER')
+                  )
+                ),
+            ])
+          : [[], []];
 
-        const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
+        const ogHunterFids = new Set(ogHunterBadges.map((b) => b.fid));
+        const bonusWordFids = new Set(bonusWordBadges.map((b) => b.fid));
 
         // Check CLANKTON balances for users with wallets
         // Wrapped in defensive try/catch since this makes RPC calls that could fail
@@ -334,8 +348,9 @@ export default async function handler(
             username: neynarProfile?.username || localUsername || `fid:${g.fid}`,
             guessCount: Number(g.guessCount),
             pfpUrl: neynarProfile?.pfpUrl || `https://avatar.vercel.sh/${g.fid}`,
-            hasOgHunterBadge: badgeFids.has(g.fid),
+            hasOgHunterBadge: ogHunterFids.has(g.fid),
             hasClanktonBadge: clanktonHolders.has(g.fid),
+            hasBonusWordBadge: bonusWordFids.has(g.fid),
           };
         });
 

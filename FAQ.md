@@ -105,7 +105,7 @@ If the winner **does not** have a referrer:
 - **2.5%** of the referrer share is added to the Top 10 pool
 - **2.5%** is added to the next round seed
 - Next round seed is capped at 0.03 ETH
-- Any overflow above the cap goes to the creator
+- Any overflow above the cap goes to the treasury
 
 Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
 

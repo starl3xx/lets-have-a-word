@@ -12,6 +12,7 @@ interface TopGuesser {
   pfpUrl: string;
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
+  hasBonusWordBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display type
@@ -419,6 +420,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
                             hasClanktonBadge={guesser.hasClanktonBadge}
+                            hasBonusWordBadge={guesser.hasBonusWordBadge}
                             size="sm"
                           />
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
