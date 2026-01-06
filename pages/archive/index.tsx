@@ -132,7 +132,7 @@ export default function ArchiveListPage() {
               <div className="flex flex-wrap gap-2">
                 <StatChip label="rounds" value={stats.totalRounds.toLocaleString()} />
                 <StatChip label="guesses" value={formatCompactNumber(stats.totalGuessesAllTime)} />
-                <StatChip label="players" value={formatCompactNumber(stats.totalPlayers)} />
+                <StatChip label="players" value={stats.totalPlayers.toLocaleString()} />
                 <StatChip
                   label="ETH distributed"
                   value={formatEth(stats.totalJackpotDistributed)}
@@ -269,8 +269,8 @@ function StatChip({
   const bgClass = variant === 'green' ? 'bg-green-50' : variant === 'purple' ? 'bg-purple-50' : 'bg-gray-100';
 
   return (
-    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${bgClass}`}>
-      <span className="font-bold tabular-nums text-gray-900">
+    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 ${bgClass}`}>
+      <span className="text-sm font-semibold tabular-nums text-gray-900">
         {value}
       </span>
       <span className="text-xs text-gray-500">
