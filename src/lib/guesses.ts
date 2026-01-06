@@ -162,29 +162,43 @@ const BONUS_WORD_CLANKTON_AMOUNT = '5000000000000000000000000'; // 5M * 10^18
 /**
  * Check if a word is an unclaimed bonus word for a round
  * Returns the bonus word record if found and unclaimed
+ * Timeout: 3 seconds max to prevent request hangs
  */
 async function checkBonusWordMatch(roundId: number, word: string): Promise<RoundBonusWordRow | null> {
   try {
-    // Get all unclaimed bonus words for this round
-    const bonusWordRecords = await db
-      .select()
-      .from(roundBonusWords)
-      .where(
-        and(
-          eq(roundBonusWords.roundId, roundId),
-          isNull(roundBonusWords.claimedByFid)
-        )
-      );
+    // Wrap in timeout to prevent hanging if table doesn't exist or query is slow
+    const result = await Promise.race([
+      (async () => {
+        // Get all unclaimed bonus words for this round
+        const bonusWordRecords = await db
+          .select()
+          .from(roundBonusWords)
+          .where(
+            and(
+              eq(roundBonusWords.roundId, roundId),
+              isNull(roundBonusWords.claimedByFid)
+            )
+          );
 
-    // Check each bonus word (decrypting to compare)
-    for (const record of bonusWordRecords) {
-      const decryptedWord = getPlaintextAnswer(record.word);
-      if (decryptedWord.toUpperCase() === word.toUpperCase()) {
-        return record;
-      }
-    }
+        // Check each bonus word (decrypting to compare)
+        for (const record of bonusWordRecords) {
+          const decryptedWord = getPlaintextAnswer(record.word);
+          if (decryptedWord.toUpperCase() === word.toUpperCase()) {
+            return record;
+          }
+        }
 
-    return null;
+        return null;
+      })(),
+      new Promise<null>((resolve) =>
+        setTimeout(() => {
+          console.warn(`[guesses] Bonus word check timed out after 3s for round ${roundId}`);
+          resolve(null);
+        }, 3000)
+      ),
+    ]);
+
+    return result;
   } catch (error) {
     console.error('[guesses] Error checking bonus word match:', error);
     return null;
