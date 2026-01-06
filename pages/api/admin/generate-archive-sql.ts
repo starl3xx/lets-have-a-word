@@ -195,7 +195,8 @@ INSERT INTO round_archive (
   referrer_fid,
   payouts_json,
   salt,
-  commit_hash
+  clankton_bonus_count,
+  referral_bonus_count
 ) VALUES (
   ${roundId},
   '${targetWord.toUpperCase()}',
@@ -211,7 +212,8 @@ INSERT INTO round_archive (
   ${referrerPayout?.fid || 'NULL'},
   '${JSON.stringify(payoutsJson).replace(/'/g, "''")}',
   '${round.salt}',
-  '${round.commitHash}'
+  0,
+  0
 );
     `.trim();
 
