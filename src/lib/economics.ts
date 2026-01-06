@@ -61,7 +61,8 @@ export function isSkipOnchainResolution(): boolean {
  * - 5% → referrer (if exists)
  *
  * If no referrer:
- * - 5% referrer allocation → next round seed (total 10% to seed)
+ * - 2.5% of the 5% referrer allocation → Top 10 pool (total 12.5%)
+ * - 2.5% of the 5% referrer allocation → seed (total 7.5%)
  * - Apply 0.03 ETH cap to seed
  * - Overflow beyond cap → creator
  */
@@ -475,7 +476,11 @@ export async function resolveRoundAndCreatePayouts(
   // - 80% → winner
   // - 10% → top 10 guessers
   // - 5% → next round seed
-  // - 5% → referrer (if exists) OR redirect to seed (if no referrer)
+  // - 5% → referrer (if exists)
+  //
+  // If no referrer, the 5% is split:
+  // - 2.5% → added to top 10 guessers (total 12.5%)
+  // - 2.5% → added to seed (total 7.5%, with cap)
   //
   // Seed cap logic:
   // - Seed is capped at 0.03 ETH
@@ -483,7 +488,7 @@ export async function resolveRoundAndCreatePayouts(
   // ============================================================================
 
   const toWinnerWei = (jackpotWei * 8000n) / 10000n; // 80%
-  const toTopGuessersWei = (jackpotWei * 1000n) / 10000n; // 10%
+  let toTopGuessersWei = (jackpotWei * 1000n) / 10000n; // 10% base
   const baseSeedWei = (jackpotWei * 500n) / 10000n; // 5%
   const referrerShareWei = (jackpotWei * 500n) / 10000n; // 5%
 
@@ -497,9 +502,14 @@ export async function resolveRoundAndCreatePayouts(
     // Seed is just the base 5%
     seedForNextRoundWei = baseSeedWei;
   } else {
-    // No referrer: 80% winner, 10% top guessers, 10% seed (with cap)
-    // Referrer share redirects to seed
-    const totalSeedWei = baseSeedWei + referrerShareWei; // 10%
+    // No referrer: split the 5% referrer share as 2.5% to top guessers, 2.5% to seed
+    const halfReferrerShareWei = referrerShareWei / 2n; // 2.5%
+
+    // Add 2.5% to top guessers (total 12.5%)
+    toTopGuessersWei = toTopGuessersWei + halfReferrerShareWei;
+
+    // Add 2.5% to seed (total 7.5%), with cap
+    const totalSeedWei = baseSeedWei + halfReferrerShareWei;
 
     // Apply seed cap (0.03 ETH)
     if (totalSeedWei > SEED_CAP_WEI) {
@@ -654,12 +664,13 @@ export async function resolveRoundAndCreatePayouts(
   console.log(`[economics] Resolving round ${roundId} with onchain payouts:`);
   console.log(`  - Jackpot: ${jackpotEth} ETH`);
   console.log(`  - Winner (80%): ${ethers.formatEther(onChainPayouts[0].amountWei)} ETH`);
-  console.log(`  - Top guessers (10%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
   if (hasReferrer) {
+    console.log(`  - Top guessers (10%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
     console.log(`  - Referrer (5%): ${ethers.formatEther(toReferrerWei)} ETH`);
     console.log(`  - Seed for next round (5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   } else {
-    const seedPercent = seedForNextRoundWei === SEED_CAP_WEI ? 'capped' : '10%';
+    console.log(`  - Top guessers (12.5%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
+    const seedPercent = seedForNextRoundWei === SEED_CAP_WEI ? 'capped' : '7.5%';
     console.log(`  - Seed for next round (${seedPercent}): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
     if (toCreatorOverflowWei > 0n) {
       console.log(`  - Creator overflow: ${ethers.formatEther(toCreatorOverflowWei)} ETH (seed cap exceeded)`);
