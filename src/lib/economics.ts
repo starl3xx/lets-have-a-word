@@ -804,7 +804,7 @@ export async function resolveRoundAndCreatePayouts(
  *
  * Ranking criteria:
  * - By total guess count (volume) - ALL guesses count (free + paid)
- * - Tiebreaker: earliest first guess time
+ * - Tiebreaker: who reached their count first (lowest max guessIndexInRound)
  *
  * @param roundId - The round ID
  * @param winnerFid - The FID of the winner to exclude
@@ -851,8 +851,8 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
     ? eligibleGuesses.filter(g => g.guessIndexInRound !== null && g.guessIndexInRound <= TOP10_LOCK_AFTER_GUESSES)
     : legacyGuesses;
 
-  // Group by FID and count
-  const guesserStats = new Map<number, { count: number; firstGuessTime: Date }>();
+  // Group by FID and track count + last guess index (for tiebreaker)
+  const guesserStats = new Map<number, { count: number; lastGuessIndex: number }>();
 
   for (const guess of allGuesses) {
     // Skip winner
@@ -860,13 +860,16 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
       continue;
     }
 
+    const guessIndex = guess.guessIndexInRound ?? 0;
     const existing = guesserStats.get(guess.fid);
     if (existing) {
       existing.count++;
+      // Track the highest guess index (when they reached their final count)
+      existing.lastGuessIndex = Math.max(existing.lastGuessIndex, guessIndex);
     } else {
       guesserStats.set(guess.fid, {
         count: 1,
-        firstGuessTime: guess.createdAt,
+        lastGuessIndex: guessIndex,
       });
     }
   }
@@ -878,8 +881,8 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
       if (b[1].count !== a[1].count) {
         return b[1].count - a[1].count;
       }
-      // Tiebreaker: by first guess time (ascending - earlier is better)
-      return a[1].firstGuessTime.getTime() - b[1].firstGuessTime.getTime();
+      // Tiebreaker: who reached their count first (lower lastGuessIndex is better)
+      return a[1].lastGuessIndex - b[1].lastGuessIndex;
     });
 
   // Return top 10 FIDs

@@ -202,11 +202,12 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     // CRITICAL: Compute correct Top 10 from guesses table (ALL guesses count, not just paid)
     // This ensures the archive shows the TRUE ranking, not who was incorrectly paid
+    // Tiebreaker: who reached their count first (lowest max guessIndexInRound)
     const topGuessersFromGuesses = await db
       .select({
         fid: guesses.fid,
         guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
-        firstGuessTime: sql<Date>`min(${guesses.createdAt})`,
+        lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
       })
       .from(guesses)
       .where(
@@ -220,7 +221,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
         )
       )
       .groupBy(guesses.fid)
-      .orderBy(desc(sql`count(${guesses.id})`), asc(sql`min(${guesses.createdAt})`))
+      .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
       .limit(11); // Get 11 to exclude winner
 
     // Filter out the winner and take top 10

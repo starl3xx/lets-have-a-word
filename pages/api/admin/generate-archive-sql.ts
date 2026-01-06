@@ -105,23 +105,25 @@ export default async function handler(
       .orderBy(asc(guesses.guessIndexInRound), asc(guesses.createdAt))
       .limit(TOP_10_LOCK_THRESHOLD);
 
-    // Count guesses per FID from first 750
-    const guesserCounts = new Map<number, { count: number; firstGuessAt: Date }>();
+    // Count guesses per FID from first 750 and track last guess index (for tiebreaker)
+    const guesserCounts = new Map<number, { count: number; lastGuessIndex: number }>();
     for (const g of first750Guesses) {
+      const guessIndex = g.guessIndexInRound ?? 0;
       const existing = guesserCounts.get(g.fid);
       if (existing) {
         existing.count++;
+        existing.lastGuessIndex = Math.max(existing.lastGuessIndex, guessIndex);
       } else {
-        guesserCounts.set(g.fid, { count: 1, firstGuessAt: g.createdAt! });
+        guesserCounts.set(g.fid, { count: 1, lastGuessIndex: guessIndex });
       }
     }
 
-    // Sort by count desc, then first guess time asc
+    // Sort by count desc, then by who reached that count first (lower lastGuessIndex wins)
     const sortedGuessers = Array.from(guesserCounts.entries())
-      .map(([fid, data]) => ({ fid, guessCount: data.count, firstGuessAt: data.firstGuessAt }))
+      .map(([fid, data]) => ({ fid, guessCount: data.count, lastGuessIndex: data.lastGuessIndex }))
       .sort((a, b) => {
         if (b.guessCount !== a.guessCount) return b.guessCount - a.guessCount;
-        return a.firstGuessAt.getTime() - b.firstGuessAt.getTime();
+        return a.lastGuessIndex - b.lastGuessIndex;
       });
 
     // Filter out winner from top 10
