@@ -250,6 +250,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null)
   const [distribution, setDistribution] = useState<Distribution | null>(null)
   const [usernames, setUsernames] = useState<Record<number, string>>({})
+  const [resolvingErrorId, setResolvingErrorId] = useState<number | null>(null)
   const pageSize = 15
 
   const fetchArchiveData = useCallback(async () => {
@@ -393,6 +394,26 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     if (!fid) return 'N/A'
     const username = usernames[fid]
     return username ? `@${username} (${fid})` : `FID ${fid}`
+  }
+
+  const resolveError = async (errorId: number) => {
+    if (!user?.fid) return
+
+    setResolvingErrorId(errorId)
+    try {
+      const response = await fetch(`/api/admin/archive/resolve-error?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ errorId }),
+      })
+      if (!response.ok) throw new Error('Failed to resolve error')
+      // Remove the resolved error from the list
+      setErrors(prev => prev.filter(e => e.id !== errorId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resolve error')
+    } finally {
+      setResolvingErrorId(null)
+    }
   }
 
   useEffect(() => {
@@ -640,6 +661,93 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
           </div>
         )}
       </div>
+
+      {/* Archive Errors */}
+      {errors.length > 0 && (
+        <div style={{
+          ...styles.module,
+          background: "#fef2f2",
+          border: "1px solid #fecaca",
+        }}>
+          <h3 style={{ ...styles.moduleHeader, color: "#dc2626" }}>
+            ⚠️ Archive Errors ({errors.length} unresolved)
+          </h3>
+          <p style={{ fontSize: "13px", color: "#7f1d1d", marginBottom: "16px", fontFamily }}>
+            The following rounds failed to archive automatically. Use the diagnose and fix tools to resolve these issues.
+          </p>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Round</th>
+                <th style={styles.th}>Error Type</th>
+                <th style={styles.th}>Message</th>
+                <th style={styles.th}>Time</th>
+                <th style={{ ...styles.th, textAlign: "center" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {errors.map(err => (
+                <tr key={err.id}>
+                  <td style={styles.td}>
+                    <span style={{ fontWeight: 600 }}>#{err.roundNumber}</span>
+                  </td>
+                  <td style={styles.td}>
+                    <code style={{ background: "#fee2e2", padding: "2px 6px", borderRadius: "4px", fontSize: "11px" }}>
+                      {err.errorType}
+                    </code>
+                  </td>
+                  <td style={{ ...styles.td, maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {err.errorMessage}
+                  </td>
+                  <td style={styles.td}>
+                    {new Date(err.createdAt).toLocaleString()}
+                  </td>
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    <div style={{ display: "flex", gap: "6px", justifyContent: "center", flexWrap: "wrap" }}>
+                      <a
+                        href={`/api/admin/diagnose-round?roundId=${err.roundNumber}&devFid=${user?.fid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          ...styles.btnSmall,
+                          background: "#f59e0b",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Diagnose
+                      </a>
+                      <a
+                        href={`/api/admin/generate-archive-sql?roundId=${err.roundNumber}&devFid=${user?.fid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          ...styles.btnSmall,
+                          background: "#8b5cf6",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Gen SQL
+                      </a>
+                      <button
+                        onClick={() => resolveError(err.id)}
+                        disabled={resolvingErrorId === err.id}
+                        style={{
+                          ...styles.btnSmall,
+                          background: "#16a34a",
+                          opacity: resolvingErrorId === err.id ? 0.6 : 1,
+                          cursor: resolvingErrorId === err.id ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {resolvingErrorId === err.id ? '...' : '✓ Resolved'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Selected Round Detail */}
       {selectedRound && (
