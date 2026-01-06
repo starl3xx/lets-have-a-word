@@ -251,6 +251,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [distribution, setDistribution] = useState<Distribution | null>(null)
   const [usernames, setUsernames] = useState<Record<number, string>>({})
   const [resolvingErrorId, setResolvingErrorId] = useState<number | null>(null)
+  const [loadingDetailFor, setLoadingDetailFor] = useState<number | null>(null)
   const pageSize = 15
 
   const fetchArchiveData = useCallback(async () => {
@@ -339,14 +340,28 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   }
 
   const fetchRoundDetail = async (roundNumber: number) => {
-    if (!user?.fid) return
+    if (!user?.fid) {
+      setError('Not authenticated')
+      return
+    }
+
+    setLoadingDetailFor(roundNumber)
+    setError(null)
 
     try {
       const response = await fetch(
         `/api/archive/${roundNumber}?devFid=${user.fid}&distribution=true`
       )
-      if (!response.ok) throw new Error('Failed to fetch round detail')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to fetch round detail (${response.status})`)
+      }
       const data = await response.json()
+
+      if (!data.round) {
+        throw new Error(`Round ${roundNumber} not found in archive`)
+      }
+
       setSelectedRound(data.round)
       setDistribution(data.distribution)
 
@@ -386,6 +401,9 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       }
     } catch (err) {
       console.error('Failed to fetch round detail:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch round detail')
+    } finally {
+      setLoadingDetailFor(null)
     }
   }
 
@@ -618,9 +636,14 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     <td style={{ ...styles.td, textAlign: "center" }}>
                       <button
                         onClick={() => fetchRoundDetail(round.roundNumber)}
-                        style={styles.btnSmall}
+                        style={{
+                          ...styles.btnSmall,
+                          opacity: loadingDetailFor !== null ? 0.6 : 1,
+                          cursor: loadingDetailFor !== null ? "not-allowed" : "pointer",
+                        }}
+                        disabled={loadingDetailFor !== null}
                       >
-                        Details
+                        {loadingDetailFor === round.roundNumber ? 'Loading...' : 'Details'}
                       </button>
                     </td>
                   </tr>
