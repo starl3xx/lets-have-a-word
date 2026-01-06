@@ -28,10 +28,23 @@ interface WalletBalances {
     currentJackpotEth: string;
   };
   nextRoundSeed?: {
-    projectedEth: string; // 5% of current jackpot
-    fromPreviousRoundEth: string; // Seed carried from previous round
+    fivePercentEth?: string; // 5% of current jackpot
+    fromTreasuryEth?: string; // Amount Treasury contributes
+    totalEth?: string; // min(0.03, 5% + treasury)
+    targetEth?: string; // 0.03 ETH target
+    shortfallEth?: string; // How much below target
+    // Legacy fields
+    projectedEth?: string;
   };
-  creatorPool: {
+  treasury?: {
+    address: string;
+    balanceEth: string;
+    contributingToSeedEth?: string;
+    withdrawableEth: string;
+    isWithdrawable: boolean;
+  };
+  // Legacy field - use treasury instead
+  creatorPool?: {
     address: string;
     accumulatedEth: string;
     withdrawThresholdEth?: string;
@@ -1066,75 +1079,117 @@ export default function WalletSection({ user }: WalletSectionProps) {
               ⚠️ <strong>Contract unavailable:</strong> {balances.contractError}. Jackpot and creator pool values may not be accurate.
             </div>
           )}
-          <div style={styles.grid5}>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Connected Wallet</div>
-              <div style={styles.statValue}>{connectedBalance ? parseFloat(connectedBalance).toFixed(4) : '--'}</div>
-              <div style={styles.statSubtext}>ETH</div>
-              {connectedWallet && <div style={styles.address}>{shortenAddress(connectedWallet.address)}</div>}
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Prize Pool / Jackpot</div>
-              <div style={styles.statValue}>{parseFloat(balances.prizePool.currentJackpotEth).toFixed(4)}</div>
-              <div style={styles.statSubtext}>ETH</div>
-              <div style={styles.address}>{shortenAddress(balances.prizePool.address)}</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Next Round Seed</div>
-              <div style={styles.statValue}>
-                {balances.nextRoundSeed
-                  ? parseFloat(balances.nextRoundSeed.projectedEth).toFixed(4)
-                  : (parseFloat(balances.prizePool.currentJackpotEth) * 0.05).toFixed(4)}
-              </div>
-              <div style={styles.statSubtext}>5% of jackpot</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Creator Pool</div>
-              <div style={styles.statValue}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(4)}</div>
-              <div style={styles.statSubtext}>
-                {balances.creatorPool.isWithdrawable !== false ? (
-                  <span style={{ color: '#16a34a' }}>ETH (withdrawable)</span>
-                ) : (
-                  <span style={{ color: '#d97706' }}>
-                    {parseFloat(balances.creatorPool.withdrawThresholdEth || '0.03').toFixed(2)} ETH min
-                  </span>
-                )}
-              </div>
-              <div style={styles.address}>{shortenAddress(balances.creatorPool.address)}</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Pending Refunds</div>
-              <div style={styles.statValue}>{parseFloat(balances.pendingRefunds.totalEth).toFixed(4)}</div>
-              <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending</div>
-            </div>
-          </div>
+          {/* Helper to get treasury data with legacy fallback */}
+          {(() => {
+            const treasury = balances.treasury || (balances.creatorPool ? {
+              address: balances.creatorPool.address,
+              balanceEth: balances.creatorPool.accumulatedEth,
+              withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
+              isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
+              contributingToSeedEth: balances.creatorPool.isWithdrawable ? '0' : balances.creatorPool.accumulatedEth,
+            } : null);
 
-          {/* Creator Pool Progress Bar */}
-          {balances.creatorPool.isWithdrawable === false && balances.creatorPool.withdrawThresholdEth && (
-            <div style={{ marginTop: '16px', padding: '12px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fde68a' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 500 }}>
-                  Creator Pool Progress
-                </span>
-                <span style={{ fontSize: '12px', color: '#92400e' }}>
-                  {parseFloat(balances.creatorPool.accumulatedEth).toFixed(4)} / {parseFloat(balances.creatorPool.withdrawThresholdEth).toFixed(2)} ETH
-                </span>
-              </div>
-              <div style={{ background: '#fde68a', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    background: '#f59e0b',
-                    height: '100%',
-                    width: `${Math.min(100, (parseFloat(balances.creatorPool.accumulatedEth) / parseFloat(balances.creatorPool.withdrawThresholdEth)) * 100)}%`,
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
-              <div style={{ fontSize: '11px', color: '#92400e', marginTop: '6px' }}>
-                Withdrawal enabled once threshold is reached. Funds below threshold seed future rounds.
-              </div>
-            </div>
-          )}
+            const seedTotal = balances.nextRoundSeed?.totalEth
+              || balances.nextRoundSeed?.projectedEth
+              || (parseFloat(balances.prizePool.currentJackpotEth) * 0.05).toString();
+
+            const fivePercent = balances.nextRoundSeed?.fivePercentEth
+              || (parseFloat(balances.prizePool.currentJackpotEth) * 0.05).toString();
+
+            const fromTreasury = balances.nextRoundSeed?.fromTreasuryEth || '0';
+            const shortfall = balances.nextRoundSeed?.shortfallEth || '0';
+            const hasShortfall = parseFloat(shortfall) > 0;
+
+            return (
+              <>
+                <div style={styles.grid5}>
+                  <div style={styles.statCard}>
+                    <div style={styles.statLabel}>Connected Wallet</div>
+                    <div style={styles.statValue}>{connectedBalance ? parseFloat(connectedBalance).toFixed(4) : '--'}</div>
+                    <div style={styles.statSubtext}>ETH</div>
+                    {connectedWallet && <div style={styles.address}>{shortenAddress(connectedWallet.address)}</div>}
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={styles.statLabel}>Prize Pool / Jackpot</div>
+                    <div style={styles.statValue}>{parseFloat(balances.prizePool.currentJackpotEth).toFixed(4)}</div>
+                    <div style={styles.statSubtext}>ETH</div>
+                    <div style={styles.address}>{shortenAddress(balances.prizePool.address)}</div>
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={styles.statLabel}>Next Round Seed</div>
+                    <div style={styles.statValue}>
+                      <span style={hasShortfall ? { color: '#d97706' } : { color: '#16a34a' }}>
+                        {parseFloat(seedTotal).toFixed(4)}
+                      </span>
+                    </div>
+                    <div style={styles.statSubtext}>
+                      {hasShortfall ? (
+                        <span style={{ color: '#d97706' }}>
+                          {parseFloat(shortfall).toFixed(4)} below target
+                        </span>
+                      ) : (
+                        <span style={{ color: '#16a34a' }}>0.03 ETH target met</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={styles.statLabel}>Treasury</div>
+                    <div style={styles.statValue}>{treasury ? parseFloat(treasury.balanceEth).toFixed(4) : '--'}</div>
+                    <div style={styles.statSubtext}>
+                      {treasury?.isWithdrawable ? (
+                        <span style={{ color: '#16a34a' }}>
+                          {parseFloat(treasury.withdrawableEth).toFixed(4)} withdrawable
+                        </span>
+                      ) : (
+                        <span style={{ color: '#6b7280' }}>
+                          {parseFloat(fromTreasury).toFixed(4)} → seed
+                        </span>
+                      )}
+                    </div>
+                    {treasury && <div style={styles.address}>{shortenAddress(treasury.address)}</div>}
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={styles.statLabel}>Pending Refunds</div>
+                    <div style={styles.statValue}>{parseFloat(balances.pendingRefunds.totalEth).toFixed(4)}</div>
+                    <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending</div>
+                  </div>
+                </div>
+
+                {/* Seed Breakdown Info */}
+                {balances.nextRoundSeed && (
+                  <div style={{ marginTop: '16px', padding: '12px', background: hasShortfall ? '#fef3c7' : '#d1fae5', borderRadius: '8px', border: `1px solid ${hasShortfall ? '#fde68a' : '#6ee7b7'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', color: hasShortfall ? '#92400e' : '#047857', fontWeight: 500 }}>
+                        Next Round Seed Breakdown
+                      </span>
+                      <span style={{ fontSize: '12px', color: hasShortfall ? '#92400e' : '#047857' }}>
+                        {parseFloat(seedTotal).toFixed(4)} / 0.03 ETH
+                      </span>
+                    </div>
+                    <div style={{ background: hasShortfall ? '#fde68a' : '#6ee7b7', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          background: hasShortfall ? '#f59e0b' : '#10b981',
+                          height: '100%',
+                          width: `${Math.min(100, (parseFloat(seedTotal) / 0.03) * 100)}%`,
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '11px', color: hasShortfall ? '#92400e' : '#047857', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>5% of jackpot: {parseFloat(fivePercent).toFixed(4)} ETH</span>
+                      <span>+ Treasury: {parseFloat(fromTreasury).toFixed(4)} ETH</span>
+                    </div>
+                    {hasShortfall && (
+                      <div style={{ fontSize: '11px', color: '#b45309', marginTop: '4px', fontStyle: 'italic' }}>
+                        Next round will start with {parseFloat(seedTotal).toFixed(4)} ETH (below 0.03 target)
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           </>
         ) : null}
       </div>
@@ -1657,59 +1712,93 @@ export default function WalletSection({ user }: WalletSectionProps) {
         )}
       </div>
 
-      {/* Creator Pool Withdrawal */}
+      {/* Treasury Withdrawal */}
       <div style={styles.card}>
-        <h3 style={styles.cardTitle}>Withdraw from Creator Pool</h3>
+        <h3 style={styles.cardTitle}>Withdraw from Treasury</h3>
         <p style={styles.cardSubtitle}>
-          Withdraw accumulated creator profits. This action is irreversible.
+          Withdraw excess treasury funds. Treasury first covers seed shortfall, only remainder is withdrawable.
         </p>
 
-        {balances && (
-          <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#6b7280' }}>Amount to withdraw:</span>
-              <span style={{ fontWeight: 600 }}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(6)} ETH</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <span style={{ color: '#6b7280' }}>Destination (fixed in contract):</span>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 500 }}>
-                  {CREATOR_PROFIT_WALLET}
-                </div>
-                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                  Creator Profit Wallet
+        {balances && (() => {
+          const treasury = balances.treasury || (balances.creatorPool ? {
+            balanceEth: balances.creatorPool.accumulatedEth,
+            withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
+            isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
+            contributingToSeedEth: balances.creatorPool.isWithdrawable ? '0' : balances.creatorPool.accumulatedEth,
+          } : null);
+
+          if (!treasury) return null;
+
+          return (
+            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>Total treasury balance:</span>
+                <span style={{ fontWeight: 600 }}>{parseFloat(treasury.balanceEth).toFixed(6)} ETH</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>Reserved for seed:</span>
+                <span style={{ color: '#f59e0b' }}>−{parseFloat(treasury.contributingToSeedEth || '0').toFixed(6)} ETH</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                <span style={{ color: '#6b7280', fontWeight: 500 }}>Withdrawable:</span>
+                <span style={{ fontWeight: 600, color: treasury.isWithdrawable ? '#16a34a' : '#9ca3af' }}>
+                  {parseFloat(treasury.withdrawableEth).toFixed(6)} ETH
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <span style={{ color: '#6b7280' }}>Destination:</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 500 }}>
+                    {CREATOR_PROFIT_WALLET}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                    Creator Profit Wallet
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div style={styles.alert('info')}>
           <span>ℹ️</span>
           <span>
-            The contract's <code style={{ background: '#e5e7eb', padding: '2px 4px', borderRadius: '4px' }}>withdrawCreatorProfit()</code> function
-            withdraws <strong>all</strong> accumulated profits to the fixed creator wallet address configured in the smart contract.
+            Treasury funds first cover the seed shortfall (difference between 5% of jackpot and 0.03 ETH target).
+            Only funds above what's needed for seeding can be withdrawn.
           </span>
         </div>
 
-        {balances?.creatorPool.isWithdrawable === false ? (
-          <div style={{ ...styles.alert('warning'), marginTop: '16px' }}>
-            ⚠️ Withdrawal disabled until creator pool reaches {balances?.creatorPool.withdrawThresholdEth || '0.03'} ETH threshold.
-            Current: {parseFloat(balances?.creatorPool.accumulatedEth || '0').toFixed(4)} ETH
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowWithdrawConfirm(true)}
-            disabled={!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0}
-            style={{
-              ...styles.btnDanger,
-              marginTop: '16px',
-              ...(!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0 ? styles.btnDisabled : {}),
-            }}
-          >
-            Withdraw All to Creator Wallet
-          </button>
-        )}
+        {(() => {
+          const treasury = balances?.treasury || (balances?.creatorPool ? {
+            withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
+            isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
+            balanceEth: balances.creatorPool.accumulatedEth,
+          } : null);
+
+          if (!treasury) return null;
+
+          if (!treasury.isWithdrawable) {
+            return (
+              <div style={{ ...styles.alert('warning'), marginTop: '16px' }}>
+                ⚠️ No withdrawable balance. Treasury funds ({parseFloat(treasury.balanceEth).toFixed(4)} ETH) are reserved to help seed the next round.
+              </div>
+            );
+          }
+
+          return (
+            <button
+              onClick={() => setShowWithdrawConfirm(true)}
+              disabled={!connectedWallet || !isOnBase || parseFloat(treasury.withdrawableEth) === 0}
+              style={{
+                ...styles.btnDanger,
+                marginTop: '16px',
+                ...(!connectedWallet || !isOnBase || parseFloat(treasury.withdrawableEth) === 0 ? styles.btnDisabled : {}),
+              }}
+            >
+              Withdraw {parseFloat(treasury.withdrawableEth).toFixed(4)} ETH to Creator Wallet
+            </button>
+          );
+        })()}
       </div>
 
       {/* Transaction History */}
