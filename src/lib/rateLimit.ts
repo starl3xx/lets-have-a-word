@@ -21,11 +21,13 @@ import { logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 
 export const RateLimitConfig = {
   guess: {
-    // Burst limit: 8 requests per 10 seconds
-    burstRequests: parseInt(process.env.RATE_LIMIT_GUESS_BURST_REQUESTS || '8', 10),
+    // Burst limit: 30 requests per 10 seconds (3/sec)
+    // Increased to support users with large paid guess packs
+    burstRequests: parseInt(process.env.RATE_LIMIT_GUESS_BURST_REQUESTS || '30', 10),
     burstWindowSeconds: parseInt(process.env.RATE_LIMIT_GUESS_BURST_WINDOW || '10', 10),
-    // Sustained limit: 30 requests per 60 seconds
-    sustainedRequests: parseInt(process.env.RATE_LIMIT_GUESS_SUSTAINED_REQUESTS || '30', 10),
+    // Sustained limit: 180 requests per 60 seconds (3/sec)
+    // Guess credits are the real limiter, not rate limits
+    sustainedRequests: parseInt(process.env.RATE_LIMIT_GUESS_SUSTAINED_REQUESTS || '180', 10),
     sustainedWindowSeconds: parseInt(process.env.RATE_LIMIT_GUESS_SUSTAINED_WINDOW || '60', 10),
   },
   shareCallback: {
