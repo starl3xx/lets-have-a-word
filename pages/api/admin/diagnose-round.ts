@@ -9,7 +9,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from './me';
 import { db } from '../../../src/db';
-import { rounds } from '../../../src/db/schema';
+import { rounds, roundPayouts } from '../../../src/db/schema';
 import { eq } from 'drizzle-orm';
 
 export default async function handler(
@@ -98,11 +98,56 @@ export default async function handler(
       .filter(([_, diag]) => diag.problem)
       .map(([field, diag]) => ({ field, ...diag }));
 
+    // Also check round_payouts for this round
+    const payouts = await db.select().from(roundPayouts).where(eq(roundPayouts.roundId, roundId));
+    const payoutIssues: Array<{ id: number; field: string; type: string; isDate: boolean; value: any }> = [];
+    for (const payout of payouts) {
+      // Check amountEth field
+      if (typeof payout.amountEth !== 'string') {
+        payoutIssues.push({
+          id: payout.id,
+          field: 'amountEth',
+          type: typeof payout.amountEth,
+          isDate: payout.amountEth instanceof Date,
+          value: payout.amountEth instanceof Date ? (payout.amountEth as Date).toISOString() : String(payout.amountEth),
+        });
+      }
+    }
+
+    // Check previous round if this is Round 2+
+    let previousRoundIssues: any = null;
+    if (roundId > 1) {
+      const [prevRound] = await db.select().from(rounds).where(eq(rounds.id, roundId - 1));
+      if (prevRound) {
+        const prevFieldsToCheck = ['seedNextRoundEth', 'prizePoolEth', 'answer', 'salt', 'commitHash'];
+        const prevProblems: any[] = [];
+        for (const field of prevFieldsToCheck) {
+          const value = (prevRound as any)[field];
+          if (value !== null && typeof value !== 'string') {
+            prevProblems.push({
+              field,
+              type: typeof value,
+              isDate: value instanceof Date,
+              value: value instanceof Date ? value.toISOString() : String(value).substring(0, 50),
+            });
+          }
+        }
+        if (prevProblems.length > 0) {
+          previousRoundIssues = {
+            roundId: roundId - 1,
+            problems: prevProblems,
+          };
+        }
+      }
+    }
+
     return res.status(200).json({
       roundId,
-      status: problems.length > 0 ? 'CORRUPTED' : 'OK',
-      problemCount: problems.length,
+      status: problems.length > 0 || payoutIssues.length > 0 || previousRoundIssues ? 'CORRUPTED' : 'OK',
+      problemCount: problems.length + payoutIssues.length + (previousRoundIssues?.problems?.length || 0),
       problems,
+      payoutIssues: payoutIssues.length > 0 ? payoutIssues : undefined,
+      previousRoundIssues,
       allFields: fieldDiagnostics,
       fixInstructions: problems.length > 0
         ? `Visit /api/admin/fix-round-field and fix these fields: ${problems.map(p => p.field).join(', ')}`
