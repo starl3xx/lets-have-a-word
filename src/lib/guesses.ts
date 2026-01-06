@@ -2,7 +2,8 @@ import { db, guesses, users, rounds, roundBonusWords, bonusWordClaims, userBadge
 import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
-import { getActiveRound, getActiveRoundForUpdate } from './rounds';
+import { getActiveRound, getActiveRoundForUpdate, createRound } from './rounds';
+import { shouldBlockNewRoundCreation } from './operational-guard';
 import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects, resolveRoundAndCreatePayouts } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
@@ -514,6 +515,26 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // This ensures no stale data is served about the old round
       console.log(`[Cache] 🔴 ROUND WON - Invalidating all caches for round ${round.id}`);
       await invalidateOnRoundTransition(round.id);
+
+      // AUTO-START NEXT ROUND: Proactively create the next round after resolution
+      // This ensures Round N+1 is ready immediately, so users don't have to wait
+      // Fire-and-forget to not block the winning user's response
+      if (!isDevModeEnabled()) {
+        (async () => {
+          try {
+            const blocked = await shouldBlockNewRoundCreation();
+            if (blocked) {
+              console.log(`[AutoStart] ⏸️ New round creation blocked (dead day or kill switch active)`);
+              return;
+            }
+            const newRound = await createRound();
+            console.log(`[AutoStart] ✅ Round ${newRound.id} auto-started after Round ${round.id} resolved`);
+          } catch (autoStartError) {
+            // Log but don't throw - the winning user shouldn't be affected
+            console.error(`[AutoStart] ❌ Failed to auto-start next round:`, autoStartError);
+          }
+        })();
+      }
 
       // Get guess count (after insert, so totalGuesses includes this winning guess)
       const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
