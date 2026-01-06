@@ -9,8 +9,11 @@ import { isAdminFid } from '../me';
 import { getBaseProvider } from '../../../../src/lib/clankton';
 import { getContractConfig, getJackpotManagerReadOnly } from '../../../../src/lib/jackpot-contract';
 import { db } from '../../../../src/db';
-import { refunds } from '../../../../src/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { refunds, rounds } from '../../../../src/db/schema';
+import { eq, sql, desc } from 'drizzle-orm';
+
+// Minimum creator pool balance before withdrawal is allowed
+export const CREATOR_POOL_WITHDRAW_THRESHOLD_ETH = 0.03;
 
 export interface WalletBalancesResponse {
   operatorWallet: {
@@ -24,10 +27,16 @@ export interface WalletBalancesResponse {
     balanceWei: string;
     currentJackpotEth: string;
   };
+  nextRoundSeed: {
+    projectedEth: string; // 5% of current jackpot
+    fromPreviousRoundEth: string; // Seed carried from previous round (if any)
+  };
   creatorPool: {
     address: string;
     accumulatedEth: string;
     accumulatedWei: string;
+    withdrawThresholdEth: string;
+    isWithdrawable: boolean;
   };
   clanktonRewards: {
     tokenAddress: string;
@@ -114,10 +123,34 @@ export default async function handler(
       console.warn('[admin/wallet/balances] Refunds query failed:', err);
     }
 
+    // Query the current/most recent round's seedNextRoundEth
+    let seedFromPreviousRound = '0';
+    try {
+      const [currentRound] = await db.select({
+        seedNextRoundEth: rounds.seedNextRoundEth,
+      })
+        .from(rounds)
+        .orderBy(desc(rounds.id))
+        .limit(1);
+      if (currentRound?.seedNextRoundEth) {
+        seedFromPreviousRound = currentRound.seedNextRoundEth;
+      }
+    } catch (err) {
+      console.warn('[admin/wallet/balances] Round query failed:', err);
+    }
+
+    // Calculate projected next round seed (5% of current jackpot)
+    const currentJackpotFloat = parseFloat(ethers.formatEther(currentJackpot));
+    const projectedSeedEth = (currentJackpotFloat * 0.05).toFixed(18);
+
     // Format CLANKTON balance (18 decimals) to human readable
     const clanktonHumanReadable = ethers.formatUnits(clanktonBalance, 18);
     // Round to whole number for display (e.g., "5000000000" for 5B)
     const clanktonWhole = Math.floor(parseFloat(clanktonHumanReadable)).toString();
+
+    // Check if creator pool meets withdrawal threshold
+    const creatorAccumulatedEth = parseFloat(ethers.formatEther(creatorAccumulated));
+    const isWithdrawable = creatorAccumulatedEth >= CREATOR_POOL_WITHDRAW_THRESHOLD_ETH;
 
     const response: WalletBalancesResponse = {
       operatorWallet: {
@@ -131,10 +164,16 @@ export default async function handler(
         balanceWei: prizePoolBalance.toString(),
         currentJackpotEth: ethers.formatEther(currentJackpot),
       },
+      nextRoundSeed: {
+        projectedEth: projectedSeedEth,
+        fromPreviousRoundEth: seedFromPreviousRound,
+      },
       creatorPool: {
         address: config.creatorProfitWallet,
         accumulatedEth: ethers.formatEther(creatorAccumulated),
         accumulatedWei: creatorAccumulated.toString(),
+        withdrawThresholdEth: CREATOR_POOL_WITHDRAW_THRESHOLD_ETH.toString(),
+        isWithdrawable,
       },
       clanktonRewards: {
         tokenAddress: CLANKTON_TOKEN_ADDRESS,
