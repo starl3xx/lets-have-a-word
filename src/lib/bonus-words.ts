@@ -5,6 +5,7 @@
 
 import { db, roundBonusWords, users, rounds, userBadges } from '../db';
 import { eq, and, isNotNull, isNull, desc, inArray } from 'drizzle-orm';
+import { hasClanktonBonus } from './clankton';
 import { getPlaintextAnswer } from './encryption';
 
 /**
@@ -213,23 +214,38 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
     }
   }
 
-  // Get CLANKTON holder status via wallet CLANKTON balances
-  // (For now, we'll check the clankton_balances table if it exists, or skip)
-  // NOTE: In the future, query clanktonBalances table
+  // Get CLANKTON holder status via wallet balances (same as top-guessers)
   const clanktonHolderMap = new Map<number, boolean>();
   try {
-    const { clanktonBalances } = await import('../db');
-    if (clanktonBalances && winnerFids.length > 0) {
-      const balances = await db
-        .select({ fid: clanktonBalances.fid })
-        .from(clanktonBalances)
-        .where(inArray(clanktonBalances.fid, winnerFids));
-      for (const b of balances) {
-        clanktonHolderMap.set(b.fid, true);
+    // Get user wallets
+    const userRecords = winnerFids.length > 0
+      ? await db
+          .select({ fid: users.fid, signerWalletAddress: users.signerWalletAddress })
+          .from(users)
+          .where(inArray(users.fid, winnerFids))
+      : [];
+
+    const walletsToCheck = userRecords
+      .filter(u => u.signerWalletAddress)
+      .map(u => ({ fid: u.fid, wallet: u.signerWalletAddress! }));
+
+    if (walletsToCheck.length > 0) {
+      // Check all wallets in parallel with individual error handling
+      const clanktonResults = await Promise.allSettled(
+        walletsToCheck.map(async ({ fid, wallet }) => ({
+          fid,
+          hasClankton: await hasClanktonBonus(wallet),
+        }))
+      );
+      for (const result of clanktonResults) {
+        if (result.status === 'fulfilled' && result.value.hasClankton) {
+          clanktonHolderMap.set(result.value.fid, true);
+        }
       }
     }
-  } catch {
-    // Table doesn't exist or query failed, skip CLANKTON holder check
+  } catch (error) {
+    console.warn('[bonus-words] Error checking CLANKTON balances:', error);
+    // Continue without CLANKTON badges on error
   }
 
   return status.claimedWords.map(cw => {
