@@ -27,9 +27,15 @@ interface WalletBalances {
     balanceEth: string;
     currentJackpotEth: string;
   };
+  nextRoundSeed?: {
+    projectedEth: string; // 5% of current jackpot
+    fromPreviousRoundEth: string; // Seed carried from previous round
+  };
   creatorPool: {
     address: string;
     accumulatedEth: string;
+    withdrawThresholdEth?: string;
+    isWithdrawable?: boolean;
   };
   clanktonRewards?: {
     tokenAddress: string;
@@ -1074,16 +1080,27 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.address}>{shortenAddress(balances.prizePool.address)}</div>
             </div>
             <div style={styles.statCard}>
-              <div style={styles.statLabel}>Creator Pool</div>
-              <div style={styles.statValue}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(4)}</div>
-              <div style={styles.statSubtext}>ETH (withdrawable)</div>
-              <div style={styles.address}>{shortenAddress(balances.creatorPool.address)}</div>
+              <div style={styles.statLabel}>Next Round Seed</div>
+              <div style={styles.statValue}>
+                {balances.nextRoundSeed
+                  ? parseFloat(balances.nextRoundSeed.projectedEth).toFixed(4)
+                  : (parseFloat(balances.prizePool.currentJackpotEth) * 0.05).toFixed(4)}
+              </div>
+              <div style={styles.statSubtext}>5% of jackpot</div>
             </div>
             <div style={styles.statCard}>
-              <div style={styles.statLabel}>CLANKTON Balance</div>
-              <div style={styles.statValue}>{formatClanktonBalance(balances.clanktonRewards?.balance || '0')}</div>
-              <div style={styles.statSubtext}>Bonus word rewards</div>
-              <div style={styles.address}>{shortenAddress(balances.contractAddress)}</div>
+              <div style={styles.statLabel}>Creator Pool</div>
+              <div style={styles.statValue}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(4)}</div>
+              <div style={styles.statSubtext}>
+                {balances.creatorPool.isWithdrawable !== false ? (
+                  <span style={{ color: '#16a34a' }}>ETH (withdrawable)</span>
+                ) : (
+                  <span style={{ color: '#d97706' }}>
+                    {parseFloat(balances.creatorPool.withdrawThresholdEth || '0.03').toFixed(2)} ETH min
+                  </span>
+                )}
+              </div>
+              <div style={styles.address}>{shortenAddress(balances.creatorPool.address)}</div>
             </div>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Pending Refunds</div>
@@ -1091,6 +1108,33 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending</div>
             </div>
           </div>
+
+          {/* Creator Pool Progress Bar */}
+          {balances.creatorPool.isWithdrawable === false && balances.creatorPool.withdrawThresholdEth && (
+            <div style={{ marginTop: '16px', padding: '12px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fde68a' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 500 }}>
+                  Creator Pool Progress
+                </span>
+                <span style={{ fontSize: '12px', color: '#92400e' }}>
+                  {parseFloat(balances.creatorPool.accumulatedEth).toFixed(4)} / {parseFloat(balances.creatorPool.withdrawThresholdEth).toFixed(2)} ETH
+                </span>
+              </div>
+              <div style={{ background: '#fde68a', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    background: '#f59e0b',
+                    height: '100%',
+                    width: `${Math.min(100, (parseFloat(balances.creatorPool.accumulatedEth) / parseFloat(balances.creatorPool.withdrawThresholdEth)) * 100)}%`,
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: '11px', color: '#92400e', marginTop: '6px' }}>
+                Withdrawal enabled once threshold is reached. Funds below threshold seed future rounds.
+              </div>
+            </div>
+          )}
           </>
         ) : null}
       </div>
@@ -1648,17 +1692,24 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </span>
         </div>
 
-        <button
-          onClick={() => setShowWithdrawConfirm(true)}
-          disabled={!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0}
-          style={{
-            ...styles.btnDanger,
-            marginTop: '16px',
-            ...(!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0 ? styles.btnDisabled : {}),
-          }}
-        >
-          Withdraw All to Creator Wallet
-        </button>
+        {balances?.creatorPool.isWithdrawable === false ? (
+          <div style={{ ...styles.alert('warning'), marginTop: '16px' }}>
+            ⚠️ Withdrawal disabled until creator pool reaches {balances?.creatorPool.withdrawThresholdEth || '0.03'} ETH threshold.
+            Current: {parseFloat(balances?.creatorPool.accumulatedEth || '0').toFixed(4)} ETH
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowWithdrawConfirm(true)}
+            disabled={!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0}
+            style={{
+              ...styles.btnDanger,
+              marginTop: '16px',
+              ...(!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0 ? styles.btnDisabled : {}),
+            }}
+          >
+            Withdraw All to Creator Wallet
+          </button>
+        )}
       </div>
 
       {/* Transaction History */}
