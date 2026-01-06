@@ -63,6 +63,7 @@ interface FailedBonusClaim {
   claimId: number;
   bonusWordId: number;
   fid: number;
+  username: string | null;
   walletAddress: string;
   txStatus: string;
   txHash: string | null;
@@ -78,8 +79,15 @@ interface BonusWordWithoutTx {
   roundId: number;
   wordIndex: number;
   claimedByFid: number;
+  username: string | null;
   claimedAt: string;
   txHash: string | null;
+}
+
+interface RetrySuccess {
+  id: number | string;
+  txHash: string;
+  walletAddress?: string;
 }
 
 interface BonusDistributionStatus {
@@ -410,6 +418,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [retryingClaimId, setRetryingClaimId] = useState<number | null>(null);
   const [retryingBonusWordId, setRetryingBonusWordId] = useState<number | null>(null);
   const [retryingAll, setRetryingAll] = useState(false);
+  const [retrySuccesses, setRetrySuccesses] = useState<RetrySuccess[]>([]);
+  const [retryAllResult, setRetryAllResult] = useState<{ successful: number; failed: number } | null>(null);
 
   // =============================================================================
   // Wallet Connection
@@ -605,7 +615,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        alert(`Success! TX: ${data.txHash}`);
+        setRetrySuccesses((prev) => [...prev, { id: `claim-${claimId}`, txHash: data.txHash }]);
         await fetchBonusDistStatus();
       } else {
         alert(`Failed: ${data.error || 'Unknown error'}`);
@@ -630,7 +640,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        alert(`Success! TX: ${data.txHash}\nWallet: ${data.walletAddress}`);
+        setRetrySuccesses((prev) => [...prev, { id: `bw-${bonusWordId}`, txHash: data.txHash, walletAddress: data.walletAddress }]);
         await fetchBonusDistStatus();
       } else {
         alert(`Failed: ${data.error || 'Unknown error'}`);
@@ -647,6 +657,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
     if (!confirm('Retry all failed bonus word distributions?')) return;
 
     setRetryingAll(true);
+    setRetryAllResult(null);
     try {
       const res = await fetch('/api/admin/operational/retry-bonus-distribution', {
         method: 'POST',
@@ -658,7 +669,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
       if (res.ok && data.results) {
         const successful = data.results.filter((r: any) => r.success).length;
         const failed = data.results.filter((r: any) => r.error).length;
-        alert(`Completed: ${successful} successful, ${failed} failed`);
+        setRetryAllResult({ successful, failed });
+        // Add successful transactions to the list
+        const successfulTxs = data.results
+          .filter((r: any) => r.success)
+          .map((r: any) => ({ id: `claim-${r.claimId}`, txHash: r.txHash }));
+        setRetrySuccesses((prev) => [...prev, ...successfulTxs]);
         await fetchBonusDistStatus();
       } else {
         alert(`Failed: ${data.error || 'Unknown error'}`);
@@ -1020,6 +1036,48 @@ export default function WalletSection({ user }: WalletSectionProps) {
               </div>
             </div>
 
+            {/* Retry All Result */}
+            {retryAllResult && (
+              <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
+                <span>✅</span>
+                <span>Retry complete: {retryAllResult.successful} successful, {retryAllResult.failed} failed</span>
+                <button
+                  onClick={() => setRetryAllResult(null)}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* Recent Success Messages */}
+            {retrySuccesses.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                {retrySuccesses.slice(-5).map((success) => (
+                  <div key={success.id} style={{ ...styles.alert('success'), marginBottom: '8px' }}>
+                    <span>✅</span>
+                    <span>
+                      Sent!{' '}
+                      <a
+                        href={`https://basescan.org/tx/${success.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        View on BaseScan →
+                      </a>
+                    </span>
+                    <button
+                      onClick={() => setRetrySuccesses((prev) => prev.filter((s) => s.id !== success.id))}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Failed Claims Table */}
             {bonusDistStatus.failedClaims.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
@@ -1043,7 +1101,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                   <thead>
                     <tr>
                       <th style={styles.th}>Round</th>
-                      <th style={styles.th}>FID</th>
+                      <th style={styles.th}>User</th>
                       <th style={styles.th}>Wallet</th>
                       <th style={styles.th}>Status</th>
                       <th style={styles.th}>Retries</th>
@@ -1055,7 +1113,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
                     {bonusDistStatus.failedClaims.map((claim) => (
                       <tr key={claim.claimId}>
                         <td style={styles.td}>R{claim.roundId} #{claim.wordIndex + 1}</td>
-                        <td style={styles.td}>{claim.fid}</td>
+                        <td style={styles.td}>
+                          {claim.username ? `@${claim.username}` : `FID ${claim.fid}`}
+                        </td>
                         <td style={styles.td}>
                           <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
                             {shortenAddress(claim.walletAddress)}
@@ -1106,7 +1166,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                     <tr>
                       <th style={styles.th}>Round</th>
                       <th style={styles.th}>Word #</th>
-                      <th style={styles.th}>FID</th>
+                      <th style={styles.th}>User</th>
                       <th style={styles.th}>Claimed At</th>
                       <th style={styles.th}>Action</th>
                     </tr>
@@ -1116,7 +1176,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
                       <tr key={bw.bonusWordId}>
                         <td style={styles.td}>R{bw.roundId}</td>
                         <td style={styles.td}>#{bw.wordIndex + 1}</td>
-                        <td style={styles.td}>{bw.claimedByFid}</td>
+                        <td style={styles.td}>
+                          {bw.username ? `@${bw.username}` : `FID ${bw.claimedByFid}`}
+                        </td>
                         <td style={styles.td}>{new Date(bw.claimedAt).toLocaleString()}</td>
                         <td style={styles.td}>
                           <button
