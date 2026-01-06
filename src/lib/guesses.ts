@@ -334,7 +334,18 @@ async function handleBonusWordWin(
       });
     }
   } else {
-    console.warn(`[guesses] User ${fid} has no wallet address - cannot distribute CLANKTON`);
+    console.warn(`[guesses] User ${fid} has no wallet address - creating pending claim for retry`);
+
+    // Record pending claim so admin can distribute when user connects wallet
+    await db.insert(bonusWordClaims).values({
+      bonusWordId: bonusWord.id,
+      fid,
+      guessId: guessId!,
+      clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+      walletAddress: null,
+      txStatus: 'pending',
+      errorMessage: 'User had no wallet address at time of guess',
+    });
   }
 
   // 6. Announce the win (non-blocking)
