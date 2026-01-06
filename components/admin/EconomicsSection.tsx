@@ -507,9 +507,9 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
     )
   }
 
-  const width = 100
-  const height = 140
-  const padding = { top: 10, right: 10, bottom: 25, left: 35 }
+  const width = 600
+  const height = 280
+  const padding = { top: 20, right: 30, bottom: 50, left: 70 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
@@ -579,13 +579,13 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
         y2={padding.top + chartHeight}
         stroke="#dc2626"
         strokeWidth="1"
-        strokeDasharray="2,2"
+        strokeDasharray="4,4"
       />
       <text
         x={xScale(750)}
-        y={padding.top - 2}
+        y={padding.top - 6}
         fill="#dc2626"
-        fontSize="3"
+        fontSize="11"
         textAnchor="middle"
       >
         750
@@ -603,7 +603,7 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
         d={medianPath}
         fill="none"
         stroke="#6366f1"
-        strokeWidth="1.5"
+        strokeWidth="2"
       />
 
       {/* Points on median line */}
@@ -612,7 +612,7 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
           key={i}
           cx={xScale(p.guessIndex)}
           cy={yScale(p.median)}
-          r="2"
+          r="4"
           fill="#6366f1"
         />
       ))}
@@ -621,10 +621,10 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
       {yLabels.map((label, i) => (
         <text
           key={i}
-          x={padding.left - 2}
-          y={label.y + 1}
+          x={padding.left - 8}
+          y={label.y + 4}
           fill="#6b7280"
-          fontSize="3"
+          fontSize="11"
           textAnchor="end"
         >
           {label.label}
@@ -636,9 +636,9 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
         <text
           key={i}
           x={xScale(p.guessIndex)}
-          y={padding.top + chartHeight + 8}
+          y={padding.top + chartHeight + 20}
           fill="#6b7280"
-          fontSize="3"
+          fontSize="11"
           textAnchor="middle"
         >
           {p.guessIndex}
@@ -648,20 +648,20 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
       {/* Axis labels */}
       <text
         x={padding.left + chartWidth / 2}
-        y={height - 2}
+        y={height - 10}
         fill="#9ca3af"
-        fontSize="3"
+        fontSize="12"
         textAnchor="middle"
       >
         Guess Index
       </text>
       <text
-        x={4}
+        x={18}
         y={padding.top + chartHeight / 2}
         fill="#9ca3af"
-        fontSize="3"
+        fontSize="12"
         textAnchor="middle"
-        transform={`rotate(-90, 4, ${padding.top + chartHeight / 2})`}
+        transform={`rotate(-90, 18, ${padding.top + chartHeight / 2})`}
       >
         ETH
       </text>
