@@ -11,6 +11,12 @@ import {
   getTotalPackCostWei,
   weiToEthString,
   getPricingPhase,
+  getVolumeTier,
+  getVolumeMultiplier,
+  getPacksRemainingAtCurrentTier,
+  getNextTierMultiplier,
+  getNextResetTime,
+  type VolumeTier,
 } from '../../src/lib/pack-pricing';
 import {
   invalidateRoundStateCache,
@@ -103,14 +109,9 @@ export default async function handler(
     const dateStr = getTodayUTC();
     const currentState = await getOrCreateDailyState(fid, dateStr);
 
-    // Check if user can purchase requested packs
-    const remainingPacks = DAILY_LIMITS_RULES.maxPaidPacksPerDay - currentState.paidPacksPurchased;
-    if (packCount > remainingPacks) {
-      return res.status(400).json({
-        error: `Cannot purchase ${packCount} packs. You can only purchase ${remainingPacks} more today.`,
-        remainingPacks,
-      });
-    }
+    // Pack purchases are now UNCAPPED - no limit check needed
+    // Volume-based pricing tiers apply (1×, 1.5×, 2×)
+    const packsPurchasedToday = currentState.paidPacksPurchased;
 
     // Get active round and calculate dynamic pricing
     const activeRound = await getActiveRound();
@@ -130,10 +131,12 @@ export default async function handler(
       totalGuessesInRound = result?.count || 0;
     }
 
-    // Calculate expected cost based on current round state
-    const expectedCostWei = getTotalPackCostWei(totalGuessesInRound, packCount);
+    // Calculate expected cost based on current round state AND volume tier
+    const expectedCostWei = getTotalPackCostWei(totalGuessesInRound, packCount, packsPurchasedToday);
     const expectedCostEth = weiToEthString(expectedCostWei);
     const pricingPhase = getPricingPhase(totalGuessesInRound);
+    const volumeTier = getVolumeTier(packsPurchasedToday);
+    const volumeMultiplier = getVolumeMultiplier(packsPurchasedToday);
 
     // Log analytics event - pack viewed (implicit in purchase flow)
     logAnalyticsEvent(AnalyticsEventTypes.GUESS_PACK_VIEWED, {
@@ -141,8 +144,10 @@ export default async function handler(
       roundId: activeRound?.id?.toString(),
       data: {
         pack_count: packCount,
-        packs_already_purchased: currentState.paidPacksPurchased,
+        packs_already_purchased: packsPurchasedToday,
         pricing_phase: pricingPhase,
+        volume_tier: volumeTier,
+        volume_multiplier: volumeMultiplier,
         expected_cost_wei: expectedCostWei.toString(),
       },
     });
@@ -186,6 +191,8 @@ export default async function handler(
         credits_added: packCount * DAILY_LIMITS_RULES.paidGuessPackSize,
         total_credits: updatedState.paidGuessCredits,
         pricing_phase: pricingPhase,
+        volume_tier: volumeTier,
+        volume_multiplier: volumeMultiplier,
         expected_cost_wei: expectedCostWei.toString(),
         expected_cost_eth: expectedCostEth,
         total_guesses_in_round: totalGuessesInRound,
@@ -240,10 +247,17 @@ export default async function handler(
       });
     }
 
+    // Volume tier info for after this purchase
+    const newVolumeTier = getVolumeTier(updatedState.paidPacksPurchased);
+    const newVolumeMultiplier = getVolumeMultiplier(updatedState.paidPacksPurchased);
+    const packsRemainingAtTier = getPacksRemainingAtCurrentTier(updatedState.paidPacksPurchased);
+    const nextTierMult = getNextTierMultiplier(updatedState.paidPacksPurchased);
+
     console.log(
-      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${verification.ethAmount || expectedCostEth} ETH (${pricingPhase}). ` +
-      `Total today: ${updatedState.paidPacksPurchased}/${DAILY_LIMITS_RULES.maxPaidPacksPerDay}. ` +
+      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${verification.ethAmount || expectedCostEth} ETH (${pricingPhase}, ${volumeTier} ${volumeMultiplier}×). ` +
+      `Total today: ${updatedState.paidPacksPurchased} (unlimited). ` +
       `Credits: ${updatedState.paidGuessCredits}. ` +
+      `Next tier: ${newVolumeTier} (${newVolumeMultiplier}×). ` +
       `TxHash: ${txHash}`
     );
 
@@ -252,11 +266,16 @@ export default async function handler(
       packsPurchased: packCount,
       totalPacksToday: updatedState.paidPacksPurchased,
       paidGuessCredits: updatedState.paidGuessCredits,
-      remainingPacks: DAILY_LIMITS_RULES.maxPaidPacksPerDay - updatedState.paidPacksPurchased,
       // Milestone 7.1: Include pricing info in response
       expectedCostWei: expectedCostWei.toString(),
       expectedCostEth,
       pricingPhase,
+      // Volume tier info (unlimited packs with tiered pricing)
+      volumeTier: newVolumeTier,
+      volumeMultiplier: newVolumeMultiplier,
+      packsRemainingAtCurrentTier: packsRemainingAtTier,
+      nextTierMultiplier: nextTierMult,
+      paidGuessesExpireAt: getNextResetTime(),
       // Milestone 6.4: Include verified transaction info
       txHash,
       verifiedEthAmount: verification.ethAmount,

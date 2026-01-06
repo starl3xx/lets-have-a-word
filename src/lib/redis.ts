@@ -501,7 +501,7 @@ export async function checkRateLimit(
  * Implements the cache-aside pattern with automatic fallback
  *
  * @param key Cache key
- * @param ttlSeconds Cache TTL
+ * @param ttlSeconds Cache TTL (pass 0 or negative to bypass cache read)
  * @param fetchFn Function to fetch data if not cached
  * @returns Cached or freshly fetched data
  */
@@ -510,6 +510,12 @@ export async function cacheAside<T>(
   ttlSeconds: number,
   fetchFn: () => Promise<T>
 ): Promise<T> {
+  // If TTL is 0 or negative, bypass cache entirely (nocache mode)
+  if (ttlSeconds <= 0) {
+    console.log(`[Cache] BYPASS: ${key} (ttl=${ttlSeconds})`);
+    return await fetchFn();
+  }
+
   // Try to get from cache
   const cached = await cacheGet<T>(key);
   if (cached !== null) {

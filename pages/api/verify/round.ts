@@ -40,6 +40,9 @@ export interface VerifyRoundResponse {
   revealedSalt?: string;
   roundStartedAt: string;
   roundEndedAt?: string;
+  // Bonus Words Feature: Bonus words commitment (if enabled for this round)
+  bonusWordsCommitHash?: string;
+  hasBonusWords?: boolean;
 }
 
 export interface VerifyRoundErrorResponse {
@@ -145,6 +148,9 @@ export default async function handler(
         revealedSalt: archivedRound.salt,
         roundStartedAt: archivedRound.startTime.toISOString(),
         roundEndedAt: archivedRound.endTime.toISOString(),
+        // Bonus Words Feature
+        bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
+        hasBonusWords: !!roundData.bonusWordsCommitHash,
       });
     }
 
@@ -170,6 +176,9 @@ export default async function handler(
         revealedSalt: roundData.salt,
         roundStartedAt: roundData.startedAt.toISOString(),
         roundEndedAt: roundData.resolvedAt!.toISOString(),
+        // Bonus Words Feature
+        bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
+        hasBonusWords: !!roundData.bonusWordsCommitHash,
       });
     }
 
@@ -182,6 +191,9 @@ export default async function handler(
       hasOnChainCommitment: hasOnChainCommit,
       roundStartedAt: roundData.startedAt.toISOString(),
       roundEndedAt: roundData.cancelledAt?.toISOString(),
+      // Bonus Words Feature
+      bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
+      hasBonusWords: !!roundData.bonusWordsCommitHash,
     });
   } catch (error) {
     console.error('[api/verify/round] Error:', error);

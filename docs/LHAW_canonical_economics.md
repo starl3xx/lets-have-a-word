@@ -28,8 +28,8 @@ There are **no offchain payouts** and no manual intervention.
 - Referrer receives the full **10%**
 
 ### If the jackpot winner **does NOT have a referrer**
-- **7.5%** is added to the Top 10 guessers pool
-- **2.5%** is rolled into the **next round's seed prize pool**
+- **2.5%** is added to the Top 10 guessers pool
+- **7.5%** is rolled into the **next round's seed prize pool**
 
 ### Notes
 - Self‑referrals are blocked at signup
@@ -46,15 +46,15 @@ There are **no offchain payouts** and no manual intervention.
 
 ### Without referrer
 - Winner: **80%**
-- Top 10 guessers: **17.5%**
-- Next round seed: **2.5%**
+- Top 10 guessers: **12.5%**
+- Next round seed: **7.5%**
 
 ---
 
 ## 5. Top 10 Guessers Distribution
 
 Let `T` be the total Top 10 pool for the round
-(`T = 10%` or `17.5%` of the prize pool, depending on referral outcome)
+(`T = 10%` or `12.5%` of the prize pool, depending on referral outcome)
 
 ### Eligibility lock
 

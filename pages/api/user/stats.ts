@@ -143,27 +143,31 @@ export default async function handler(
 
         // Milestone 6.3: Calculate new stats
 
-        // Sum bonus guesses ALLOCATED from daily state (CLANKTON + share bonus)
-        // Note: We only track total freeUsed, not which type was used
-        // So we use allocated amounts but cap at actual non-paid guesses
-        const bonusStats = await db
-          .select({
-            clanktonAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedClankton}), 0)`,
-            shareBonusAllocated: sql<number>`coalesce(sum(${dailyGuessState.freeAllocatedShareBonus}), 0)`,
-          })
-          .from(dailyGuessState)
-          .where(eq(dailyGuessState.fid, fid));
-
-        const totalBonusAllocated = Number(bonusStats[0]?.clanktonAllocated || 0) + Number(bonusStats[0]?.shareBonusAllocated || 0);
-
-        // Non-paid guesses are what was actually used from free/bonus pool
+        // Non-paid guesses are the source of truth from guesses table
         const nonPaidGuesses = guessesAllTime - paidGuessesAllTime;
 
-        // Cap bonus at actual non-paid guesses (can't use more than allocated)
-        const bonusGuessesAllTime = Math.min(totalBonusAllocated, nonPaidGuesses);
+        // Calculate free vs bonus guesses PER DAY based on consumption order
+        // Consumption order: free (base) → CLANKTON bonus → share bonus → paid
+        // For each day: free_used_from_base = min(base_allocated, free_used)
+        //               free_used_from_bonus = free_used - free_used_from_base
+        // Only count data from game launch (Jan 1, 2026) to exclude test data
+        const usageStats = await db
+          .select({
+            // Per-day: attribute min(base, used) to free, remainder to bonus
+            freeFromBase: sql<number>`coalesce(sum(least(${dailyGuessState.freeAllocatedBase}, ${dailyGuessState.freeUsed})), 0)`,
+            freeFromBonus: sql<number>`coalesce(sum(greatest(0, ${dailyGuessState.freeUsed} - ${dailyGuessState.freeAllocatedBase})), 0)`,
+          })
+          .from(dailyGuessState)
+          .where(and(
+            eq(dailyGuessState.fid, fid),
+            sql`${dailyGuessState.date} >= '2026-01-01'`
+          ));
 
-        // Free guesses = remaining non-paid guesses after bonus
-        const freeGuessesAllTime = Math.max(0, nonPaidGuesses - bonusGuessesAllTime);
+        // Cap at actual non-paid guesses to handle pre-launch test data
+        const rawFreeFromBase = Number(usageStats[0]?.freeFromBase || 0);
+        const rawFreeFromBonus = Number(usageStats[0]?.freeFromBonus || 0);
+        const freeGuessesAllTime = Math.min(rawFreeFromBase, nonPaidGuesses);
+        const bonusGuessesAllTime = Math.min(rawFreeFromBonus, nonPaidGuesses - freeGuessesAllTime);
 
         // Guesses per round histogram (last 10 rounds for this user)
         const guessHistogram = await db

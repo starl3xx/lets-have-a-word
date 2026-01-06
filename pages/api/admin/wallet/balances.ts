@@ -29,6 +29,11 @@ export interface WalletBalancesResponse {
     accumulatedEth: string;
     accumulatedWei: string;
   };
+  clanktonRewards: {
+    tokenAddress: string;
+    balance: string; // Human readable (e.g., "5000000000" for 5B)
+    balanceRaw: string; // Raw with 18 decimals
+  };
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -84,6 +89,17 @@ export default async function handler(
       contractError = 'Contract not deployed or not accessible';
     }
 
+    // Fetch CLANKTON token balance held by the JackpotManager contract
+    const CLANKTON_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+    let clanktonBalance: bigint = 0n;
+    try {
+      const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
+      const clanktonContract = new ethers.Contract(CLANKTON_TOKEN_ADDRESS, erc20Abi, provider);
+      clanktonBalance = await clanktonContract.balanceOf(config.jackpotManagerAddress);
+    } catch (err) {
+      console.warn('[admin/wallet/balances] CLANKTON balance fetch failed:', err);
+    }
+
     // Database query for pending refunds
     let pendingRefunds = { count: 0, totalEth: '0' };
     try {
@@ -97,6 +113,11 @@ export default async function handler(
     } catch (err) {
       console.warn('[admin/wallet/balances] Refunds query failed:', err);
     }
+
+    // Format CLANKTON balance (18 decimals) to human readable
+    const clanktonHumanReadable = ethers.formatUnits(clanktonBalance, 18);
+    // Round to whole number for display (e.g., "5000000000" for 5B)
+    const clanktonWhole = Math.floor(parseFloat(clanktonHumanReadable)).toString();
 
     const response: WalletBalancesResponse = {
       operatorWallet: {
@@ -114,6 +135,11 @@ export default async function handler(
         address: config.creatorProfitWallet,
         accumulatedEth: ethers.formatEther(creatorAccumulated),
         accumulatedWei: creatorAccumulated.toString(),
+      },
+      clanktonRewards: {
+        tokenAddress: CLANKTON_TOKEN_ADDRESS,
+        balance: clanktonWhole,
+        balanceRaw: clanktonBalance.toString(),
       },
       pendingRefunds: {
         count: pendingRefunds.count,

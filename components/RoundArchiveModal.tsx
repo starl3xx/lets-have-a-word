@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Top10StatusChip from './Top10StatusChip';
-import OgHunterBadge from './OgHunterBadge';
+import BadgeStack from './BadgeStack';
+
+// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
+const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
 
 interface TopGuesser {
   fid: number;
@@ -8,6 +11,19 @@ interface TopGuesser {
   guessCount: number;
   pfpUrl: string;
   hasOgHunterBadge?: boolean;
+  hasClanktonBadge?: boolean;
+}
+
+// Bonus Words Feature: Winner display type
+interface BonusWordWinner {
+  fid: number;
+  username: string;
+  pfpUrl: string;
+  word: string;
+  wordIndex: number;
+  claimedAt: string;
+  txHash: string | null;
+  clanktonAmount: string;
 }
 
 interface RoundState {
@@ -92,6 +108,9 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
   const [topGuessers, setTopGuessers] = useState<TopGuesser[]>([]);
   const [uniqueGuessers, setUniqueGuessers] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  // Bonus Words Feature: Bonus word winners state
+  const [bonusWordWinners, setBonusWordWinners] = useState<BonusWordWinner[]>([]);
+  const [totalBonusWords, setTotalBonusWords] = useState<number>(10);
 
   // Track if initial load is complete to avoid flickering on polls
   const hasLoadedRef = useRef(false);
@@ -105,17 +124,36 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
     }
 
     try {
-      // Fetch round state and top guessers in parallel
-      const [roundResponse, guessersResponse] = await Promise.all([
+      // Fetch round state, top guessers, and bonus word winners in parallel
+      // Only fetch bonus words if UI is enabled
+      const fetchPromises: Promise<Response>[] = [
         fetch('/api/round-state'),
         fetch('/api/round/top-guessers'),
-      ]);
+      ];
+      if (BONUS_WORDS_UI_ENABLED) {
+        fetchPromises.push(fetch('/api/round/bonus-word-winners'));
+      }
+      const responses = await Promise.all(fetchPromises);
+      const [roundResponse, guessersResponse] = responses;
+      const bonusWordsResponse = BONUS_WORDS_UI_ENABLED ? responses[2] : null;
 
       if (!roundResponse.ok) throw new Error('Failed to load round state');
       if (!guessersResponse.ok) throw new Error('Failed to load top guessers');
+      // Bonus words API returns 204 if no bonus words (legacy round)
 
       const roundData = await roundResponse.json();
       const guessersData = await guessersResponse.json();
+
+      // Bonus Words Feature: Parse bonus word winners if available and UI is enabled
+      if (bonusWordsResponse) {
+        if (bonusWordsResponse.ok) {
+          const bonusData = await bonusWordsResponse.json();
+          setBonusWordWinners(bonusData.winners || []);
+        } else if (bonusWordsResponse.status === 204) {
+          // No bonus words for this round (legacy)
+          setBonusWordWinners([]);
+        }
+      }
 
       // Only update state if data has actually changed (prevents flickering)
       setRoundState((prev) => {
@@ -323,10 +361,10 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
             {/* Early Guessers List */}
             <div>
               <div className="text-center mb-1.5">
-                <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                   Top 10 Early Guessers
                 </h3>
-                <p className="text-sm text-gray-500 mt-0.5">(ranked from the first 750 guesses)</p>
+                <p className="text-xs text-gray-500 mt-0.5">(ranked from the first 750 guesses)</p>
               </div>
 
               {/* Top-10 Status Chip (Milestone 7.x) */}
@@ -341,45 +379,47 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               )}
 
               {topGuessers.length === 0 ? (
-                <div className="text-center text-gray-400 py-4">
+                <div className="text-center text-gray-400 py-4 text-sm">
                   No guesses yet this round
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {topGuessers.slice(0, 10).map((guesser, index) => {
                     const rank = index + 1;
                     const top10PoolEth = breakdown ? parseFloat(breakdown.topGuessers.eth) : 0;
                     const rankPayout = getRankPayout(rank, top10PoolEth);
 
                     return (
-                      <div key={guesser.fid} className="flex items-center gap-3">
+                      <div key={guesser.fid} className="flex items-center gap-2">
                         {/* Rank */}
-                        <div className="text-gray-500 font-medium w-6 text-right">
+                        <div className="text-gray-500 text-sm font-medium w-5 text-right">
                           {rank}.
                         </div>
                         {/* Avatar */}
                         <img
                           src={guesser.pfpUrl}
                           alt={guesser.username}
-                          className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                          className="w-7 h-7 rounded-full object-cover border border-gray-200"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
                           }}
                         />
-                        {/* Username + Badge + ETH Payout */}
-                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                          <span className="font-medium text-gray-900 truncate">
-                            {guesser.username || `fid:${guesser.fid}`}
+                        {/* Username + Badges + ETH Payout */}
+                        <div className="flex-1 flex items-center gap-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 truncate">
+                            {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || `fid:${guesser.fid}`}`}
                           </span>
-                          {guesser.hasOgHunterBadge && (
-                            <OgHunterBadge size="sm" showTooltip={true} />
-                          )}
+                          <BadgeStack
+                            hasOgHunterBadge={guesser.hasOgHunterBadge}
+                            hasClanktonBadge={guesser.hasClanktonBadge}
+                            size="sm"
+                          />
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
                             (.{rankPayout.replace('0.', '')} ETH)
                           </span>
                         </div>
                         {/* Guess Count */}
-                        <div className="text-gray-900 font-bold tabular-nums mr-1">
+                        <div className="text-sm text-gray-900 font-bold tabular-nums mr-1">
                           {guesser.guessCount}
                         </div>
                       </div>
@@ -388,6 +428,48 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                 </div>
               )}
             </div>
+
+            {/* Bonus Words Feature: Bonus Word Finders Section (only if UI enabled) */}
+            {BONUS_WORDS_UI_ENABLED && bonusWordWinners.length > 0 && (
+              <div className="mt-4">
+                <div className="text-center mb-1.5">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                    🎣 Bonus Word Finders
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">5M CLANKTON each</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  {bonusWordWinners.map((winner) => (
+                    <div key={`${winner.fid}-${winner.word}`} className="flex items-center gap-2">
+                      {/* Avatar */}
+                      <img
+                        src={winner.pfpUrl}
+                        alt={winner.username}
+                        className="w-7 h-7 rounded-full object-cover border border-cyan-200"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${winner.fid}`;
+                        }}
+                      />
+                      {/* Username + Word */}
+                      <div className="flex-1 flex items-center gap-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900 truncate">
+                          {winner.username?.startsWith('fid:') ? winner.username : `@${winner.username || `fid:${winner.fid}`}`}
+                        </span>
+                        <span className="text-xs text-cyan-600 font-mono font-bold uppercase">
+                          {winner.word}
+                        </span>
+                        <span className="text-base">🎣</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-gray-400 italic text-center mt-2">
+                  {totalBonusWords - bonusWordWinners.length} bonus words remaining
+                </p>
+              </div>
+            )}
           </>
         )}
 

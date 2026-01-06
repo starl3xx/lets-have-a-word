@@ -46,7 +46,7 @@ export default async function handler(
     }
 
     // Check if syncing a specific round
-    const { roundId } = req.body || {};
+    const { roundId, force } = req.body || {};
 
     if (roundId) {
       // Archive specific round
@@ -55,7 +55,7 @@ export default async function handler(
         return res.status(400).json({ error: 'Invalid roundId' });
       }
 
-      const result = await archiveRound({ roundId: roundNum });
+      const result = await archiveRound({ roundId: roundNum, force: !!force });
 
       return res.status(200).json({
         archived: result.success && !result.alreadyArchived ? 1 : 0,
@@ -66,7 +66,7 @@ export default async function handler(
     }
 
     // Sync all rounds
-    const result = await syncAllRounds();
+    const result = await syncAllRounds({ force: !!force });
 
     return res.status(200).json(result);
   } catch (error) {

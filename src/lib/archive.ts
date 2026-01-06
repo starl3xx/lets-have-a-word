@@ -12,6 +12,7 @@ import {
   guesses,
   roundPayouts,
   users,
+  userBadges,
   dailyGuessState,
   announcerEvents,
   roundArchive,
@@ -21,15 +22,17 @@ import {
   type RoundArchiveRow,
   type RoundArchiveErrorInsert,
 } from '../db/schema';
-import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, or, isNull } from 'drizzle-orm';
 import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
+import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 
 /**
  * Data required to archive a round (can be passed explicitly or computed)
  */
 export interface ArchiveRoundData {
   roundId: number;
+  force?: boolean; // If true, delete existing archive and re-archive
 }
 
 /**
@@ -52,10 +55,10 @@ export interface ArchiveRoundResult {
  * @returns Result indicating success/failure and the archived record
  */
 export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRoundResult> {
-  const { roundId } = data;
+  const { roundId, force } = data;
 
   try {
-    // Check if already archived (idempotent)
+    // Check if already archived
     const existingArchive = await db
       .select()
       .from(roundArchive)
@@ -63,11 +66,19 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       .limit(1);
 
     if (existingArchive.length > 0) {
-      return {
-        success: true,
-        archived: existingArchive[0],
-        alreadyArchived: true,
-      };
+      if (force) {
+        // Delete existing archive to re-compute
+        await db
+          .delete(roundArchive)
+          .where(eq(roundArchive.roundNumber, roundId));
+        console.log(`[archive] Force re-archiving round ${roundId} - deleted existing record`);
+      } else {
+        return {
+          success: true,
+          archived: existingArchive[0],
+          alreadyArchived: true,
+        };
+      }
     }
 
     // Get the round
@@ -147,7 +158,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       winnerCastHash = announcerEvent.castHash;
     }
 
-    // Get payouts and construct payouts JSON
+    // Get payouts for winner, referrer, seed from round_payouts
     const payoutRecords = await db
       .select()
       .from(roundPayouts)
@@ -157,7 +168,8 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       topGuessers: [],
     };
 
-    let topGuesserRank = 1;
+    // Get winner, referrer, seed payouts from DB
+    let topGuesserPoolEth = 0;
     for (const payout of payoutRecords) {
       switch (payout.role) {
         case 'winner':
@@ -171,13 +183,8 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           }
           break;
         case 'top_guesser':
-          if (payout.fid) {
-            payoutsJson.topGuessers.push({
-              fid: payout.fid,
-              amountEth: payout.amountEth,
-              rank: topGuesserRank++,
-            });
-          }
+          // Sum up what was allocated to top guessers (for calculating individual amounts)
+          topGuesserPoolEth += parseFloat(payout.amountEth);
           break;
         case 'seed':
           payoutsJson.seed = { amountEth: payout.amountEth };
@@ -186,6 +193,56 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           payoutsJson.creator = { amountEth: payout.amountEth };
           break;
       }
+    }
+
+    // CRITICAL: Compute correct Top 10 from guesses table (ALL guesses count, not just paid)
+    // This ensures the archive shows the TRUE ranking, not who was incorrectly paid
+    const topGuessersFromGuesses = await db
+      .select({
+        fid: guesses.fid,
+        guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
+        firstGuessTime: sql<Date>`min(${guesses.createdAt})`,
+      })
+      .from(guesses)
+      .where(
+        and(
+          eq(guesses.roundId, roundId),
+          // Only count guesses within the Top-10 lock window (first 750)
+          or(
+            lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
+            isNull(guesses.guessIndexInRound) // Legacy data
+          )
+        )
+      )
+      .groupBy(guesses.fid)
+      .orderBy(desc(sql`count(${guesses.id})`), asc(sql`min(${guesses.createdAt})`))
+      .limit(11); // Get 11 to exclude winner
+
+    // Filter out the winner and take top 10
+    const top10Fids = topGuessersFromGuesses
+      .filter(g => g.fid !== round.winnerFid)
+      .slice(0, 10);
+
+    // Tiered payout percentages (basis points out of 10000)
+    const TIER_BPS = [1900, 1600, 1400, 1100, 1000, 600, 600, 600, 600, 600];
+
+    // Calculate normalized percentages based on how many are in top 10
+    const numGuessers = top10Fids.length;
+    if (numGuessers > 0) {
+      const activeBps = TIER_BPS.slice(0, numGuessers);
+      const totalBps = activeBps.reduce((sum, bp) => sum + bp, 0);
+
+      top10Fids.forEach((guesser, index) => {
+        // Calculate this guesser's share of the pool
+        const normalizedBps = (activeBps[index] * 10000) / totalBps;
+        const amountEth = (topGuesserPoolEth * normalizedBps) / 10000;
+
+        payoutsJson.topGuessers.push({
+          fid: guesser.fid,
+          amountEth: amountEth.toFixed(18),
+          rank: index + 1,
+        });
+      });
     }
 
     // Compute CLANKTON bonus count
@@ -281,14 +338,16 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 /**
  * Archive all unarchived resolved rounds
  *
+ * @param options.force - If true, re-archive all rounds (delete and recreate)
  * @returns Summary of sync operation
  */
-export async function syncAllRounds(): Promise<{
+export async function syncAllRounds(options?: { force?: boolean }): Promise<{
   archived: number;
   alreadyArchived: number;
   failed: number;
   errors: string[];
 }> {
+  const { force = false } = options || {};
   const result = {
     archived: 0,
     alreadyArchived: 0,
@@ -303,10 +362,10 @@ export async function syncAllRounds(): Promise<{
     .where(isNotNull(rounds.resolvedAt))
     .orderBy(asc(rounds.id));
 
-  console.log(`[archive] Syncing ${resolvedRounds.length} resolved rounds...`);
+  console.log(`[archive] Syncing ${resolvedRounds.length} resolved rounds${force ? ' (FORCE)' : ''}...`);
 
   for (const round of resolvedRounds) {
-    const archiveResult = await archiveRound({ roundId: round.id });
+    const archiveResult = await archiveRound({ roundId: round.id, force });
 
     if (archiveResult.success) {
       if (archiveResult.alreadyArchived) {
@@ -343,6 +402,237 @@ export async function getArchivedRound(roundNumber: number): Promise<RoundArchiv
 }
 
 /**
+ * Extended round data with usernames and PFPs for display
+ */
+export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
+  winnerUsername: string | null;
+  winnerPfpUrl: string | null;
+  referrerUsername: string | null;
+  referrerPfpUrl: string | null;
+  topGuessersWithUsernames: Array<{
+    fid: number;
+    username: string | null;
+    pfpUrl: string | null;
+    amountEth: string;
+    guessCount: number;
+    rank: number;
+    hasClanktonBadge?: boolean;
+    hasOgHunterBadge?: boolean;
+  }>;
+}
+
+/**
+ * Get archived round with usernames for winner, referrer, and top guessers
+ */
+export async function getArchivedRoundWithUsernames(roundNumber: number): Promise<ArchivedRoundWithUsernames | null> {
+  // Dynamic imports to avoid circular dependencies
+  const { hasClanktonBonus } = await import('./clankton');
+  const { neynarClient } = await import('./farcaster');
+
+  return trackSlowQuery(`query:getArchivedRoundWithUsernames:${roundNumber}`, async () => {
+    const archived = await getArchivedRound(roundNumber);
+    if (!archived) return null;
+
+    // Collect all FIDs we need to look up
+    const fidsToLookup: number[] = [];
+    if (archived.winnerFid) fidsToLookup.push(archived.winnerFid);
+    if (archived.referrerFid) fidsToLookup.push(archived.referrerFid);
+    if (archived.payoutsJson?.topGuessers) {
+      for (const guesser of archived.payoutsJson.topGuessers) {
+        fidsToLookup.push(guesser.fid);
+      }
+    }
+
+    // Lookup usernames and wallets for all FIDs from local DB
+    const uniqueFids = [...new Set(fidsToLookup)];
+    const userDataMap = new Map<number, { username: string | null; wallet: string | null; pfpUrl: string | null }>();
+
+    if (uniqueFids.length > 0) {
+      const userRecords = await db
+        .select({ fid: users.fid, username: users.username, signerWalletAddress: users.signerWalletAddress })
+        .from(users)
+        .where(sql`${users.fid} IN ${uniqueFids}`);
+
+      for (const user of userRecords) {
+        userDataMap.set(user.fid, {
+          username: user.username,
+          wallet: user.signerWalletAddress,
+          pfpUrl: null, // Will be filled from Neynar
+        });
+      }
+    }
+
+    // Fetch profiles from Neynar for all FIDs (for accurate usernames and PFPs)
+    if (uniqueFids.length > 0) {
+      try {
+        console.log(`[archive] Fetching ${uniqueFids.length} profiles from Neynar:`, uniqueFids);
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: uniqueFids });
+        console.log(`[archive] Neynar returned ${neynarData.users?.length || 0} users`);
+        if (neynarData.users) {
+          for (const user of neynarData.users) {
+            const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
+            userDataMap.set(user.fid, {
+              ...existing,
+              // Prefer Neynar username over local DB (more up-to-date)
+              username: user.username || existing.username,
+              pfpUrl: user.pfp_url || null,
+            });
+          }
+          // Log any FIDs that Neynar didn't return data for
+          const returnedFids = new Set(neynarData.users.map(u => u.fid));
+          const missingFids = uniqueFids.filter(fid => !returnedFids.has(fid));
+          if (missingFids.length > 0) {
+            console.warn(`[archive] Neynar missing data for FIDs:`, missingFids);
+          }
+        }
+      } catch (error) {
+        console.warn('[archive] Error fetching profiles from Neynar:', error);
+        // Continue with local data
+      }
+    }
+
+    // Get top guesser FIDs only (for badge checks and guess counts)
+    // Query the actual top 10 guessers by guess count (excluding winner)
+    // IMPORTANT: Only count guesses within the Top-10 lock window (first 750)
+    // Uses a simple subquery: get first 750 guesses ordered by index/timestamp, then aggregate
+    // Tiebreaker: who reached that count first (lower max guess_index = reached count earlier)
+    const actualTopGuessers = await db.execute<{ fid: number; guess_count: number }>(sql`
+      SELECT fid, COUNT(*)::int as guess_count
+      FROM (
+        SELECT id, fid, guess_index_in_round
+        FROM guesses
+        WHERE round_id = ${archived.roundNumber}
+        ORDER BY guess_index_in_round ASC NULLS LAST, created_at ASC
+        LIMIT 750
+      ) first_750
+      GROUP BY fid
+      ORDER BY COUNT(*) DESC, MAX(guess_index_in_round) ASC
+      LIMIT 11
+    `);
+
+    // Filter out the winner and take top 10
+    const top10Guessers = actualTopGuessers
+      .filter(g => g.fid !== archived.winnerFid)
+      .slice(0, 10);
+
+    const topGuesserFids = top10Guessers.map(g => g.fid);
+    const guessCountMap = new Map<number, number>();
+    for (const g of top10Guessers) {
+      guessCountMap.set(g.fid, g.guess_count);
+    }
+
+    // Fetch user data for top guessers (usernames and wallets)
+    if (topGuesserFids.length > 0) {
+      const userRecords = await db
+        .select({ fid: users.fid, username: users.username, signerWalletAddress: users.signerWalletAddress })
+        .from(users)
+        .where(sql`${users.fid} IN ${topGuesserFids}`);
+
+      for (const user of userRecords) {
+        if (!userDataMap.has(user.fid)) {
+          userDataMap.set(user.fid, {
+            username: user.username,
+            wallet: user.signerWalletAddress,
+            pfpUrl: null,
+          });
+        }
+      }
+
+      // Fetch Neynar data for top guessers
+      try {
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: topGuesserFids });
+        if (neynarData.users) {
+          for (const user of neynarData.users) {
+            const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
+            userDataMap.set(user.fid, {
+              ...existing,
+              username: user.username || existing.username,
+              pfpUrl: user.pfp_url || null,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[archive] Error fetching top guesser profiles from Neynar:', error);
+      }
+    }
+
+    // Check OG Hunter badges for top guessers
+    const ogHunterBadgeFids = new Set<number>();
+    if (topGuesserFids.length > 0) {
+      const badgeRecords = await db
+        .select({ fid: userBadges.fid })
+        .from(userBadges)
+        .where(
+          and(
+            sql`${userBadges.fid} IN ${topGuesserFids}`,
+            eq(userBadges.badgeType, 'OG_HUNTER')
+          )
+        );
+      for (const badge of badgeRecords) {
+        ogHunterBadgeFids.add(badge.fid);
+      }
+    }
+
+    // Check CLANKTON balances for top guessers (only those with wallets)
+    // Wrapped in defensive try/catch since this makes RPC calls that could fail
+    const clanktonHolderFids = new Set<number>();
+    try {
+      const walletsToCheck = topGuesserFids
+        .filter(fid => userDataMap.get(fid)?.wallet)
+        .map(fid => ({ fid, wallet: userDataMap.get(fid)!.wallet! }));
+
+      if (walletsToCheck.length > 0) {
+        // Check all wallets in parallel with individual error handling
+        const clanktonResults = await Promise.allSettled(
+          walletsToCheck.map(async ({ fid, wallet }) => ({
+            fid,
+            hasClankton: await hasClanktonBonus(wallet),
+          }))
+        );
+        for (const result of clanktonResults) {
+          if (result.status === 'fulfilled' && result.value.hasClankton) {
+            clanktonHolderFids.add(result.value.fid);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[archive] Error checking CLANKTON balances:', error);
+      // Continue without CLANKTON badges on error
+    }
+
+    // Build extended response with usernames and PFPs
+    // Use actual top guessers by guess count (not payout recipients)
+    const topGuessersWithUsernames = top10Guessers.map((guesser, index) => {
+      const userData = userDataMap.get(guesser.fid);
+      // Find payout amount for this guesser (if any)
+      const payoutEntry = archived.payoutsJson?.topGuessers?.find(p => p.fid === guesser.fid);
+      return {
+        fid: guesser.fid,
+        username: userData?.username || `fid:${guesser.fid}`,
+        pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
+        amountEth: payoutEntry?.amountEth || '0',
+        guessCount: guesser.guess_count,
+        rank: index + 1,
+        hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
+        hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
+      };
+    });
+
+    const winnerData = archived.winnerFid ? userDataMap.get(archived.winnerFid) : null;
+    const referrerData = archived.referrerFid ? userDataMap.get(archived.referrerFid) : null;
+
+    return {
+      ...archived,
+      winnerUsername: winnerData?.username || (archived.winnerFid ? `fid:${archived.winnerFid}` : null),
+      winnerPfpUrl: winnerData?.pfpUrl || (archived.winnerFid ? `https://avatar.vercel.sh/${archived.winnerFid}` : null),
+      referrerUsername: referrerData?.username || (archived.referrerFid ? `fid:${archived.referrerFid}` : null),
+      referrerPfpUrl: referrerData?.pfpUrl || (archived.referrerFid ? `https://avatar.vercel.sh/${archived.referrerFid}` : null),
+      topGuessersWithUsernames,
+    };
+  });
+}
+
+/**
  * Get list of archived rounds with pagination
  */
 export async function getArchivedRounds(options: {
@@ -350,7 +640,7 @@ export async function getArchivedRounds(options: {
   offset?: number;
   orderBy?: 'asc' | 'desc';
 }): Promise<{
-  rounds: RoundArchiveRow[];
+  rounds: (RoundArchiveRow & { winnerUsername?: string | null })[];
   total: number;
 }> {
   const { limit = 20, offset = 0, orderBy = 'desc' } = options;
@@ -360,9 +650,31 @@ export async function getArchivedRounds(options: {
       .select({ count: count() })
       .from(roundArchive);
 
+    // Join with users table to get winner username
     const archivedRounds = await db
-      .select()
+      .select({
+        id: roundArchive.id,
+        roundNumber: roundArchive.roundNumber,
+        targetWord: roundArchive.targetWord,
+        seedEth: roundArchive.seedEth,
+        finalJackpotEth: roundArchive.finalJackpotEth,
+        totalGuesses: roundArchive.totalGuesses,
+        uniquePlayers: roundArchive.uniquePlayers,
+        winnerFid: roundArchive.winnerFid,
+        winnerCastHash: roundArchive.winnerCastHash,
+        winnerGuessNumber: roundArchive.winnerGuessNumber,
+        startTime: roundArchive.startTime,
+        endTime: roundArchive.endTime,
+        referrerFid: roundArchive.referrerFid,
+        payoutsJson: roundArchive.payoutsJson,
+        salt: roundArchive.salt,
+        clanktonBonusCount: roundArchive.clanktonBonusCount,
+        referralBonusCount: roundArchive.referralBonusCount,
+        createdAt: roundArchive.createdAt,
+        winnerUsername: users.username,
+      })
       .from(roundArchive)
+      .leftJoin(users, eq(roundArchive.winnerFid, users.fid))
       .orderBy(orderBy === 'desc' ? desc(roundArchive.roundNumber) : asc(roundArchive.roundNumber))
       .limit(limit)
       .offset(offset);

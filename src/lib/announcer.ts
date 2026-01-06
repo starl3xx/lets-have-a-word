@@ -12,11 +12,13 @@
 
 import { neynarClient } from './farcaster';
 import { db } from '../db';
-import { announcerEvents, rounds, roundPayouts, users } from '../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { announcerEvents, rounds, roundPayouts, users, roundBonusWords } from '../db/schema';
+import { eq, and, sql, count, isNull } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
 import { getPlaintextAnswer } from './encryption';
 import { getCurrentJackpotOnChain } from './jackpot-contract';
+import { postTweet } from './twitter';
+import { notifyRoundStarted, notifyRoundResolved, type NotificationResult } from './notifications';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -171,28 +173,35 @@ export async function recordAndCastAnnouncerEvent(params: AnnouncerEventParams) 
       })
       .returning();
 
-    // Publish the cast
+    // Publish the cast to Farcaster
     const cast = await castFromAnnouncer(params.text, {
       replyToHash: params.replyToHash,
       embeds: params.embeds,
     });
 
-    // Update with cast hash if successful
-    if (cast?.hash) {
+    // Cross-post to Twitter/X
+    const tweet = await postTweet(params.text);
+
+    // Update with cast hash and tweet ID if successful
+    if (cast?.hash || tweet?.id) {
       await db
         .update(announcerEvents)
         .set({
-          castHash: cast.hash,
+          castHash: cast?.hash ?? null,
           postedAt: new Date(),
+          payload: {
+            text: params.text,
+            tweetId: tweet?.id ?? null,
+          },
         })
         .where(eq(announcerEvents.id, created[0].id));
     }
 
-    return { created: created[0], cast };
+    return { created: created[0], cast, tweet };
   } catch (error) {
     console.error('[announcer] ERROR: Failed to record and cast event:', error);
     // Don't throw - announcer failures should never break the game
-    return { created: null, cast: null };
+    return { created: null, cast: null, tweet: null };
   }
 }
 
@@ -256,12 +265,17 @@ The secret word is locked onchain 🔒
 Happy hunting 🕵️‍♂️
 letshaveaword.fun`;
 
-  return await recordAndCastAnnouncerEvent({
+  // Send push notification to mini app users
+  const notification = await notifyRoundStarted(roundNumber);
+
+  const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
     roundId: round.id,
     text,
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
+
+  return { ...result, notification };
 }
 
 /**
@@ -427,12 +441,18 @@ Provably fair:
 New round starts soon 👀
 letshaveaword.fun`;
 
-  return await recordAndCastAnnouncerEvent({
+  // Send push notification to mini app users
+  const winnerUsernameClean = winnerUsername?.replace('@', '');
+  const notification = await notifyRoundResolved(roundNumber, winnerUsernameClean, jackpotEth);
+
+  const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
     roundId: round.id,
     text,
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
+
+  return { ...result, notification };
 }
 
 /**
@@ -551,6 +571,68 @@ letshaveaword.fun`;
     roundId: round.id,
     text,
     replyToHash: resolvedCastHash,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}
+
+/**
+ * Announce a bonus word found
+ *
+ * @param roundId - The round ID
+ * @param finderFid - FID of the user who found the bonus word
+ * @param word - The bonus word that was found
+ */
+export async function announceBonusWordFound(
+  roundId: number,
+  finderFid: number,
+  word: string
+) {
+  // Get user info for the announcement
+  let username = `fid:${finderFid}`;
+  try {
+    const userResult = await db
+      .select({ username: users.username })
+      .from(users)
+      .where(eq(users.fid, finderFid))
+      .limit(1);
+
+    if (userResult[0]?.username) {
+      username = userResult[0].username;
+    }
+  } catch (error) {
+    console.error('[announcer] Error fetching user for bonus word announcement:', error);
+  }
+
+  // Get count of remaining bonus words
+  let remainingCount = 0;
+  try {
+    const claimedResult = await db
+      .select({ count: count() })
+      .from(roundBonusWords)
+      .where(
+        and(
+          eq(roundBonusWords.roundId, roundId),
+          isNull(roundBonusWords.claimedByFid)
+        )
+      );
+    remainingCount = claimedResult[0]?.count ?? 0;
+  } catch (error) {
+    console.error('[announcer] Error getting remaining bonus words count:', error);
+  }
+
+  const text = `🎣 @${username} found a bonus word and won 5M $CLANKTON!
+
+The word was "${word.toUpperCase()}"
+
+${remainingCount} bonus words remaining this round
+
+Play now 👉 letshaveaword.fun`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'bonus_word_found',
+    roundId,
+    milestoneKey: `bonus_${word.toUpperCase()}`,
+    text,
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
 }

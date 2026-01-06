@@ -8,6 +8,7 @@ import { logReferralEvent, AnalyticsEventTypes } from './analytics';
  */
 export interface UpsertUserParams {
   fid: number;
+  username?: string | null;
   signerWallet: string | null;
   spamScore: number | null;
   referrerFid?: number | null;
@@ -26,9 +27,9 @@ export interface UpsertUserParams {
  * @returns The upserted user row
  */
 export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise<UserRow> {
-  const { fid, signerWallet, spamScore, referrerFid } = params;
+  const { fid, username, signerWallet, spamScore, referrerFid } = params;
 
-  console.log(`[Referral] upsertUserFromFarcaster called: fid=${fid}, referrerFid=${referrerFid}`);
+  console.log(`[Referral] upsertUserFromFarcaster called: fid=${fid}, username=${username}, referrerFid=${referrerFid}`);
 
   // Validate referrer (cannot refer yourself)
   // Note: We trust the Farcaster FID is valid - no need to verify the referrer exists in our DB.
@@ -64,10 +65,13 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
     }
 
     // Check if any values need updating
+    // Always update username if provided (Neynar is authoritative)
+    const shouldUpdateUsername = username && user.username !== username;
     const needsUpdate =
       user.signerWalletAddress !== signerWallet ||
       user.spamScore !== spamScore ||
-      shouldBackfillReferrer;
+      shouldBackfillReferrer ||
+      shouldUpdateUsername;
 
     if (needsUpdate) {
       const updated = await db
@@ -75,6 +79,7 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
         .set({
           signerWalletAddress: signerWallet,
           spamScore,
+          ...(username && { username }),
           ...(shouldBackfillReferrer && { referrerFid: validReferrerFid }),
           updatedAt: new Date(),
         })
@@ -93,6 +98,7 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
     .insert(users)
     .values({
       fid,
+      username: username || null,
       signerWalletAddress: signerWallet,
       referrerFid: validReferrerFid,
       spamScore,
