@@ -207,7 +207,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>2.5%</strong> of the referrer share is added to the Top 10 pool</li>
             <li><strong>2.5%</strong> is added to the next round seed</li>
             <li>Next round seed is capped at 0.03 ETH</li>
-            <li>Any overflow above the cap goes to the creator</li>
+            <li>Any overflow above the cap goes to the treasury</li>
           </ul>
           <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
         </>
