@@ -21,6 +21,48 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // GET: Show a simple form for admin to fix a field
+  if (req.method === 'GET') {
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Fix Round Field</title></head>
+      <body style="font-family: system-ui; max-width: 500px; margin: 50px auto; padding: 20px;">
+        <h2>Fix Round Field</h2>
+        <p style="color: #666;">Fix a corrupted field (e.g., salt that became a Date object).</p>
+        <form method="POST">
+          <div style="margin-bottom: 15px;">
+            <label>Your Admin FID:</label><br/>
+            <input type="number" name="fid" required style="width: 100%; padding: 8px; margin-top: 5px;" placeholder="e.g. 12345" />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label>Round ID:</label><br/>
+            <input type="number" name="roundId" required style="width: 100%; padding: 8px; margin-top: 5px;" placeholder="e.g. 2" />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label>Field to fix:</label><br/>
+            <select name="field" required style="width: 100%; padding: 8px; margin-top: 5px;">
+              <option value="">-- Select field --</option>
+              <option value="salt">salt</option>
+              <option value="commitHash">commitHash</option>
+              <option value="prizePoolEth">prizePoolEth</option>
+              <option value="seedNextRoundEth">seedNextRoundEth</option>
+              <option value="txHash">txHash</option>
+            </select>
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label>New value (string):</label><br/>
+            <input type="text" name="value" required style="width: 100%; padding: 8px; margin-top: 5px;" placeholder="The correct string value" />
+          </div>
+          <button type="submit" style="width: 100%; padding: 10px; background: #dc2626; color: white; border: none; cursor: pointer;">Fix Field</button>
+        </form>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">For the answer field, use <a href="/api/admin/fix-round-answer">/api/admin/fix-round-answer</a> instead.</p>
+      </body>
+      </html>
+    `);
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
