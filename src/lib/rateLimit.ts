@@ -112,8 +112,28 @@ function getDuplicateKey(fid: number, word: string): string {
 // =============================================================================
 
 /**
+ * Promise timeout wrapper - fails open after specified ms
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  fallback: T
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) =>
+      setTimeout(() => {
+        console.warn(`[RateLimit] Redis operation timed out after ${timeoutMs}ms, failing open`);
+        resolve(fallback);
+      }, timeoutMs)
+    ),
+  ]);
+}
+
+/**
  * Check rate limit using sliding window algorithm
- * Returns { allowed: true } if Redis is unavailable (fail open)
+ * Returns { allowed: true } if Redis is unavailable OR times out (fail open)
+ * Timeout: 2 seconds max to prevent request hangs
  */
 async function checkSlidingWindowLimit(
   key: string,
@@ -128,47 +148,54 @@ async function checkSlidingWindowLimit(
   const now = Date.now();
   const windowStart = now - (windowSeconds * 1000);
 
-  try {
-    // Use a Redis transaction for atomic operations
-    const pipeline = redis.pipeline();
+  // Wrap the entire operation in a timeout (2 seconds max)
+  return withTimeout(
+    (async () => {
+      try {
+        // Use a Redis transaction for atomic operations
+        const pipeline = redis.pipeline();
 
-    // Remove old entries outside the window
-    pipeline.zremrangebyscore(key, 0, windowStart);
+        // Remove old entries outside the window
+        pipeline.zremrangebyscore(key, 0, windowStart);
 
-    // Count entries in current window
-    pipeline.zcard(key);
+        // Count entries in current window
+        pipeline.zcard(key);
 
-    // Add current request timestamp
-    pipeline.zadd(key, { score: now, member: `${now}:${Math.random()}` });
+        // Add current request timestamp
+        pipeline.zadd(key, { score: now, member: `${now}:${Math.random()}` });
 
-    // Set expiry on the key
-    pipeline.expire(key, windowSeconds + 10);
+        // Set expiry on the key
+        pipeline.expire(key, windowSeconds + 10);
 
-    const results = await pipeline.exec();
+        const results = await pipeline.exec();
 
-    // zcard result is at index 1
-    const currentCount = (results[1] as number) || 0;
+        // zcard result is at index 1
+        const currentCount = (results[1] as number) || 0;
 
-    if (currentCount >= maxRequests) {
-      // Calculate when the oldest request will expire
-      const oldestResult = await redis.zrange(key, 0, 0, { withScores: true });
-      let retryAfterSeconds = windowSeconds;
+        if (currentCount >= maxRequests) {
+          // Calculate when the oldest request will expire
+          const oldestResult = await redis.zrange(key, 0, 0, { withScores: true });
+          let retryAfterSeconds = windowSeconds;
 
-      if (oldestResult && oldestResult.length >= 2) {
-        const oldestTimestamp = oldestResult[1] as number;
-        retryAfterSeconds = Math.ceil((oldestTimestamp + (windowSeconds * 1000) - now) / 1000);
-        retryAfterSeconds = Math.max(1, Math.min(retryAfterSeconds, windowSeconds));
+          if (oldestResult && oldestResult.length >= 2) {
+            const oldestTimestamp = oldestResult[1] as number;
+            retryAfterSeconds = Math.ceil((oldestTimestamp + (windowSeconds * 1000) - now) / 1000);
+            retryAfterSeconds = Math.max(1, Math.min(retryAfterSeconds, windowSeconds));
+          }
+
+          return { allowed: false, count: currentCount, retryAfterSeconds };
+        }
+
+        return { allowed: true, count: currentCount + 1 };
+      } catch (error) {
+        console.error('[RateLimit] Error checking rate limit:', error);
+        // Fail open on errors
+        return { allowed: true, count: 0 };
       }
-
-      return { allowed: false, count: currentCount, retryAfterSeconds };
-    }
-
-    return { allowed: true, count: currentCount + 1 };
-  } catch (error) {
-    console.error('[RateLimit] Error checking rate limit:', error);
-    // Fail open on errors
-    return { allowed: true, count: 0 };
-  }
+    })(),
+    2000, // 2 second timeout
+    { allowed: true, count: 0 } // Fail open on timeout
+  );
 }
 
 // =============================================================================
