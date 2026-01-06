@@ -1478,28 +1478,41 @@ export default function WalletSection({ user }: WalletSectionProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(roundDebugResult.fieldAnalysis).map(([field, info]) => (
-                    <tr key={field} style={{ background: info.isDate ? '#fef2f2' : undefined }}>
-                      <td style={styles.td}>
-                        <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>
-                          {field}
-                        </code>
-                      </td>
-                      <td style={styles.td}>{info.constructorName || info.type}</td>
-                      <td style={styles.td}>
-                        {info.isDate ? (
-                          <span style={styles.badge('red')}>Yes ⚠️</span>
-                        ) : (
-                          <span style={styles.badge('green')}>No</span>
-                        )}
-                      </td>
-                      <td style={{ ...styles.td, maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontFamily: 'monospace', fontSize: '11px' }} title={String(info.value)}>
-                          {String(info.value)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {Object.entries(roundDebugResult.fieldAnalysis).map(([field, info]) => {
+                    // Fields that SHOULD be strings (if these are Date, it's a problem)
+                    const shouldBeStringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth', 'txHash', 'bonusWordsCommitHash', 'cancelledReason', 'cancelledBy', 'status'];
+                    // Fields that SHOULD be dates (these are expected to be Date)
+                    const shouldBeDateFields = ['startedAt', 'resolvedAt', 'cancelledAt', 'refundsStartedAt', 'refundsCompletedAt', 'createdAt', 'updatedAt'];
+                    const isCorrupted = shouldBeStringFields.includes(field) && info.isDate;
+                    const isExpectedDate = shouldBeDateFields.includes(field) && info.isDate;
+
+                    return (
+                      <tr key={field} style={{ background: isCorrupted ? '#fef2f2' : undefined }}>
+                        <td style={styles.td}>
+                          <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>
+                            {field}
+                          </code>
+                        </td>
+                        <td style={styles.td}>{info.constructorName || info.type}</td>
+                        <td style={styles.td}>
+                          {info.isDate ? (
+                            isCorrupted ? (
+                              <span style={styles.badge('red')}>Yes ⚠️</span>
+                            ) : (
+                              <span style={styles.badge('green')}>Yes ✓</span>
+                            )
+                          ) : (
+                            <span style={styles.badge('green')}>No</span>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: '11px' }} title={String(info.value)}>
+                            {String(info.value)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </details>
