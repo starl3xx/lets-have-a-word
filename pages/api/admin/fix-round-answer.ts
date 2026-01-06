@@ -19,6 +19,31 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // GET: Show a simple form for admin to fill out
+  if (req.method === 'GET') {
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Fix Round Answer</title></head>
+      <body style="font-family: system-ui; max-width: 400px; margin: 50px auto; padding: 20px;">
+        <h2>Fix Round Answer</h2>
+        <form method="POST">
+          <div style="margin-bottom: 15px;">
+            <label>Round ID:</label><br/>
+            <input type="number" name="roundId" required style="width: 100%; padding: 8px; margin-top: 5px;" />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label>Answer (5 letters):</label><br/>
+            <input type="text" name="answer" maxlength="5" pattern="[A-Za-z]{5}" required style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;" />
+          </div>
+          <button type="submit" style="width: 100%; padding: 10px; background: #2563eb; color: white; border: none; cursor: pointer;">Fix Answer</button>
+        </form>
+      </body>
+      </html>
+    `);
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -42,9 +67,21 @@ export default async function handler(
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { roundId, answer } = req.body;
+    // Handle both JSON and form-encoded data
+    let roundId: number;
+    let answer: string;
 
-    if (!roundId || typeof roundId !== 'number') {
+    if (typeof req.body.roundId === 'string') {
+      // Form-encoded data
+      roundId = parseInt(req.body.roundId, 10);
+      answer = req.body.answer;
+    } else {
+      // JSON data
+      roundId = req.body.roundId;
+      answer = req.body.answer;
+    }
+
+    if (!roundId || isNaN(roundId)) {
       return res.status(400).json({ error: 'roundId (number) is required' });
     }
 
