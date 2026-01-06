@@ -24,6 +24,7 @@ import {
   CLANKTON_MARKET_CAP_USD,
   CLANKTON_BONUS_GUESSES_TIER_HIGH,
   CLANKTON_BONUS_GUESSES_TIER_LOW,
+  MAX_PACKS_PER_DAY,
 } from '../../config/economy';
 import {
   logXpEvent,
@@ -51,8 +52,8 @@ export const DAILY_LIMITS_RULES = {
   clanktonThreshold: 100_000_000, // 100M tokens
   paidGuessPackSize: 3,
   paidGuessPackPriceEth: '0.0003', // ETH
-  maxPaidPacksPerDay: 3,
-} as const;
+  maxPaidPacksPerDay: MAX_PACKS_PER_DAY, // Default: unlimited (999), configurable via env var
+};
 
 /**
  * Dev mode FID for special handling
