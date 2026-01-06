@@ -265,7 +265,7 @@ letshaveaword.fun`;
 }
 
 /**
- * Fetch username from database by FID
+ * Fetch username from database by FID, with Neynar fallback
  *
  * @param fid - Farcaster ID
  * @returns Username string (with @ prefix) or null if not found
@@ -274,6 +274,7 @@ async function getUsernameByFid(fid: number | null | undefined): Promise<string 
   if (!fid) return null;
 
   try {
+    // First, try local database
     const [user] = await db
       .select({ username: users.username })
       .from(users)
@@ -283,6 +284,19 @@ async function getUsernameByFid(fid: number | null | undefined): Promise<string 
     if (user?.username) {
       return `@${user.username}`;
     }
+
+    // Fallback to Neynar API
+    if (neynarClient) {
+      try {
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: [fid] });
+        if (neynarData.users && neynarData.users.length > 0 && neynarData.users[0].username) {
+          return `@${neynarData.users[0].username}`;
+        }
+      } catch (neynarError) {
+        console.warn('[announcer] Neynar fallback failed for FID:', fid, neynarError);
+      }
+    }
+
     return null;
   } catch (error) {
     console.error('[announcer] Error fetching username for FID:', fid, error);
@@ -291,7 +305,7 @@ async function getUsernameByFid(fid: number | null | undefined): Promise<string 
 }
 
 /**
- * Fetch usernames for multiple FIDs from database
+ * Fetch usernames for multiple FIDs from database, with Neynar fallback
  *
  * @param fids - Array of Farcaster IDs
  * @returns Array of username strings (with @ prefix)
@@ -299,7 +313,11 @@ async function getUsernameByFid(fid: number | null | undefined): Promise<string 
 async function getUsernamesByFids(fids: number[]): Promise<string[]> {
   if (fids.length === 0) return [];
 
+  // Create a map for quick lookup, preserving order of input FIDs
+  const usernameMap = new Map<number, string>();
+
   try {
+    // First, try local database
     const userRows = await db
       .select({ fid: users.fid, username: users.username })
       .from(users)
@@ -309,11 +327,29 @@ async function getUsernamesByFids(fids: number[]): Promise<string[]> {
           : sql`${users.fid} IN (${sql.join(fids.map(f => sql`${f}`), sql`, `)})`
       );
 
-    // Create a map for quick lookup, preserving order of input FIDs
-    const usernameMap = new Map<number, string>();
     for (const row of userRows) {
       if (row.username) {
         usernameMap.set(row.fid, `@${row.username}`);
+      }
+    }
+
+    // Find FIDs that weren't in the database
+    const missingFids = fids.filter(fid => !usernameMap.has(fid));
+
+    // Fallback to Neynar API for missing usernames
+    if (missingFids.length > 0 && neynarClient) {
+      try {
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: missingFids });
+        if (neynarData.users) {
+          for (const user of neynarData.users) {
+            if (user.username) {
+              usernameMap.set(user.fid, `@${user.username}`);
+            }
+          }
+        }
+      } catch (neynarError) {
+        console.warn('[announcer] Neynar fallback failed for FIDs:', missingFids, neynarError);
+        // Continue with @fid:XXX for these users
       }
     }
 
