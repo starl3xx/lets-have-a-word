@@ -1,5 +1,6 @@
 /**
- * Debug Round 2 - Check what's in the database
+ * Debug Round - Check what's in the database
+ * GET /api/admin/debug-round2?devFid=XXX&roundId=2
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -17,24 +18,39 @@ export default async function handler(
     return res.status(403).json({ error: 'Admin access required' });
   }
 
+  const roundId = parseInt(req.query.roundId as string || '2', 10);
+
   try {
-    const [round] = await db.select().from(rounds).where(eq(rounds.id, 2));
+    const [round] = await db.select().from(rounds).where(eq(rounds.id, roundId));
 
     if (!round) {
-      return res.status(404).json({ error: 'Round 2 not found' });
+      return res.status(404).json({ error: `Round ${roundId} not found` });
+    }
+
+    // Check ALL fields for type issues
+    const fieldAnalysis: Record<string, any> = {};
+    for (const [key, value] of Object.entries(round)) {
+      fieldAnalysis[key] = {
+        type: typeof value,
+        isDate: value instanceof Date,
+        constructorName: value?.constructor?.name,
+        value: value instanceof Date ? value.toISOString() : value,
+        length: typeof value === 'string' ? value.length : null,
+      };
     }
 
     return res.status(200).json({
       roundId: round.id,
       status: round.status,
-      answerType: typeof round.answer,
-      answerValue: round.answer,
-      answerIsDate: round.answer instanceof Date,
-      answerConstructorName: round.answer?.constructor?.name,
-      answerStringified: JSON.stringify(round.answer),
-      answerLength: typeof round.answer === 'string' ? round.answer.length : null,
-      startedAt: round.startedAt,
-      resolvedAt: round.resolvedAt,
+      fieldAnalysis,
+      // Quick summary of problem fields
+      problemFields: Object.entries(fieldAnalysis)
+        .filter(([key, info]) => {
+          // Fields that should be strings but are Dates
+          const stringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth'];
+          return stringFields.includes(key) && info.isDate;
+        })
+        .map(([key, info]) => ({ field: key, ...info })),
     });
   } catch (error) {
     return res.status(500).json({
