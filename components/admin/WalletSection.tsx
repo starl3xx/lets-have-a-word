@@ -113,6 +113,9 @@ interface ConnectedWallet {
 const BASE_CHAIN_ID = 8453;
 const BASE_CHAIN_ID_HEX = '0x2105';
 
+// Creator profit wallet (configured in the JackpotManager contract)
+const CREATOR_PROFIT_WALLET = '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223';
+
 // =============================================================================
 // Styles
 // =============================================================================
@@ -405,8 +408,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [actionsLoading, setActionsLoading] = useState(true);
 
   // Withdrawal form state
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawDestination, setWithdrawDestination] = useState('');
   const [withdrawConfirmText, setWithdrawConfirmText] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
@@ -722,18 +723,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
       return;
     }
 
-    // Note: withdrawCreatorProfit() sends to the configured creatorProfitWallet,
-    // not an arbitrary destination. The destination field is informational.
-    if (!ethers.isAddress(withdrawDestination)) {
-      setWalletError('Invalid destination address');
-      return;
-    }
-
     setIsWithdrawing(true);
     setWalletError(null);
 
     try {
-      const amountWei = ethers.parseEther(withdrawAmount);
+      // The amount being withdrawn (for logging purposes)
+      const withdrawAmountEth = balances.creatorPool.accumulatedEth;
 
       // Call withdrawCreatorProfit() on the contract
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -743,7 +738,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
       const withdrawAbi = ['function withdrawCreatorProfit()'];
       const contract = new ethers.Contract(balances.contractAddress, withdrawAbi, signer);
 
-      // Call withdrawCreatorProfit - sends accumulated profit to creatorProfitWallet
+      // Call withdrawCreatorProfit - sends ALL accumulated profit to configured creatorProfitWallet
       const tx = await contract.withdrawCreatorProfit();
 
       // Log the action
@@ -753,10 +748,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
         body: JSON.stringify({
           devFid: user.fid,
           actionType: 'creator_pool_withdrawal',
-          amountEth: withdrawAmount,
-          amountWei: amountWei.toString(),
+          amountEth: withdrawAmountEth,
           fromAddress: balances.contractAddress,
-          toAddress: balances.creatorPool.address,
+          toAddress: CREATOR_PROFIT_WALLET,
           txHash: tx.hash,
           initiatedByFid: user.fid,
           initiatedByAddress: connectedWallet.address,
@@ -766,8 +760,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
       });
 
       // Reset form
-      setWithdrawAmount('');
-      setWithdrawDestination('');
       setWithdrawConfirmText('');
       setShowWithdrawConfirm(false);
 
@@ -1294,52 +1286,42 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
         {balances && (
           <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#6b7280' }}>Available to withdraw:</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: '#6b7280' }}>Amount to withdraw:</span>
               <span style={{ fontWeight: 600 }}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(6)} ETH</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span style={{ color: '#6b7280' }}>Destination (fixed in contract):</span>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 500 }}>
+                  {CREATOR_PROFIT_WALLET}
+                </div>
+                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                  Creator Profit Wallet
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        <div style={{ marginBottom: '16px' }}>
-          <label style={styles.label}>Amount (ETH)</label>
-          <input
-            type="text"
-            value={withdrawAmount}
-            onChange={(e) => setWithdrawAmount(e.target.value)}
-            placeholder="0.00"
-            style={styles.input}
-          />
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={styles.label}>Destination Address</label>
-          <input
-            type="text"
-            value={withdrawDestination}
-            onChange={(e) => setWithdrawDestination(e.target.value)}
-            placeholder={connectedWallet?.address || '0x...'}
-            style={styles.input}
-          />
-          {connectedWallet && !withdrawDestination && (
-            <button
-              onClick={() => setWithdrawDestination(connectedWallet.address)}
-              style={{ ...styles.btnSecondary, ...styles.btnSmall, marginTop: '8px' }}
-            >
-              Use connected wallet
-            </button>
-          )}
+        <div style={styles.alert('info')}>
+          <span>ℹ️</span>
+          <span>
+            The contract's <code style={{ background: '#e5e7eb', padding: '2px 4px', borderRadius: '4px' }}>withdrawCreatorProfit()</code> function
+            withdraws <strong>all</strong> accumulated profits to the fixed creator wallet address configured in the smart contract.
+          </span>
         </div>
 
         <button
           onClick={() => setShowWithdrawConfirm(true)}
-          disabled={!connectedWallet || !isOnBase || !withdrawAmount || !withdrawDestination}
+          disabled={!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0}
           style={{
             ...styles.btnDanger,
-            ...(!connectedWallet || !isOnBase || !withdrawAmount || !withdrawDestination ? styles.btnDisabled : {}),
+            marginTop: '16px',
+            ...(!connectedWallet || !isOnBase || parseFloat(balances?.creatorPool.accumulatedEth || '0') === 0 ? styles.btnDisabled : {}),
           }}
         >
-          Withdraw from Creator Pool
+          Withdraw All to Creator Wallet
         </button>
       </div>
 
@@ -1419,21 +1401,21 @@ export default function WalletSection({ user }: WalletSectionProps) {
             <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm Withdrawal</h3>
 
             <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
-              This action is <strong>irreversible</strong>. Please verify all details carefully.
+              This action is <strong>irreversible</strong>. The contract will withdraw ALL accumulated profits.
             </div>
 
             <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
               <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>From (Creator Pool):</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{balances.creatorPool.address}</div>
+                <span style={{ color: '#6b7280' }}>From (Contract):</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{balances.contractAddress}</div>
               </div>
               <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>To:</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{withdrawDestination}</div>
+                <span style={{ color: '#6b7280' }}>To (Creator Profit Wallet):</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{CREATOR_PROFIT_WALLET}</div>
               </div>
               <div>
                 <span style={{ color: '#6b7280' }}>Amount:</span>
-                <div style={{ fontWeight: 600, fontSize: '18px' }}>{withdrawAmount} ETH</div>
+                <div style={{ fontWeight: 600, fontSize: '18px' }}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(6)} ETH</div>
               </div>
             </div>
 
