@@ -300,6 +300,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>✌️ Double W</strong> — Found two bonus words OR bonus word + secret word in the same round</li>
             <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>
             <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
+            <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>
           </ul>
           <p className="mt-2">View your wordmarks collection in your Stats sheet under <strong>Lexicon</strong>.</p>
         </>
