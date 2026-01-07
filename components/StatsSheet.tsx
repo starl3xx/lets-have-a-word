@@ -171,6 +171,62 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         {/* Stats Display */}
         {stats && !isLoading && (
           <div className="space-y-4">
+            {/* Lexicon - Your Wordmarks */}
+            {wordmarksData && (
+              <div className="section-card bg-gradient-to-br from-indigo-50 to-purple-50">
+                <div className="mb-4">
+                  <h3 className="text-lg font-bold text-indigo-900">Lexicon</h3>
+                  <p className="text-sm text-indigo-600">
+                    Your Wordmarks · {wordmarksData.earnedCount}/{wordmarksData.totalCount}
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {wordmarksData.wordmarks.map((wordmark) => {
+                    // Map color names to Tailwind classes
+                    const colorMap: Record<string, { bg: string; ring: string }> = {
+                      purple: { bg: 'bg-purple-100', ring: '#c4b5fd' },
+                      cyan: { bg: 'bg-cyan-100', ring: '#67e8f9' },
+                      amber: { bg: 'bg-amber-100', ring: '#fcd34d' },
+                      indigo: { bg: 'bg-indigo-100', ring: '#a5b4fc' },
+                      rose: { bg: 'bg-rose-100', ring: '#fda4af' },
+                      emerald: { bg: 'bg-emerald-100', ring: '#6ee7b7' },
+                      sky: { bg: 'bg-sky-100', ring: '#7dd3fc' },
+                    };
+                    const colors = colorMap[wordmark.color] || { bg: 'bg-gray-100', ring: '#d1d5db' };
+
+                    return (
+                      <div
+                        key={wordmark.id}
+                        className={`flex flex-col items-center gap-1.5 transition-opacity ${
+                          wordmark.earned ? '' : 'opacity-40'
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
+                            wordmark.earned ? colors.bg : 'bg-gray-200'
+                          }`}
+                          style={{
+                            boxShadow: wordmark.earned
+                              ? `0 0 0 2px ${colors.ring}`
+                              : '0 0 0 1px #d1d5db'
+                          }}
+                        >
+                          <span role="img" aria-label={wordmark.name}>
+                            {wordmark.emoji}
+                          </span>
+                        </div>
+                        <span className={`text-xs font-medium text-center leading-tight ${
+                          wordmark.earned ? 'text-indigo-900' : 'text-gray-500'
+                        }`}>
+                          {wordmark.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* This round */}
             <div className="section-card bg-brand-50">
               <h3 className="text-base font-semibold text-brand-900">This round</h3>
@@ -303,47 +359,6 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               <p className="text-sm text-accent-700 font-medium">Your XP</p>
               <p className="text-5xl font-extrabold text-accent-900 tabular-nums">{xp.toLocaleString()}</p>
             </div>
-
-            {/* Lexicon — Your Wordmarks */}
-            {wordmarksData && (
-              <div className="section-card bg-gradient-to-br from-indigo-50 to-purple-50">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-base font-semibold text-indigo-900">Lexicon — Your Wordmarks</h3>
-                  <span className="text-sm text-indigo-600 font-medium">
-                    {wordmarksData.earnedCount}/{wordmarksData.totalCount}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {wordmarksData.wordmarks.map((wordmark) => (
-                    <div
-                      key={wordmark.id}
-                      className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                        wordmark.earned
-                          ? 'bg-white border border-indigo-200 shadow-sm'
-                          : 'bg-gray-100 border border-gray-200 opacity-50'
-                      }`}
-                    >
-                      <span className="text-xl" role="img" aria-label={wordmark.name}>
-                        {wordmark.emoji}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-sm font-medium truncate ${
-                          wordmark.earned ? 'text-gray-900' : 'text-gray-500'
-                        }`}>
-                          {wordmark.name}
-                        </p>
-                        <p className="text-xs text-gray-500 line-clamp-1">
-                          {wordmark.description}
-                        </p>
-                      </div>
-                      {wordmark.earned && (
-                        <span className="text-indigo-500 text-sm">✓</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Coming Soon Message */}
             <div className="section-card bg-brand-50 border-2 border-brand-200">
