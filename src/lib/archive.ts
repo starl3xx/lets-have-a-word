@@ -558,6 +558,9 @@ export async function getArchivedRound(roundNumber: number): Promise<RoundArchiv
 export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerUsername: string | null;
   winnerPfpUrl: string | null;
+  winnerHasOgHunterBadge?: boolean;
+  winnerHasClanktonBadge?: boolean;
+  winnerHasBonusWordBadge?: boolean;
   referrerUsername: string | null;
   referrerPfpUrl: string | null;
   topGuessersWithUsernames: Array<{
@@ -569,6 +572,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
     rank: number;
     hasClanktonBadge?: boolean;
     hasOgHunterBadge?: boolean;
+    hasBonusWordBadge?: boolean;
   }>;
 }
 
@@ -708,28 +712,37 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       }
     }
 
-    // Check OG Hunter badges for top guessers
+    // Check OG Hunter and Bonus Word badges for top guessers and winner
     const ogHunterBadgeFids = new Set<number>();
-    if (topGuesserFids.length > 0) {
+    const bonusWordBadgeFids = new Set<number>();
+    const fidsToCheckBadges = [...topGuesserFids];
+    if (archived.winnerFid) fidsToCheckBadges.push(archived.winnerFid);
+    if (fidsToCheckBadges.length > 0) {
       const badgeRecords = await db
-        .select({ fid: userBadges.fid })
+        .select({ fid: userBadges.fid, badgeType: userBadges.badgeType })
         .from(userBadges)
         .where(
           and(
-            sql`${userBadges.fid} IN ${topGuesserFids}`,
-            eq(userBadges.badgeType, 'OG_HUNTER')
+            sql`${userBadges.fid} IN ${fidsToCheckBadges}`,
+            sql`${userBadges.badgeType} IN ('OG_HUNTER', 'BONUS_WORD_FINDER')`
           )
         );
       for (const badge of badgeRecords) {
-        ogHunterBadgeFids.add(badge.fid);
+        if (badge.badgeType === 'OG_HUNTER') {
+          ogHunterBadgeFids.add(badge.fid);
+        } else if (badge.badgeType === 'BONUS_WORD_FINDER') {
+          bonusWordBadgeFids.add(badge.fid);
+        }
       }
     }
 
-    // Check CLANKTON balances for top guessers (only those with wallets)
+    // Check CLANKTON balances for top guessers and winner (only those with wallets)
     // Wrapped in defensive try/catch since this makes RPC calls that could fail
     const clanktonHolderFids = new Set<number>();
     try {
-      const walletsToCheck = topGuesserFids
+      const fidsToCheckClankton = [...topGuesserFids];
+      if (archived.winnerFid) fidsToCheckClankton.push(archived.winnerFid);
+      const walletsToCheck = fidsToCheckClankton
         .filter(fid => userDataMap.get(fid)?.wallet)
         .map(fid => ({ fid, wallet: userDataMap.get(fid)!.wallet! }));
 
@@ -767,6 +780,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         rank: index + 1,
         hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
         hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
+        hasBonusWordBadge: bonusWordBadgeFids.has(guesser.fid),
       };
     });
 
@@ -777,6 +791,9 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       ...archived,
       winnerUsername: winnerData?.username || (archived.winnerFid ? `fid:${archived.winnerFid}` : null),
       winnerPfpUrl: winnerData?.pfpUrl || (archived.winnerFid ? `https://avatar.vercel.sh/${archived.winnerFid}` : null),
+      winnerHasOgHunterBadge: archived.winnerFid ? ogHunterBadgeFids.has(archived.winnerFid) : undefined,
+      winnerHasClanktonBadge: archived.winnerFid ? clanktonHolderFids.has(archived.winnerFid) : undefined,
+      winnerHasBonusWordBadge: archived.winnerFid ? bonusWordBadgeFids.has(archived.winnerFid) : undefined,
       referrerUsername: referrerData?.username || (archived.referrerFid ? `fid:${archived.referrerFid}` : null),
       referrerPfpUrl: referrerData?.pfpUrl || (archived.referrerFid ? `https://avatar.vercel.sh/${archived.referrerFid}` : null),
       topGuessersWithUsernames,
