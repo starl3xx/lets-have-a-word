@@ -23,6 +23,7 @@ export interface ArchiveDetailResponse {
     commitHash?: string;
     hasOnChainCommitment?: boolean;
     onChainCommitHash?: string;
+    startTxHash?: string;
     resolveTxHash?: string;
     bonusWordWinners?: BonusWordWinner[];
   }) | null;
@@ -71,15 +72,20 @@ export default async function handler(
         // Serialize decimal/date values
         const serialized = serializeArchiveRow(round);
 
-        // Fetch commit hash and resolve tx hash from rounds table
+        // Fetch commit hash and transaction hashes from rounds table
         const [roundData] = await db
-          .select({ commitHash: rounds.commitHash, txHash: rounds.txHash })
+          .select({
+            commitHash: rounds.commitHash,
+            txHash: rounds.txHash,
+            startTxHash: rounds.startTxHash,
+          })
           .from(rounds)
           .where(eq(rounds.id, roundNum))
           .limit(1);
 
         if (roundData) {
           serialized.commitHash = roundData.commitHash;
+          serialized.startTxHash = roundData.startTxHash || undefined;
           serialized.resolveTxHash = roundData.txHash || undefined;
         }
 
