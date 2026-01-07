@@ -3,6 +3,7 @@ import { rounds, systemState, roundPayouts, guesses, users } from '../db/schema'
 import { eq, and, desc, count, lte, isNotNull } from 'drizzle-orm';
 import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
+import { archiveRound } from './archive';
 import { awardTopTenGuesserXp } from './xp';
 import { ethers } from 'ethers';
 import {
@@ -793,6 +794,20 @@ export async function resolveRoundAndCreatePayouts(
   } catch (error) {
     console.error('[economics] Failed to announce round resolution:', error);
     // Continue - announcer failures should never break the game
+  }
+
+  // Milestone 5.4: Archive round immediately after resolution (non-blocking)
+  // This ensures the archive is created right away instead of waiting for daily cron
+  try {
+    const archiveResult = await archiveRound({ roundId });
+    if (archiveResult.success) {
+      console.log(`[economics] ✅ Round ${roundId} archived successfully`);
+    } else {
+      console.error(`[economics] Failed to archive round ${roundId}: ${archiveResult.error}`);
+    }
+  } catch (error) {
+    console.error('[economics] Failed to archive round:', error);
+    // Continue - archive failures should never break the game
   }
 }
 
