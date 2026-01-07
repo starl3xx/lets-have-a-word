@@ -215,11 +215,22 @@ export async function checkAndAwardDoubleW(
   const alreadyHas = await hasWordmark(fid, 'DOUBLE_W');
   if (alreadyHas) return false;
 
-  return awardWordmark(fid, 'DOUBLE_W', {
+  const awarded = await awardWordmark(fid, 'DOUBLE_W', {
     roundId,
     bonusWordsFound,
     foundSecretWord,
   });
+
+  // Announce the wordmark earned (fire and forget)
+  if (awarded) {
+    import('./announcer').then(({ announceWordmarkEarned }) => {
+      announceWordmarkEarned(fid, 'DOUBLE_W', roundId).catch(err => {
+        console.error('[wordmarks] Failed to announce Double Dub wordmark:', err);
+      });
+    });
+  }
+
+  return awarded;
 }
 
 /**
@@ -255,7 +266,18 @@ export async function checkAndAwardEncyclopedic(fid: number): Promise<boolean> {
   // Need all 26 letters
   if (letterCount < 26) return false;
 
-  return awardWordmark(fid, 'ENCYCLOPEDIC', { letterCount: 26 });
+  const awarded = await awardWordmark(fid, 'ENCYCLOPEDIC', { letterCount: 26 });
+
+  // Announce the wordmark earned (fire and forget)
+  if (awarded) {
+    import('./announcer').then(({ announceWordmarkEarned }) => {
+      announceWordmarkEarned(fid, 'ENCYCLOPEDIC').catch(err => {
+        console.error('[wordmarks] Failed to announce Encyclopedic wordmark:', err);
+      });
+    });
+  }
+
+  return awarded;
 }
 
 // =============================================================================
@@ -487,10 +509,21 @@ export async function checkAndAwardBakersDozen(fid: number): Promise<boolean> {
   const progress = await getBakersDozenProgress(fid);
 
   if (progress.distinctDays >= 13 && progress.distinctLetters >= 13) {
-    return awardWordmark(fid, 'BAKERS_DOZEN', {
+    const awarded = await awardWordmark(fid, 'BAKERS_DOZEN', {
       distinctDays: progress.distinctDays,
       distinctLetters: progress.distinctLetters,
     });
+
+    // Announce the wordmark earned (fire and forget)
+    if (awarded) {
+      import('./announcer').then(({ announceWordmarkEarned }) => {
+        announceWordmarkEarned(fid, 'BAKERS_DOZEN').catch(err => {
+          console.error('[wordmarks] Failed to announce Baker\'s Dozen wordmark:', err);
+        });
+      });
+    }
+
+    return awarded;
   }
 
   return false;

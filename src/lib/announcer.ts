@@ -576,6 +576,84 @@ letshaveaword.fun`;
 }
 
 /**
+ * Wordmark types that should trigger announcements
+ */
+const ANNOUNCEABLE_WORDMARKS = ['ENCYCLOPEDIC', 'DOUBLE_W', 'BAKERS_DOZEN'] as const;
+
+/**
+ * Wordmark display info for announcements
+ */
+const WORDMARK_ANNOUNCEMENT_INFO: Record<string, { emoji: string; name: string; description: string }> = {
+  ENCYCLOPEDIC: {
+    emoji: '📚',
+    name: 'Encyclopedic',
+    description: 'guessed words starting with every letter A–Z',
+  },
+  DOUBLE_W: {
+    emoji: '✌️',
+    name: 'Double Dub',
+    description: 'hit two bonus words (or bonus word + secret word) in a single round',
+  },
+  BAKERS_DOZEN: {
+    emoji: '🍩',
+    name: 'Baker\'s Dozen',
+    description: 'played on 13 different days, each with a unique starting letter',
+  },
+};
+
+/**
+ * Announce a wordmark earned by a user
+ *
+ * Posts a congratulatory cast tagging the user who earned the wordmark.
+ * Only announces for specific wordmarks: Encyclopedic, Double Dub, Baker's Dozen
+ *
+ * @param fid - FID of the user who earned the wordmark
+ * @param wordmarkType - The type of wordmark earned
+ * @param roundId - Optional round ID (used for idempotency key)
+ */
+export async function announceWordmarkEarned(
+  fid: number,
+  wordmarkType: string,
+  roundId?: number
+): Promise<{ cast: { hash: string } | null } | null> {
+  // Only announce specific wordmarks
+  if (!ANNOUNCEABLE_WORDMARKS.includes(wordmarkType as any)) {
+    return null;
+  }
+
+  const info = WORDMARK_ANNOUNCEMENT_INFO[wordmarkType];
+  if (!info) {
+    console.warn(`[announcer] No announcement info for wordmark: ${wordmarkType}`);
+    return null;
+  }
+
+  // Get username for the user
+  const username = await getUsernameByFid(fid);
+  if (!username) {
+    console.warn(`[announcer] Could not find username for FID ${fid}, skipping wordmark announcement`);
+    return null;
+  }
+
+  const text = `${info.emoji} Congrats ${username}! You just earned the ${info.name} wordmark!
+
+You ${info.description}. That's dedication 🙌
+
+letshaveaword.fun`;
+
+  // Use roundId for idempotency if provided, otherwise use a timestamp-based key
+  const eventRoundId = roundId ?? 0;
+  const milestoneKey = `wordmark_${wordmarkType}_fid_${fid}`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'wordmark_earned',
+    roundId: eventRoundId,
+    milestoneKey,
+    text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}
+
+/**
  * Announce a bonus word found
  *
  * @param roundId - The round ID
