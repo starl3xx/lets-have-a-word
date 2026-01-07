@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { isAdminFid } from '../../me';
+import { isAdminFid } from '../me';
 import { db, guesses, rounds, userBadges } from '../../../../src/db';
 import { eq, isNotNull, sql, asc, desc, or, isNull, lte } from 'drizzle-orm';
 import { getTop10LockForRound } from '../../../../src/lib/top10-lock';
