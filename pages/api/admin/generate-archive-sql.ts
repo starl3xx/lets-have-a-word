@@ -12,6 +12,7 @@ import { isAdminFid } from './me';
 import { db } from '../../../src/db';
 import { rounds, guesses, roundPayouts, users } from '../../../src/db/schema';
 import { eq, sql, and, asc, isNotNull, gte, lte, count } from 'drizzle-orm';
+import { getTop10LockForRound } from '../../../src/lib/top10-lock';
 
 export default async function handler(
   req: NextApiRequest,
@@ -92,10 +93,10 @@ export default async function handler(
     // Get top_guesser payouts (role = 'top_guesser')
     const topGuesserPayouts = payouts.filter(p => p.role === 'top_guesser');
 
-    // Calculate Top 10 based on FIRST 750 guesses only
-    const TOP_10_LOCK_THRESHOLD = 750;
+    // Calculate Top 10 based on first N guesses (750 for rounds 1-3, 850 for round 4+)
+    const TOP_10_LOCK_THRESHOLD = getTop10LockForRound(roundId);
 
-    const first750Guesses = await db.select({
+    const firstNGuesses = await db.select({
       fid: guesses.fid,
       guessIndexInRound: guesses.guessIndexInRound,
       createdAt: guesses.createdAt,
@@ -105,9 +106,9 @@ export default async function handler(
       .orderBy(asc(guesses.guessIndexInRound), asc(guesses.createdAt))
       .limit(TOP_10_LOCK_THRESHOLD);
 
-    // Count guesses per FID from first 750 and track last guess index (for tiebreaker)
+    // Count guesses per FID from first N and track last guess index (for tiebreaker)
     const guesserCounts = new Map<number, { count: number; lastGuessIndex: number }>();
-    for (const g of first750Guesses) {
+    for (const g of firstNGuesses) {
       const guessIndex = g.guessIndexInRound ?? 0;
       const existing = guesserCounts.get(g.fid);
       if (existing) {

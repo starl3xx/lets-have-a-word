@@ -25,7 +25,7 @@ import {
 import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, or, isNull } from 'drizzle-orm';
 import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
-import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+import { getTop10LockForRound } from './top10-lock';
 import { getTotalClanktonDistributed } from './jackpot-contract';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
@@ -285,6 +285,9 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     // CRITICAL: Compute correct Top 10 from guesses table (ALL guesses count, not just paid)
     // This ensures the archive shows the TRUE ranking, not who was incorrectly paid
     // Tiebreaker: who reached their count first (lowest max guessIndexInRound)
+    // Get the correct Top-10 lock threshold for this round (750 for rounds 1-3, 850 for 4+)
+    const top10LockThreshold = getTop10LockForRound(roundId);
+
     const topGuessersFromGuesses = await db
       .select({
         fid: guesses.fid,
@@ -295,9 +298,9 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       .where(
         and(
           eq(guesses.roundId, roundId),
-          // Only count guesses within the Top-10 lock window (first 750)
+          // Only count guesses within the Top-10 lock window
           or(
-            lte(guesses.guessIndexInRound, TOP10_LOCK_AFTER_GUESSES),
+            lte(guesses.guessIndexInRound, top10LockThreshold),
             isNull(guesses.guessIndexInRound) // Legacy data
           )
         )
@@ -641,9 +644,10 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
 
     // Get top guesser FIDs only (for badge checks and guess counts)
     // Query the actual top 10 guessers by guess count (excluding winner)
-    // IMPORTANT: Only count guesses within the Top-10 lock window (first 750)
-    // Uses a simple subquery: get first 750 guesses ordered by index/timestamp, then aggregate
+    // IMPORTANT: Only count guesses within the Top-10 lock window (750 for rounds 1-3, 850 for 4+)
+    // Uses a simple subquery: get first N guesses ordered by index/timestamp, then aggregate
     // Tiebreaker: who reached that count first (lower max guess_index = reached count earlier)
+    const archiveTop10Threshold = getTop10LockForRound(archived.roundNumber);
     const actualTopGuessers = await db.execute<{ fid: number; guess_count: number }>(sql`
       SELECT fid, COUNT(*)::int as guess_count
       FROM (
@@ -651,8 +655,8 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         FROM guesses
         WHERE round_id = ${archived.roundNumber}
         ORDER BY guess_index_in_round ASC NULLS LAST, created_at ASC
-        LIMIT 750
-      ) first_750
+        LIMIT ${archiveTop10Threshold}
+      ) first_n
       GROUP BY fid
       ORDER BY COUNT(*) DESC, MAX(guess_index_in_round) ASC
       LIMIT 11

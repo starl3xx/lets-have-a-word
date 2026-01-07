@@ -31,7 +31,7 @@ export interface RoundStatus {
   lastUpdatedAt: string; // ISO timestamp when status was computed
   roundStartedAt?: string; // ISO timestamp when round started
   // Top-10 lock status (Milestone 7.x)
-  top10LockAfterGuesses: number; // Threshold (750)
+  top10LockAfterGuesses: number; // Threshold (750 for rounds 1-3, 850 for round 4+)
   top10GuessesRemaining: number; // Guesses until lock (0 if locked)
   top10Locked: boolean; // true if globalGuessCount >= threshold
 }
@@ -190,8 +190,8 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
     ? (prizePoolEthNum * ethUsdRate).toFixed(2)
     : undefined;
 
-  // Get Top-10 lock status
-  const top10Status = getTop10LockStatus(globalGuessCount);
+  // Get Top-10 lock status (pass roundId for historical accuracy: 750 for rounds 1-3, 850 for 4+)
+  const top10Status = getTop10LockStatus(globalGuessCount, roundId);
 
   return {
     roundId: round.id,

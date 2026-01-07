@@ -60,8 +60,8 @@ Let `T` be the total Top 10 pool for the round
 
 Top 10 ranking is based on **early-round participation**.
 
-- Only the **first 750 guesses** in a round are **Top 10 eligible**
-- After guess #750, **Top 10 locks** for that round
+- Only the **first 850 guesses** in a round are **Top 10 eligible** (was 750 for rounds 1-3)
+- After guess #850, **Top 10 locks** for that round
 - Guesses after the lock can still win the jackpot, but **do not affect Top 10 ranking**
 
 Enforcement:

@@ -117,9 +117,9 @@ Production-hardened game operations with onchain pack purchases, comprehensive e
   - Upgrade detected and applied mid-day, not just at daily reset
   - Market cap fetched from DexScreener with CoinGecko fallback
 
-- **Leaderboard Lock at 750 Guesses** (`src/lib/top10-lock.ts`)
-  - Top-10 rankings only count guesses 1-750
-  - Guesses 751+ count for winning but not for leaderboard
+- **Leaderboard Lock at 850 Guesses** (`src/lib/top10-lock.ts`)
+  - Top-10 rankings only count guesses 1-850 (was 750 for rounds 1-3)
+  - Guesses 851+ count for winning but not for leaderboard
   - Prevents late-game clustering from skewing rankings
 
 - **Comprehensive Error Handling** (`src/lib/appErrors.ts`)
