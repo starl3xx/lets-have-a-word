@@ -952,6 +952,17 @@ export async function createNextRoundFromSeed(
     })
     .returning();
 
+  // CRITICAL: Validate salt immediately after insert to catch any corruption
+  if (typeof newRound.salt !== 'string' || newRound.salt.length !== 64 || !/^[a-f0-9]+$/i.test(newRound.salt)) {
+    console.error(`[economics] ⚠️ SALT CORRUPTION DETECTED after insert for round ${newRound.id}!`);
+    console.error(`[economics] Salt type: ${typeof newRound.salt}, isDate: ${newRound.salt instanceof Date}`);
+
+    // Fix the corruption immediately using raw SQL
+    await db.execute(sql`UPDATE rounds SET salt = ${salt} WHERE id = ${newRound.id}`);
+    (newRound as any).salt = salt;
+    console.log(`[economics] ✅ Salt corruption fixed for round ${newRound.id}`);
+  }
+
   console.log(`✅ Created round ${newRound.id} with seed from round ${previousRoundId}: ${seed} ETH`);
 
   return newRound.id;
