@@ -58,7 +58,7 @@ export default function WordmarkStack({
   }
 
   // Helper to check if overlap should be applied (any previous wordmark is shown)
-  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Bonus Word Finder, Double W, Jackpot Winner, CLANKTON
+  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Side Quest, Double Dub, Jackpot Winner, CLANKTON
   const shouldOverlap = (position: number): boolean => {
     const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasDoubleW, hasJackpotWinner, hasClanktonHolder];
     return orderedChecks.slice(0, position).some(Boolean);
@@ -128,27 +128,27 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Bonus Word Finder (position 6) */}
+      {/* Side Quest (position 6) */}
       {hasBonusWordFinder && (
         <div
           className={`${config.wordmark} bg-cyan-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[50] ${shouldOverlap(5) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #67e8f9' }}
-          onMouseEnter={() => setTooltipText('Bonus Word Finder')}
-          onTouchStart={() => setTooltipText('Bonus Word Finder')}
+          onMouseEnter={() => setTooltipText('Side Quest')}
+          onTouchStart={() => setTooltipText('Side Quest')}
         >
-          <span role="img" aria-label="Bonus Word Finder">🎣</span>
+          <span role="img" aria-label="Side Quest">🎣</span>
         </div>
       )}
 
-      {/* Double W (position 7) */}
+      {/* Double Dub (position 7) */}
       {hasDoubleW && (
         <div
           className={`${config.wordmark} bg-indigo-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[60] ${shouldOverlap(6) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #a5b4fc' }}
-          onMouseEnter={() => setTooltipText('Double W')}
-          onTouchStart={() => setTooltipText('Double W')}
+          onMouseEnter={() => setTooltipText('Double Dub')}
+          onTouchStart={() => setTooltipText('Double Dub')}
         >
-          <span role="img" aria-label="Double W">✌️</span>
+          <span role="img" aria-label="Double Dub">✌️</span>
         </div>
       )}
 
