@@ -316,7 +316,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     }
   }
 
-  const fixAndArchiveRound = async (roundNumber: number) => {
+  const fixAndArchiveRound = async (roundNumber?: number) => {
     if (!user?.fid) return
 
     setFixingRound(true)
@@ -324,10 +324,11 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     setError(null)
 
     try {
-      const response = await fetch(
-        `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}&roundId=${roundNumber}`,
-        { method: 'GET' }
-      )
+      // If no roundNumber specified, let the endpoint find the unarchived round
+      const url = roundNumber
+        ? `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}&roundId=${roundNumber}`
+        : `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}`
+      const response = await fetch(url, { method: 'GET' })
       const result = await response.json()
 
       if (result.success) {
@@ -561,15 +562,15 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             {forceSyncing ? 'Re-syncing...' : 'Force Re-sync All'}
           </button>
           <button
-            onClick={() => fixAndArchiveRound(3)}
+            onClick={() => fixAndArchiveRound()}
             style={{
               ...styles.btn,
               background: "#f59e0b",
             }}
             disabled={fixingRound || syncing || forceSyncing}
-            title="Emergency fix for Round 3 - bypasses ORM completely"
+            title="Emergency fix - finds and archives any unarchived resolved round"
           >
-            {fixingRound ? 'Fixing...' : '🔧 Fix Round 3'}
+            {fixingRound ? 'Fixing...' : '🔧 Fix Unarchived'}
           </button>
         </div>
       </div>
