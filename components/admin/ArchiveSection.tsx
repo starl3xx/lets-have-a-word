@@ -261,6 +261,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [txHashInputs, setTxHashInputs] = useState<Record<number, string>>({})
   const [backfillLoading, setBackfillLoading] = useState(false)
   const [backfillResult, setBackfillResult] = useState<any>(null)
+  const [allRoundNumbers, setAllRoundNumbers] = useState<number[]>([])
   const pageSize = 15
   const detailSectionRef = useRef<HTMLDivElement>(null)
 
@@ -282,6 +283,17 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       setRounds(data.rounds)
       setTotalRounds(data.total)
       if (data.stats) setStats(data.stats)
+
+      // Fetch all round numbers (including active) for backfill UI
+      // Generate list from 2 to highest archived + 1 (for active round)
+      const archivedRoundNumbers = data.rounds.map((r: ArchivedRound) => r.roundNumber)
+      const maxArchived = Math.max(...archivedRoundNumbers, 1)
+      // Include one more for the potentially active round
+      const allNumbers: number[] = []
+      for (let i = 2; i <= maxArchived + 1; i++) {
+        allNumbers.push(i)
+      }
+      setAllRoundNumbers(allNumbers)
 
       // Fetch errors
       const errorsResponse = await fetch(`/api/admin/archive/errors${devFidParam}`)
@@ -1053,18 +1065,18 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             )}
 
             <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
-              {rounds.filter(r => r.roundNumber > 1).map(round => (
-                <div key={round.roundNumber} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {allRoundNumbers.map(roundNumber => (
+                <div key={roundNumber} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ minWidth: "80px", fontSize: "13px", fontWeight: 600, fontFamily }}>
-                    Round #{round.roundNumber}
+                    Round #{roundNumber}
                   </span>
                   <input
                     type="text"
                     placeholder="0x..."
-                    value={txHashInputs[round.roundNumber] || ''}
+                    value={txHashInputs[roundNumber] || ''}
                     onChange={(e) => setTxHashInputs(prev => ({
                       ...prev,
-                      [round.roundNumber]: e.target.value,
+                      [roundNumber]: e.target.value,
                     }))}
                     style={{
                       flex: 1,
