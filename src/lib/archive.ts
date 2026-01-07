@@ -101,7 +101,8 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       LIMIT 1
     `);
 
-    const rawRound = roundResult.rows[0] as any;
+    const roundRows = getRows(roundResult);
+    const rawRound = roundRows[0] as any;
     console.log(`[archive] Raw round data types:`, {
       id: typeof rawRound?.id,
       salt: typeof rawRound?.salt,
