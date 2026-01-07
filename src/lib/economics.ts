@@ -742,6 +742,21 @@ export async function resolveRoundAndCreatePayouts(
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
   if (topGuesserFids.length > 0) {
     awardTopTenGuesserXp(roundId, topGuesserFids);
+
+    // Award QUICKDRAW wordmark to Top 10 guessers (fire-and-forget)
+    (async () => {
+      try {
+        const { checkAndAwardQuickdraw } = await import('./wordmarks');
+        for (let i = 0; i < topGuesserFids.length; i++) {
+          const fid = topGuesserFids[i];
+          const rank = i + 1; // 1-based rank
+          await checkAndAwardQuickdraw(fid, roundId, rank);
+        }
+        console.log(`⚡ Checked QUICKDRAW wordmark for ${topGuesserFids.length} Top 10 guessers in round ${roundId}`);
+      } catch (error) {
+        console.error(`[Wordmark] Failed to award QUICKDRAW for round ${roundId}:`, error);
+      }
+    })();
   }
 
   // Mark round as resolved

@@ -299,6 +299,33 @@ async function handleBonusWordWin(
       })
       .onConflictDoNothing(); // User already has badge
 
+    // 3b. Check for DOUBLE_W: count bonus words already claimed by this user in this round
+    const previousClaimsCount = await tx
+      .select({ count: count() })
+      .from(roundBonusWords)
+      .where(
+        and(
+          eq(roundBonusWords.roundId, roundId),
+          eq(roundBonusWords.claimedByFid, fid),
+          // Exclude the current bonus word (already marked claimed above)
+          sql`${roundBonusWords.id} != ${bonusWord.id}`
+        )
+      );
+
+    const bonusWordsFoundThisRound = (previousClaimsCount[0]?.count ?? 0) + 1; // +1 for current
+    if (bonusWordsFoundThisRound >= 2) {
+      // Award DOUBLE_W wordmark (fire-and-forget outside transaction)
+      setTimeout(async () => {
+        try {
+          const { checkAndAwardDoubleW } = await import('./wordmarks');
+          await checkAndAwardDoubleW(fid, roundId, bonusWordsFoundThisRound, false);
+          console.log(`✌️ Checked DOUBLE_W for FID ${fid}: ${bonusWordsFoundThisRound} bonus words in round ${roundId}`);
+        } catch (error) {
+          console.error(`[Wordmark] Failed to check DOUBLE_W:`, error);
+        }
+      }, 0);
+    }
+
     // 4. Award XP (250 XP for bonus word)
     await tx.insert(xpEvents).values({
       fid,
@@ -559,21 +586,38 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       console.log(`[Cache] 🔴 ROUND WON - Invalidating all caches for round ${round.id}`);
       await invalidateOnRoundTransition(round.id);
 
-      // Award JACKPOT_WINNER badge to the winner (fire and forget)
+      // Award wordmarks to winner and referrer (fire and forget)
       (async () => {
         try {
-          await db
-            .insert(userBadges)
-            .values({
-              fid,
-              badgeType: 'JACKPOT_WINNER',
-              metadata: { roundId: round.id, word },
-            })
-            .onConflictDoNothing(); // Don't fail if they already have the badge
-          console.log(`🏆 Awarded JACKPOT_WINNER badge to FID ${fid} for round ${round.id}`);
-        } catch (badgeError) {
-          // Log but don't throw - badge award failure shouldn't affect the game
-          console.error(`[Badge] Failed to award JACKPOT_WINNER badge to FID ${fid}:`, badgeError);
+          const { awardWordmark, checkAndAwardPatron, checkAndAwardDoubleW } = await import('./wordmarks');
+
+          // Award JACKPOT_WINNER to the winner
+          await awardWordmark(fid, 'JACKPOT_WINNER', { roundId: round.id, word });
+          console.log(`🏆 Awarded JACKPOT_WINNER wordmark to FID ${fid} for round ${round.id}`);
+
+          // Award PATRON to the referrer (if they have one)
+          if (referrerFid) {
+            await checkAndAwardPatron(referrerFid, fid, round.id);
+          }
+
+          // Check for DOUBLE_W: did this winner also find any bonus words in this round?
+          const bonusWordsClaimed = await db
+            .select({ count: count() })
+            .from(roundBonusWords)
+            .where(
+              and(
+                eq(roundBonusWords.roundId, round.id),
+                eq(roundBonusWords.claimedByFid, fid)
+              )
+            );
+          const bonusWordsFound = bonusWordsClaimed[0]?.count ?? 0;
+          if (bonusWordsFound > 0) {
+            await checkAndAwardDoubleW(fid, round.id, bonusWordsFound, true);
+            console.log(`✌️ Checked DOUBLE_W for winner FID ${fid}: ${bonusWordsFound} bonus words + win in round ${round.id}`);
+          }
+        } catch (wordmarkError) {
+          // Log but don't throw - wordmark award failure shouldn't affect the game
+          console.error(`[Wordmark] Failed to award wordmarks for round ${round.id}:`, wordmarkError);
         }
       })();
 
