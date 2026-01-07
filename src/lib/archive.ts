@@ -26,6 +26,7 @@ import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, or,
 import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+import { getTotalClanktonDistributed } from './jackpot-contract';
 
 /**
  * Data required to archive a round (can be passed explicitly or computed)
@@ -974,13 +975,10 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       FROM round_archive
     `);
 
-    // Get total CLANKTON distributed (sum from bonus word winners in round archive)
-    // Each bonus word winner receives clanktonAmount stored in payouts_json.bonusWordWinners[]
-    const clanktonResult = await db.execute<{ total_clankton: string }>(sql`
-      SELECT COALESCE(SUM((winner->>'clanktonAmount')::bigint), 0) as total_clankton
-      FROM round_archive,
-           jsonb_array_elements(payouts_json->'bonusWordWinners') as winner
-    `);
+    // Get total CLANKTON distributed from contract (with 18 decimals)
+    // Convert to human-readable number (divide by 10^18)
+    const totalClanktonRaw = await getTotalClanktonDistributed();
+    const totalClankton = Number(totalClanktonRaw / BigInt(10 ** 18));
 
     const row = result[0];
     return {
@@ -989,7 +987,7 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       totalPlayers: parseInt(row?.total_players ?? '0', 10),
       uniqueWinners: parseInt(row?.unique_winners ?? '0', 10),
       totalJackpotDistributed: row?.total_jackpot_distributed ?? '0',
-      totalClanktonBonuses: parseInt(clanktonResult[0]?.total_clankton ?? '0', 10),
+      totalClanktonBonuses: totalClankton,
       avgGuessesPerRound: parseFloat(row?.avg_guesses_per_round ?? '0'),
       avgPlayersPerRound: parseFloat(row?.avg_players_per_round ?? '0'),
       avgRoundLengthMinutes: parseFloat(row?.avg_round_length_minutes ?? '0'),

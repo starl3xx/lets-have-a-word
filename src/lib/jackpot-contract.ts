@@ -258,6 +258,21 @@ export async function getCurrentJackpotOnChainWei(): Promise<bigint> {
 }
 
 /**
+ * Get total CLANKTON distributed from contract
+ * Returns the raw bigint value (with 18 decimals)
+ * To get human-readable value: divide by 10^18
+ */
+export async function getTotalClanktonDistributed(): Promise<bigint> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    return await contract.totalClanktonDistributed();
+  } catch (error) {
+    console.warn('[jackpot-contract] Failed to get totalClanktonDistributed:', error);
+    return 0n;
+  }
+}
+
+/**
  * Resolve round on smart contract
  *
  * CRITICAL: This function uses the unified wallet identity system
