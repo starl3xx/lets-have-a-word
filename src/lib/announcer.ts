@@ -634,7 +634,7 @@ export async function announceWordmarkEarned(
     return null;
   }
 
-  const text = `${info.emoji} Congrats ${username}! You just earned the ${info.name} wordmark!
+  const text = `${username} Congratulations on earning the ${info.emoji} ${info.name} wordmark!
 
 You ${info.description}. That's dedication 🙌
 
