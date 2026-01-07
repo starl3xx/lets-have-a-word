@@ -974,11 +974,12 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       FROM round_archive
     `);
 
-    // Get total CLANKTON distributed (sum of actual amounts from daily_guess_state)
+    // Get total CLANKTON distributed (sum from bonus word winners in round archive)
+    // Each bonus word winner receives clanktonAmount stored in payouts_json.bonusWordWinners[]
     const clanktonResult = await db.execute<{ total_clankton: string }>(sql`
-      SELECT COALESCE(SUM(free_allocated_clankton), 0) as total_clankton
-      FROM daily_guess_state
-      WHERE free_allocated_clankton > 0
+      SELECT COALESCE(SUM((winner->>'clanktonAmount')::bigint), 0) as total_clankton
+      FROM round_archive,
+           jsonb_array_elements(payouts_json->'bonusWordWinners') as winner
     `);
 
     const row = result[0];
