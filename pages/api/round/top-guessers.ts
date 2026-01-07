@@ -24,6 +24,10 @@ export interface TopGuesser {
   hasClanktonBadge: boolean;
   hasBonusWordBadge: boolean;
   hasJackpotWinnerBadge: boolean;
+  // New wordmarks
+  hasDoubleWBadge: boolean;
+  hasPatronBadge: boolean;
+  hasQuickdrawBadge: boolean;
 }
 
 export interface TopGuessersResponse {
@@ -122,6 +126,9 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       hasClanktonBadge: false, // Dev mode: no badges
       hasBonusWordBadge: false, // Dev mode: no badges
       hasJackpotWinnerBadge: false, // Dev mode: no badges
+      hasDoubleWBadge: false, // Dev mode: no badges
+      hasPatronBadge: false, // Dev mode: no badges
+      hasQuickdrawBadge: false, // Dev mode: no badges
     };
   });
 
@@ -244,8 +251,8 @@ export default async function handler(
         // Get FIDs of top guessers to check for badges
         const topGuesserFids = topGuessersData.map((g) => g.fid);
 
-        // Fetch OG Hunter, Bonus Word, and Jackpot Winner badges for these users
-        const [ogHunterBadges, bonusWordBadges, jackpotWinnerBadges] = topGuesserFids.length > 0
+        // Fetch all wordmarks for these users
+        const [ogHunterBadges, bonusWordBadges, jackpotWinnerBadges, doubleWBadges, patronBadges, quickdrawBadges] = topGuesserFids.length > 0
           ? await Promise.all([
               db
                 .select({ fid: userBadges.fid })
@@ -274,12 +281,42 @@ export default async function handler(
                     eq(userBadges.badgeType, 'JACKPOT_WINNER')
                   )
                 ),
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'DOUBLE_W')
+                  )
+                ),
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'PATRON')
+                  )
+                ),
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'QUICKDRAW')
+                  )
+                ),
             ])
-          : [[], [], []];
+          : [[], [], [], [], [], []];
 
         const ogHunterFids = new Set(ogHunterBadges.map((b) => b.fid));
         const bonusWordFids = new Set(bonusWordBadges.map((b) => b.fid));
         const jackpotWinnerFids = new Set(jackpotWinnerBadges.map((b) => b.fid));
+        const doubleWFids = new Set(doubleWBadges.map((b) => b.fid));
+        const patronFids = new Set(patronBadges.map((b) => b.fid));
+        const quickdrawFids = new Set(quickdrawBadges.map((b) => b.fid));
 
         // Check CLANKTON balances for users with wallets
         // Wrapped in defensive try/catch since this makes RPC calls that could fail
@@ -364,6 +401,9 @@ export default async function handler(
             hasClanktonBadge: clanktonHolders.has(g.fid),
             hasBonusWordBadge: bonusWordFids.has(g.fid),
             hasJackpotWinnerBadge: jackpotWinnerFids.has(g.fid),
+            hasDoubleWBadge: doubleWFids.has(g.fid),
+            hasPatronBadge: patronFids.has(g.fid),
+            hasQuickdrawBadge: quickdrawFids.has(g.fid),
           };
         });
 
