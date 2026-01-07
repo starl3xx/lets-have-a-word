@@ -14,6 +14,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db, rounds } from '../../../../src/db';
 import { eq, sql } from 'drizzle-orm';
 import { isAdminFid } from '../../admin/me';
+import { cacheDel, CacheKeys } from '../../../../src/lib/redis';
 
 interface BackfillItem {
   roundId: number;
@@ -105,12 +106,15 @@ export default async function handler(
           sql`UPDATE rounds SET start_tx_hash = ${item.startTxHash} WHERE id = ${item.roundId}`
         );
 
+        // Clear archive cache so the new tx hash shows up immediately
+        await cacheDel(CacheKeys.archiveRound(item.roundId));
+
         results.push({
           roundId: item.roundId,
           status: 'updated',
           startTxHash: item.startTxHash
         });
-        console.log(`✅ Updated round ${item.roundId} with startTxHash: ${item.startTxHash}`);
+        console.log(`✅ Updated round ${item.roundId} with startTxHash: ${item.startTxHash} (cache cleared)`);
       }
     }
 
