@@ -15,6 +15,7 @@ import { invalidateRoundCaches, invalidateOnRoundTransition, invalidateUserCache
 import { getPlaintextAnswer } from './encryption';
 import { distributeBonusWordRewardOnChain, isBonusWordsEnabledOnChain } from './jackpot-contract';
 import { logXpEvent } from './xp';
+import { getUserByFid as getNeynarUserByFid } from './farcaster';
 
 /**
  * Normalize a guess word
@@ -233,6 +234,23 @@ async function handleBonusWordWin(
       .limit(1);
 
     walletAddress = userResult[0]?.wallet ?? null;
+
+    // Fallback to Neynar if no wallet in local database
+    if (!walletAddress) {
+      console.log(`[guesses] No wallet in DB for FID ${fid}, looking up via Neynar...`);
+      const neynarUser = await getNeynarUserByFid(fid);
+      walletAddress = neynarUser?.primaryWallet || neynarUser?.signerWallet || neynarUser?.custodyAddress || null;
+
+      if (walletAddress) {
+        console.log(`[guesses] Found wallet via Neynar for FID ${fid}: ${walletAddress.slice(0, 10)}...`);
+
+        // Update user record with the wallet for future use
+        await db
+          .update(users)
+          .set({ signerWalletAddress: walletAddress })
+          .where(eq(users.fid, fid));
+      }
+    }
   } catch (error) {
     console.error('[guesses] Error getting user wallet:', error);
   }
