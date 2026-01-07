@@ -29,6 +29,7 @@ export interface TopGuesser {
   hasPatronBadge: boolean;
   hasQuickdrawBadge: boolean;
   hasEncyclopedicBadge: boolean;
+  hasBakersDozenBadge: boolean;
 }
 
 export interface TopGuessersResponse {
@@ -131,6 +132,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       hasPatronBadge: false, // Dev mode: no badges
       hasQuickdrawBadge: false, // Dev mode: no badges
       hasEncyclopedicBadge: false, // Dev mode: no badges
+      hasBakersDozenBadge: false, // Dev mode: no badges
     };
   });
 
@@ -254,7 +256,7 @@ export default async function handler(
         const topGuesserFids = topGuessersData.map((g) => g.fid);
 
         // Fetch all wordmarks for these users
-        const [ogHunterBadges, bonusWordBadges, jackpotWinnerBadges, doubleWBadges, patronBadges, quickdrawBadges, encyclopedicBadges] = topGuesserFids.length > 0
+        const [ogHunterBadges, bonusWordBadges, jackpotWinnerBadges, doubleWBadges, patronBadges, quickdrawBadges, encyclopedicBadges, bakersDozenBadges] = topGuesserFids.length > 0
           ? await Promise.all([
               db
                 .select({ fid: userBadges.fid })
@@ -319,8 +321,17 @@ export default async function handler(
                     eq(userBadges.badgeType, 'ENCYCLOPEDIC')
                   )
                 ),
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'BAKERS_DOZEN')
+                  )
+                ),
             ])
-          : [[], [], [], [], [], [], []];
+          : [[], [], [], [], [], [], [], []];
 
         const ogHunterFids = new Set(ogHunterBadges.map((b) => b.fid));
         const bonusWordFids = new Set(bonusWordBadges.map((b) => b.fid));
@@ -329,6 +340,7 @@ export default async function handler(
         const patronFids = new Set(patronBadges.map((b) => b.fid));
         const quickdrawFids = new Set(quickdrawBadges.map((b) => b.fid));
         const encyclopedicFids = new Set(encyclopedicBadges.map((b) => b.fid));
+        const bakersDozenFids = new Set(bakersDozenBadges.map((b) => b.fid));
 
         // Check CLANKTON balances for users with wallets
         // Wrapped in defensive try/catch since this makes RPC calls that could fail
@@ -417,6 +429,7 @@ export default async function handler(
             hasPatronBadge: patronFids.has(g.fid),
             hasQuickdrawBadge: quickdrawFids.has(g.fid),
             hasEncyclopedicBadge: encyclopedicFids.has(g.fid),
+            hasBakersDozenBadge: bakersDozenFids.has(g.fid),
           };
         });
 

@@ -17,6 +17,7 @@ interface WordmarkStackProps {
   hasPatron?: boolean;
   hasQuickdraw?: boolean;
   hasEncyclopedic?: boolean;
+  hasBakersDozen?: boolean;
   size?: 'sm' | 'md';
 }
 
@@ -42,6 +43,7 @@ export default function WordmarkStack({
   hasPatron = false,
   hasQuickdraw = false,
   hasEncyclopedic = false,
+  hasBakersDozen = false,
   size = 'sm',
 }: WordmarkStackProps) {
   const [tooltipText, setTooltipText] = useState<string | null>(null);
@@ -49,16 +51,16 @@ export default function WordmarkStack({
 
   // If no wordmarks, render nothing
   const hasAnyWordmark = hasOgHunter || hasClanktonHolder || hasBonusWordFinder ||
-    hasJackpotWinner || hasDoubleW || hasPatron || hasQuickdraw || hasEncyclopedic;
+    hasJackpotWinner || hasDoubleW || hasPatron || hasQuickdraw || hasEncyclopedic || hasBakersDozen;
 
   if (!hasAnyWordmark) {
     return null;
   }
 
   // Helper to check if overlap should be applied (any previous wordmark is shown)
-  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Bonus Word Finder, Double W, Jackpot Winner, CLANKTON
+  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Bonus Word Finder, Double W, Jackpot Winner, CLANKTON
   const shouldOverlap = (position: number): boolean => {
-    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBonusWordFinder, hasDoubleW, hasJackpotWinner, hasClanktonHolder];
+    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasDoubleW, hasJackpotWinner, hasClanktonHolder];
     return orderedChecks.slice(0, position).some(Boolean);
   };
 
@@ -114,10 +116,22 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Bonus Word Finder (position 5) */}
+      {/* Baker's Dozen (position 5) */}
+      {hasBakersDozen && (
+        <div
+          className={`${config.wordmark} bg-orange-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[45] ${shouldOverlap(4) ? config.overlap : ''}`}
+          style={{ boxShadow: '0 0 0 1px #fdba74' }}
+          onMouseEnter={() => setTooltipText('Baker\'s Dozen')}
+          onTouchStart={() => setTooltipText('Baker\'s Dozen')}
+        >
+          <span role="img" aria-label="Baker's Dozen">🍩</span>
+        </div>
+      )}
+
+      {/* Bonus Word Finder (position 6) */}
       {hasBonusWordFinder && (
         <div
-          className={`${config.wordmark} bg-cyan-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[50] ${shouldOverlap(4) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-cyan-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[50] ${shouldOverlap(5) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #67e8f9' }}
           onMouseEnter={() => setTooltipText('Bonus Word Finder')}
           onTouchStart={() => setTooltipText('Bonus Word Finder')}
@@ -126,10 +140,10 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Double W (position 6) */}
+      {/* Double W (position 7) */}
       {hasDoubleW && (
         <div
-          className={`${config.wordmark} bg-indigo-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[60] ${shouldOverlap(5) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-indigo-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[60] ${shouldOverlap(6) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #a5b4fc' }}
           onMouseEnter={() => setTooltipText('Double W')}
           onTouchStart={() => setTooltipText('Double W')}
@@ -138,10 +152,10 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Jackpot Winner (position 7) */}
+      {/* Jackpot Winner (position 8) */}
       {hasJackpotWinner && (
         <div
-          className={`${config.wordmark} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[70] ${shouldOverlap(6) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[70] ${shouldOverlap(7) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #fcd34d' }}
           onMouseEnter={() => setTooltipText('Jackpot Winner')}
           onTouchStart={() => setTooltipText('Jackpot Winner')}
@@ -150,10 +164,10 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* CLANKTON Holder (position 8 - rightmost, highest z-index) */}
+      {/* CLANKTON Holder (position 9 - rightmost, highest z-index) */}
       {hasClanktonHolder && (
         <div
-          className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[80] ${shouldOverlap(7) ? config.overlap : ''}`}
+          className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[80] ${shouldOverlap(8) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
           onMouseEnter={() => setTooltipText('CLANKTON Holder')}
           onTouchStart={() => setTooltipText('CLANKTON Holder')}
@@ -190,6 +204,7 @@ export function BadgeStack({
   hasPatronBadge = false,
   hasQuickdrawBadge = false,
   hasEncyclopedicBadge = false,
+  hasBakersDozenBadge = false,
   size = 'sm',
 }: {
   hasOgHunterBadge?: boolean;
@@ -200,6 +215,7 @@ export function BadgeStack({
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
   hasEncyclopedicBadge?: boolean;
+  hasBakersDozenBadge?: boolean;
   size?: 'sm' | 'md';
 }) {
   return (
@@ -212,6 +228,7 @@ export function BadgeStack({
       hasPatron={hasPatronBadge}
       hasQuickdraw={hasQuickdrawBadge}
       hasEncyclopedic={hasEncyclopedicBadge}
+      hasBakersDozen={hasBakersDozenBadge}
       size={size}
     />
   );

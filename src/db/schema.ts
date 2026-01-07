@@ -538,7 +538,7 @@ export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
  * Wordmarks are permanent achievements earned by playing
  * Note: Database column remains 'badge_type' for backwards compatibility
  */
-export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC';
+export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN';
 
 // Alias for backwards compatibility with existing code
 export type BadgeType = WordmarkType;
@@ -561,6 +561,34 @@ export const userBadges = pgTable('user_badges', {
 
 export type UserBadgeRow = typeof userBadges.$inferSelect;
 export type UserBadgeInsert = typeof userBadges.$inferInsert;
+
+/**
+ * Baker's Dozen Progress Table
+ * Tracks progress toward the Baker's Dozen wordmark
+ * Requirement: Guess words starting with 13 different letters across 13 different days
+ *
+ * Storage:
+ * - letterMask: 26-bit bitmask where bit N = 1 if letter (A=0, B=1, ..., Z=25) has been earned
+ * - distinctDays: Count of distinct days with valid guesses (max useful = 13)
+ * - lastDayKey: Day key of the last processed first-guess-of-day (to prevent double-counting)
+ *
+ * Day boundary matches app-wide reset: 11:00 UTC
+ * dayKey = floor((timestamp - 11*3600) / 86400)
+ */
+export const bakersDozenProgress = pgTable('bakers_dozen_progress', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull().unique(),
+  letterMask: integer('letter_mask').default(0).notNull(), // 26-bit mask for letters A-Z
+  distinctDays: integer('distinct_days').default(0).notNull(), // Count of days with first-guess
+  lastDayKey: integer('last_day_key'), // Day key of last processed first-guess
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  fidIdx: index('bakers_dozen_progress_fid_idx').on(table.fid),
+}));
+
+export type BakersDozenProgressRow = typeof bakersDozenProgress.$inferSelect;
+export type BakersDozenProgressInsert = typeof bakersDozenProgress.$inferInsert;
 
 /**
  * OG Hunter Cast Proofs Table
