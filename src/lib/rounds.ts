@@ -140,7 +140,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       seedNextRoundEth: '0',
       winnerFid: null,
       referrerFid: null,
-      // startTxHash: onChainCommitmentTxHash ?? null, // TODO: uncomment after migration 0015 is applied
+      startTxHash: onChainCommitmentTxHash ?? null,
       startedAt: new Date(),
       resolvedAt: null,
     })
