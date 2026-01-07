@@ -565,6 +565,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerHasDoubleWBadge?: boolean;
   winnerHasPatronBadge?: boolean;
   winnerHasQuickdrawBadge?: boolean;
+  winnerHasEncyclopedicBadge?: boolean;
   referrerUsername: string | null;
   referrerPfpUrl: string | null;
   topGuessersWithUsernames: Array<{
@@ -581,6 +582,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
     hasDoubleWBadge?: boolean;
     hasPatronBadge?: boolean;
     hasQuickdrawBadge?: boolean;
+    hasEncyclopedicBadge?: boolean;
   }>;
 }
 
@@ -727,6 +729,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     const doubleWBadgeFids = new Set<number>();
     const patronBadgeFids = new Set<number>();
     const quickdrawBadgeFids = new Set<number>();
+    const encyclopedicBadgeFids = new Set<number>();
     const fidsToCheckBadges = [...topGuesserFids];
     if (archived.winnerFid) fidsToCheckBadges.push(archived.winnerFid);
     if (fidsToCheckBadges.length > 0) {
@@ -736,7 +739,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         .where(
           and(
             sql`${userBadges.fid} IN ${fidsToCheckBadges}`,
-            sql`${userBadges.badgeType} IN ('OG_HUNTER', 'BONUS_WORD_FINDER', 'JACKPOT_WINNER', 'DOUBLE_W', 'PATRON', 'QUICKDRAW')`
+            sql`${userBadges.badgeType} IN ('OG_HUNTER', 'BONUS_WORD_FINDER', 'JACKPOT_WINNER', 'DOUBLE_W', 'PATRON', 'QUICKDRAW', 'ENCYCLOPEDIC')`
           )
         );
       for (const badge of badgeRecords) {
@@ -752,6 +755,8 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
           patronBadgeFids.add(badge.fid);
         } else if (badge.badgeType === 'QUICKDRAW') {
           quickdrawBadgeFids.add(badge.fid);
+        } else if (badge.badgeType === 'ENCYCLOPEDIC') {
+          encyclopedicBadgeFids.add(badge.fid);
         }
       }
     }
@@ -805,6 +810,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         hasDoubleWBadge: doubleWBadgeFids.has(guesser.fid),
         hasPatronBadge: patronBadgeFids.has(guesser.fid),
         hasQuickdrawBadge: quickdrawBadgeFids.has(guesser.fid),
+        hasEncyclopedicBadge: encyclopedicBadgeFids.has(guesser.fid),
       };
     });
 
@@ -822,6 +828,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       winnerHasDoubleWBadge: archived.winnerFid ? doubleWBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasPatronBadge: archived.winnerFid ? patronBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasQuickdrawBadge: archived.winnerFid ? quickdrawBadgeFids.has(archived.winnerFid) : undefined,
+      winnerHasEncyclopedicBadge: archived.winnerFid ? encyclopedicBadgeFids.has(archived.winnerFid) : undefined,
       referrerUsername: referrerData?.username || (archived.referrerFid ? `fid:${archived.referrerFid}` : null),
       referrerPfpUrl: referrerData?.pfpUrl || (archived.referrerFid ? `https://avatar.vercel.sh/${archived.referrerFid}` : null),
       topGuessersWithUsernames,
