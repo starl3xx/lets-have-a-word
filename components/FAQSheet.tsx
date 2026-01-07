@@ -219,8 +219,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         <>
           Top 10 rewards are based on <strong>early participation</strong> in each round.
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Only the first <strong>750 guesses</strong> in a round are eligible for Top 10 ranking</li>
-            <li>After guess #750, Top 10 locks</li>
+            <li>Only the first <strong>850 guesses</strong> in a round are eligible for Top 10 ranking</li>
+            <li>After guess #850, Top 10 locks</li>
             <li>Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking</li>
           </ul>
           <p className="mt-2">This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.</p>

@@ -113,8 +113,8 @@ Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
 
 Top 10 rewards are based on **early participation** in each round.
 
-- Only the first **750 guesses** in a round are eligible for Top 10 ranking
-- After guess #750, Top 10 locks
+- Only the first **850 guesses** in a round are eligible for Top 10 ranking
+- After guess #850, Top 10 locks
 - Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking
 
 This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.

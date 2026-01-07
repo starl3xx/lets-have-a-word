@@ -6,7 +6,7 @@
  * A) Health Overview Scorecard (with vs-target evaluation)
  * B) Prize Pool Growth Curve
  * C) Pack Pricing & Purchase Behavior
- * D) Top-10 Cutoff Diagnostics (750 analysis)
+ * D) Top-10 Cutoff Diagnostics (850 for new rounds, was 750 for rounds 1-3)
  * E) Pool Split & Referral Analysis
  * F) Comparison Mode
  * G) Guidance Recommendations
@@ -542,8 +542,8 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
     y: yScale(val),
   }))
 
-  // X-axis labels (every 300 guesses)
-  const xLabels = points.filter(p => p.guessIndex % 300 === 0 || p.guessIndex === 750)
+  // X-axis labels (every 300 guesses, plus the 850 cutoff)
+  const xLabels = points.filter(p => p.guessIndex % 300 === 0 || p.guessIndex === 850)
 
   return (
     <svg
@@ -571,24 +571,24 @@ function GrowthCurveChart({ points }: { points: GrowthCurvePoint[] }) {
         strokeWidth="1"
       />
 
-      {/* 750 cutoff line */}
+      {/* 850 cutoff line (Top 10 locks) */}
       <line
-        x1={xScale(750)}
+        x1={xScale(850)}
         y1={padding.top}
-        x2={xScale(750)}
+        x2={xScale(850)}
         y2={padding.top + chartHeight}
         stroke="#dc2626"
         strokeWidth="1"
         strokeDasharray="4,4"
       />
       <text
-        x={xScale(750)}
+        x={xScale(850)}
         y={padding.top - 6}
         fill="#dc2626"
         fontSize="11"
         textAnchor="middle"
       >
-        750
+        850
       </text>
 
       {/* P25-P75 envelope area */}
@@ -745,7 +745,7 @@ function ComparisonSummary({
   const metrics = [
     { label: 'Paid Participation', recent: recent.paidParticipation, baseline: baseline.paidParticipation, unit: '%' },
     { label: 'ETH/100 Guesses', recent: recent.ethPer100Guesses, baseline: baseline.ethPer100Guesses, unit: '', decimals: 4 },
-    { label: 'Rounds <750', recent: recent.roundsEndingBefore750Pct, baseline: baseline.roundsEndingBefore750Pct, unit: '%', invert: true },
+    { label: 'Rounds <cutoff', recent: recent.roundsEndingBefore750Pct, baseline: baseline.roundsEndingBefore750Pct, unit: '%', invert: true },
   ]
 
   return (
@@ -946,7 +946,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
           </div>
           <div style={styles.legendItem}>
             <div style={{ width: "20px", height: "2px", background: "#dc2626", borderRadius: "1px", borderStyle: "dashed" }} />
-            <span>750 cutoff</span>
+            <span>850 cutoff</span>
           </div>
         </div>
         <div style={styles.infoText}>{growthCurve.interpretation}</div>
@@ -1008,10 +1008,10 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
         </div>
       </div>
 
-      {/* D) Top-10 Cutoff Diagnostics (750 analysis) */}
+      {/* D) Top-10 Cutoff Diagnostics (850 for new rounds) */}
       <div style={styles.section}>
         <h3 style={styles.sectionTitle}>
-          <span>🎯</span> 750 Cutoff Diagnostics
+          <span>🎯</span> 850 Cutoff Diagnostics
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
@@ -1043,11 +1043,11 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
           {/* Cutoff Impact with targets */}
           <div>
             <div style={{ fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "12px" }}>
-              750 Cutoff Impact
+              Top 10 Cutoff Impact
             </div>
             <div style={styles.statRow}>
               <span style={styles.statLabel}>
-                Rounds ending before 750
+                Rounds ending before cutoff
                 <span style={{ ...styles.targetBadge(cutoffDiagnostics.roundsEndingBefore750Target.status), position: "static", marginLeft: "8px" }}>
                   {cutoffDiagnostics.roundsEndingBefore750Target.status}
                 </span>
@@ -1062,7 +1062,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
             </div>
             <div style={styles.statRow}>
               <span style={styles.statLabel}>
-                Packs purchased before 750
+                Packs purchased before cutoff
                 <span style={{ ...styles.targetBadge(cutoffDiagnostics.packsBefore750Target.status), position: "static", marginLeft: "8px" }}>
                   {cutoffDiagnostics.packsBefore750Target.status}
                 </span>
@@ -1070,7 +1070,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
               <span style={styles.statValue}>{cutoffDiagnostics.packsPurchasedBefore750Pct}%</span>
             </div>
             <div style={styles.infoText}>
-              Target: {cutoffDiagnostics.roundsEndingBefore750Target.target.min}-{cutoffDiagnostics.roundsEndingBefore750Target.target.max}% of rounds ending before 750
+              Target: {cutoffDiagnostics.roundsEndingBefore750Target.target.min}-{cutoffDiagnostics.roundsEndingBefore750Target.target.max}% of rounds ending before Top 10 cutoff
             </div>
           </div>
         </div>

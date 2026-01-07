@@ -1919,23 +1919,28 @@ RATE_LIMIT_DUPLICATE_WINDOW=10
 - Not just applied at daily reset anymore
 - `CLANKTON_MARKET_CAP_USD` environment variable for testing
 
-#### Leaderboard Lock at 750 Guesses
+#### Leaderboard Lock at 850 Guesses
 
 **Files:**
-- `src/lib/top10-lock.ts` - Lock threshold constant
+- `src/lib/top10-lock.ts` - Lock threshold constants and round-specific logic
 - `pages/api/round/top-guessers.ts` - Top-10 API
 - `src/lib/guesses.ts` - Guess indexing
 
 **How It Works:**
 1. Each guess gets a `guessIndexInRound` (1-based counter)
-2. Top-10 locked after guess #750
-3. Leaderboard only counts guesses 1-750
-4. Guesses 751+ count for winning jackpot but not for Top-10 ranking
+2. Top-10 locked after guess #850 (was 750 for rounds 1-3)
+3. Leaderboard only counts guesses 1-850
+4. Guesses 851+ count for winning jackpot but not for Top-10 ranking
 5. Prevents late-game clustering from skewing leaderboard
 
 **Configuration:**
 ```typescript
-TOP10_LOCK_AFTER_GUESSES = 750
+// Historical thresholds (for archive accuracy)
+LEGACY_TOP10_LOCK = 750           // Rounds 1-3
+NEW_TOP10_LOCK = 850              // Round 4+
+TOP10_LOCK_AFTER_GUESSES = 850    // Current default
+
+// Use getTop10LockForRound(roundId) for round-specific threshold
 ```
 
 #### Comprehensive Error Handling

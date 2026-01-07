@@ -58,7 +58,7 @@ Core tables: `users`, `rounds`, `guesses`, `daily_guess_state`, `round_payouts`,
 
 ### Game Economics
 - **Prize Split**: 80% winner | 10% Top 10 | 10% referrer
-- **Top 10 Lock**: Only guesses 1-750 count for rankings; later guesses win but don't rank
+- **Top 10 Lock**: Only guesses 1-850 count for rankings; later guesses win but don't rank (was 750 for rounds 1-3)
 - **Guess Types**: Free (base) → CLANKTON bonus → Share bonus → Paid (consumed in order)
 - **Daily Reset**: 11:00 UTC for free guesses
 
