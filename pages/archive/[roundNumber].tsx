@@ -26,6 +26,7 @@ interface TopGuesserWithUsername {
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
   hasEncyclopedicBadge?: boolean;
+  hasBakersDozenBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display in archive
@@ -44,6 +45,7 @@ interface BonusWordWinner {
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
   hasEncyclopedicBadge?: boolean;
+  hasBakersDozenBadge?: boolean;
 }
 
 interface ArchivedRound {
@@ -67,6 +69,7 @@ interface ArchivedRound {
   winnerHasPatronBadge?: boolean;
   winnerHasQuickdrawBadge?: boolean;
   winnerHasEncyclopedicBadge?: boolean;
+  winnerHasBakersDozenBadge?: boolean;
   startTime: string;
   endTime: string;
   referrerFid: number | null;
@@ -314,6 +317,7 @@ export default function RoundDetailPage() {
                               hasPatronBadge={round.winnerHasPatronBadge}
                               hasQuickdrawBadge={round.winnerHasQuickdrawBadge}
                               hasEncyclopedicBadge={round.winnerHasEncyclopedicBadge}
+                              hasBakersDozenBadge={round.winnerHasBakersDozenBadge}
                               size="md"
                             />
                           </div>
@@ -442,6 +446,7 @@ export default function RoundDetailPage() {
                             hasPatronBadge={guesser.hasPatronBadge}
                             hasQuickdrawBadge={guesser.hasQuickdrawBadge}
                             hasEncyclopedicBadge={guesser.hasEncyclopedicBadge}
+                            hasBakersDozenBadge={guesser.hasBakersDozenBadge}
                             size="sm"
                           />
                         </div>
@@ -498,6 +503,7 @@ export default function RoundDetailPage() {
                             hasPatronBadge={winner.hasPatronBadge}
                             hasQuickdrawBadge={winner.hasQuickdrawBadge}
                             hasEncyclopedicBadge={winner.hasEncyclopedicBadge}
+                            hasBakersDozenBadge={winner.hasBakersDozenBadge}
                             size="sm"
                           />
                         </div>
