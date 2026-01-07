@@ -1,7 +1,7 @@
 /**
  * BadgeStack Component
- * Displays OG Hunter and CLANKTON badges in a stacked/overlapping layout
- * when both are present (like Mastercard logo)
+ * Displays achievement badges in a stacked/overlapping layout
+ * when multiple are present (like Mastercard logo)
  */
 
 import { useState } from 'react';
@@ -10,6 +10,7 @@ interface BadgeStackProps {
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
   hasBonusWordBadge?: boolean;
+  hasJackpotWinnerBadge?: boolean;
   size?: 'sm' | 'md';
 }
 
@@ -30,18 +31,19 @@ export default function BadgeStack({
   hasOgHunterBadge = false,
   hasClanktonBadge = false,
   hasBonusWordBadge = false,
+  hasJackpotWinnerBadge = false,
   size = 'sm',
 }: BadgeStackProps) {
   const [tooltipText, setTooltipText] = useState<string | null>(null);
   const config = sizeConfig[size];
 
   // If no badges, render nothing
-  if (!hasOgHunterBadge && !hasClanktonBadge && !hasBonusWordBadge) {
+  if (!hasOgHunterBadge && !hasClanktonBadge && !hasBonusWordBadge && !hasJackpotWinnerBadge) {
     return null;
   }
 
   // Count how many badges are shown for overlap calculation
-  const badgeCount = [hasOgHunterBadge, hasClanktonBadge, hasBonusWordBadge].filter(Boolean).length;
+  const badgeCount = [hasOgHunterBadge, hasClanktonBadge, hasBonusWordBadge, hasJackpotWinnerBadge].filter(Boolean).length;
 
   return (
     <div
@@ -71,10 +73,22 @@ export default function BadgeStack({
         </div>
       )}
 
+      {/* Jackpot Winner Badge (shown third, overlapping if previous badges present) */}
+      {hasJackpotWinnerBadge && (
+        <div
+          className={`${config.badge} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-25 ${(hasOgHunterBadge || hasBonusWordBadge) ? config.overlap : ''}`}
+          style={{ boxShadow: '0 0 0 1px #fcd34d' }}
+          onMouseEnter={() => setTooltipText('Jackpot winner')}
+          onTouchStart={() => setTooltipText('Jackpot winner')}
+        >
+          <span role="img" aria-label="Jackpot winner">🏆</span>
+        </div>
+      )}
+
       {/* CLANKTON Badge (shown last/rightmost, overlapping if previous badges present) */}
       {hasClanktonBadge && (
         <div
-          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center relative z-30 ${(hasOgHunterBadge || hasBonusWordBadge) ? config.overlap : ''}`}
+          className={`${config.badge} rounded-full overflow-hidden flex items-center justify-center relative z-30 ${(hasOgHunterBadge || hasBonusWordBadge || hasJackpotWinnerBadge) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
           onMouseEnter={() => setTooltipText('CLANKTON holder')}
           onTouchStart={() => setTooltipText('CLANKTON holder')}

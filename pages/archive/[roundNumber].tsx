@@ -21,6 +21,7 @@ interface TopGuesserWithUsername {
   hasClanktonBadge?: boolean;
   hasOgHunterBadge?: boolean;
   hasBonusWordBadge?: boolean;
+  hasJackpotWinnerBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display in archive
@@ -53,6 +54,7 @@ interface ArchivedRound {
   winnerHasOgHunterBadge?: boolean;
   winnerHasClanktonBadge?: boolean;
   winnerHasBonusWordBadge?: boolean;
+  winnerHasJackpotWinnerBadge?: boolean;
   startTime: string;
   endTime: string;
   referrerFid: number | null;
@@ -295,6 +297,7 @@ export default function RoundDetailPage() {
                               hasOgHunterBadge={round.winnerHasOgHunterBadge}
                               hasClanktonBadge={round.winnerHasClanktonBadge}
                               hasBonusWordBadge={round.winnerHasBonusWordBadge}
+                              hasJackpotWinnerBadge={round.winnerHasJackpotWinnerBadge}
                               size="md"
                             />
                           </div>
@@ -418,6 +421,7 @@ export default function RoundDetailPage() {
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
                             hasClanktonBadge={guesser.hasClanktonBadge}
                             hasBonusWordBadge={guesser.hasBonusWordBadge}
+                            hasJackpotWinnerBadge={guesser.hasJackpotWinnerBadge}
                             size="sm"
                           />
                         </div>

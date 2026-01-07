@@ -559,6 +559,24 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       console.log(`[Cache] 🔴 ROUND WON - Invalidating all caches for round ${round.id}`);
       await invalidateOnRoundTransition(round.id);
 
+      // Award JACKPOT_WINNER badge to the winner (fire and forget)
+      (async () => {
+        try {
+          await db
+            .insert(userBadges)
+            .values({
+              fid,
+              badgeType: 'JACKPOT_WINNER',
+              metadata: { roundId: round.id, word },
+            })
+            .onConflictDoNothing(); // Don't fail if they already have the badge
+          console.log(`🏆 Awarded JACKPOT_WINNER badge to FID ${fid} for round ${round.id}`);
+        } catch (badgeError) {
+          // Log but don't throw - badge award failure shouldn't affect the game
+          console.error(`[Badge] Failed to award JACKPOT_WINNER badge to FID ${fid}:`, badgeError);
+        }
+      })();
+
       // AUTO-START NEXT ROUND: Proactively create the next round after resolution
       // This ensures Round N+1 is ready immediately, so users don't have to wait
       // Fire-and-forget to not block the winning user's response
