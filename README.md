@@ -97,7 +97,7 @@ Production-hardened game operations with onchain pack purchases, comprehensive e
   - Users sign transactions in wallet, frontend verifies onchain before awarding packs
   - Transaction verification via `verifyPurchaseTransaction()` prevents fraud
   - `txHash` tracking prevents double-claiming of the same transaction
-  - Dynamic pricing phases: BASE (0-749 guesses), LATE_1 (750-1249), LATE_2 (1250+)
+  - Dynamic pricing phases: EARLY (0-849 guesses), MID (850-1249), LATE (1250+)
   - Pack purchase records stored in `pack_purchases` table with tx hash
 
 - **Rate Limiting & Spam Protection** (`src/lib/rateLimit.ts`)

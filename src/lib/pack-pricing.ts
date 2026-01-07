@@ -8,9 +8,9 @@
  * 2. Daily pack purchases (volume-based multipliers)
  *
  * Stage-based pricing (1 pack = 3 guesses):
- * - 0–749 guesses   → 0.00030 ETH (BASE)
- * - 750–1249 guesses → 0.00045 ETH (LATE_1)
- * - 1250+ guesses   → 0.00060 ETH (LATE_2, cap)
+ * - 0–849 guesses   → 0.00030 ETH (EARLY)
+ * - 850–1249 guesses → 0.00045 ETH (MID)
+ * - 1250+ guesses   → 0.00060 ETH (LATE, cap)
  *
  * Volume-based multipliers (per day):
  * - Packs 1-3:  1.0× (base price)
@@ -24,11 +24,11 @@
 // Constants (all values in wei for precision)
 // =============================================================================
 
-/** Guess count at which late-round pricing begins (matches Top-10 lock) */
-export const PRICE_RAMP_START_GUESSES = 750;
+/** Guess count at which mid-round pricing begins (matches Top-10 lock) */
+export const PRICE_RAMP_START_GUESSES = 850;
 
 /** Number of guesses per price step after ramp starts */
-export const PRICE_STEP_GUESSES = 500;
+export const PRICE_STEP_GUESSES = 400;
 
 /** Base pack price: 0.0003 ETH in wei */
 export const BASE_PACK_PRICE_WEI = 300000000000000n; // 0.0003 ETH
@@ -57,7 +57,7 @@ export type VolumeTier = 'BASE' | 'MID' | 'HIGH';
 // Pricing Phase Enum
 // =============================================================================
 
-export type PricingPhase = 'BASE' | 'LATE_1' | 'LATE_2';
+export type PricingPhase = 'EARLY' | 'MID' | 'LATE';
 
 // =============================================================================
 // Volume Tier Functions
@@ -141,8 +141,8 @@ export function getNextTierMultiplier(packsPurchasedToday: number): number | nul
  *
  * @example
  * getBasePackPriceWei(0)    // 300000000000000n (0.0003 ETH)
- * getBasePackPriceWei(749)  // 300000000000000n (0.0003 ETH)
- * getBasePackPriceWei(750)  // 450000000000000n (0.00045 ETH)
+ * getBasePackPriceWei(849)  // 300000000000000n (0.0003 ETH)
+ * getBasePackPriceWei(850)  // 450000000000000n (0.00045 ETH)
  * getBasePackPriceWei(1250) // 600000000000000n (0.0006 ETH)
  */
 export function getBasePackPriceWei(totalGuessesInRound: number): bigint {
@@ -176,14 +176,14 @@ export function getBasePackPriceWei(totalGuessesInRound: number): bigint {
  * @returns Final pack price in wei as bigint
  *
  * @example
- * // At stage BASE (0-749 guesses), buying first pack (1× multiplier)
+ * // At stage EARLY (0-849 guesses), buying first pack (1× multiplier)
  * getPackPriceWithMultiplier(100, 0)  // 300000000000000n (0.0003 ETH)
  *
- * // At stage BASE, buying 4th pack (1.5× multiplier)
+ * // At stage EARLY, buying 4th pack (1.5× multiplier)
  * getPackPriceWithMultiplier(100, 3)  // 450000000000000n (0.00045 ETH)
  *
- * // At stage LATE_1 (750-1249 guesses), buying 7th pack (2× multiplier)
- * getPackPriceWithMultiplier(800, 6)  // 900000000000000n (0.0009 ETH)
+ * // At stage MID (850-1249 guesses), buying 7th pack (2× multiplier)
+ * getPackPriceWithMultiplier(900, 6)  // 900000000000000n (0.0009 ETH)
  */
 export function getPackPriceWithMultiplier(
   totalGuessesInRound: number,
@@ -214,12 +214,12 @@ export function getPackPriceWei(totalGuessesInRound: number): bigint {
  */
 export function getPricingPhase(totalGuessesInRound: number): PricingPhase {
   if (totalGuessesInRound < PRICE_RAMP_START_GUESSES) {
-    return 'BASE';
+    return 'EARLY';
   }
   if (totalGuessesInRound < PRICE_RAMP_START_GUESSES + PRICE_STEP_GUESSES) {
-    return 'LATE_1';
+    return 'MID';
   }
-  return 'LATE_2';
+  return 'LATE';
 }
 
 // =============================================================================
@@ -294,7 +294,7 @@ export function getPackPricingDetails(
     totalGuessesInRound,
     priceRampStartGuesses: PRICE_RAMP_START_GUESSES,
     priceStepGuesses: PRICE_STEP_GUESSES,
-    isLateRoundPricing: phase !== 'BASE',
+    isLateRoundPricing: phase !== 'EARLY',
   };
 }
 

@@ -965,9 +965,9 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
           </div>
           <StackedBar
             segments={[
-              { value: packPricing.byPhase.early.count, color: "#22c55e", label: "Early (0-749)" },
-              { value: packPricing.byPhase.late.count, color: "#f59e0b", label: "Late (750-1249)" },
-              { value: packPricing.byPhase.lateMax.count, color: "#ef4444", label: "Late Max (1250+)" },
+              { value: packPricing.byPhase.early.count, color: "#22c55e", label: "Early (0-849)" },
+              { value: packPricing.byPhase.late.count, color: "#f59e0b", label: "Mid (850-1249)" },
+              { value: packPricing.byPhase.lateMax.count, color: "#ef4444", label: "Late (1250+)" },
             ]}
           />
           <div style={styles.legend}>
@@ -977,11 +977,11 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
             </div>
             <div style={styles.legendItem}>
               <div style={styles.legendDot("#f59e0b")} />
-              <span>Late: {packPricing.byPhase.late.count} packs ({packPricing.byPhase.late.ethTotal.toFixed(4)} ETH)</span>
+              <span>Mid: {packPricing.byPhase.late.count} packs ({packPricing.byPhase.late.ethTotal.toFixed(4)} ETH)</span>
             </div>
             <div style={styles.legendItem}>
               <div style={styles.legendDot("#ef4444")} />
-              <span>Late Max: {packPricing.byPhase.lateMax.count} packs ({packPricing.byPhase.lateMax.ethTotal.toFixed(4)} ETH)</span>
+              <span>Late: {packPricing.byPhase.lateMax.count} packs ({packPricing.byPhase.lateMax.ethTotal.toFixed(4)} ETH)</span>
             </div>
           </div>
         </div>
