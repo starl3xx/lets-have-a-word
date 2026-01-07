@@ -66,10 +66,13 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
 
     // Check if any values need updating
     // Always update username if provided (Neynar is authoritative)
+    // Only update wallet if we have a new non-null value (don't overwrite existing with null)
     const shouldUpdateUsername = username && user.username !== username;
+    const shouldUpdateWallet = signerWallet && user.signerWalletAddress !== signerWallet;
+    const shouldUpdateSpamScore = spamScore !== null && user.spamScore !== spamScore;
     const needsUpdate =
-      user.signerWalletAddress !== signerWallet ||
-      user.spamScore !== spamScore ||
+      shouldUpdateWallet ||
+      shouldUpdateSpamScore ||
       shouldBackfillReferrer ||
       shouldUpdateUsername;
 
@@ -77,8 +80,8 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
       const updated = await db
         .update(users)
         .set({
-          signerWalletAddress: signerWallet,
-          spamScore,
+          ...(shouldUpdateWallet && { signerWalletAddress: signerWallet }),
+          ...(shouldUpdateSpamScore && { spamScore }),
           ...(username && { username }),
           ...(shouldBackfillReferrer && { referrerFid: validReferrerFid }),
           updatedAt: new Date(),
