@@ -147,6 +147,21 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 
   const round = result[0];
 
+  // CRITICAL: Validate salt immediately after insert to catch any corruption
+  // This has been a recurring issue where salt becomes a Date object
+  if (typeof round.salt !== 'string' || round.salt.length !== 64 || !/^[a-f0-9]+$/i.test(round.salt)) {
+    console.error(`[rounds] ⚠️ SALT CORRUPTION DETECTED after insert for round ${round.id}!`);
+    console.error(`[rounds] Salt type: ${typeof round.salt}, isDate: ${round.salt instanceof Date}`);
+    console.error(`[rounds] Expected salt: ${salt}`);
+    console.error(`[rounds] Actual salt: ${String(round.salt).substring(0, 50)}`);
+
+    // Fix the corruption immediately using raw SQL
+    const { sql: rawSql } = await import('drizzle-orm');
+    await db.execute(rawSql`UPDATE rounds SET salt = ${salt} WHERE id = ${round.id}`);
+    round.salt = salt;
+    console.log(`[rounds] ✅ Salt corruption fixed for round ${round.id}`);
+  }
+
   // Insert bonus words if enabled
   if (bonusWordsEnabled && bonusWordsCommitment && bonusWords.length > 0) {
     console.log(`[rounds] Storing ${bonusWords.length} encrypted bonus words...`);
