@@ -61,7 +61,8 @@ export const rounds = pgTable('rounds', {
   winnerFid: integer('winner_fid'), // FK to users.fid
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
   txHash: varchar('tx_hash', { length: 66 }), // Resolve round transaction hash
-  startTxHash: varchar('start_tx_hash', { length: 66 }), // Start round with commitment transaction hash
+  // startTxHash: Added via migration 0015 - uncomment after migration is applied
+  // startTxHash: varchar('start_tx_hash', { length: 66 }), // Start round with commitment transaction hash
   isDevTestRound: boolean('is_dev_test_round').default(false).notNull(), // Milestone 4.5: Mid-round test mode flag
   startedAt: timestamp('started_at').defaultNow().notNull(),
   resolvedAt: timestamp('resolved_at'), // null until someone wins

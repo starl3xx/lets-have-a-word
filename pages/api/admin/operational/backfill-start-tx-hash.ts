@@ -12,7 +12,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db, rounds } from '../../../../src/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { isAdminFid } from '../../admin/me';
 
 interface BackfillItem {
@@ -72,23 +72,24 @@ export default async function handler(
     const results: Array<{ roundId: number; status: string; startTxHash?: string }> = [];
 
     for (const item of roundsToUpdate) {
-      // Check if round exists
-      const [existingRound] = await db
-        .select({ id: rounds.id, startTxHash: rounds.startTxHash })
-        .from(rounds)
-        .where(eq(rounds.id, item.roundId))
-        .limit(1);
+      // Check if round exists and get current startTxHash via raw SQL
+      // (column may not exist yet if migration 0015 hasn't been applied)
+      const existingResult = await db.execute(
+        sql`SELECT id, start_tx_hash FROM rounds WHERE id = ${item.roundId} LIMIT 1`
+      );
+      const rows = Array.isArray(existingResult) ? existingResult : existingResult.rows || [];
+      const existingRound = rows[0] as { id: number; start_tx_hash: string | null } | undefined;
 
       if (!existingRound) {
         results.push({ roundId: item.roundId, status: 'not_found' });
         continue;
       }
 
-      if (existingRound.startTxHash) {
+      if (existingRound.start_tx_hash) {
         results.push({
           roundId: item.roundId,
           status: 'already_set',
-          startTxHash: existingRound.startTxHash
+          startTxHash: existingRound.start_tx_hash
         });
         continue;
       }
@@ -100,10 +101,9 @@ export default async function handler(
           startTxHash: item.startTxHash
         });
       } else {
-        await db
-          .update(rounds)
-          .set({ startTxHash: item.startTxHash })
-          .where(eq(rounds.id, item.roundId));
+        await db.execute(
+          sql`UPDATE rounds SET start_tx_hash = ${item.startTxHash} WHERE id = ${item.roundId}`
+        );
 
         results.push({
           roundId: item.roundId,
