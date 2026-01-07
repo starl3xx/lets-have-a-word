@@ -547,6 +547,7 @@ export async function resolveRoundAndCreatePayouts(
   dbPayouts.push({
     roundId,
     fid: winnerFid,
+    walletAddress: winnerWallet,
     amountEth: ethers.formatEther(toWinnerWei),
     role: 'winner',
   });
@@ -564,6 +565,7 @@ export async function resolveRoundAndCreatePayouts(
     dbPayouts.push({
       roundId,
       fid: referrerFid,
+      walletAddress: referrerWallet,
       amountEth: ethers.formatEther(toReferrerWei),
       role: 'referrer',
     });
@@ -600,6 +602,7 @@ export async function resolveRoundAndCreatePayouts(
       dbPayouts.push({
         roundId,
         fid,
+        walletAddress: wallet,
         amountEth: ethers.formatEther(amountWei),
         role: 'top_guesser',
       });
@@ -610,6 +613,7 @@ export async function resolveRoundAndCreatePayouts(
     dbPayouts.push({
       roundId,
       fid: winnerFid,
+      walletAddress: winnerWallet,
       amountEth: ethers.formatEther(toTopGuessersWei),
       role: 'top_guesser',
     });
@@ -642,6 +646,7 @@ export async function resolveRoundAndCreatePayouts(
     dbPayouts.push({
       roundId,
       fid: null,
+      walletAddress: creatorWallet,
       amountEth: ethers.formatEther(toCreatorOverflowWei),
       role: 'creator',
     });

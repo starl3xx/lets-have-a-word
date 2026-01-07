@@ -197,6 +197,7 @@ export const roundPayouts = pgTable('round_payouts', {
   id: serial('id').primaryKey(),
   roundId: integer('round_id').notNull().references(() => rounds.id),
   fid: integer('fid'), // FK to users.fid - recipient of payout (null for seed/creator)
+  walletAddress: varchar('wallet_address', { length: 66 }), // Resolved wallet address at time of payout (for audit trail)
   amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
   role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser', 'seed', 'creator'
   createdAt: timestamp('created_at').defaultNow().notNull(),
