@@ -12,7 +12,7 @@ import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const roundId = parseInt(req.query.roundId as string || '3', 10);
+  let roundId = req.query.roundId ? parseInt(req.query.roundId as string, 10) : null;
   const adminFid = req.query.devFid as string;
 
   if (!adminFid || !isAdminFid(parseInt(adminFid, 10))) {
@@ -20,6 +20,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // If no roundId specified, find the first unarchived resolved round
+    if (!roundId) {
+      console.log(`[fix-and-archive] No roundId specified, finding unarchived resolved rounds...`);
+
+      const unarchivedResult = await db.execute(sql`
+        SELECT r.id
+        FROM rounds r
+        LEFT JOIN round_archive ra ON ra.round_number = r.id
+        WHERE r.resolved_at IS NOT NULL
+          AND ra.id IS NULL
+        ORDER BY r.id ASC
+        LIMIT 1
+      `);
+
+      if (!unarchivedResult.rows || unarchivedResult.rows.length === 0) {
+        // List all rounds for debugging
+        const allRounds = await db.execute(sql`
+          SELECT id, status, resolved_at IS NOT NULL as is_resolved
+          FROM rounds
+          ORDER BY id
+        `);
+        return res.status(404).json({
+          error: 'No unarchived resolved rounds found',
+          allRounds: allRounds.rows,
+        });
+      }
+
+      roundId = (unarchivedResult.rows[0] as any).id;
+      console.log(`[fix-and-archive] Found unarchived round: ${roundId}`);
+    }
+
     console.log(`[fix-and-archive] ========== STARTING FIX FOR ROUND ${roundId} ==========`);
 
     // Step 1: Get the raw round data - SELECT only specific columns as strings
