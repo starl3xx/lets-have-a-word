@@ -288,16 +288,28 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([])
   const [runningSimulation, setRunningSimulation] = useState<string | null>(null)
 
-  // Status cast generator state
-  const [statusCastText, setStatusCastText] = useState<string>("")
-  const [statusCastLoading, setStatusCastLoading] = useState(false)
-  const [statusCastCopied, setStatusCastCopied] = useState(false)
-
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const filterByTimeRange = (data: any[], range: TimeRange) => {
+  const filterByTimeRange = (data: any[], range: TimeRange, currentRoundStartTime?: string) => {
     if (range === "all") return data
-    const daysBack = range === "7d" ? 7 : 30
+    if (range === "current") {
+      // For "current" range, filter to data from when the current round started
+      // Compare at day level only (round start date, not time)
+      if (!currentRoundStartTime) return data
+      const roundStartDate = new Date(currentRoundStartTime)
+      // Set to start of day in UTC to compare day-level
+      const cutoffDate = new Date(Date.UTC(
+        roundStartDate.getUTCFullYear(),
+        roundStartDate.getUTCMonth(),
+        roundStartDate.getUTCDate(),
+        0, 0, 0, 0
+      ))
+      return data.filter(item => {
+        const itemDate = new Date(item.day || item.week_start)
+        return itemDate >= cutoffDate
+      })
+    }
+    const daysBack = range === "7d" ? 7 : range === "30d" ? 30 : 7
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
     return data.filter(item => {
@@ -334,16 +346,23 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         fetch(`/api/admin/analytics/gameplay${devFidParam}${rangeParam}`),
       ])
 
-      if (summaryRes.ok) setSummary(await summaryRes.json())
+      // Parse summary first to get current round start time for filtering
+      let summaryData: DashboardSummary | null = null
+      if (summaryRes.ok) {
+        summaryData = await summaryRes.json()
+        setSummary(summaryData)
+      }
+      const currentRoundStartTime = summaryData?.currentRound?.startedAt || undefined
+
       if (packPricingRes.ok) setPackPricing(await packPricingRes.json())
       if (onboardingRes.ok) setOnboarding(await onboardingRes.json())
       if (dauRes.ok) {
         const dau = await dauRes.json()
-        setDauData(filterByTimeRange(dau.data || dau, timeRange))
+        setDauData(filterByTimeRange(dau.data || dau, timeRange, currentRoundStartTime))
       }
       if (guessRes.ok) {
         const guesses = await guessRes.json()
-        setGuessData(filterByTimeRange(guesses.data || guesses, timeRange))
+        setGuessData(filterByTimeRange(guesses.data || guesses, timeRange, currentRoundStartTime))
       }
       if (economyRes.ok) setEconomyAnalytics(await economyRes.json())
       if (gameplayRes.ok) setGameplayInsights(await gameplayRes.json())
@@ -393,85 +412,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       setRunningSimulation(null)
     }
   }
-
-  // Status cast generator function - fetches fresh data each time
-  const generateStatusCast = useCallback(async () => {
-    if (!user?.fid) {
-      setStatusCastText("Not authenticated.")
-      return
-    }
-
-    setStatusCastLoading(true)
-    setStatusCastCopied(false)
-
-    try {
-      // Fetch fresh round state and top guessers in parallel
-      const [roundStateRes, topGuessersRes] = await Promise.all([
-        fetch('/api/round-state'),
-        fetch('/api/round/top-guessers'),
-      ])
-
-      const roundState = roundStateRes.ok ? await roundStateRes.json() : null
-      const topGuessersData = topGuessersRes.ok ? await topGuessersRes.json() : { topGuessers: [], uniqueGuessersCount: 0 }
-
-      if (!roundState?.roundId) {
-        setStatusCastText("No active round found.")
-        return
-      }
-
-      const roundNumber = roundState.roundId
-      const prizePool = parseFloat(roundState.prizePoolEth || '0').toFixed(4)
-      const globalGuesses = (roundState.globalGuessCount || 0).toLocaleString()
-      const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
-
-      let topGuessersStr = ""
-      if (topGuessersData.topGuessers && topGuessersData.topGuessers.length > 0) {
-        const guessers = topGuessersData.topGuessers.slice(0, 10)
-
-        const grouped: { count: number; usernames: string[] }[] = []
-        for (const g of guessers) {
-          const username = `@${g.username || `fid:${g.fid}`}`
-          const lastGroup = grouped[grouped.length - 1]
-          if (lastGroup && lastGroup.count === g.guessCount) {
-            lastGroup.usernames.push(username)
-          } else {
-            grouped.push({ count: g.guessCount, usernames: [username] })
-          }
-        }
-
-        topGuessersStr = grouped
-          .map(g => `${g.usernames.join(" ")} (${g.count})`)
-          .join(" ")
-      }
-
-      const castText = `@letshaveaword status
-🔵 Round: #${roundNumber}
-💰 Prize pool: ${prizePool} ETH
-🎯 Global guesses: ${globalGuesses}
-👥 Players: ${playerCount}
-🏆 Top early guessers: ${topGuessersStr || "N/A"}
-🏅 Mini app rank: #`
-
-      setStatusCastText(castText)
-    } catch (err) {
-      console.error("[AnalyticsSection] Error generating status cast:", err)
-      setStatusCastText("Error generating status cast. Please try again.")
-    } finally {
-      setStatusCastLoading(false)
-    }
-  }, [user?.fid])
-
-  const copyStatusCast = useCallback(async () => {
-    if (!statusCastText) return
-
-    try {
-      await navigator.clipboard.writeText(statusCastText)
-      setStatusCastCopied(true)
-      setTimeout(() => setStatusCastCopied(false), 2000)
-    } catch (err) {
-      console.error("[AnalyticsSection] Failed to copy to clipboard:", err)
-    }
-  }, [statusCastText])
 
   const dauChartData = [...dauData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
@@ -605,24 +545,26 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       <Module title="Pack Pricing Analytics">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-          {/* Last 24h */}
+          {/* Current Round */}
           <div>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>Last 24 hours</div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+              Current Round{packPricing?.currentRoundId ? ` (#${packPricing.currentRoundId})` : ''}
+            </div>
             <div style={{ ...styles.grid, gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #10b981" }}>
                 <div style={styles.statLabel}>Early (BASE)</div>
-                <div style={styles.statValue}>{packPricing?.last24h.base.count || 0}</div>
-                <div style={styles.statSubtext}>{formatEth(packPricing?.last24h.base.revenueEth || 0)} ETH</div>
+                <div style={styles.statValue}>{packPricing?.currentRound?.base.count || 0}</div>
+                <div style={styles.statSubtext}>{formatEth(packPricing?.currentRound?.base.revenueEth || 0)} ETH</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #f59e0b" }}>
                 <div style={styles.statLabel}>Late (LATE_1)</div>
-                <div style={styles.statValue}>{packPricing?.last24h.late1.count || 0}</div>
-                <div style={styles.statSubtext}>{formatEth(packPricing?.last24h.late1.revenueEth || 0)} ETH</div>
+                <div style={styles.statValue}>{packPricing?.currentRound?.late1.count || 0}</div>
+                <div style={styles.statSubtext}>{formatEth(packPricing?.currentRound?.late1.revenueEth || 0)} ETH</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #ef4444" }}>
                 <div style={styles.statLabel}>Capped (LATE_2)</div>
-                <div style={styles.statValue}>{packPricing?.last24h.late2.count || 0}</div>
-                <div style={styles.statSubtext}>{formatEth(packPricing?.last24h.late2.revenueEth || 0)} ETH</div>
+                <div style={styles.statValue}>{packPricing?.currentRound?.late2.count || 0}</div>
+                <div style={styles.statSubtext}>{formatEth(packPricing?.currentRound?.late2.revenueEth || 0)} ETH</div>
               </div>
             </div>
           </div>
@@ -632,18 +574,18 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             <div style={{ ...styles.grid, gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #10b981" }}>
                 <div style={styles.statLabel}>Early (BASE)</div>
-                <div style={styles.statValue}>{packPricing?.last7d.base.count || 0}</div>
-                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d.base || 0)} of total</div>
+                <div style={styles.statValue}>{packPricing?.last7d?.base.count || 0}</div>
+                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d?.base || 0)} of total</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #f59e0b" }}>
                 <div style={styles.statLabel}>Late (LATE_1)</div>
-                <div style={styles.statValue}>{packPricing?.last7d.late1.count || 0}</div>
-                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d.late1 || 0)} of total</div>
+                <div style={styles.statValue}>{packPricing?.last7d?.late1.count || 0}</div>
+                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d?.late1 || 0)} of total</div>
               </div>
               <div style={{ ...styles.statCard, borderLeft: "3px solid #ef4444" }}>
                 <div style={styles.statLabel}>Capped (LATE_2)</div>
-                <div style={styles.statValue}>{packPricing?.last7d.late2.count || 0}</div>
-                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d.late2 || 0)} of total</div>
+                <div style={styles.statValue}>{packPricing?.last7d?.late2.count || 0}</div>
+                <div style={styles.statSubtext}>{formatPercent(packPricing?.phaseDistribution7d?.late2 || 0)} of total</div>
               </div>
             </div>
           </div>
@@ -792,8 +734,8 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           />
           <StatCard
             label="Hardest Word"
-            value={gameplayInsights?.hardestWords?.[0]?.word || 'N/A'}
-            subtext={gameplayInsights?.hardestWords?.[0] ? `${formatPercent(gameplayInsights.hardestWords[0].solveRate)} solve rate` : ''}
+            value={gameplayInsights?.hardestWords?.[0]?.word?.toUpperCase() || 'N/A'}
+            subtext={gameplayInsights?.hardestWords?.[0] ? `Round #${gameplayInsights.hardestWords[0].roundId} · ${formatPercent(gameplayInsights.hardestWords[0].solveRate)} solve rate` : ''}
             loading={loading}
           />
         </div>
@@ -947,68 +889,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
               </div>
             ))}
           </div>
-        )}
-      </Module>
-
-      {/* ================================================================== */}
-      {/* STATUS CAST GENERATOR */}
-      {/* ================================================================== */}
-      <Module title="Status Cast Generator">
-        <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "12px", fontFamily }}>
-          Generate a formatted status update for Farcaster with current game stats.
-        </p>
-        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-          <button
-            onClick={generateStatusCast}
-            disabled={statusCastLoading}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              border: "none",
-              background: statusCastLoading ? "#d1d5db" : "#6366f1",
-              color: "white",
-              fontWeight: 500,
-              cursor: statusCastLoading ? "not-allowed" : "pointer",
-              fontFamily,
-            }}
-          >
-            {statusCastLoading ? "Generating..." : "Generate Status Cast"}
-          </button>
-          {statusCastText && (
-            <button
-              onClick={copyStatusCast}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "1px solid #e5e7eb",
-                background: statusCastCopied ? "#dcfce7" : "white",
-                color: statusCastCopied ? "#16a34a" : "#374151",
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily,
-              }}
-            >
-              {statusCastCopied ? "Copied!" : "Copy to Clipboard"}
-            </button>
-          )}
-        </div>
-        {statusCastText && (
-          <textarea
-            value={statusCastText}
-            readOnly
-            style={{
-              width: "100%",
-              minHeight: "160px",
-              padding: "12px",
-              borderRadius: "8px",
-              border: "1px solid #e5e7eb",
-              background: "#f9fafb",
-              fontFamily: "monospace",
-              fontSize: "13px",
-              lineHeight: "1.5",
-              resize: "vertical",
-            }}
-          />
         )}
       </Module>
 

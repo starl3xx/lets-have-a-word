@@ -1,7 +1,7 @@
 // components/admin/AnalyticsControls.tsx
 import React from "react"
 
-export type TimeRange = "7d" | "30d" | "all"
+export type TimeRange = "current" | "7d" | "30d" | "all"
 
 interface AnalyticsControlsProps {
   timeRange: TimeRange
@@ -40,7 +40,7 @@ export function AnalyticsControls({
         <span style={{ fontSize: "14px", color: "#6b7280", marginRight: "8px" }}>
           Time range:
         </span>
-        {(["7d", "30d", "all"] as TimeRange[]).map((range) => (
+        {(["current", "7d", "30d", "all"] as TimeRange[]).map((range) => (
           <button
             key={range}
             onClick={() => onTimeRangeChange(range)}
@@ -56,7 +56,7 @@ export function AnalyticsControls({
               transition: "all 0.2s",
             }}
           >
-            {range === "7d" ? "Last 7 days" : range === "30d" ? "Last 30 days" : "All time"}
+            {range === "current" ? "Current round" : range === "7d" ? "Last 7 days" : range === "30d" ? "Last 30 days" : "All time"}
           </button>
         ))}
       </div>

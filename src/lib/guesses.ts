@@ -1,15 +1,21 @@
-import { db, guesses, users, rounds } from '../db';
-import { eq, and, desc, sql, count } from 'drizzle-orm';
+import { db, guesses, users, rounds, roundBonusWords, bonusWordClaims, userBadges, xpEvents } from '../db';
+import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
-import { getActiveRound, getActiveRoundForUpdate } from './rounds';
+import type { RoundBonusWordRow } from '../db/schema';
+import { getActiveRound, getActiveRoundForUpdate, createRound } from './rounds';
+import { shouldBlockNewRoundCreation } from './operational-guard';
 import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects, resolveRoundAndCreatePayouts } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
-import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones } from './announcer';
+import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones, announceBonusWordFound } from './announcer';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 import { invalidateRoundCaches, invalidateOnRoundTransition, invalidateUserCaches, invalidateTopGuessersCache } from './redis';
+import { getPlaintextAnswer } from './encryption';
+import { distributeBonusWordRewardOnChain, isBonusWordsEnabledOnChain } from './jackpot-contract';
+import { logXpEvent } from './xp';
+import { getUserByFid as getNeynarUserByFid } from './farcaster';
 
 /**
  * Normalize a guess word
@@ -147,6 +153,257 @@ export async function getTopGuessersForRound(roundId: number, limit: number = 10
     guessCount: Number(row.guessCount),
     firstGuessAt: new Date(row.firstGuessAt),
   }));
+}
+
+/**
+ * BONUS WORD REWARD AMOUNT (5M CLANKTON with 18 decimals)
+ */
+const BONUS_WORD_CLANKTON_AMOUNT = '5000000000000000000000000'; // 5M * 10^18
+
+/**
+ * Check if a word is an unclaimed bonus word for a round
+ * Returns the bonus word record if found and unclaimed
+ * Timeout: 3 seconds max to prevent request hangs
+ */
+async function checkBonusWordMatch(roundId: number, word: string): Promise<RoundBonusWordRow | null> {
+  try {
+    // Wrap in timeout to prevent hanging if table doesn't exist or query is slow
+    const result = await Promise.race([
+      (async () => {
+        // Get all unclaimed bonus words for this round
+        const bonusWordRecords = await db
+          .select()
+          .from(roundBonusWords)
+          .where(
+            and(
+              eq(roundBonusWords.roundId, roundId),
+              isNull(roundBonusWords.claimedByFid)
+            )
+          );
+
+        // Check each bonus word (decrypting to compare)
+        for (const record of bonusWordRecords) {
+          const decryptedWord = getPlaintextAnswer(record.word);
+          if (decryptedWord.toUpperCase() === word.toUpperCase()) {
+            return record;
+          }
+        }
+
+        return null;
+      })(),
+      new Promise<null>((resolve) =>
+        setTimeout(() => {
+          console.warn(`[guesses] Bonus word check timed out after 3s for round ${roundId}`);
+          resolve(null);
+        }, 3000)
+      ),
+    ]);
+
+    return result;
+  } catch (error) {
+    console.error('[guesses] Error checking bonus word match:', error);
+    return null;
+  }
+}
+
+/**
+ * Handle a bonus word win
+ * - Mark the bonus word as claimed
+ * - Record the guess with isBonusWord=true
+ * - Award the BONUS_WORD_FINDER badge
+ * - Award 250 XP
+ * - Distribute CLANKTON
+ * - Announce the win
+ */
+async function handleBonusWordWin(
+  roundId: number,
+  fid: number,
+  word: string,
+  bonusWord: RoundBonusWordRow,
+  isPaidGuess: boolean
+): Promise<SubmitGuessResult> {
+  console.log(`🎣 BONUS WORD FOUND! FID ${fid} found "${word}" (index ${bonusWord.wordIndex})`);
+
+  // Get user's wallet address for CLANKTON distribution
+  let walletAddress: string | null = null;
+  try {
+    const userResult = await db
+      .select({ wallet: users.signerWalletAddress })
+      .from(users)
+      .where(eq(users.fid, fid))
+      .limit(1);
+
+    walletAddress = userResult[0]?.wallet ?? null;
+
+    // Fallback to Neynar if no wallet in local database
+    if (!walletAddress) {
+      console.log(`[guesses] No wallet in DB for FID ${fid}, looking up via Neynar...`);
+      const neynarUser = await getNeynarUserByFid(fid);
+      walletAddress = neynarUser?.primaryWallet || neynarUser?.signerWallet || neynarUser?.custodyAddress || null;
+
+      if (walletAddress) {
+        console.log(`[guesses] Found wallet via Neynar for FID ${fid}: ${walletAddress.slice(0, 10)}...`);
+
+        // Update user record with the wallet for future use
+        await db
+          .update(users)
+          .set({ signerWalletAddress: walletAddress })
+          .where(eq(users.fid, fid));
+      }
+    }
+  } catch (error) {
+    console.error('[guesses] Error getting user wallet:', error);
+  }
+
+  // Get the next guess index for this round
+  const guessIndexInRound = await getNextGuessIndexInRound(roundId);
+
+  // Use transaction for all database operations
+  let guessId: number;
+  await db.transaction(async (tx) => {
+    // 1. Insert the guess with isBonusWord=true
+    // Note: isCorrect is false because it's not the secret word
+    const [insertedGuess] = await tx.insert(guesses).values({
+      roundId,
+      fid,
+      word,
+      isPaid: isPaidGuess,
+      isCorrect: false,
+      isBonusWord: true,
+      guessIndexInRound,
+      createdAt: new Date(),
+    }).returning();
+    guessId = insertedGuess.id;
+
+    // 2. Mark bonus word as claimed
+    await tx
+      .update(roundBonusWords)
+      .set({
+        claimedByFid: fid,
+        claimedAt: new Date(),
+      })
+      .where(eq(roundBonusWords.id, bonusWord.id));
+
+    // 3. Award BONUS_WORD_FINDER badge (one per user ever)
+    await tx
+      .insert(userBadges)
+      .values({
+        fid,
+        badgeType: 'BONUS_WORD_FINDER',
+        metadata: {
+          roundId,
+          word,
+          bonusWordIndex: bonusWord.wordIndex,
+          awardedAt: new Date().toISOString(),
+        },
+      })
+      .onConflictDoNothing(); // User already has badge
+
+    // 4. Award XP (250 XP for bonus word)
+    await tx.insert(xpEvents).values({
+      fid,
+      roundId,
+      eventType: 'BONUS_WORD',
+      xpAmount: 250,
+      metadata: {
+        word,
+        bonusWordIndex: bonusWord.wordIndex,
+      },
+    });
+  });
+
+  // 5. Distribute CLANKTON (outside transaction - can retry if fails)
+  let txHash: string | undefined;
+  if (walletAddress) {
+    try {
+      console.log(`[guesses] Distributing 5M CLANKTON to ${walletAddress}...`);
+      txHash = await distributeBonusWordRewardOnChain(walletAddress, bonusWord.wordIndex);
+      console.log(`[guesses] ✅ CLANKTON distributed: ${txHash}`);
+
+      // Update bonus word record with tx hash
+      await db
+        .update(roundBonusWords)
+        .set({ txHash })
+        .where(eq(roundBonusWords.id, bonusWord.id));
+
+      // Insert claim record
+      await db.insert(bonusWordClaims).values({
+        bonusWordId: bonusWord.id,
+        fid,
+        guessId: guessId!,
+        clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+        walletAddress,
+        txHash,
+        txStatus: 'confirmed',
+        confirmedAt: new Date(),
+      });
+    } catch (error) {
+      console.error('[guesses] ❌ Failed to distribute CLANKTON:', error);
+
+      // Record failed claim for retry
+      await db.insert(bonusWordClaims).values({
+        bonusWordId: bonusWord.id,
+        fid,
+        guessId: guessId!,
+        clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+        walletAddress,
+        txStatus: 'failed',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  } else {
+    console.warn(`[guesses] User ${fid} has no wallet address - creating pending claim for retry`);
+
+    // Record pending claim so admin can distribute when user connects wallet
+    await db.insert(bonusWordClaims).values({
+      bonusWordId: bonusWord.id,
+      fid,
+      guessId: guessId!,
+      clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+      walletAddress: null,
+      txStatus: 'pending',
+      errorMessage: 'User had no wallet address at time of guess',
+    });
+  }
+
+  // 6. Announce the win (non-blocking)
+  try {
+    await announceBonusWordFound(roundId, fid, word);
+  } catch (error) {
+    console.error('[guesses] Failed to announce bonus word found:', error);
+    // Continue - announcer failures should never break the game
+  }
+
+  // 7. Invalidate caches
+  await Promise.all([
+    invalidateRoundCaches(roundId),
+    invalidateUserCaches(fid, roundId),
+  ]).catch(err => {
+    console.error('[Cache] Failed to invalidate after bonus word:', err);
+  });
+
+  // 8. Log analytics
+  logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
+    userId: fid.toString(),
+    roundId: roundId.toString(),
+    data: {
+      word,
+      is_correct: false, // Not the secret word
+      is_bonus_word: true,
+      bonus_word_index: bonusWord.wordIndex,
+      is_paid: isPaidGuess,
+    },
+  });
+
+  console.log(`🎣 Bonus word win complete for FID ${fid}!`);
+
+  return {
+    status: 'bonus_word',
+    word,
+    clanktonAmount: '5000000', // 5M (display format)
+    txHash,
+    message: 'You found a bonus word! 5M CLANKTON sent to your wallet!',
+  };
 }
 
 /**
@@ -302,6 +559,26 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       console.log(`[Cache] 🔴 ROUND WON - Invalidating all caches for round ${round.id}`);
       await invalidateOnRoundTransition(round.id);
 
+      // AUTO-START NEXT ROUND: Proactively create the next round after resolution
+      // This ensures Round N+1 is ready immediately, so users don't have to wait
+      // Fire-and-forget to not block the winning user's response
+      if (!isDevModeEnabled()) {
+        (async () => {
+          try {
+            const blocked = await shouldBlockNewRoundCreation();
+            if (blocked) {
+              console.log(`[AutoStart] ⏸️ New round creation blocked (dead day or kill switch active)`);
+              return;
+            }
+            const newRound = await createRound();
+            console.log(`[AutoStart] ✅ Round ${newRound.id} auto-started after Round ${round.id} resolved`);
+          } catch (autoStartError) {
+            // Log but don't throw - the winning user shouldn't be affected
+            console.error(`[AutoStart] ❌ Failed to auto-start next round:`, autoStartError);
+          }
+        })();
+      }
+
       // Get guess count (after insert, so totalGuesses includes this winning guess)
       const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
 
@@ -367,7 +644,17 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     }
 
   } else {
-    // INCORRECT GUESS
+    // NOT THE SECRET WORD - Check if it's a bonus word
+
+    // Check if this is an unclaimed bonus word
+    const bonusWordMatch = await checkBonusWordMatch(round.id, word);
+
+    if (bonusWordMatch) {
+      // 🎣 BONUS WORD FOUND!
+      return await handleBonusWordWin(round.id, fid, word, bonusWordMatch, isPaidGuess);
+    }
+
+    // INCORRECT GUESS (not secret word, not bonus word)
 
     // Use transaction to atomically get index and insert
     let guessIndexInRound: number;
@@ -382,6 +669,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         word,
         isPaid: isPaidGuess,
         isCorrect: false,
+        isBonusWord: false,
         guessIndexInRound,
         createdAt: new Date(),
       });

@@ -44,11 +44,16 @@ const WalletSection = dynamic(
   { ssr: false, loading: () => <SectionLoader name="Wallet" /> }
 )
 
+const SocialSection = dynamic(
+  () => import("../../components/admin/SocialSection"),
+  { ssr: false, loading: () => <SectionLoader name="Social" /> }
+)
+
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet'
+type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet' | 'social'
 
 interface DashboardContentProps {
   user?: {
@@ -80,7 +85,7 @@ interface OperationalStatus {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   page: {
@@ -241,11 +246,12 @@ const styles = {
 
 // Tab configuration with keyboard shortcuts
 const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: string }[] = [
-  { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '1' },
-  { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '2' },
-  { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '3' },
-  { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '4' },
-  { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '👛', shortcut: '5' },
+  { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '1' },
+  { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '2' },
+  { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '3' },
+  { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '💼', shortcut: '4' },
+  { id: 'social', label: 'Social', color: '#1DA1F2', icon: '📣', shortcut: '5' },
+  { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '6' },
 ]
 
 // =============================================================================
@@ -379,8 +385,41 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
 
 function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<TabId>('operations')
+  const [activeTab, setActiveTab] = useState<TabId>('analytics')
   const [isInitialized, setIsInitialized] = useState(false)
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [walletBalance, setWalletBalance] = useState<string | null>(null)
+
+  // Check for browser-connected wallet and get balance
+  useEffect(() => {
+    const checkWallet = async () => {
+      if (typeof window === 'undefined' || !window.ethereum) return
+
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' })
+        if (accounts && accounts.length > 0) {
+          const address = accounts[0]
+          setWalletAddress(address)
+
+          // Get balance using ethers
+          const { ethers } = await import('ethers')
+          const provider = new ethers.BrowserProvider(window.ethereum)
+          const balance = await provider.getBalance(address)
+          setWalletBalance(ethers.formatEther(balance))
+        }
+      } catch {
+        // Silent fail - wallet display is optional
+      }
+    }
+
+    checkWallet()
+
+    // Listen for account changes
+    if (typeof window !== 'undefined' && window.ethereum) {
+      window.ethereum.on('accountsChanged', checkWallet)
+      return () => window.ethereum?.removeListener('accountsChanged', checkWallet)
+    }
+  }, [])
 
   // Sync tab with URL query param on mount and when query changes
   useEffect(() => {
@@ -390,8 +429,8 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
     } else if (!tabParam && isInitialized) {
       // If no tab param and already initialized, stay on current tab
     } else {
-      // Default to operations
-      setActiveTab('operations')
+      // Default to analytics
+      setActiveTab('analytics')
     }
     setIsInitialized(true)
   }, [router.query.tab, isInitialized])
@@ -422,19 +461,22 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
       switch (e.key) {
         case '1':
-          handleTabChange('operations')
-          break
-        case '2':
           handleTabChange('analytics')
           break
-        case '3':
+        case '2':
           handleTabChange('archive')
           break
-        case '4':
+        case '3':
           handleTabChange('economics')
           break
-        case '5':
+        case '4':
           handleTabChange('wallet')
+          break
+        case '5':
+          handleTabChange('social')
+          break
+        case '6':
+          handleTabChange('operations')
           break
       }
     }
@@ -453,6 +495,23 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
             <p style={styles.subtitle}>Let's Have a Word — Unified Control Panel</p>
           </div>
           <div style={styles.userInfo}>
+            {/* Connected Wallet Balance */}
+            {walletAddress && (
+              <div style={{
+                padding: "8px 14px",
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "8px",
+                marginRight: "12px",
+              }}>
+                <div style={{ fontSize: "11px", color: "#166534", marginBottom: "2px" }}>
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </div>
+                <div style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>
+                  {walletBalance ? parseFloat(walletBalance).toFixed(4) : '--'} ETH
+                </div>
+              </div>
+            )}
             {user?.pfp_url && (
               <img
                 src={user.pfp_url}
@@ -502,6 +561,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         {activeTab === 'archive' && <ArchiveSection user={user} />}
         {activeTab === 'economics' && <EconomicsSection user={user} />}
         {activeTab === 'wallet' && <WalletSection user={user} />}
+        {activeTab === 'social' && <SocialSection user={user} />}
       </div>
     </div>
   )

@@ -8,12 +8,18 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getArchivedRound, getRoundGuessDistribution } from '../../../src/lib/archive';
-import type { RoundArchiveRow } from '../../../src/db/schema';
+import { db, rounds } from '../../../src/db';
+import { eq } from 'drizzle-orm';
+import { getArchivedRoundWithUsernames, getRoundGuessDistribution, type ArchivedRoundWithUsernames } from '../../../src/lib/archive';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
+import { getCommitHashOnChain, isContractDeployed } from '../../../src/lib/jackpot-contract';
 
 export interface ArchiveDetailResponse {
-  round: RoundArchiveRow | null;
+  round: (ArchivedRoundWithUsernames & {
+    commitHash?: string;
+    hasOnChainCommitment?: boolean;
+    onChainCommitHash?: string;
+  }) | null;
   distribution?: {
     distribution: Array<{ hour: number; count: number }>;
     byPlayer: Array<{ fid: number; count: number }>;
@@ -31,6 +37,7 @@ export default async function handler(
   try {
     const { roundNumber } = req.query;
     const includeDistribution = req.query.distribution === 'true';
+    const noCache = req.query.nocache === 'true';
 
     if (!roundNumber || typeof roundNumber !== 'string') {
       return res.status(400).json({ error: 'Round number is required' });
@@ -42,12 +49,14 @@ export default async function handler(
     }
 
     // Use cache for immutable archive data (1 hour TTL)
+    // Pass TTL of 0 to bypass cache when nocache=true
     const cacheKey = CacheKeys.archiveRound(roundNum);
+    const cacheTTL = noCache ? 0 : CacheTTL.archiveRound;
     const cachedRound = await cacheAside<ArchiveDetailResponse>(
       cacheKey,
-      CacheTTL.archiveRound,
+      cacheTTL,
       async () => {
-        const round = await getArchivedRound(roundNum);
+        const round = await getArchivedRoundWithUsernames(roundNum);
 
         if (!round) {
           return { round: null };
@@ -55,6 +64,32 @@ export default async function handler(
 
         // Serialize decimal/date values
         const serialized = serializeArchiveRow(round);
+
+        // Fetch commit hash from rounds table
+        const [roundData] = await db
+          .select({ commitHash: rounds.commitHash })
+          .from(rounds)
+          .where(eq(rounds.id, roundNum))
+          .limit(1);
+
+        if (roundData) {
+          serialized.commitHash = roundData.commitHash;
+        }
+
+        // Fetch onchain commitment if available
+        try {
+          const contractDeployed = await isContractDeployed();
+          if (contractDeployed) {
+            const onChainCommitHash = await getCommitHashOnChain(roundNum);
+            serialized.hasOnChainCommitment = onChainCommitHash !== null;
+            serialized.onChainCommitHash = onChainCommitHash || undefined;
+          } else {
+            serialized.hasOnChainCommitment = false;
+          }
+        } catch (error) {
+          console.error('[api/archive] Failed to fetch onchain commitment:', error);
+          serialized.hasOnChainCommitment = false;
+        }
 
         // Optionally include guess distribution
         let distribution;
@@ -80,7 +115,7 @@ export default async function handler(
 /**
  * Serialize archive row for JSON response
  */
-function serializeArchiveRow(row: RoundArchiveRow): any {
+function serializeArchiveRow(row: ArchivedRoundWithUsernames): any {
   return {
     ...row,
     seedEth: row.seedEth.toString(),

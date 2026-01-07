@@ -8,6 +8,7 @@ import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
+import { getPlaintextAnswer, isEncryptedAnswer } from '../../../../src/lib/encryption';
 
 export interface GameplayInsights {
   // Core metrics
@@ -208,15 +209,28 @@ export default async function handler(
       });
     });
 
+    // Helper to safely decrypt word
+    const decryptWord = (word: string): string => {
+      try {
+        if (isEncryptedAnswer(word)) {
+          return getPlaintextAnswer(word);
+        }
+        return word;
+      } catch (err) {
+        console.error('[analytics/gameplay] Failed to decrypt word:', err);
+        return '[encrypted]';
+      }
+    };
+
     const hardestWords = wordDiffArray.slice(0, 5).map(w => ({
-      word: w.word,
+      word: decryptWord(w.word),
       roundId: Number(w.round_id),
       solveRate: Number(w.solve_rate),
       medianGuesses: Number(w.median_guesses)
     }));
 
     const easiestWords = wordDiffArray.slice(-5).reverse().map(w => ({
-      word: w.word,
+      word: decryptWord(w.word),
       roundId: Number(w.round_id),
       solveRate: Number(w.solve_rate),
       medianGuesses: Number(w.median_guesses)

@@ -126,7 +126,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Sharing your daily guess on Farcaster (+1 guess/day)</li>
             <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens (+2–3 guesses/day depending on market cap)</li>
           </ol>
-          <p className="mt-2">You can also purchase paid guess packs (3 guesses per pack, up to 3 packs per day).</p>
+          <p className="mt-2">You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).</p>
         </>
       ),
     },
@@ -164,13 +164,20 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How much do guess packs cost?",
       answer: (
         <>
-          Each pack contains <strong>3 guesses</strong> and is priced dynamically based on total guesses in the round:
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>0–749 total guesses</strong> (early round): 0.00030 ETH</li>
-            <li><strong>750–1249 guesses</strong> (late round): 0.00045 ETH</li>
-            <li><strong>1250+ guesses</strong> (late round, max): 0.00060 ETH</li>
+          Each pack contains <strong>3 guesses</strong>. Pricing has two components:
+          <p className="mt-2"><strong>Stage-based pricing</strong> (based on total guesses in round):</p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>0–749 guesses (early): 0.00030 ETH base</li>
+            <li>750–1249 guesses (late): 0.00045 ETH base</li>
+            <li>1250+ guesses (late max): 0.00060 ETH base</li>
           </ul>
-          <p className="mt-2">Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.</p>
+          <p className="mt-2"><strong>Volume-based multipliers</strong> (based on daily purchases):</p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>Packs 1–3: 1× base price</li>
+            <li>Packs 4–6: 1.5× base price</li>
+            <li>Packs 7+: 2× base price</li>
+          </ul>
+          <p className="mt-2">Pack purchases are <strong>unlimited</strong> — there's no daily cap. Volume multipliers reset at 11:00 UTC along with paid guess expiration.</p>
         </>
       ),
     },
@@ -191,13 +198,16 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           When a round is won, the prize pool is distributed atomically onchain in a single transaction:
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li><strong>80%</strong> → Jackpot winner</li>
-            <li><strong>10%</strong> → Top 10 early guessers</li>
-            <li><strong>10%</strong> → Referrer (if one exists)</li>
+            <li><strong>10%</strong> → Top 10 Early Guessers</li>
+            <li><strong>5%</strong> → Referrer (if one exists)</li>
+            <li><strong>5%</strong> → Next round seed</li>
           </ul>
           <p className="mt-2">If the winner <strong>does not</strong> have a referrer:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li><strong>7.5%</strong> is added to the Top 10 pool</li>
-            <li><strong>2.5%</strong> seeds the next round's prize pool</li>
+            <li><strong>2.5%</strong> of the referrer share is added to the Top 10 pool</li>
+            <li><strong>2.5%</strong> is added to the next round seed</li>
+            <li>Next round seed is capped at 0.03 ETH</li>
+            <li>Any overflow above the cap goes to the treasury</li>
           </ul>
           <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
         </>
@@ -239,7 +249,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do referrals work?",
       answer: (
         <>
-          Share your unique referral link with friends or on the timeline. If anyone who joins using your link <strong>ever wins a jackpot</strong>, you'll automatically receive <strong>10% of that round's prize pool</strong>.
+          Share your unique referral link with friends or on the timeline. If anyone who joins using your link <strong>ever wins a jackpot</strong>, you'll automatically receive <strong>5% of that round's prize pool</strong>.
           <p className="mt-2">You can track your referrals and earnings in the Refer sheet.</p>
         </>
       ),
