@@ -301,7 +301,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>
             <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
             <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>
-            <li><strong>🍩 Baker's Dozen</strong> — Played on 13 different days, each with a unique starting letter. <em>Only your first guess of the day counts</em> — so make it count!</li>
+            <li><strong>🍩 Baker's Dozen</strong> — Earned by guessing words starting with 13 different letters, on 13 different days. Only the <em>first guess of each day</em> counts toward progress.</li>
           </ul>
           <p className="mt-2">View your wordmarks collection in your Stats sheet under <strong>Lexicon</strong>.</p>
         </>
