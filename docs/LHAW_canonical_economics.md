@@ -115,14 +115,14 @@ Guess packs are priced dynamically based on round progress.
 ### Base price
 - Base pack price: **0.00030 ETH** (per pack)
 
-### Late-round pricing (post-Top 10 lock)
-Pack price increases only after Top 10 locks (after guess #750), then caps.
+### Stage-based pricing
+Pack price increases at round milestones (aligned with Top 10 lock at guess #850), then caps.
 
-| Total guesses in round | Pack price (ETH) |
-|---|---:|
-| 0–749 | 0.00030 |
-| 750–1249 | 0.00045 |
-| 1250+ | 0.00060 |
+| Total guesses in round | Stage | Pack price (ETH) |
+|---|---|---:|
+| 0–849 | Early | 0.00030 |
+| 850–1249 | Mid | 0.00045 |
+| 1250+ | Late | 0.00060 |
 
 Implementation notes:
 - Pricing is computed **server-side at purchase time** from the authoritative `totalGuessesInRound`

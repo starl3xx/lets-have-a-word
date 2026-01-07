@@ -73,9 +73,9 @@ Paid guesses:
 Each pack contains **3 guesses**. Pricing has two components:
 
 **Stage-based pricing** (based on total guesses in round):
-- 0–749 guesses (early): 0.00030 ETH base
-- 750–1249 guesses (late): 0.00045 ETH base
-- 1250+ guesses (late max): 0.00060 ETH base
+- 0–849 guesses (early): 0.00030 ETH base
+- 850–1249 guesses (mid): 0.00045 ETH base
+- 1250+ guesses (late): 0.00060 ETH base
 
 **Volume-based multipliers** (based on daily purchases):
 - Packs 1–3: 1× base price

@@ -1622,9 +1622,9 @@ Updated `components/FirstTimeOverlay.tsx` to prompt users to add the mini app:
 - Added reassurance microcopy: "Purchases contribute to the prize pool"
 - Changed CTA from "Buy pack(s)" to "Buy guesses"
 - Pricing labels:
-  - BASE (0-749 guesses): "Early round pricing"
-  - LATE_1 (750-1249 guesses): "Late round pricing"
-  - LATE_2 (1250+ guesses): "Late round pricing (max)"
+  - EARLY (0-849 guesses): "Early round pricing"
+  - MID (850-1249 guesses): "Mid round pricing"
+  - LATE (1250+ guesses): "Late round pricing"
 
 #### Dev Mode Pricing Consistency (`pages/api/guess-pack-pricing.ts`)
 - Fixed inconsistency between TopTicker and GuessPurchaseModal in dev mode
@@ -1847,9 +1847,9 @@ Users now sign wallet transactions that are verified onchain before packs are aw
 6. Tracks purchase via `txHash` to prevent double-claiming
 
 **Dynamic Pricing Phases:**
-- **BASE** (0-749 guesses): 0.0003 ETH per pack
-- **LATE_1** (750-1249 guesses): 0.00045 ETH per pack
-- **LATE_2** (1250+ guesses): 0.0006 ETH per pack (capped)
+- **EARLY** (0-849 guesses): 0.0003 ETH per pack
+- **MID** (850-1249 guesses): 0.00045 ETH per pack
+- **LATE** (1250+ guesses): 0.0006 ETH per pack (capped)
 
 **Database Schema:**
 ```sql

@@ -19,7 +19,7 @@ import { getTodayUTC } from '../../src/lib/daily-limits';
  * Milestone 6.3, Updated Milestone 7.1, X.X (Uncapped + Volume Tiers)
  *
  * Returns guess pack pricing information with:
- * - Dynamic stage-based pricing (0-749, 750-1249, 1250+)
+ * - Dynamic stage-based pricing (0-849, 850-1249, 1250+)
  * - Volume-based multipliers (1×, 1.5×, 2×) based on daily purchases
  *
  * Query params:

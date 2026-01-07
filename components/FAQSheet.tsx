@@ -167,9 +167,9 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           Each pack contains <strong>3 guesses</strong>. Pricing has two components:
           <p className="mt-2"><strong>Stage-based pricing</strong> (based on total guesses in round):</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>0–749 guesses (early): 0.00030 ETH base</li>
-            <li>750–1249 guesses (late): 0.00045 ETH base</li>
-            <li>1250+ guesses (late max): 0.00060 ETH base</li>
+            <li>0–849 guesses (early): 0.00030 ETH base</li>
+            <li>850–1249 guesses (mid): 0.00045 ETH base</li>
+            <li>1250+ guesses (late): 0.00060 ETH base</li>
           </ul>
           <p className="mt-2"><strong>Volume-based multipliers</strong> (based on daily purchases):</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
