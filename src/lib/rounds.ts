@@ -140,6 +140,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       seedNextRoundEth: '0',
       winnerFid: null,
       referrerFid: null,
+      startTxHash: onChainCommitmentTxHash ?? null, // Store the commitment tx hash
       startedAt: new Date(),
       resolvedAt: null,
     })
