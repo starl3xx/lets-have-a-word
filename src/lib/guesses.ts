@@ -589,7 +589,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // Award wordmarks to winner and referrer (fire and forget)
       (async () => {
         try {
-          const { awardWordmark, checkAndAwardPatron, checkAndAwardDoubleW } = await import('./wordmarks');
+          const { awardWordmark, checkAndAwardPatron, checkAndAwardDoubleW, checkAndAwardEncyclopedic } = await import('./wordmarks');
 
           // Award JACKPOT_WINNER to the winner
           await awardWordmark(fid, 'JACKPOT_WINNER', { roundId: round.id, word });
@@ -615,6 +615,9 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
             await checkAndAwardDoubleW(fid, round.id, bonusWordsFound, true);
             console.log(`✌️ Checked DOUBLE_W for winner FID ${fid}: ${bonusWordsFound} bonus words + win in round ${round.id}`);
           }
+
+          // Check for ENCYCLOPEDIC: has user guessed words with all 26 letters?
+          await checkAndAwardEncyclopedic(fid);
         } catch (wordmarkError) {
           // Log but don't throw - wordmark award failure shouldn't affect the game
           console.error(`[Wordmark] Failed to award wordmarks for round ${round.id}:`, wordmarkError);
@@ -861,6 +864,17 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         data: { word },
       });
     }
+
+    // Check for ENCYCLOPEDIC wordmark (fire-and-forget)
+    // Awarded when user has guessed words starting with all 26 letters A-Z
+    setTimeout(async () => {
+      try {
+        const { checkAndAwardEncyclopedic } = await import('./wordmarks');
+        await checkAndAwardEncyclopedic(fid);
+      } catch (error) {
+        console.error(`[guesses] Failed to check ENCYCLOPEDIC for FID ${fid}:`, error);
+      }
+    }, 0);
 
     return {
       status: 'incorrect',
