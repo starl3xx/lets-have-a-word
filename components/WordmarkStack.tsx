@@ -66,10 +66,10 @@ export default function WordmarkStack({
       className="relative inline-flex items-center"
       onMouseLeave={() => setTooltipText(null)}
     >
-      {/* OG Hunter (shown first/leftmost - highest z-index to appear on top) */}
+      {/* OG Hunter (shown first/leftmost) */}
       {hasOgHunter && (
         <div
-          className={`${config.wordmark} bg-purple-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[80] ring-1 ring-amber-400`}
+          className={`${config.wordmark} bg-purple-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-10 ring-1 ring-amber-400`}
           onMouseEnter={() => setTooltipText('OG Hunter')}
           onTouchStart={() => setTooltipText('OG Hunter')}
         >
@@ -80,7 +80,7 @@ export default function WordmarkStack({
       {/* Bonus Word Finder */}
       {hasBonusWordFinder && (
         <div
-          className={`${config.wordmark} bg-cyan-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[70] ${shouldOverlap(1) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-cyan-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-20 ${shouldOverlap(1) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #67e8f9' }}
           onMouseEnter={() => setTooltipText('Bonus Word Finder')}
           onTouchStart={() => setTooltipText('Bonus Word Finder')}
@@ -92,7 +92,7 @@ export default function WordmarkStack({
       {/* Jackpot Winner */}
       {hasJackpotWinner && (
         <div
-          className={`${config.wordmark} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[60] ${shouldOverlap(2) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-25 ${shouldOverlap(2) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #fcd34d' }}
           onMouseEnter={() => setTooltipText('Jackpot Winner')}
           onTouchStart={() => setTooltipText('Jackpot Winner')}
@@ -104,7 +104,7 @@ export default function WordmarkStack({
       {/* Double W - hit two bonus words OR bonus word + secret word in same round */}
       {hasDoubleW && (
         <div
-          className={`${config.wordmark} bg-indigo-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[50] ${shouldOverlap(3) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-indigo-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-26 ${shouldOverlap(3) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #a5b4fc' }}
           onMouseEnter={() => setTooltipText('Double W')}
           onTouchStart={() => setTooltipText('Double W')}
@@ -116,7 +116,7 @@ export default function WordmarkStack({
       {/* Patron - referred a jackpot winner */}
       {hasPatron && (
         <div
-          className={`${config.wordmark} bg-rose-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[40] ${shouldOverlap(4) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-rose-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-27 ${shouldOverlap(4) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #fda4af' }}
           onMouseEnter={() => setTooltipText('Patron')}
           onTouchStart={() => setTooltipText('Patron')}
@@ -128,7 +128,7 @@ export default function WordmarkStack({
       {/* Quickdraw - placed in Top 10 Early Guessers */}
       {hasQuickdraw && (
         <div
-          className={`${config.wordmark} bg-emerald-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[30] ${shouldOverlap(5) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-emerald-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-28 ${shouldOverlap(5) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #6ee7b7' }}
           onMouseEnter={() => setTooltipText('Quickdraw')}
           onTouchStart={() => setTooltipText('Quickdraw')}
@@ -140,7 +140,7 @@ export default function WordmarkStack({
       {/* Encyclopedic - guessed words starting with every letter A-Z */}
       {hasEncyclopedic && (
         <div
-          className={`${config.wordmark} bg-sky-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[20] ${shouldOverlap(6) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-sky-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-29 ${shouldOverlap(6) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #7dd3fc' }}
           onMouseEnter={() => setTooltipText('Encyclopedic')}
           onTouchStart={() => setTooltipText('Encyclopedic')}
@@ -149,10 +149,10 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* CLANKTON Holder (shown last/rightmost - lowest z-index) */}
+      {/* CLANKTON Holder (shown last/rightmost) */}
       {hasClanktonHolder && (
         <div
-          className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[10] ${shouldOverlap(7) ? config.overlap : ''}`}
+          className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-30 ${shouldOverlap(7) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
           onMouseEnter={() => setTooltipText('CLANKTON Holder')}
           onTouchStart={() => setTooltipText('CLANKTON Holder')}
