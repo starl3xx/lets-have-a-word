@@ -374,17 +374,30 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     // Create archive record
     // Decrypt the answer for storage in archive (revealed after round ends)
-    // Defensive check: ensure answer is a string (data corruption check)
+    // Use inline decryption like fix-and-archive endpoint to avoid any module issues
     let targetWord: string;
     try {
-      if (typeof round.answer !== 'string') {
-        throw new Error(`Round ${roundId} answer field is not a string (got ${typeof round.answer}). Data may be corrupted.`);
+      // Force convert to string first
+      let answerStr = String(round.answer);
+      console.log(`[archive] Answer string: ${answerStr.substring(0, 50)}...`);
+
+      if (answerStr.includes(':')) {
+        // Encrypted format: iv:tag:ciphertext
+        const { createDecipheriv } = await import('crypto');
+        const [iv, tag, ciphertext] = answerStr.split(':');
+        const key = Buffer.from(process.env.ANSWER_ENCRYPTION_KEY!, 'hex');
+        const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+        decipher.setAuthTag(Buffer.from(tag, 'hex'));
+        targetWord = decipher.update(ciphertext, 'hex', 'utf8') + decipher.final('utf8');
+        console.log(`[archive] Decrypted answer: ${targetWord}`);
+      } else {
+        // Legacy plaintext
+        targetWord = answerStr;
       }
-      targetWord = getPlaintextAnswer(round.answer);
     } catch (decryptError) {
       const errorMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
       console.error(`[archive] Failed to decrypt answer for round ${roundId}:`, errorMsg);
-      await logArchiveError(roundId, 'decrypt_failed', errorMsg, { answerType: typeof round.answer });
+      await logArchiveError(roundId, 'decrypt_failed', errorMsg, { answerType: typeof round.answer, answerValue: String(round.answer).substring(0, 50) });
       return {
         success: false,
         error: errorMsg,
@@ -412,12 +425,21 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     console.log(`[archive] Field types: targetWord=${typeof targetWord}, seedEth=${typeof seedEth}, finalJackpotEth=${typeof round.prizePoolEth}, salt=${typeof round.salt}`);
     console.log(`[archive] Field types: startTime=${round.startedAt instanceof Date ? 'Date' : typeof round.startedAt}, endTime=${round.resolvedAt instanceof Date ? 'Date' : typeof round.resolvedAt}`);
     console.log(`[archive] Field types: payoutsJson=${typeof payoutsJson}, payoutsJson.winner.amountEth=${typeof payoutsJson.winner?.amountEth}`);
+    console.log(`[archive] Salt value check: isString=${typeof round.salt === 'string'}, length=${round.salt?.length}, isValidHex=${typeof round.salt === 'string' && /^[a-f0-9]+$/i.test(round.salt)}`);
+
+    // Force all string fields to be strings to avoid any Drizzle type issues
+    const safeTargetWord = String(targetWord);
+    const safeSeedEth = String(seedEth);
+    const safeFinalJackpotEth = String(round.prizePoolEth);
+    const safeSalt = String(round.salt);
+
+    console.log(`[archive] Safe field lengths: targetWord=${safeTargetWord.length}, seedEth=${safeSeedEth.length}, finalJackpotEth=${safeFinalJackpotEth.length}, salt=${safeSalt.length}`);
 
     const archiveData: RoundArchiveInsert = {
       roundNumber: roundId,
-      targetWord,
-      seedEth,
-      finalJackpotEth: round.prizePoolEth,
+      targetWord: safeTargetWord,
+      seedEth: safeSeedEth,
+      finalJackpotEth: safeFinalJackpotEth,
       totalGuesses,
       uniquePlayers,
       winnerFid: round.winnerFid,
@@ -427,7 +449,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       endTime: round.resolvedAt,
       referrerFid: round.referrerFid,
       payoutsJson,
-      salt: round.salt, // Salt was auto-fixed earlier if needed
+      salt: safeSalt,
       clanktonBonusCount,
       referralBonusCount,
     };
