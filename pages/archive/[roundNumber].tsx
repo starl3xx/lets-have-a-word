@@ -29,6 +29,7 @@ interface BonusWordWinner {
   word: string;
   wordIndex: number;
   clanktonAmount: string;
+  claimedAt?: string;
   txHash?: string;
   username?: string;
   pfpUrl?: string;
@@ -433,13 +434,19 @@ export default function RoundDetailPage() {
                 <Section title="Bonus word finders">
                   <p className="text-xs text-gray-500 mb-3">5M CLANKTON each</p>
                   <div className="bg-white rounded-xl border border-cyan-200 overflow-hidden">
-                    {round.bonusWordWinners.map((winner, index) => (
+                    {[...round.bonusWordWinners]
+                      .sort((a, b) => new Date(a.claimedAt || 0).getTime() - new Date(b.claimedAt || 0).getTime())
+                      .map((winner, index) => (
                       <div
                         key={`${winner.fid}-${winner.word}`}
                         className={`px-3 py-2 flex items-center gap-2 ${
                           index < round.bonusWordWinners!.length - 1 ? 'border-b border-cyan-100' : ''
                         }`}
                       >
+                        {/* Rank Number */}
+                        <div className="w-5 text-sm text-gray-400 font-medium flex-shrink-0">
+                          {index + 1}.
+                        </div>
                         {/* PFP */}
                         <img
                           src={winner.pfpUrl || `https://avatar.vercel.sh/${winner.fid}`}
@@ -472,7 +479,7 @@ export default function RoundDetailPage() {
                         {winner.txHash && (
                           <button
                             onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${winner.txHash}`)}
-                            className="text-xs text-cyan-600 hover:text-cyan-700 flex-shrink-0"
+                            className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
                             tx ↗
                           </button>
