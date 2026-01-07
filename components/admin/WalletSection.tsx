@@ -1102,32 +1102,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
             return (
               <>
-                {/* Primary: Connected Wallet Balance */}
-                {connectedWallet && (
-                  <div style={{ ...styles.statCard, marginBottom: '16px', padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={styles.statLabel}>Connected Wallet</div>
-                        <div style={{ ...styles.statValue, fontSize: '28px' }}>
-                          {connectedBalance ? parseFloat(connectedBalance).toFixed(4) : '--'} ETH
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#374151' }}>
-                          {connectedWallet.address}
-                        </div>
-                        <button
-                          onClick={() => navigator.clipboard.writeText(connectedWallet.address)}
-                          style={{ ...styles.btnSecondary, ...styles.btnSmall, marginTop: '8px' }}
-                        >
-                          Copy Address
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Secondary: Other balances in compact grid */}
+                {/* Balances in compact grid */}
                 <div style={styles.grid4}>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Prize Pool</div>
