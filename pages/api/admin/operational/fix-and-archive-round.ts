@@ -39,13 +39,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         SELECT round_number FROM round_archive ORDER BY round_number
       `);
 
-      const archivedRoundNumbers = (allArchivesResult.rows as any[]).map(r => r.round_number);
+      // Handle both array and {rows: []} formats from db.execute
+      const allRounds: any[] = Array.isArray(allRoundsResult) ? allRoundsResult : (allRoundsResult.rows || []);
+      const allArchives: any[] = Array.isArray(allArchivesResult) ? allArchivesResult : (allArchivesResult.rows || []);
 
-      console.log(`[fix-and-archive] All rounds:`, allRoundsResult.rows);
-      console.log(`[fix-and-archive] Archived round numbers:`, archivedRoundNumbers);
+      console.log(`[fix-and-archive] Raw allRoundsResult type:`, typeof allRoundsResult, Array.isArray(allRoundsResult));
+      console.log(`[fix-and-archive] Raw allArchivesResult type:`, typeof allArchivesResult, Array.isArray(allArchivesResult));
+      console.log(`[fix-and-archive] All rounds (${allRounds.length}):`, JSON.stringify(allRounds));
+      console.log(`[fix-and-archive] All archives (${allArchives.length}):`, JSON.stringify(allArchives));
+
+      const archivedRoundNumbers = allArchives.map(r => r.round_number);
 
       // Find rounds that are resolved but not in archive
-      const resolvedRounds = (allRoundsResult.rows as any[]).filter(r => r.is_resolved);
+      const resolvedRounds = allRounds.filter(r => r.is_resolved === true || r.is_resolved === 't');
       const unarchivedResolved = resolvedRounds.filter(r => !archivedRoundNumbers.includes(r.id));
 
       console.log(`[fix-and-archive] Resolved rounds:`, resolvedRounds.map(r => r.id));
@@ -55,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({
           error: 'No unarchived resolved rounds found',
           diagnostic: {
-            allRounds: allRoundsResult.rows,
+            allRounds,
             archivedRoundNumbers,
             resolvedRoundIds: resolvedRounds.map(r => r.id),
             message: 'All resolved rounds are already archived, or no rounds have been resolved yet'
