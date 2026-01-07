@@ -131,7 +131,8 @@ export const dailyGuessState = pgTable('daily_guess_state', {
 
   // Paid guess state for this day
   paidGuessCredits: integer('paid_guess_credits').default(0).notNull(), // Remaining paid guesses
-  paidPacksPurchased: integer('paid_packs_purchased').default(0).notNull(), // How many packs bought today (max 3)
+  paidPacksPurchased: integer('paid_packs_purchased').default(0).notNull(), // How many packs bought today
+  packPurchaseRoundId: integer('pack_purchase_round_id'), // Round ID when packs were purchased (resets volume tier on new round)
 
   // Share bonus tracking
   hasSharedToday: boolean('has_shared_today').default(false).notNull(), // Once share detected, set true
