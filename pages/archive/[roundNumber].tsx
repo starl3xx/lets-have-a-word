@@ -8,8 +8,8 @@ import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
 import BadgeStack from '../../components/BadgeStack';
 
-// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
-const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+// Bonus Words Feature: Enabled for Round 3+ (no feature flag needed)
+const BONUS_WORDS_START_ROUND = 3;
 
 interface TopGuesserWithUsername {
   fid: number;
@@ -66,6 +66,8 @@ interface ArchivedRound {
   commitHash?: string;
   hasOnChainCommitment?: boolean;
   onChainCommitHash?: string;
+  // Bonus word winners from API (for rounds >= 3)
+  bonusWordWinners?: BonusWordWinner[];
 }
 
 interface Distribution {
@@ -411,16 +413,16 @@ export default function RoundDetailPage() {
                 </Section>
               )}
 
-              {/* Bonus Words Feature: Bonus Word Finders (only if UI enabled) */}
-              {BONUS_WORDS_UI_ENABLED && round.payoutsJson.bonusWordWinners && round.payoutsJson.bonusWordWinners.length > 0 && (
+              {/* Bonus Word Finders (for rounds >= 3 with bonus words) */}
+              {round.bonusWordWinners && round.bonusWordWinners.length > 0 && (
                 <Section title="🎣 Bonus word finders">
                   <p className="text-xs text-gray-500 mb-3">5M CLANKTON each</p>
                   <div className="bg-white rounded-xl border border-cyan-200 overflow-hidden">
-                    {round.payoutsJson.bonusWordWinners.map((winner, index) => (
+                    {round.bonusWordWinners.map((winner, index) => (
                       <div
                         key={`${winner.fid}-${winner.word}`}
                         className={`px-3 py-2 flex items-center gap-2 ${
-                          index < round.payoutsJson.bonusWordWinners!.length - 1 ? 'border-b border-cyan-100' : ''
+                          index < round.bonusWordWinners!.length - 1 ? 'border-b border-cyan-100' : ''
                         }`}
                       >
                         {/* PFP */}
