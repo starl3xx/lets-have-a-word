@@ -59,6 +59,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
   const { roundId, force } = data;
 
   try {
+    console.log(`[archive] ========== ARCHIVING ROUND ${roundId} ==========`);
     console.log(`[archive] Step 1: Checking existing archive for round ${roundId}`);
     // Check if already archived
     const existingArchive = await db
@@ -83,15 +84,27 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       }
     }
 
-    console.log(`[archive] Step 2: Fetching round ${roundId}`);
-    // Get the round
-    const [round] = await db
-      .select()
-      .from(rounds)
-      .where(eq(rounds.id, roundId))
-      .limit(1);
+    console.log(`[archive] Step 2: Fetching round ${roundId} using raw SQL to avoid ORM issues`);
+    // Get the round using raw SQL to bypass any Drizzle type coercion issues
+    const roundResult = await db.execute(sql`
+      SELECT id, answer, salt, commit_hash, prize_pool_eth, seed_next_round_eth,
+             winner_fid, referrer_fid, started_at, resolved_at, status
+      FROM rounds
+      WHERE id = ${roundId}
+      LIMIT 1
+    `);
 
-    if (!round) {
+    const rawRound = roundResult.rows[0] as any;
+    console.log(`[archive] Raw round data types:`, {
+      id: typeof rawRound?.id,
+      salt: typeof rawRound?.salt,
+      saltValue: rawRound?.salt ? String(rawRound.salt).substring(0, 20) + '...' : 'NULL',
+      saltIsDate: rawRound?.salt instanceof Date,
+      answer: typeof rawRound?.answer,
+      commit_hash: typeof rawRound?.commit_hash,
+    });
+
+    if (!rawRound) {
       await logArchiveError(roundId, 'round_not_found', `Round ${roundId} not found`);
       return {
         success: false,
@@ -101,9 +114,10 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     // CRITICAL: Fix corrupted fields IMMEDIATELY after fetching round
     // The salt field keeps getting corrupted to Date objects - fix it before any other processing
-    if (typeof round.salt !== 'string') {
-      const originalValue = round.salt instanceof Date ? (round.salt as Date).toISOString() : String(round.salt);
-      console.warn(`[archive] ⚠️ Round ${roundId} salt field is corrupted (type=${typeof round.salt}, isDate=${round.salt instanceof Date})`);
+    let saltValue = rawRound.salt;
+    if (typeof rawRound.salt !== 'string' || rawRound.salt instanceof Date) {
+      const originalValue = rawRound.salt instanceof Date ? (rawRound.salt as Date).toISOString() : String(rawRound.salt);
+      console.warn(`[archive] ⚠️ Round ${roundId} salt field is corrupted (type=${typeof rawRound.salt}, isDate=${rawRound.salt instanceof Date})`);
       console.warn(`[archive] AUTO-FIXING salt immediately: Converting from "${originalValue}"`);
 
       // Generate a new random salt since the original is lost
@@ -113,17 +127,32 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       // Update the database with the new salt using raw SQL
       await db.execute(sql`UPDATE rounds SET salt = ${newSalt} WHERE id = ${roundId}`);
 
-      // Update the local round object
-      (round as any).salt = newSalt;
+      saltValue = newSalt;
+      rawRound.salt = newSalt;
 
       console.log(`[archive] ✅ Round ${roundId} salt field fixed with new random salt: ${newSalt.substring(0, 16)}...`);
 
       // Log for audit trail
-      await logArchiveError(roundId, 'salt_auto_fixed', `Salt was corrupted (${typeof round.salt}), auto-fixed with new random salt`, {
+      await logArchiveError(roundId, 'salt_auto_fixed', `Salt was corrupted, auto-fixed with new random salt`, {
         originalValue,
         newSalt,
       });
     }
+
+    // Build a round object from raw data for compatibility with rest of the function
+    const round = {
+      id: rawRound.id,
+      answer: rawRound.answer,
+      salt: saltValue,
+      commitHash: rawRound.commit_hash,
+      prizePoolEth: rawRound.prize_pool_eth,
+      seedNextRoundEth: rawRound.seed_next_round_eth,
+      winnerFid: rawRound.winner_fid,
+      referrerFid: rawRound.referrer_fid,
+      startedAt: rawRound.started_at,
+      resolvedAt: rawRound.resolved_at,
+      status: rawRound.status,
+    };
 
     // Check if round is resolved
     if (!round.resolvedAt) {
