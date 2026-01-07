@@ -532,20 +532,24 @@ export type AdminWalletActionRow = typeof adminWalletActions.$inferSelect;
 export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
 
 /**
- * Badge Types
- * Badge system for special achievements
+ * Wordmark Types (formerly "Badge Types")
+ * Wordmarks are permanent achievements earned by playing
+ * Note: Database column remains 'badge_type' for backwards compatibility
  */
-export type BadgeType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER';
+export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW';
+
+// Alias for backwards compatibility with existing code
+export type BadgeType = WordmarkType;
 
 /**
- * User Badges Table
- * OG Hunter Campaign: Tracks awarded badges
+ * User Wordmarks Table (table name 'user_badges' kept for backwards compatibility)
+ * Stores permanent achievements (Wordmarks) earned by players
  */
 export const userBadges = pgTable('user_badges', {
   id: serial('id').primaryKey(),
   fid: integer('fid').notNull(),
-  badgeType: varchar('badge_type', { length: 50 }).notNull().$type<BadgeType>(),
-  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // castHash, castUrl, etc.
+  badgeType: varchar('badge_type', { length: 50 }).notNull().$type<WordmarkType>(), // Column name kept for backwards compatibility
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // roundId, word, etc.
   awardedAt: timestamp('awarded_at').defaultNow().notNull(),
 }, (table) => ({
   fidBadgeUnique: unique('user_badges_fid_badge_unique').on(table.fid, table.badgeType),

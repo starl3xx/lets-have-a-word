@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { UserStatsResponse } from '../pages/api/user/stats';
 import type { UserProfileResponse } from '../pages/api/user/profile';
+import type { UserWordmarksResponse } from '../pages/api/user/wordmarks';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import { useTranslation } from '../src/hooks/useTranslation';
@@ -28,6 +29,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [xp, setXp] = useState<number>(0);
   const [hasOgHunterBadge, setHasOgHunterBadge] = useState(false);
+  const [wordmarksData, setWordmarksData] = useState<UserWordmarksResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,12 +42,13 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       }
 
       try {
-        // Fetch stats, XP, badge status, and profile in parallel
-        const [statsResponse, xpResponse, badgeResponse, profileResponse] = await Promise.all([
+        // Fetch stats, XP, badge status, profile, and wordmarks in parallel
+        const [statsResponse, xpResponse, badgeResponse, profileResponse, wordmarksResponse] = await Promise.all([
           fetch(`/api/user/stats?devFid=${fid}`),
           fetch(`/api/user/xp?fid=${fid}`),
           fetch(`/api/og-hunter/status?fid=${fid}`),
-          fetch(`/api/user/profile?fid=${fid}`)
+          fetch(`/api/user/profile?fid=${fid}`),
+          fetch(`/api/user/wordmarks?fid=${fid}`)
         ]);
 
         if (!statsResponse.ok) {
@@ -68,6 +71,11 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
           setProfile(profileData);
+        }
+
+        if (wordmarksResponse.ok) {
+          const wordmarksData = await wordmarksResponse.json();
+          setWordmarksData(wordmarksData);
         }
       } catch (err) {
         console.error('Error fetching stats:', err);
@@ -295,6 +303,47 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               <p className="text-sm text-accent-700 font-medium">Your XP</p>
               <p className="text-5xl font-extrabold text-accent-900 tabular-nums">{xp.toLocaleString()}</p>
             </div>
+
+            {/* Lexicon — Your Wordmarks */}
+            {wordmarksData && (
+              <div className="section-card bg-gradient-to-br from-indigo-50 to-purple-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold text-indigo-900">Lexicon — Your Wordmarks</h3>
+                  <span className="text-sm text-indigo-600 font-medium">
+                    {wordmarksData.earnedCount}/{wordmarksData.totalCount}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {wordmarksData.wordmarks.map((wordmark) => (
+                    <div
+                      key={wordmark.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                        wordmark.earned
+                          ? 'bg-white border border-indigo-200 shadow-sm'
+                          : 'bg-gray-100 border border-gray-200 opacity-50'
+                      }`}
+                    >
+                      <span className="text-xl" role="img" aria-label={wordmark.name}>
+                        {wordmark.emoji}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium truncate ${
+                          wordmark.earned ? 'text-gray-900' : 'text-gray-500'
+                        }`}>
+                          {wordmark.name}
+                        </p>
+                        <p className="text-xs text-gray-500 line-clamp-1">
+                          {wordmark.description}
+                        </p>
+                      </div>
+                      {wordmark.earned && (
+                        <span className="text-indigo-500 text-sm">✓</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Coming Soon Message */}
             <div className="section-card bg-brand-50 border-2 border-brand-200">
