@@ -93,9 +93,11 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     console.log(`[archive] Step 2: Fetching round ${roundId} using raw SQL to avoid ORM issues`);
     // Get the round using raw SQL to bypass any Drizzle type coercion issues
+    // Cast ALL text fields to ::text to ensure they come back as strings
     const roundResult = await db.execute(sql`
-      SELECT id, answer, salt, commit_hash, prize_pool_eth, seed_next_round_eth,
-             winner_fid, referrer_fid, started_at, resolved_at, status
+      SELECT id, answer::text as answer, salt::text as salt, commit_hash::text as commit_hash,
+             prize_pool_eth::text as prize_pool_eth, seed_next_round_eth::text as seed_next_round_eth,
+             winner_fid, referrer_fid, started_at, resolved_at, status::text as status
       FROM rounds
       WHERE id = ${roundId}
       LIMIT 1
