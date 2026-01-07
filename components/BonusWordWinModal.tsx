@@ -124,7 +124,7 @@ export default function BonusWordWinModal({
           {/* Animated fishing hook badge */}
           <div className="relative inline-block">
             <div className="w-24 h-24 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg animate-bounce-subtle">
-              <span className="text-5xl" role="img" aria-label="Bonus Word Finder">
+              <span className="text-5xl" role="img" aria-label="Side Quest">
                 🎣
               </span>
             </div>

@@ -33,7 +33,7 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
   },
   BONUS_WORD_FINDER: {
     id: 'BONUS_WORD_FINDER',
-    name: 'Bonus Word Finder',
+    name: 'Side Quest',
     description: 'Found a bonus word during a round',
     emoji: '🎣',
     color: 'cyan',
@@ -47,7 +47,7 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
   },
   DOUBLE_W: {
     id: 'DOUBLE_W',
-    name: 'Double W',
+    name: 'Double Dub',
     description: 'Hit two bonus words OR bonus word + secret word in one round',
     emoji: '✌️',
     color: 'indigo',
