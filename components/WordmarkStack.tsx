@@ -171,12 +171,18 @@ export function BadgeStack({
   hasClanktonBadge = false,
   hasBonusWordBadge = false,
   hasJackpotWinnerBadge = false,
+  hasDoubleWBadge = false,
+  hasPatronBadge = false,
+  hasQuickdrawBadge = false,
   size = 'sm',
 }: {
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
   hasBonusWordBadge?: boolean;
   hasJackpotWinnerBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
   size?: 'sm' | 'md';
 }) {
   return (
@@ -185,6 +191,9 @@ export function BadgeStack({
       hasClanktonHolder={hasClanktonBadge}
       hasBonusWordFinder={hasBonusWordBadge}
       hasJackpotWinner={hasJackpotWinnerBadge}
+      hasDoubleW={hasDoubleWBadge}
+      hasPatron={hasPatronBadge}
+      hasQuickdraw={hasQuickdrawBadge}
       size={size}
     />
   );

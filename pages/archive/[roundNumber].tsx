@@ -22,6 +22,9 @@ interface TopGuesserWithUsername {
   hasOgHunterBadge?: boolean;
   hasBonusWordBadge?: boolean;
   hasJackpotWinnerBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display in archive
@@ -36,6 +39,9 @@ interface BonusWordWinner {
   pfpUrl?: string;
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
 }
 
 interface ArchivedRound {
@@ -55,6 +61,9 @@ interface ArchivedRound {
   winnerHasClanktonBadge?: boolean;
   winnerHasBonusWordBadge?: boolean;
   winnerHasJackpotWinnerBadge?: boolean;
+  winnerHasDoubleWBadge?: boolean;
+  winnerHasPatronBadge?: boolean;
+  winnerHasQuickdrawBadge?: boolean;
   startTime: string;
   endTime: string;
   referrerFid: number | null;
@@ -298,6 +307,9 @@ export default function RoundDetailPage() {
                               hasClanktonBadge={round.winnerHasClanktonBadge}
                               hasBonusWordBadge={round.winnerHasBonusWordBadge}
                               hasJackpotWinnerBadge={round.winnerHasJackpotWinnerBadge}
+                              hasDoubleWBadge={round.winnerHasDoubleWBadge}
+                              hasPatronBadge={round.winnerHasPatronBadge}
+                              hasQuickdrawBadge={round.winnerHasQuickdrawBadge}
                               size="md"
                             />
                           </div>
@@ -422,6 +434,9 @@ export default function RoundDetailPage() {
                             hasClanktonBadge={guesser.hasClanktonBadge}
                             hasBonusWordBadge={guesser.hasBonusWordBadge}
                             hasJackpotWinnerBadge={guesser.hasJackpotWinnerBadge}
+                            hasDoubleWBadge={guesser.hasDoubleWBadge}
+                            hasPatronBadge={guesser.hasPatronBadge}
+                            hasQuickdrawBadge={guesser.hasQuickdrawBadge}
                             size="sm"
                           />
                         </div>
@@ -474,6 +489,9 @@ export default function RoundDetailPage() {
                             hasOgHunterBadge={winner.hasOgHunterBadge}
                             hasClanktonBadge={winner.hasClanktonBadge}
                             hasBonusWordBadge={true}
+                            hasDoubleWBadge={winner.hasDoubleWBadge}
+                            hasPatronBadge={winner.hasPatronBadge}
+                            hasQuickdrawBadge={winner.hasQuickdrawBadge}
                             size="sm"
                           />
                         </div>
