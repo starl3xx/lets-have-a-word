@@ -269,7 +269,7 @@ function StatChip({
   const bgClass = variant === 'green' ? 'bg-green-50' : variant === 'purple' ? 'bg-purple-50' : 'bg-gray-100';
 
   return (
-    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 ${bgClass}`}>
+    <div className={`inline-flex items-baseline gap-1 rounded-full px-2.5 py-1 ${bgClass}`}>
       <span className="text-sm font-semibold tabular-nums text-gray-900">
         {value}
       </span>
