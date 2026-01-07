@@ -167,9 +167,9 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           Each pack contains <strong>3 guesses</strong>. Pricing has two components:
           <p className="mt-2"><strong>Stage-based pricing</strong> (based on total guesses in round):</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>0–749 guesses (early): 0.00030 ETH base</li>
-            <li>750–1249 guesses (late): 0.00045 ETH base</li>
-            <li>1250+ guesses (late max): 0.00060 ETH base</li>
+            <li>0–849 guesses (early): 0.00030 ETH base</li>
+            <li>850–1249 guesses (mid): 0.00045 ETH base</li>
+            <li>1250+ guesses (late): 0.00060 ETH base</li>
           </ul>
           <p className="mt-2"><strong>Volume-based multipliers</strong> (based on daily purchases):</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
@@ -219,8 +219,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         <>
           Top 10 rewards are based on <strong>early participation</strong> in each round.
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Only the first <strong>750 guesses</strong> in a round are eligible for Top 10 ranking</li>
-            <li>After guess #750, Top 10 locks</li>
+            <li>Only the first <strong>850 guesses</strong> in a round are eligible for Top 10 ranking</li>
+            <li>After guess #850, Top 10 locks</li>
             <li>Guesses after the lock can still win the jackpot, but do not affect Top 10 ranking</li>
           </ul>
           <p className="mt-2">This incentivizes early guess purchasing during the high-uncertainty phase of the round and helps drive prize pool growth.</p>
@@ -258,7 +258,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Why can't I play? / What are the eligibility requirements?",
       answer: (
         <>
-          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.6 or higher</strong>. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.55 or higher</strong>. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
           <p className="mt-2">If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.</p>
           <p className="mt-2">
             <a
@@ -277,7 +277,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How many possible words are there?",
       answer: (
         <>
-          Let's Have A Word uses a custom list of <strong>4,374</strong> five-letter words.
+          Let's Have A Word uses a custom list of <strong>4,373</strong> five-letter words.
           <p className="mt-2">This list is curated by the game's creator and is not the same as Wordle's or any other off-the-shelf word list. Unlike Wordle, which uses separate lists for answers and valid guesses, Let's Have A Word uses a single canonical list.</p>
           <p className="mt-2">While there are 12,000+ five-letter entries if you include every possible dictionary term, most of those are obscure or non-standard. The game's list is intentionally curated to keep gameplay fair, challenging, and fun (have you found any easter eggs?).</p>
         </>

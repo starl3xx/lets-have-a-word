@@ -274,8 +274,8 @@ export default async function handler(
     }>(sql`
       SELECT
         COALESCE(AVG(CAST(user_score AS DECIMAL)), 0) as avg_score,
-        COUNT(CASE WHEN CAST(user_score AS DECIMAL) >= 0.6 THEN 1 END) as eligible_users,
-        COUNT(CASE WHEN CAST(user_score AS DECIMAL) < 0.6 THEN 1 END) as ineligible_users,
+        COUNT(CASE WHEN CAST(user_score AS DECIMAL) >= 0.55 THEN 1 END) as eligible_users,
+        COUNT(CASE WHEN CAST(user_score AS DECIMAL) < 0.55 THEN 1 END) as ineligible_users,
         (SELECT COUNT(*) FROM analytics_events WHERE event_type = 'USER_QUALITY_BLOCKED') as blocked_attempts
       FROM users
       WHERE user_score IS NOT NULL

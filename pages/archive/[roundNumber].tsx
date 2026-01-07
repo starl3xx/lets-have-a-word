@@ -8,8 +8,8 @@ import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
 import BadgeStack from '../../components/BadgeStack';
 
-// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
-const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+// Bonus Words Feature: Enabled for Round 3+ (no feature flag needed)
+const BONUS_WORDS_START_ROUND = 3;
 
 interface TopGuesserWithUsername {
   fid: number;
@@ -20,6 +20,7 @@ interface TopGuesserWithUsername {
   rank: number;
   hasClanktonBadge?: boolean;
   hasOgHunterBadge?: boolean;
+  hasBonusWordBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display in archive
@@ -28,9 +29,12 @@ interface BonusWordWinner {
   word: string;
   wordIndex: number;
   clanktonAmount: string;
+  claimedAt?: string;
   txHash?: string;
   username?: string;
   pfpUrl?: string;
+  hasOgHunterBadge?: boolean;
+  hasClanktonBadge?: boolean;
 }
 
 interface ArchivedRound {
@@ -46,6 +50,9 @@ interface ArchivedRound {
   winnerPfpUrl: string | null;
   winnerCastHash: string | null;
   winnerGuessNumber: number | null;
+  winnerHasOgHunterBadge?: boolean;
+  winnerHasClanktonBadge?: boolean;
+  winnerHasBonusWordBadge?: boolean;
   startTime: string;
   endTime: string;
   referrerFid: number | null;
@@ -66,6 +73,8 @@ interface ArchivedRound {
   commitHash?: string;
   hasOnChainCommitment?: boolean;
   onChainCommitHash?: string;
+  // Bonus word winners from API (for rounds >= 3)
+  bonusWordWinners?: BonusWordWinner[];
 }
 
 interface Distribution {
@@ -272,13 +281,21 @@ export default function RoundDetailPage() {
                           }}
                         />
                         <div>
-                          {/* Clickable username */}
-                          <button
-                            onClick={() => openProfile(round.winnerFid!)}
-                            className="font-semibold text-gray-900 text-lg hover:text-blue-600 transition-colors text-left"
-                          >
-                            {round.winnerUsername?.startsWith('fid:') ? round.winnerUsername : `@${round.winnerUsername || 'unknown'}`}
-                          </button>
+                          {/* Clickable username + Badges */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openProfile(round.winnerFid!)}
+                              className="font-semibold text-gray-900 text-lg hover:text-blue-600 transition-colors text-left"
+                            >
+                              {round.winnerUsername?.startsWith('fid:') ? round.winnerUsername : `@${round.winnerUsername || 'unknown'}`}
+                            </button>
+                            <BadgeStack
+                              hasOgHunterBadge={round.winnerHasOgHunterBadge}
+                              hasClanktonBadge={round.winnerHasClanktonBadge}
+                              hasBonusWordBadge={round.winnerHasBonusWordBadge}
+                              size="md"
+                            />
+                          </div>
                           {round.winnerGuessNumber && (
                             <div className="text-sm text-gray-500 mt-0.5">
                               Won on guess #{round.winnerGuessNumber}
@@ -398,6 +415,7 @@ export default function RoundDetailPage() {
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
                             hasClanktonBadge={guesser.hasClanktonBadge}
+                            hasBonusWordBadge={guesser.hasBonusWordBadge}
                             size="sm"
                           />
                         </div>
@@ -411,18 +429,24 @@ export default function RoundDetailPage() {
                 </Section>
               )}
 
-              {/* Bonus Words Feature: Bonus Word Finders (only if UI enabled) */}
-              {BONUS_WORDS_UI_ENABLED && round.payoutsJson.bonusWordWinners && round.payoutsJson.bonusWordWinners.length > 0 && (
-                <Section title="🎣 Bonus word finders">
+              {/* Bonus Word Finders (for rounds >= 3 with bonus words) */}
+              {round.bonusWordWinners && round.bonusWordWinners.length > 0 && (
+                <Section title="Bonus word finders">
                   <p className="text-xs text-gray-500 mb-3">5M CLANKTON each</p>
                   <div className="bg-white rounded-xl border border-cyan-200 overflow-hidden">
-                    {round.payoutsJson.bonusWordWinners.map((winner, index) => (
+                    {[...round.bonusWordWinners]
+                      .sort((a, b) => new Date(a.claimedAt || 0).getTime() - new Date(b.claimedAt || 0).getTime())
+                      .map((winner, index) => (
                       <div
                         key={`${winner.fid}-${winner.word}`}
                         className={`px-3 py-2 flex items-center gap-2 ${
-                          index < round.payoutsJson.bonusWordWinners!.length - 1 ? 'border-b border-cyan-100' : ''
+                          index < round.bonusWordWinners!.length - 1 ? 'border-b border-cyan-100' : ''
                         }`}
                       >
+                        {/* Rank Number */}
+                        <div className="w-5 text-sm text-gray-400 font-medium flex-shrink-0">
+                          {index + 1}.
+                        </div>
                         {/* PFP */}
                         <img
                           src={winner.pfpUrl || `https://avatar.vercel.sh/${winner.fid}`}
@@ -432,24 +456,30 @@ export default function RoundDetailPage() {
                             (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${winner.fid}`;
                           }}
                         />
-                        {/* Username */}
-                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                        {/* Username + Badge */}
+                        <div className="flex-1 flex items-center gap-1 min-w-0">
                           <button
                             onClick={() => openProfile(winner.fid)}
                             className="text-sm font-medium text-gray-900 truncate hover:text-blue-600 transition-colors"
                           >
                             {winner.username?.startsWith('fid:') ? winner.username : `@${winner.username || `fid:${winner.fid}`}`}
                           </button>
-                          <span className="text-xs text-cyan-600 font-mono font-bold uppercase">
-                            {winner.word}
-                          </span>
-                          <span className="text-base">🎣</span>
+                          <BadgeStack
+                            hasOgHunterBadge={winner.hasOgHunterBadge}
+                            hasClanktonBadge={winner.hasClanktonBadge}
+                            hasBonusWordBadge={true}
+                            size="sm"
+                          />
                         </div>
+                        {/* Word found */}
+                        <span className="text-xs text-cyan-600 font-mono font-bold uppercase flex-shrink-0">
+                          {winner.word}
+                        </span>
                         {/* Transaction Link */}
                         {winner.txHash && (
                           <button
                             onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${winner.txHash}`)}
-                            className="text-xs text-cyan-600 hover:text-cyan-700"
+                            className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
                             tx ↗
                           </button>

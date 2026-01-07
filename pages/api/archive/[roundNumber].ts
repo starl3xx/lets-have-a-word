@@ -13,12 +13,17 @@ import { eq } from 'drizzle-orm';
 import { getArchivedRoundWithUsernames, getRoundGuessDistribution, type ArchivedRoundWithUsernames } from '../../../src/lib/archive';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 import { getCommitHashOnChain, isContractDeployed } from '../../../src/lib/jackpot-contract';
+import { getBonusWordWinners, type BonusWordWinner } from '../../../src/lib/bonus-words';
+
+// First round with bonus words feature
+const BONUS_WORDS_START_ROUND = 3;
 
 export interface ArchiveDetailResponse {
   round: (ArchivedRoundWithUsernames & {
     commitHash?: string;
     hasOnChainCommitment?: boolean;
     onChainCommitHash?: string;
+    bonusWordWinners?: BonusWordWinner[];
   }) | null;
   distribution?: {
     distribution: Array<{ hour: number; count: number }>;
@@ -89,6 +94,18 @@ export default async function handler(
         } catch (error) {
           console.error('[api/archive] Failed to fetch onchain commitment:', error);
           serialized.hasOnChainCommitment = false;
+        }
+
+        // Fetch bonus word winners for rounds >= 3
+        if (roundNum >= BONUS_WORDS_START_ROUND) {
+          try {
+            const bonusWinners = await getBonusWordWinners(roundNum);
+            if (bonusWinners.length > 0) {
+              serialized.bonusWordWinners = bonusWinners;
+            }
+          } catch (error) {
+            console.error('[api/archive] Failed to fetch bonus word winners:', error);
+          }
         }
 
         // Optionally include guess distribution

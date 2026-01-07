@@ -128,9 +128,9 @@ Returns summary statistics:
 Gates gameplay access based on Neynar's User Quality Score to reduce sybil/bot abuse.
 
 ### Eligibility Rule
-**Only Farcaster users with `user_score >= 0.6` may submit guesses or purchase guess packs.**
+**Only Farcaster users with `user_score >= 0.55` may submit guesses or purchase guess packs.**
 
-As of 2025-11-24, approximately 307,775 Farcaster users meet this threshold.
+Threshold lowered from 0.6 to 0.55 in January 2025 to expand player eligibility.
 
 ### Key Functions
 
@@ -172,9 +172,9 @@ When a user is blocked:
 ```json
 {
   "error": "INSUFFICIENT_USER_SCORE",
-  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.6)...",
+  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.55)...",
   "score": 0.45,
-  "minRequired": 0.6,
+  "minRequired": 0.55,
   "helpUrl": "https://docs.neynar.com/docs/user-scores"
 }
 ```

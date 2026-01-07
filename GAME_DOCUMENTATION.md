@@ -1221,8 +1221,8 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
   - Suspicious sequence detection (same winner, same answer patterns)
   - Automated FAIRNESS_ALERT_* event logging
 - **User Quality Gating** (`src/lib/user-quality.ts`):
-  - Neynar User Score ≥ 0.6 required to submit guesses
-  - ~307,775 eligible Farcaster users (Nov 2024)
+  - Neynar User Score ≥ 0.55 required to submit guesses
+  - Threshold lowered from 0.6 to 0.55 in Jan 2025 to expand eligibility
   - 24-hour score caching with automatic refresh
   - USER_QUALITY_BLOCKED event logging for blocked attempts
 - **Adversarial Simulation Engine** (`src/services/simulation-engine/`):
@@ -1622,9 +1622,9 @@ Updated `components/FirstTimeOverlay.tsx` to prompt users to add the mini app:
 - Added reassurance microcopy: "Purchases contribute to the prize pool"
 - Changed CTA from "Buy pack(s)" to "Buy guesses"
 - Pricing labels:
-  - BASE (0-749 guesses): "Early round pricing"
-  - LATE_1 (750-1249 guesses): "Late round pricing"
-  - LATE_2 (1250+ guesses): "Late round pricing (max)"
+  - EARLY (0-849 guesses): "Early round pricing"
+  - MID (850-1249 guesses): "Mid round pricing"
+  - LATE (1250+ guesses): "Late round pricing"
 
 #### Dev Mode Pricing Consistency (`pages/api/guess-pack-pricing.ts`)
 - Fixed inconsistency between TopTicker and GuessPurchaseModal in dev mode
@@ -1847,9 +1847,9 @@ Users now sign wallet transactions that are verified onchain before packs are aw
 6. Tracks purchase via `txHash` to prevent double-claiming
 
 **Dynamic Pricing Phases:**
-- **BASE** (0-749 guesses): 0.0003 ETH per pack
-- **LATE_1** (750-1249 guesses): 0.00045 ETH per pack
-- **LATE_2** (1250+ guesses): 0.0006 ETH per pack (capped)
+- **EARLY** (0-849 guesses): 0.0003 ETH per pack
+- **MID** (850-1249 guesses): 0.00045 ETH per pack
+- **LATE** (1250+ guesses): 0.0006 ETH per pack (capped)
 
 **Database Schema:**
 ```sql
@@ -1919,23 +1919,28 @@ RATE_LIMIT_DUPLICATE_WINDOW=10
 - Not just applied at daily reset anymore
 - `CLANKTON_MARKET_CAP_USD` environment variable for testing
 
-#### Leaderboard Lock at 750 Guesses
+#### Leaderboard Lock at 850 Guesses
 
 **Files:**
-- `src/lib/top10-lock.ts` - Lock threshold constant
+- `src/lib/top10-lock.ts` - Lock threshold constants and round-specific logic
 - `pages/api/round/top-guessers.ts` - Top-10 API
 - `src/lib/guesses.ts` - Guess indexing
 
 **How It Works:**
 1. Each guess gets a `guessIndexInRound` (1-based counter)
-2. Top-10 locked after guess #750
-3. Leaderboard only counts guesses 1-750
-4. Guesses 751+ count for winning jackpot but not for Top-10 ranking
+2. Top-10 locked after guess #850 (was 750 for rounds 1-3)
+3. Leaderboard only counts guesses 1-850
+4. Guesses 851+ count for winning jackpot but not for Top-10 ranking
 5. Prevents late-game clustering from skewing leaderboard
 
 **Configuration:**
 ```typescript
-TOP10_LOCK_AFTER_GUESSES = 750
+// Historical thresholds (for archive accuracy)
+LEGACY_TOP10_LOCK = 750           // Rounds 1-3
+NEW_TOP10_LOCK = 850              // Round 4+
+TOP10_LOCK_AFTER_GUESSES = 850    // Current default
+
+// Use getTop10LockForRound(roundId) for round-specific threshold
 ```
 
 #### Comprehensive Error Handling
@@ -2733,7 +2738,7 @@ Milestone 5.3 implements comprehensive game integrity protections including fair
 
 To prevent bot/sybil abuse, only Farcaster users with sufficient reputation can play.
 
-**Requirement:** Neynar User Score ≥ 0.6
+**Requirement:** Neynar User Score ≥ 0.55
 
 **Implementation:** `src/lib/user-quality.ts`
 
@@ -2768,16 +2773,16 @@ if (!result.eligible) {
 ```json
 {
   "error": "INSUFFICIENT_USER_SCORE",
-  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.6)...",
+  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.55)...",
   "score": 0.45,
-  "minRequired": 0.6,
+  "minRequired": 0.55,
   "helpUrl": "https://docs.neynar.com/docs/user-scores"
 }
 ```
 
 **Configuration:**
 - Enable: `USER_QUALITY_GATING_ENABLED=true`
-- Threshold: 0.6 (configurable in `MIN_USER_SCORE` constant)
+- Threshold: 0.55 (configurable in `MIN_USER_SCORE` constant)
 
 ### Fairness Monitoring
 
@@ -3613,7 +3618,7 @@ referrer_fid INTEGER REFERENCES users(fid)
 
 ### Fraud Protection
 
-1. **User Quality Gating**: Only users with Neynar score >= 0.6 can play
+1. **User Quality Gating**: Only users with Neynar score >= 0.55 can play
 2. **Wallet Clustering**: Simulation detects shared wallets
 3. **Rapid Win Detection**: Flags statistically improbable wins
 4. **Analytics Monitoring**: All referral events logged for review

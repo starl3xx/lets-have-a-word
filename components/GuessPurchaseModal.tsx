@@ -40,7 +40,7 @@ interface PackOption {
 }
 
 /** Pricing phase from API */
-type PricingPhase = 'BASE' | 'LATE_1' | 'LATE_2';
+type PricingPhase = 'EARLY' | 'MID' | 'LATE';
 
 /** Volume tier from API */
 type VolumeTier = 'BASE' | 'MID' | 'HIGH';
@@ -427,11 +427,11 @@ export default function GuessPurchaseModal({
             <div className="bg-gray-50 rounded-btn px-3 py-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-500">
-                  {pricingPhase === 'BASE'
+                  {pricingPhase === 'EARLY'
                     ? 'Early round pricing'
-                    : pricingPhase === 'LATE_2'
-                    ? 'Late round (max)'
-                    : 'Late round pricing'}
+                    : pricingPhase === 'LATE'
+                    ? 'Late round pricing'
+                    : 'Mid round pricing'}
                 </span>
                 <span className={`font-medium ${tierDisplay.color}`}>
                   Volume tier: {tierDisplay.label}
