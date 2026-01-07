@@ -3,7 +3,7 @@
  *
  * Backfill startTxHash for existing rounds.
  *
- * Requires admin authentication via ADMIN_SECRET header.
+ * Requires admin authentication via devFid query param.
  *
  * Body:
  * - rounds: Array of { roundId: number, startTxHash: string }
@@ -13,6 +13,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db, rounds } from '../../../../src/db';
 import { eq } from 'drizzle-orm';
+import { isAdminFid } from '../../admin/me';
 
 interface BackfillItem {
   roundId: number;
@@ -32,12 +33,20 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Admin authentication
-  const adminSecret = process.env.ADMIN_SECRET;
-  const providedSecret = req.headers['x-admin-secret'] || req.headers['authorization']?.replace('Bearer ', '');
+  // Admin authentication via devFid
+  let fid: number | undefined;
+  if (req.query.devFid) {
+    fid = parseInt(req.query.devFid as string, 10);
+  } else if (req.cookies.siwn_fid) {
+    fid = parseInt(req.cookies.siwn_fid, 10);
+  }
 
-  if (!adminSecret || providedSecret !== adminSecret) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (!fid || isNaN(fid)) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  if (!isAdminFid(fid)) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   try {
