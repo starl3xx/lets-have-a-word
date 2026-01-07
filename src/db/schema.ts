@@ -535,7 +535,7 @@ export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
  * Badge Types
  * Badge system for special achievements
  */
-export type BadgeType = 'OG_HUNTER' | 'BONUS_WORD_FINDER';
+export type BadgeType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER';
 
 /**
  * User Badges Table
