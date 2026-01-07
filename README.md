@@ -767,8 +767,8 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
   - Module: `src/services/fairness-monitor/prize-audit.ts`
 
 - **User Quality Gating (Anti-Bot)**
-  - Requires Neynar User Score ≥ 0.6 to submit guesses
-  - ~307,775 Farcaster users eligible (as of Nov 2024)
+  - Requires Neynar User Score ≥ 0.55 to submit guesses
+  - Threshold lowered from 0.6 to 0.55 in Jan 2025 to expand eligibility
   - 24-hour score caching with automatic refresh
   - Blocks low-quality/bot accounts from gameplay
   - Module: `src/lib/user-quality.ts`
@@ -809,7 +809,7 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
 
 - **Configuration**
   - `USER_QUALITY_GATING_ENABLED=true` - Enable anti-bot protection
-  - Quality threshold: 0.6 (configurable in code)
+  - Quality threshold: 0.55 (configurable in code)
   - Score cache duration: 24 hours
 
 ### ✅ Milestone 5.2 - Analytics System + SIWN Web Admin Login
@@ -2243,11 +2243,10 @@ Each round uses commit-reveal with onchain commitment:
 
 ### User Quality Gating (Milestone 5.3)
 
-To prevent bot/sybil abuse, **only Farcaster users with a Neynar User Score ≥ 0.6 may submit guesses**.
+To prevent bot/sybil abuse, **only Farcaster users with a Neynar User Score ≥ 0.55 may submit guesses**.
 
 - **Score Source**: Neynar's experimental user quality score (0.0-1.0)
-- **Threshold**: 0.6 minimum required
-- **Eligible Users**: ~307,775 Farcaster accounts (as of Nov 2024)
+- **Threshold**: 0.55 minimum required (lowered from 0.6 in Jan 2025)
 - **Caching**: Scores cached in database for 24 hours
 - **Refresh**: Automatic refresh when cache expires
 
@@ -2255,16 +2254,16 @@ To prevent bot/sybil abuse, **only Farcaster users with a Neynar User Score ≥ 
 1. User attempts to submit a guess
 2. System checks user's cached quality score
 3. If cache expired, fetches fresh score from Neynar API
-4. If score < 0.6, returns `INSUFFICIENT_USER_SCORE` error
+4. If score < 0.55, returns `INSUFFICIENT_USER_SCORE` error
 5. Blocked attempts are logged as `USER_QUALITY_BLOCKED` analytics events
 
 **Error Response:**
 ```json
 {
   "error": "INSUFFICIENT_USER_SCORE",
-  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.6)...",
+  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.55)...",
   "score": 0.45,
-  "minRequired": 0.6,
+  "minRequired": 0.55,
   "helpUrl": "https://docs.neynar.com/docs/user-scores"
 }
 ```
@@ -2272,7 +2271,7 @@ To prevent bot/sybil abuse, **only Farcaster users with a Neynar User Score ≥ 
 **Configuration:**
 - Enable with `USER_QUALITY_GATING_ENABLED=true`
 - Requires `NEYNAR_API_KEY` to be configured
-- Threshold is 0.6 (configurable in `src/lib/user-quality.ts`)
+- Threshold is 0.55 (configurable in `src/lib/user-quality.ts`)
 
 ### Fairness Monitoring (Milestone 5.3)
 

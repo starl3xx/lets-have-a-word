@@ -258,7 +258,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Why can't I play? / What are the eligibility requirements?",
       answer: (
         <>
-          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.6 or higher</strong>. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.55 or higher</strong>. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
           <p className="mt-2">If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.</p>
           <p className="mt-2">
             <a

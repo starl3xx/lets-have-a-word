@@ -3,7 +3,7 @@
  * Milestone 5.3: Neynar User Quality Score Anti-bot Protection
  *
  * Gates gameplay access based on Neynar's User Quality Score:
- * - Only users with user_score >= 0.6 may submit guesses or purchase guess packs
+ * - Only users with user_score >= 0.55 may submit guesses or purchase guess packs
  * - Score is cached in DB with a last-checked timestamp (refreshed every 24h)
  * - Blocked attempts are logged for analytics/abuse reviews
  * - Allowlist FIDs bypass the score check entirely
@@ -17,9 +17,9 @@ import { logAnalyticsEvent } from './analytics';
 
 /**
  * Minimum user quality score required to play
- * As of 2025-11-24, ~307,775 Farcaster users meet this threshold
+ * As of 2025-01-07, lowered from 0.6 to 0.55 to expand player eligibility
  */
-export const MIN_USER_SCORE = 0.6;
+export const MIN_USER_SCORE = 0.55;
 
 /**
  * FIDs that bypass the score check entirely
@@ -51,8 +51,8 @@ export const BORDERLINE_SCORE_CACHE_DURATION_MS = 60 * 60 * 1000;
 /**
  * Score range considered "borderline" (within 0.1 of threshold)
  */
-const BORDERLINE_SCORE_LOW = MIN_USER_SCORE - 0.1; // 0.5
-const BORDERLINE_SCORE_HIGH = MIN_USER_SCORE + 0.1; // 0.7
+const BORDERLINE_SCORE_LOW = MIN_USER_SCORE - 0.1; // 0.45
+const BORDERLINE_SCORE_HIGH = MIN_USER_SCORE + 0.1; // 0.65
 
 /**
  * Error code for insufficient user score
