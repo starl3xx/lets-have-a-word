@@ -184,7 +184,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`[fix-and-archive] Payouts: ${JSON.stringify(payoutsJson)}`);
 
-    // Step 6: Get previous round seed
+    // Step 6: Compute CLANKTON bonus count
+    const startDate = new Date(rawRound.started_at).toISOString().split('T')[0];
+    const endDate = new Date(rawRound.resolved_at).toISOString().split('T')[0];
+
+    const clanktonResult = await db.execute(sql`
+      SELECT COUNT(DISTINCT fid) as count
+      FROM daily_guess_state
+      WHERE free_allocated_clankton > 0
+      AND date >= ${startDate}
+      AND date <= ${endDate}
+    `);
+    const clanktonRows = getRows(clanktonResult);
+    const clanktonBonusCount = parseInt(String(clanktonRows[0]?.count || 0), 10);
+    console.log(`[fix-and-archive] CLANKTON bonus count: ${clanktonBonusCount}`);
+
+    // Step 7: Compute referral bonus count
+    const referralResult = await db.execute(sql`
+      SELECT COUNT(*) as count
+      FROM users
+      WHERE referrer_fid IS NOT NULL
+      AND created_at >= ${rawRound.started_at}
+      AND created_at <= ${rawRound.resolved_at}
+    `);
+    const referralRows = getRows(referralResult);
+    const referralBonusCount = parseInt(String(referralRows[0]?.count || 0), 10);
+    console.log(`[fix-and-archive] Referral bonus count: ${referralBonusCount}`);
+
+    // Step 8: Get previous round seed
     let seedEth = '0';
     if (roundId > 1) {
       const prevRoundResult = await db.execute(sql`
@@ -236,8 +263,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ${rawRound.referrer_fid},
         ${JSON.stringify(payoutsJson)},
         ${salt},
-        ${0},
-        ${0}
+        ${clanktonBonusCount},
+        ${referralBonusCount}
       )
     `);
 
