@@ -257,6 +257,10 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [usernames, setUsernames] = useState<Record<number, string>>({})
   const [resolvingErrorId, setResolvingErrorId] = useState<number | null>(null)
   const [loadingDetailFor, setLoadingDetailFor] = useState<number | null>(null)
+  const [showTxHashBackfill, setShowTxHashBackfill] = useState(false)
+  const [txHashInputs, setTxHashInputs] = useState<Record<number, string>>({})
+  const [backfillLoading, setBackfillLoading] = useState(false)
+  const [backfillResult, setBackfillResult] = useState<any>(null)
   const pageSize = 15
   const detailSectionRef = useRef<HTMLDivElement>(null)
 
@@ -491,6 +495,61 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       setError(err instanceof Error ? err.message : 'Failed to resolve error')
     } finally {
       setResolvingErrorId(null)
+    }
+  }
+
+  const backfillStartTxHashes = async () => {
+    if (!user?.fid) return
+
+    // Build list of rounds with tx hashes to update
+    const roundsToUpdate = Object.entries(txHashInputs)
+      .filter(([_, hash]) => hash.trim().length > 0)
+      .map(([roundId, hash]) => ({
+        roundId: parseInt(roundId),
+        startTxHash: hash.trim(),
+      }))
+
+    if (roundsToUpdate.length === 0) {
+      setError('No transaction hashes entered')
+      return
+    }
+
+    // Validate tx hash format
+    for (const item of roundsToUpdate) {
+      if (!/^0x[a-fA-F0-9]{64}$/.test(item.startTxHash)) {
+        setError(`Invalid tx hash format for round ${item.roundId}: ${item.startTxHash}`)
+        return
+      }
+    }
+
+    setBackfillLoading(true)
+    setBackfillResult(null)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/admin/operational/backfill-start-tx-hash?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rounds: roundsToUpdate }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Backfill failed')
+      setBackfillResult(result)
+      // Clear inputs for successfully updated rounds
+      if (result.results) {
+        const updatedRounds = result.results
+          .filter((r: any) => r.status === 'updated')
+          .map((r: any) => r.roundId)
+        setTxHashInputs(prev => {
+          const newInputs = { ...prev }
+          updatedRounds.forEach((id: number) => delete newInputs[id])
+          return newInputs
+        })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Backfill failed')
+    } finally {
+      setBackfillLoading(false)
     }
   }
 
@@ -957,6 +1016,96 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
           </div>
         </div>
       )}
+
+      {/* Backfill Start Tx Hashes */}
+      <div style={styles.module}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <h3 style={{ ...styles.moduleHeader, marginBottom: 0 }}>Backfill Start Tx Hashes</h3>
+          <button
+            onClick={() => setShowTxHashBackfill(!showTxHashBackfill)}
+            style={styles.btnSecondary}
+          >
+            {showTxHashBackfill ? 'Hide' : 'Show'}
+          </button>
+        </div>
+
+        {showTxHashBackfill && (
+          <>
+            <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "16px", fontFamily }}>
+              Enter the startRoundWithCommitment transaction hashes from BaseScan for each round.
+              Round 1 was database-only and doesn't need a tx hash.
+            </p>
+
+            {backfillResult && (
+              <div style={{
+                background: backfillResult.summary?.updated > 0 ? "#d1fae5" : "#fef3c7",
+                border: `1px solid ${backfillResult.summary?.updated > 0 ? "#34d399" : "#fbbf24"}`,
+                borderRadius: "8px",
+                padding: "12px",
+                marginBottom: "16px",
+                fontSize: "13px",
+                fontFamily,
+              }}>
+                <strong>Result:</strong> {backfillResult.summary?.updated || 0} updated,{' '}
+                {backfillResult.summary?.alreadySet || 0} already set,{' '}
+                {backfillResult.summary?.notFound || 0} not found
+              </div>
+            )}
+
+            <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
+              {rounds.filter(r => r.roundNumber > 1).map(round => (
+                <div key={round.roundNumber} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ minWidth: "80px", fontSize: "13px", fontWeight: 600, fontFamily }}>
+                    Round #{round.roundNumber}
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={txHashInputs[round.roundNumber] || ''}
+                    onChange={(e) => setTxHashInputs(prev => ({
+                      ...prev,
+                      [round.roundNumber]: e.target.value,
+                    }))}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontFamily: "monospace",
+                    }}
+                  />
+                  <a
+                    href={`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: "12px",
+                      color: "#6366f1",
+                      textDecoration: "none",
+                      fontFamily,
+                    }}
+                  >
+                    Find on BaseScan ↗
+                  </a>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={backfillStartTxHashes}
+              disabled={backfillLoading || Object.values(txHashInputs).filter(v => v.trim()).length === 0}
+              style={{
+                ...styles.btn,
+                opacity: backfillLoading || Object.values(txHashInputs).filter(v => v.trim()).length === 0 ? 0.6 : 1,
+                cursor: backfillLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              {backfillLoading ? 'Saving...' : 'Save Tx Hashes'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
