@@ -73,6 +73,7 @@ interface ArchivedRound {
   commitHash?: string;
   hasOnChainCommitment?: boolean;
   onChainCommitHash?: string;
+  resolveTxHash?: string;
   // Bonus word winners from API (for rounds >= 3)
   bonusWordWinners?: BonusWordWinner[];
 }
@@ -539,7 +540,7 @@ export default function RoundDetailPage() {
                         onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
-                        <span>View on BaseScan</span>
+                        <span>View contract</span>
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
@@ -552,9 +553,9 @@ export default function RoundDetailPage() {
                   {/* Prize pool distribution tx */}
                   <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
                     <span className="text-gray-500 text-sm">Distribution tx</span>
-                    {round.roundNumber === 1 ? (
+                    {round.resolveTxHash ? (
                       <button
-                        onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/0xb5dde8065b2ea6a7d2101f8cdb92849659c63a1d4b97b0fdbfb69acd1d4bdffb`)}
+                        onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${round.resolveTxHash}`)}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
                         <span>View on BaseScan</span>
@@ -567,7 +568,7 @@ export default function RoundDetailPage() {
                         onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
-                        <span>View on BaseScan</span>
+                        <span>View contract</span>
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
