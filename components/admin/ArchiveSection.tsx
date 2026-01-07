@@ -240,6 +240,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [syncing, setSyncing] = useState(false)
   const [forceSyncing, setForceSyncing] = useState(false)
   const [rearchiving, setRearchiving] = useState(false)
+  const [fixingRound, setFixingRound] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<ArchiveStats | null>(null)
   const [rounds, setRounds] = useState<ArchivedRound[]>([])
@@ -312,6 +313,45 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     } finally {
       setSyncing(false)
       setForceSyncing(false)
+    }
+  }
+
+  const fixAndArchiveRound = async (roundNumber: number) => {
+    if (!user?.fid) return
+
+    setFixingRound(true)
+    setSyncResult(null)
+    setError(null)
+
+    try {
+      const response = await fetch(
+        `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}&roundId=${roundNumber}`,
+        { method: 'GET' }
+      )
+      const result = await response.json()
+
+      if (result.success) {
+        setSyncResult({
+          archived: 1,
+          alreadyArchived: 0,
+          failed: 0,
+          errors: [],
+          fixResult: result,
+        })
+        await fetchArchiveData()
+      } else {
+        setError(result.error || result.details || 'Fix failed')
+        setSyncResult({
+          archived: 0,
+          alreadyArchived: 0,
+          failed: 1,
+          errors: [result.error || result.details],
+        })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fix failed')
+    } finally {
+      setFixingRound(false)
     }
   }
 
@@ -519,6 +559,17 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             title="Delete and re-archive all rounds (fixes ranking issues)"
           >
             {forceSyncing ? 'Re-syncing...' : 'Force Re-sync All'}
+          </button>
+          <button
+            onClick={() => fixAndArchiveRound(3)}
+            style={{
+              ...styles.btn,
+              background: "#f59e0b",
+            }}
+            disabled={fixingRound || syncing || forceSyncing}
+            title="Emergency fix for Round 3 - bypasses ORM completely"
+          >
+            {fixingRound ? 'Fixing...' : '🔧 Fix Round 3'}
           </button>
         </div>
       </div>
