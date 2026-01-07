@@ -187,6 +187,10 @@ const styles = {
     color: "#dc2626",
     marginBottom: "24px",
     fontFamily,
+    whiteSpace: "pre-wrap" as const,
+    fontSize: "12px",
+    maxHeight: "400px",
+    overflow: "auto",
   },
   success: {
     background: "#f0fdf4",
@@ -341,7 +345,17 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
         })
         await fetchArchiveData()
       } else {
-        setError(result.error || result.details || 'Fix failed')
+        // Build a detailed error message with diagnostic info
+        let errorMsg = result.error || result.details || 'Fix failed'
+        if (result.diagnostic) {
+          const diag = result.diagnostic
+          errorMsg += `\n\nDiagnostic Info:\n`
+          errorMsg += `All rounds: ${JSON.stringify(diag.allRounds, null, 2)}\n`
+          errorMsg += `Archived round numbers: ${JSON.stringify(diag.archivedRoundNumbers)}\n`
+          errorMsg += `Resolved round IDs: ${JSON.stringify(diag.resolvedRoundIds)}\n`
+          errorMsg += `Message: ${diag.message}`
+        }
+        setError(errorMsg)
         setSyncResult({
           archived: 0,
           alreadyArchived: 0,
