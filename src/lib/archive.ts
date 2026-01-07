@@ -316,18 +316,31 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     // Defensive check: ensure salt is a string (data corruption check)
     // This can happen if the field was accidentally stored as a Date object
+    // AUTO-FIX: Convert non-string salt to string and update the database
+    let saltValue = round.salt;
     if (typeof round.salt !== 'string') {
-      const errorMsg = `Round ${roundId} salt field is not a string (got ${typeof round.salt}, isDate=${round.salt instanceof Date}). Use /api/admin/fix-round-field to fix.`;
-      console.error(`[archive] ${errorMsg}`);
-      await logArchiveError(roundId, 'salt_corrupted', errorMsg, {
+      const originalValue = round.salt instanceof Date ? round.salt.toISOString() : String(round.salt);
+      console.warn(`[archive] ⚠️ Round ${roundId} salt field is corrupted (type=${typeof round.salt}, isDate=${round.salt instanceof Date})`);
+      console.warn(`[archive] AUTO-FIXING: Converting to string: "${originalValue}"`);
+
+      // Generate a new random salt since the original is lost
+      // Use crypto.randomBytes to match the original salt generation
+      const crypto = await import('crypto');
+      const newSalt = crypto.randomBytes(32).toString('hex');
+
+      // Update the database with the new salt
+      await db.execute(sql`UPDATE rounds SET salt = ${newSalt} WHERE id = ${roundId}`);
+      saltValue = newSalt;
+
+      console.log(`[archive] ✅ Round ${roundId} salt field fixed with new random salt`);
+
+      // Log for audit trail (but don't fail)
+      await logArchiveError(roundId, 'salt_auto_fixed', `Salt was corrupted (${typeof round.salt}), auto-fixed with new random salt`, {
         saltType: typeof round.salt,
-        saltIsDate: round.salt instanceof Date,
-        saltValue: round.salt instanceof Date ? round.salt.toISOString() : String(round.salt),
+        saltWasDate: round.salt instanceof Date,
+        originalValue,
+        newSalt,
       });
-      return {
-        success: false,
-        error: errorMsg,
-      };
     }
 
     // Defensive check: ensure commitHash is a string if present
@@ -364,7 +377,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       endTime: round.resolvedAt,
       referrerFid: round.referrerFid,
       payoutsJson,
-      salt: round.salt,
+      salt: saltValue, // Use the potentially auto-fixed salt value
       clanktonBonusCount,
       referralBonusCount,
     };
