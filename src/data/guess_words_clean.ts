@@ -1655,7 +1655,6 @@ export const CORE_COMMON: string[] = [
   "JETTY",
   "JEWEL",
   "JIFFY",
-  "JIHAD",
   "JITSU",
   "JOCKS",
   "JOINS",
@@ -4422,7 +4421,7 @@ export const SLANG_ALLOWLIST: string[] = [
  * These are offensive slurs, highly inappropriate terms, and words
  * that should never appear in the game.
  * All entries must be exactly 5 letters, uppercase.
- * Total: 13 words
+ * Total: 14 words
  */
 export const BANNED_GUESSES: string[] = [
   // Racial/ethnic slurs
@@ -4440,6 +4439,8 @@ export const BANNED_GUESSES: string[] = [
   "TITTY",
   "TWATS",
   "WHORE",
+  // Controversial/sensitive terms
+  "JIHAD",
 ];
 
 /**
