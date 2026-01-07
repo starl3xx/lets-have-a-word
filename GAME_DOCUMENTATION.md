@@ -1221,8 +1221,8 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
   - Suspicious sequence detection (same winner, same answer patterns)
   - Automated FAIRNESS_ALERT_* event logging
 - **User Quality Gating** (`src/lib/user-quality.ts`):
-  - Neynar User Score ≥ 0.6 required to submit guesses
-  - ~307,775 eligible Farcaster users (Nov 2024)
+  - Neynar User Score ≥ 0.55 required to submit guesses
+  - Threshold lowered from 0.6 to 0.55 in Jan 2025 to expand eligibility
   - 24-hour score caching with automatic refresh
   - USER_QUALITY_BLOCKED event logging for blocked attempts
 - **Adversarial Simulation Engine** (`src/services/simulation-engine/`):
@@ -2733,7 +2733,7 @@ Milestone 5.3 implements comprehensive game integrity protections including fair
 
 To prevent bot/sybil abuse, only Farcaster users with sufficient reputation can play.
 
-**Requirement:** Neynar User Score ≥ 0.6
+**Requirement:** Neynar User Score ≥ 0.55
 
 **Implementation:** `src/lib/user-quality.ts`
 
@@ -2768,16 +2768,16 @@ if (!result.eligible) {
 ```json
 {
   "error": "INSUFFICIENT_USER_SCORE",
-  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.6)...",
+  "message": "Your Farcaster reputation score (0.45) is below the minimum required (0.55)...",
   "score": 0.45,
-  "minRequired": 0.6,
+  "minRequired": 0.55,
   "helpUrl": "https://docs.neynar.com/docs/user-scores"
 }
 ```
 
 **Configuration:**
 - Enable: `USER_QUALITY_GATING_ENABLED=true`
-- Threshold: 0.6 (configurable in `MIN_USER_SCORE` constant)
+- Threshold: 0.55 (configurable in `MIN_USER_SCORE` constant)
 
 ### Fairness Monitoring
 
@@ -3613,7 +3613,7 @@ referrer_fid INTEGER REFERENCES users(fid)
 
 ### Fraud Protection
 
-1. **User Quality Gating**: Only users with Neynar score >= 0.6 can play
+1. **User Quality Gating**: Only users with Neynar score >= 0.55 can play
 2. **Wallet Clustering**: Simulation detects shared wallets
 3. **Rapid Win Detection**: Flags statistically improbable wins
 4. **Analytics Monitoring**: All referral events logged for review

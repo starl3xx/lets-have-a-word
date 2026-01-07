@@ -144,7 +144,7 @@ You can track your referrals and earnings in the Refer sheet.
 
 ## Why can't I play? / What are the eligibility requirements?
 
-To prevent bot abuse, players must meet a minimum **Neynar user score of 0.6 or higher**. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+To prevent bot abuse, players must meet a minimum **Neynar user score of 0.55 or higher**. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
 
 If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.
 

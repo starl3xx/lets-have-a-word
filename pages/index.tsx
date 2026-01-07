@@ -959,7 +959,7 @@ function GameContent() {
           // Handle user quality blocked (403 with INSUFFICIENT_USER_SCORE)
           if (response.status === 403 && errorData.error === 'INSUFFICIENT_USER_SCORE') {
             console.log('[Guess] User quality blocked - score below threshold');
-            setErrorMessage(`Your Neynar score (${errorData.score?.toFixed(2) || 'unknown'}) is below the minimum (${errorData.minRequired || 0.6}) required to play.`);
+            setErrorMessage(`Your Neynar score (${errorData.score?.toFixed(2) || 'unknown'}) is below the minimum (${errorData.minRequired || 0.55}) required to play.`);
             setIsLoading(false);
             return; // Don't throw, show specific error
           }
