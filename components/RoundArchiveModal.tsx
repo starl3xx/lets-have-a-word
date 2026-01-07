@@ -17,6 +17,7 @@ interface TopGuesser {
   hasDoubleWBadge?: boolean;
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display type
@@ -36,6 +37,7 @@ interface BonusWordWinner {
   hasDoubleWBadge?: boolean;
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
 }
 
 interface RoundState {
@@ -433,6 +435,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                             hasDoubleWBadge={guesser.hasDoubleWBadge}
                             hasPatronBadge={guesser.hasPatronBadge}
                             hasQuickdrawBadge={guesser.hasQuickdrawBadge}
+                            hasEncyclopedicBadge={guesser.hasEncyclopedicBadge}
                             size="sm"
                           />
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
@@ -492,6 +495,7 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           hasDoubleWBadge={winner.hasDoubleWBadge}
                           hasPatronBadge={winner.hasPatronBadge}
                           hasQuickdrawBadge={winner.hasQuickdrawBadge}
+                          hasEncyclopedicBadge={winner.hasEncyclopedicBadge}
                           size="sm"
                         />
                       </div>

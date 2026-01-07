@@ -5,7 +5,7 @@
  * Wordmarks are permanent achievements earned by playing Let's Have A Word
  */
 
-import { db, userBadges } from '../db';
+import { db, userBadges, guesses } from '../db';
 import { eq, and, sql } from 'drizzle-orm';
 import type { WordmarkType } from '../db/schema';
 
@@ -65,6 +65,13 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
     description: 'Placed in Top 10 Early Guessers',
     emoji: '⚡',
     color: 'emerald',
+  },
+  ENCYCLOPEDIC: {
+    id: 'ENCYCLOPEDIC',
+    name: 'Encyclopedic',
+    description: 'Guessed words starting with every letter A–Z',
+    emoji: '📚',
+    color: 'sky',
   },
 };
 
@@ -218,4 +225,28 @@ export async function getEarnedWordmarkCount(fid: number): Promise<number> {
     .where(eq(userBadges.fid, fid));
 
   return result[0]?.count ?? 0;
+}
+
+/**
+ * Check and award ENCYCLOPEDIC wordmark
+ * Awarded when user has guessed words starting with every letter A-Z
+ */
+export async function checkAndAwardEncyclopedic(fid: number): Promise<boolean> {
+  const alreadyHas = await hasWordmark(fid, 'ENCYCLOPEDIC');
+  if (alreadyHas) return false;
+
+  // Get distinct first letters from all guesses by this user
+  const result = await db.execute<{ letter_count: number }>(sql`
+    SELECT COUNT(DISTINCT UPPER(LEFT(word, 1))) as letter_count
+    FROM guesses
+    WHERE fid = ${fid}
+    AND word ~ '^[A-Za-z]'
+  `);
+
+  const letterCount = result[0]?.letter_count ?? 0;
+
+  // Need all 26 letters
+  if (letterCount < 26) return false;
+
+  return awardWordmark(fid, 'ENCYCLOPEDIC', { letterCount: 26 });
 }

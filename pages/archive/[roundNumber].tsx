@@ -25,6 +25,7 @@ interface TopGuesserWithUsername {
   hasDoubleWBadge?: boolean;
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display in archive
@@ -42,6 +43,7 @@ interface BonusWordWinner {
   hasDoubleWBadge?: boolean;
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
 }
 
 interface ArchivedRound {
@@ -64,6 +66,7 @@ interface ArchivedRound {
   winnerHasDoubleWBadge?: boolean;
   winnerHasPatronBadge?: boolean;
   winnerHasQuickdrawBadge?: boolean;
+  winnerHasEncyclopedicBadge?: boolean;
   startTime: string;
   endTime: string;
   referrerFid: number | null;
@@ -310,6 +313,7 @@ export default function RoundDetailPage() {
                               hasDoubleWBadge={round.winnerHasDoubleWBadge}
                               hasPatronBadge={round.winnerHasPatronBadge}
                               hasQuickdrawBadge={round.winnerHasQuickdrawBadge}
+                              hasEncyclopedicBadge={round.winnerHasEncyclopedicBadge}
                               size="md"
                             />
                           </div>
@@ -437,6 +441,7 @@ export default function RoundDetailPage() {
                             hasDoubleWBadge={guesser.hasDoubleWBadge}
                             hasPatronBadge={guesser.hasPatronBadge}
                             hasQuickdrawBadge={guesser.hasQuickdrawBadge}
+                            hasEncyclopedicBadge={guesser.hasEncyclopedicBadge}
                             size="sm"
                           />
                         </div>
@@ -492,6 +497,7 @@ export default function RoundDetailPage() {
                             hasDoubleWBadge={winner.hasDoubleWBadge}
                             hasPatronBadge={winner.hasPatronBadge}
                             hasQuickdrawBadge={winner.hasQuickdrawBadge}
+                            hasEncyclopedicBadge={winner.hasEncyclopedicBadge}
                             size="sm"
                           />
                         </div>
