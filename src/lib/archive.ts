@@ -210,13 +210,17 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
       if (winningGuess.length > 0) {
         // Count guesses before the winning one
+        // Convert Date to ISO string for safe SQL comparison
+        const winningTime = winningGuess[0].createdAt instanceof Date
+          ? winningGuess[0].createdAt.toISOString()
+          : String(winningGuess[0].createdAt);
         const [priorGuessCount] = await db
           .select({ count: count() })
           .from(guesses)
           .where(
             and(
               eq(guesses.roundId, roundId),
-              sql`${guesses.createdAt} <= ${winningGuess[0].createdAt}`
+              sql`${guesses.createdAt} <= ${winningTime}::timestamp`
             )
           );
         winnerGuessNumber = priorGuessCount?.count ?? null;
