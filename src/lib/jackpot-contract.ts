@@ -48,19 +48,32 @@ const JACKPOT_MANAGER_ABI = [
   'function isMarketCapStale() view returns (bool)',
   'function getMarketCapInfo() view returns (uint256 marketCap, uint256 lastUpdate, bool isStale, uint8 tier)',
 
+  // Bonus Words feature (JackpotManagerV2)
+  'function bonusWordsCommitHashes(uint256 roundNumber) view returns (bytes32)',
+  'function bonusWordsClaimed(uint256 roundNumber, uint256 bonusWordIndex) view returns (bool)',
+  'function bonusWordsEnabled() view returns (bool)',
+  'function BONUS_WORD_REWARD() view returns (uint256)',
+  'function BONUS_WORDS_PER_ROUND() view returns (uint256)',
+  'function clanktonToken() view returns (address)',
+  'function totalClanktonDistributed() view returns (uint256)',
+  'function getBonusWordRewardsBalance() view returns (uint256)',
+
   // Write functions (operator only)
   'function seedJackpot() payable',
   'function resolveRound(address winner)',
   'function resolveRoundWithPayouts(address[] recipients, uint256[] amounts, uint256 seedForNextRound)',
   'function startNextRound()',
   'function startRoundWithCommitment(bytes32 commitHash)',
+  'function startRoundWithCommitments(bytes32 _secretWordCommitHash, bytes32 _bonusWordsCommitHash)',
   'function purchaseGuesses(address player, uint256 quantity) payable',
   'function withdrawCreatorProfit()',
   'function updateClanktonMarketCap(uint256 marketCapUsd)',
+  'function distributeBonusWordReward(address recipient, uint256 bonusWordIndex)',
 
   // Events
   'event RoundStarted(uint256 indexed roundNumber, uint256 startingJackpot, uint256 timestamp)',
   'event RoundStartedWithCommitment(uint256 indexed roundNumber, uint256 startingJackpot, bytes32 indexed commitHash, uint256 timestamp)',
+  'event RoundStartedWithBothCommitments(uint256 indexed roundNumber, uint256 startingJackpot, bytes32 indexed secretCommitHash, bytes32 indexed bonusWordsCommitHash, uint256 timestamp)',
   'event RoundResolved(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 winnerPayout, uint256 timestamp)',
   'event RoundResolvedWithPayouts(uint256 indexed roundNumber, address indexed winner, uint256 jackpotAmount, uint256 totalPaidOut, uint256 seedForNextRound, uint256 recipientCount, uint256 timestamp)',
   'event PayoutSent(uint256 indexed roundNumber, address indexed recipient, uint256 amount, uint256 index)',
@@ -68,6 +81,7 @@ const JACKPOT_MANAGER_ABI = [
   'event GuessesPurchased(uint256 indexed roundNumber, address indexed player, uint256 quantity, uint256 ethAmount, uint256 toJackpot, uint256 toCreator)',
   'event CreatorProfitPaid(address indexed recipient, uint256 amount)',
   'event MarketCapUpdated(uint256 marketCapUsd, uint256 timestamp)',
+  'event BonusWordRewardDistributed(uint256 indexed roundId, address indexed recipient, uint256 bonusWordIndex, uint256 amount)',
 ];
 
 /**
@@ -241,6 +255,21 @@ export async function getCurrentJackpotOnChain(): Promise<string> {
 export async function getCurrentJackpotOnChainWei(): Promise<bigint> {
   const contract = getJackpotManagerReadOnly();
   return await contract.currentJackpot();
+}
+
+/**
+ * Get total CLANKTON distributed from contract
+ * Returns the raw bigint value (with 18 decimals)
+ * To get human-readable value: divide by 10^18
+ */
+export async function getTotalClanktonDistributed(): Promise<bigint> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    return await contract.totalClanktonDistributed();
+  } catch (error) {
+    console.warn('[jackpot-contract] Failed to get totalClanktonDistributed:', error);
+    return 0n;
+  }
 }
 
 /**
@@ -1061,4 +1090,190 @@ export async function startNextRoundOnSepolia(): Promise<string> {
     'startNextRoundOnSepolia is disabled. All rounds must use startRoundWithCommitmentOnSepolia ' +
     'for onchain provable fairness.'
   );
+}
+
+// =============================================================================
+// BONUS WORDS FUNCTIONS (JackpotManagerV2)
+// For rounds with bonus word support
+// =============================================================================
+
+/**
+ * Check if the contract has bonus words feature enabled
+ *
+ * @returns True if bonus words feature is enabled on contract
+ */
+export async function isBonusWordsEnabledOnChain(): Promise<boolean> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    return await contract.bonusWordsEnabled();
+  } catch {
+    // Contract doesn't have bonus words feature (V1)
+    return false;
+  }
+}
+
+/**
+ * Get CLANKTON token balance available for bonus word rewards
+ *
+ * @returns Balance in wei (string formatted as ETH for display)
+ */
+export async function getBonusWordRewardsBalanceOnChain(): Promise<string> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    const balance = await contract.getBonusWordRewardsBalance();
+    return ethers.formatEther(balance);
+  } catch {
+    return '0';
+  }
+}
+
+/**
+ * Start a new round with both secret word and bonus words commitments
+ *
+ * This function commits both commitment hashes onchain before any
+ * guesses can be made, proving both the secret word and bonus words
+ * were locked before the round started.
+ *
+ * @param secretWordCommitHash - SHA-256 hash of (salt || answer) as hex string
+ * @param bonusWordsCommitHash - SHA-256 hash of (masterSalt || salts || words) as hex string
+ * @returns Transaction hash
+ */
+export async function startRoundWithBothCommitmentsOnChain(
+  secretWordCommitHash: string,
+  bonusWordsCommitHash: string
+): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+  const readOnlyContract = getJackpotManagerReadOnly();
+
+  // Ensure commit hashes are properly formatted as bytes32
+  const bytes32SecretHash = secretWordCommitHash.startsWith('0x')
+    ? secretWordCommitHash
+    : `0x${secretWordCommitHash}`;
+  const bytes32BonusHash = bonusWordsCommitHash.startsWith('0x')
+    ? bonusWordsCommitHash
+    : `0x${bonusWordsCommitHash}`;
+
+  console.log(`[CONTRACT] Starting round with both commitments`);
+  console.log(`[CONTRACT] Secret word commit: ${bytes32SecretHash}`);
+  console.log(`[CONTRACT] Bonus words commit: ${bytes32BonusHash}`);
+
+  // Pre-flight diagnostics
+  try {
+    const [roundInfo, minSeed, operatorWallet, bonusEnabled] = await Promise.all([
+      getContractRoundInfo(),
+      readOnlyContract.MINIMUM_SEED() as Promise<bigint>,
+      readOnlyContract.operatorWallet() as Promise<string>,
+      isBonusWordsEnabledOnChain(),
+    ]);
+
+    console.log(`[CONTRACT] Pre-flight check:`);
+    console.log(`  - Current round: ${roundInfo.roundNumber}`);
+    console.log(`  - Current jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
+    console.log(`  - Minimum seed: ${ethers.formatEther(minSeed)} ETH`);
+    console.log(`  - Round isActive: ${roundInfo.isActive}`);
+    console.log(`  - Bonus words enabled: ${bonusEnabled}`);
+    console.log(`  - Contract operator: ${operatorWallet}`);
+
+    if (roundInfo.isActive) {
+      throw new Error(`Cannot start new round: Round ${roundInfo.roundNumber} is still active on contract`);
+    }
+
+    if (roundInfo.jackpot < minSeed) {
+      throw new Error(`Insufficient seed: ${ethers.formatEther(roundInfo.jackpot)} ETH < ${ethers.formatEther(minSeed)} ETH minimum`);
+    }
+
+    if (!bonusEnabled) {
+      throw new Error('Bonus words feature is not enabled on contract. Call setBonusWordsEnabled(true) first.');
+    }
+
+    const ourOperator = new ethers.Wallet(process.env.OPERATOR_PRIVATE_KEY!).address;
+    if (ourOperator.toLowerCase() !== operatorWallet.toLowerCase()) {
+      throw new Error(`Operator mismatch: contract expects ${operatorWallet} but we have ${ourOperator}`);
+    }
+
+    console.log(`[CONTRACT] All pre-flight checks passed`);
+  } catch (error) {
+    console.error(`[CONTRACT] Pre-flight check failed:`, error);
+    throw error;
+  }
+
+  // Call startRoundWithCommitments with explicit gas limit
+  const tx = await contract.startRoundWithCommitments(bytes32SecretHash, bytes32BonusHash, {
+    gasLimit: 600000n,
+  });
+  console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Round started with both commitments - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Distribute CLANKTON reward to a bonus word finder
+ *
+ * @param recipientAddress - Wallet address to receive CLANKTON
+ * @param bonusWordIndex - Index of the bonus word (0-9)
+ * @returns Transaction hash
+ */
+export async function distributeBonusWordRewardOnChain(
+  recipientAddress: string,
+  bonusWordIndex: number
+): Promise<string> {
+  const contract = getJackpotManagerWithOperator();
+
+  console.log(`[CONTRACT] Distributing bonus word reward`);
+  console.log(`  - Recipient: ${recipientAddress}`);
+  console.log(`  - Bonus word index: ${bonusWordIndex}`);
+
+  const tx = await contract.distributeBonusWordReward(recipientAddress, bonusWordIndex, {
+    gasLimit: 200000n,
+  });
+  console.log(`[CONTRACT] Bonus word reward transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Bonus word reward distributed - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
+
+  return tx.hash;
+}
+
+/**
+ * Get the bonus words commit hash for a round from contract
+ *
+ * @param roundNumber - The round number to query
+ * @returns The bonus words commitment hash as hex string, or null if not set
+ */
+export async function getBonusWordsCommitHashOnChain(roundNumber: number): Promise<string | null> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    const commitHash = await contract.bonusWordsCommitHashes(roundNumber);
+
+    const zeroHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+    if (commitHash === zeroHash) {
+      return null;
+    }
+
+    return commitHash;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a specific bonus word has been claimed on contract
+ *
+ * @param roundNumber - The round number
+ * @param bonusWordIndex - The bonus word index (0-9)
+ * @returns True if the bonus word has been claimed
+ */
+export async function isBonusWordClaimedOnChain(
+  roundNumber: number,
+  bonusWordIndex: number
+): Promise<boolean> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    return await contract.bonusWordsClaimed(roundNumber, bonusWordIndex);
+  } catch {
+    return false;
+  }
 }

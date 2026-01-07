@@ -9,8 +9,13 @@ import { isAdminFid } from '../me';
 import { getBaseProvider } from '../../../../src/lib/clankton';
 import { getContractConfig, getJackpotManagerReadOnly } from '../../../../src/lib/jackpot-contract';
 import { db } from '../../../../src/db';
-import { refunds } from '../../../../src/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { refunds, rounds } from '../../../../src/db/schema';
+import { eq, sql, desc } from 'drizzle-orm';
+import { SEED_CAP_ETH } from '../../../../src/lib/economics';
+
+// Minimum seed target for next round
+// Treasury funds below this threshold prioritize seeding rounds
+export const SEED_TARGET_ETH = SEED_CAP_ETH; // 0.03 ETH
 
 export interface WalletBalancesResponse {
   operatorWallet: {
@@ -24,10 +29,25 @@ export interface WalletBalancesResponse {
     balanceWei: string;
     currentJackpotEth: string;
   };
-  creatorPool: {
+  nextRoundSeed: {
+    fivePercentEth: string; // 5% of current jackpot
+    fromTreasuryEth: string; // Amount Treasury contributes to reach 0.03
+    totalEth: string; // min(0.03, 5% + treasury)
+    targetEth: string; // 0.03 ETH target
+    shortfallEth: string; // How much below 0.03 (0 if at or above target)
+  };
+  treasury: {
     address: string;
-    accumulatedEth: string;
-    accumulatedWei: string;
+    balanceEth: string; // Total treasury balance
+    balanceWei: string;
+    contributingToSeedEth: string; // Amount going to seed (up to shortfall)
+    withdrawableEth: string; // Only amount ABOVE what's needed for seed
+    isWithdrawable: boolean; // True if withdrawableEth > 0
+  };
+  clanktonRewards: {
+    tokenAddress: string;
+    balance: string; // Human readable (e.g., "5000000000" for 5B)
+    balanceRaw: string; // Raw with 18 decimals
   };
   pendingRefunds: {
     count: number;
@@ -84,6 +104,17 @@ export default async function handler(
       contractError = 'Contract not deployed or not accessible';
     }
 
+    // Fetch CLANKTON token balance held by the JackpotManager contract
+    const CLANKTON_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+    let clanktonBalance: bigint = 0n;
+    try {
+      const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
+      const clanktonContract = new ethers.Contract(CLANKTON_TOKEN_ADDRESS, erc20Abi, provider);
+      clanktonBalance = await clanktonContract.balanceOf(config.jackpotManagerAddress);
+    } catch (err) {
+      console.warn('[admin/wallet/balances] CLANKTON balance fetch failed:', err);
+    }
+
     // Database query for pending refunds
     let pendingRefunds = { count: 0, totalEth: '0' };
     try {
@@ -98,6 +129,41 @@ export default async function handler(
       console.warn('[admin/wallet/balances] Refunds query failed:', err);
     }
 
+    // Format CLANKTON balance (18 decimals) to human readable
+    const clanktonHumanReadable = ethers.formatUnits(clanktonBalance, 18);
+    // Round to whole number for display (e.g., "5000000000" for 5B)
+    const clanktonWhole = Math.floor(parseFloat(clanktonHumanReadable)).toString();
+
+    // =========================================================================
+    // TREASURY + SEED CALCULATION
+    // =========================================================================
+    // Next Round Seed = min(0.03, 5% of jackpot + treasury)
+    // Treasury contributes to seed until 0.03 target is reached
+    // Only treasury balance ABOVE what's needed for seed is withdrawable
+    // =========================================================================
+
+    const currentJackpotFloat = parseFloat(ethers.formatEther(currentJackpot));
+    const treasuryBalance = parseFloat(ethers.formatEther(creatorAccumulated));
+
+    // 5% of current jackpot
+    const fivePercentOfJackpot = currentJackpotFloat * 0.05;
+
+    // How much more do we need to reach 0.03 target?
+    const shortfallAfterFivePercent = Math.max(0, SEED_TARGET_ETH - fivePercentOfJackpot);
+
+    // Treasury contributes up to the shortfall amount
+    const treasuryContribution = Math.min(treasuryBalance, shortfallAfterFivePercent);
+
+    // Total seed = 5% + treasury contribution (capped at 0.03)
+    const totalSeed = Math.min(SEED_TARGET_ETH, fivePercentOfJackpot + treasuryContribution);
+
+    // Final shortfall (if 5% + treasury still < 0.03)
+    const finalShortfall = Math.max(0, SEED_TARGET_ETH - totalSeed);
+
+    // Withdrawable = treasury balance minus what's being used for seed
+    const withdrawableAmount = Math.max(0, treasuryBalance - treasuryContribution);
+    const isWithdrawable = withdrawableAmount > 0;
+
     const response: WalletBalancesResponse = {
       operatorWallet: {
         address: config.operatorWallet,
@@ -110,10 +176,25 @@ export default async function handler(
         balanceWei: prizePoolBalance.toString(),
         currentJackpotEth: ethers.formatEther(currentJackpot),
       },
-      creatorPool: {
+      nextRoundSeed: {
+        fivePercentEth: fivePercentOfJackpot.toFixed(18),
+        fromTreasuryEth: treasuryContribution.toFixed(18),
+        totalEth: totalSeed.toFixed(18),
+        targetEth: SEED_TARGET_ETH.toFixed(18),
+        shortfallEth: finalShortfall.toFixed(18),
+      },
+      treasury: {
         address: config.creatorProfitWallet,
-        accumulatedEth: ethers.formatEther(creatorAccumulated),
-        accumulatedWei: creatorAccumulated.toString(),
+        balanceEth: treasuryBalance.toFixed(18),
+        balanceWei: creatorAccumulated.toString(),
+        contributingToSeedEth: treasuryContribution.toFixed(18),
+        withdrawableEth: withdrawableAmount.toFixed(18),
+        isWithdrawable,
+      },
+      clanktonRewards: {
+        tokenAddress: CLANKTON_TOKEN_ADDRESS,
+        balance: clanktonWhole,
+        balanceRaw: clanktonBalance.toString(),
       },
       pendingRefunds: {
         count: pendingRefunds.count,

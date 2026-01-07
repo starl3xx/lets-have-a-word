@@ -109,8 +109,17 @@ export const GUESS_PACK_SIZE = 3;
 
 /**
  * Maximum guess packs purchasable per day
+ * Set via MAX_PACKS_PER_DAY env variable (default: unlimited/999)
+ * Use "unlimited" or a high number to remove limits
  */
-export const MAX_PACKS_PER_DAY = 3;
+export const MAX_PACKS_PER_DAY = (() => {
+  const envValue = process.env.MAX_PACKS_PER_DAY;
+  if (!envValue || envValue.toLowerCase() === 'unlimited') {
+    return 999; // Effectively unlimited
+  }
+  const parsed = parseInt(envValue, 10);
+  return isNaN(parsed) ? 999 : parsed;
+})();
 
 /**
  * Price per guess pack in ETH

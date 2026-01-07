@@ -13,6 +13,7 @@ import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
+import { hasClanktonBonus } from '../../../src/lib/clankton';
 
 export interface TopGuesser {
   fid: number;
@@ -20,6 +21,8 @@ export interface TopGuesser {
   guessCount: number;
   pfpUrl: string; // Farcaster profile picture URL
   hasOgHunterBadge: boolean;
+  hasClanktonBadge: boolean;
+  hasBonusWordBadge: boolean;
 }
 
 export interface TopGuessersResponse {
@@ -115,6 +118,8 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       guessCount: guessCounts[i],
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       hasOgHunterBadge: false, // Dev mode: no badges
+      hasClanktonBadge: false, // Dev mode: no badges
+      hasBonusWordBadge: false, // Dev mode: no badges
     };
   });
 
@@ -164,6 +169,9 @@ export default async function handler(
       });
     }
 
+    // Check for cache bypass
+    const noCache = req.query.nocache === 'true';
+
     // Get current active round
     const [activeRound] = await db
       .select({ id: rounds.id })
@@ -182,10 +190,12 @@ export default async function handler(
     }
 
     // Milestone 9.2: Cache top guessers data
+    // Pass TTL of 0 to bypass cache when nocache=true
     const cacheKey = CacheKeys.topGuessers(currentRoundId);
+    const cacheTTL = noCache ? 0 : CacheTTL.topGuessers;
     const cachedResponse = await cacheAside<TopGuessersResponse>(
       cacheKey,
-      CacheTTL.topGuessers,
+      cacheTTL,
       async () => {
         // Get top 10 guessers for the current round
         // Group by FID, count guesses, join with users for username
@@ -196,6 +206,7 @@ export default async function handler(
             .select({
               fid: guesses.fid,
               username: users.username,
+              signerWalletAddress: users.signerWalletAddress,
               guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
               // Track when player made their last guess (for tiebreaker)
               lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
@@ -213,7 +224,7 @@ export default async function handler(
                 )
               )
             )
-            .groupBy(guesses.fid, users.username)
+            .groupBy(guesses.fid, users.username, users.signerWalletAddress)
             // Primary: most guesses (desc), Secondary: who reached that count first (asc)
             .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
             .limit(10),
@@ -231,52 +242,115 @@ export default async function handler(
         // Get FIDs of top guessers to check for badges
         const topGuesserFids = topGuessersData.map((g) => g.fid);
 
-        // Fetch OG Hunter badges for these users
-        const ogHunterBadges = topGuesserFids.length > 0
-          ? await db
-              .select({ fid: userBadges.fid })
-              .from(userBadges)
-              .where(
-                and(
-                  inArray(userBadges.fid, topGuesserFids),
-                  eq(userBadges.badgeType, 'OG_HUNTER')
-                )
-              )
-          : [];
+        // Fetch OG Hunter and Bonus Word badges for these users
+        const [ogHunterBadges, bonusWordBadges] = topGuesserFids.length > 0
+          ? await Promise.all([
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'OG_HUNTER')
+                  )
+                ),
+              db
+                .select({ fid: userBadges.fid })
+                .from(userBadges)
+                .where(
+                  and(
+                    inArray(userBadges.fid, topGuesserFids),
+                    eq(userBadges.badgeType, 'BONUS_WORD_FINDER')
+                  )
+                ),
+            ])
+          : [[], []];
 
-        const badgeFids = new Set(ogHunterBadges.map((b) => b.fid));
+        const ogHunterFids = new Set(ogHunterBadges.map((b) => b.fid));
+        const bonusWordFids = new Set(bonusWordBadges.map((b) => b.fid));
+
+        // Check CLANKTON balances for users with wallets
+        // Wrapped in defensive try/catch since this makes RPC calls that could fail
+        const clanktonHolders = new Set<number>();
+        try {
+          const walletsToCheck = topGuessersData
+            .filter((g) => g.signerWalletAddress)
+            .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
+
+          if (walletsToCheck.length > 0) {
+            // Check all wallets in parallel with individual error handling
+            const clanktonResults = await Promise.allSettled(
+              walletsToCheck.map(async ({ fid, wallet }) => ({
+                fid,
+                hasClankton: await hasClanktonBonus(wallet),
+              }))
+            );
+            for (const result of clanktonResults) {
+              if (result.status === 'fulfilled' && result.value.hasClankton) {
+                clanktonHolders.add(result.value.fid);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[top-guessers] Error checking CLANKTON balances:', error);
+          // Continue without CLANKTON badges on error
+        }
 
         // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
         const allFids = topGuessersData.map((g) => g.fid);
+        // Filter out invalid FIDs (0, negative, or non-integers)
+        const validFids = allFids.filter(fid => fid > 0 && Number.isInteger(fid));
+        if (validFids.length !== allFids.length) {
+          console.warn(`[top-guessers] Found ${allFids.length - validFids.length} invalid FIDs:`,
+            allFids.filter(fid => !validFids.includes(fid)));
+        }
 
         let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
-        if (allFids.length > 0) {
+        if (validFids.length > 0) {
           try {
-            const userData = await neynarClient.fetchBulkUsers({ fids: allFids });
-            if (userData.users) {
+            console.log(`[top-guessers] Fetching ${validFids.length} profiles from Neynar:`, validFids);
+            const userData = await neynarClient.fetchBulkUsers({ fids: validFids });
+            console.log(`[top-guessers] Neynar returned ${userData.users?.length || 0} users`);
+
+            if (userData.users && userData.users.length > 0) {
               for (const user of userData.users) {
+                // Log each user's data for debugging
+                console.log(`[top-guessers] Neynar user ${user.fid}: username="${user.username}", pfp="${user.pfp_url?.substring(0, 50)}..."`);
                 neynarProfiles.set(user.fid, {
-                  username: user.username || `FID ${user.fid}`,
-                  pfpUrl: user.pfp_url || `https://warpcast.com/avatar/${user.fid}`,
+                  username: user.username || `fid:${user.fid}`,
+                  pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
                 });
               }
+              // Log which FIDs are missing from Neynar
+              const returnedFids = new Set(userData.users.map(u => u.fid));
+              const missingFids = validFids.filter(fid => !returnedFids.has(fid));
+              if (missingFids.length > 0) {
+                console.error(`[top-guessers] CRITICAL: Neynar missing data for FIDs:`, missingFids);
+              }
+            } else {
+              console.error(`[top-guessers] CRITICAL: Neynar returned no users for FIDs:`, validFids);
             }
           } catch (err) {
             // Neynar fetch failed, fall back to defaults
-            console.warn('[top-guessers] Failed to fetch profiles from Neynar:', err);
+            console.error('[top-guessers] CRITICAL: Failed to fetch profiles from Neynar:', err);
           }
         }
 
         // Format response with profile picture URLs
         // Prefer Neynar data for both username and pfpUrl (more reliable)
+        // IMPORTANT: Always use fid:XXX format as fallback, never "unknown"
         const topGuessers: TopGuesser[] = topGuessersData.map((g) => {
           const neynarProfile = neynarProfiles.get(g.fid);
+          // Only use local DB username if it's a real username (not null, empty, or "unknown")
+          const localUsername = g.username && g.username !== 'unknown' ? g.username : null;
           return {
             fid: g.fid,
-            username: neynarProfile?.username || g.username || `FID ${g.fid}`,
+            username: neynarProfile?.username || localUsername || `fid:${g.fid}`,
             guessCount: Number(g.guessCount),
-            pfpUrl: neynarProfile?.pfpUrl || `https://warpcast.com/avatar/${g.fid}`,
-            hasOgHunterBadge: badgeFids.has(g.fid),
+            pfpUrl: neynarProfile?.pfpUrl || `https://avatar.vercel.sh/${g.fid}`,
+            hasOgHunterBadge: ogHunterFids.has(g.fid),
+            hasClanktonBadge: clanktonHolders.has(g.fid),
+            hasBonusWordBadge: bonusWordFids.has(g.fid),
           };
         });
 

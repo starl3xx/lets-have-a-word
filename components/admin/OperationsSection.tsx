@@ -134,6 +134,8 @@ interface OperationsSectionProps {
 // Styles
 // =============================================================================
 
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+
 const styles = {
   card: {
     background: "white",
@@ -141,12 +143,14 @@ const styles = {
     border: "1px solid #e5e7eb",
     padding: "24px",
     marginBottom: "24px",
+    fontFamily,
   },
   cardTitle: {
     fontSize: "16px",
     fontWeight: 600,
     color: "#111827",
     margin: "0 0 16px 0",
+    fontFamily,
   },
   statusBadge: (status: string) => ({
     display: "inline-block",
@@ -289,6 +293,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [xpEventType, setXpEventType] = useState("")
   const [xpReason, setXpReason] = useState("")
   const [xpLoading, setXpLoading] = useState(false)
+
+  // Share Bonus state
+  const [shareBonusFid, setShareBonusFid] = useState("")
+  const [shareBonusReason, setShareBonusReason] = useState("")
+  const [shareBonusLoading, setShareBonusLoading] = useState(false)
 
   // XP event options with labels and values
   const xpEventOptions = [
@@ -920,6 +929,47 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setError(err.message)
     } finally {
       setXpLoading(false)
+    }
+  }
+
+  const handleGrantShareBonus = async () => {
+    if (!user?.fid) return
+
+    const targetFid = parseInt(shareBonusFid, 10)
+    if (isNaN(targetFid) || targetFid <= 0) {
+      setError('Please enter a valid FID')
+      return
+    }
+
+    try {
+      setShareBonusLoading(true)
+      setError(null)
+      setSuccess(null)
+
+      const res = await fetch('/api/admin/grant-share-bonus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          targetFid,
+          reason: shareBonusReason || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to grant share bonus')
+      }
+
+      setSuccess(data.message)
+      // Clear form on success
+      setShareBonusFid('')
+      setShareBonusReason('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setShareBonusLoading(false)
     }
   }
 
@@ -2034,6 +2084,49 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               disabled={xpLoading || !xpTargetFid || !xpEventType}
             >
               {xpLoading ? 'Awarding...' : 'Award XP'}
+            </button>
+          </div>
+
+          {/* Manual Share Bonus Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>Grant Share Bonus</h2>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Manually grant +1 share bonus guess to a user for today. Useful when a user shared but missed the share modal.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Target FID</label>
+              <input
+                type="number"
+                style={styles.input}
+                placeholder="e.g., 310815"
+                value={shareBonusFid}
+                onChange={(e) => setShareBonusFid(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Reason (optional)</label>
+              <input
+                type="text"
+                style={styles.input}
+                placeholder="e.g., Missed share modal"
+                value={shareBonusReason}
+                onChange={(e) => setShareBonusReason(e.target.value)}
+              />
+            </div>
+
+            <button
+              onClick={handleGrantShareBonus}
+              style={{
+                ...styles.btnPrimary,
+                background: '#8b5cf6',
+                opacity: shareBonusLoading || !shareBonusFid ? 0.6 : 1,
+                cursor: shareBonusLoading || !shareBonusFid ? 'not-allowed' : 'pointer',
+              }}
+              disabled={shareBonusLoading || !shareBonusFid}
+            >
+              {shareBonusLoading ? 'Granting...' : 'Grant Share Bonus (+1 guess)'}
             </button>
           </div>
         </>

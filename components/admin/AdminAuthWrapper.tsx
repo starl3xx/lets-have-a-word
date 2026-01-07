@@ -3,6 +3,8 @@
 
 import React, { useState, useEffect } from "react"
 
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+
 // Admin FIDs
 const ADMIN_FIDS = [
   6500,      // Primary admin
@@ -119,7 +121,7 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
         alignItems: "center",
         justifyContent: "center",
         background: "#f3f4f6",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily,
       }}>
         <div style={{
           background: "white",
@@ -177,7 +179,7 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
         alignItems: "center",
         justifyContent: "center",
         background: "#f3f4f6",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily,
       }}>
         <div style={{
           background: "white",
@@ -236,7 +238,7 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
         alignItems: "center",
         justifyContent: "center",
         background: "#f3f4f6",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily,
       }}>
         <div style={{
           background: "white",

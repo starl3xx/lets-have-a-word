@@ -46,7 +46,7 @@ You can earn bonus free guesses by:
 1. Sharing your daily guess on Farcaster (+1 guess/day)
 2. Holding 100M CLANKTON tokens (+2–3 guesses/day depending on market cap)
 
-You can also purchase paid guess packs (3 guesses per pack, up to 3 packs per day).
+You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).
 
 ## What's the CLANKTON bonus?
 
@@ -70,13 +70,19 @@ Paid guesses:
 
 ## How much do guess packs cost?
 
-Each pack contains **3 guesses** and is priced dynamically based on total guesses in the round:
+Each pack contains **3 guesses**. Pricing has two components:
 
-- **0–749 total guesses** (early round): 0.00030 ETH
-- **750–1249 guesses** (late round): 0.00045 ETH
-- **1250+ guesses** (late round, max): 0.00060 ETH
+**Stage-based pricing** (based on total guesses in round):
+- 0–749 guesses (early): 0.00030 ETH base
+- 750–1249 guesses (late): 0.00045 ETH base
+- 1250+ guesses (late max): 0.00060 ETH base
 
-Pack prices increase only after Top 10 locks. Pricing is computed server-side at purchase time and displayed in the UI.
+**Volume-based multipliers** (based on daily purchases):
+- Packs 1–3: 1× base price
+- Packs 4–6: 1.5× base price
+- Packs 7+: 2× base price
+
+Pack purchases are **unlimited** — there's no daily cap. Volume multipliers reset at 11:00 UTC along with paid guess expiration.
 
 ## What happens to my unused guesses?
 
@@ -91,12 +97,15 @@ Pack prices increase only after Top 10 locks. Pricing is computed server-side at
 When a round is won, the prize pool is distributed atomically onchain in a single transaction:
 
 - **80%** → Jackpot winner
-- **10%** → Top 10 early guessers
-- **10%** → Referrer (if one exists)
+- **10%** → Top 10 Early Guessers
+- **5%** → Referrer (if one exists)
+- **5%** → Next round seed
 
 If the winner **does not** have a referrer:
-- **7.5%** is added to the Top 10 pool
-- **2.5%** seeds the next round's prize pool
+- **2.5%** of the referrer share is added to the Top 10 pool
+- **2.5%** is added to the next round seed
+- Next round seed is capped at 0.03 ETH
+- Any overflow above the cap goes to the treasury
 
 Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
 
@@ -127,7 +136,7 @@ This distribution is fixed and always applies when a round is resolved, scaling 
 
 ## How do referrals work?
 
-Share your unique referral link with friends or on the timeline. If anyone who joins using your link **ever wins a jackpot**, you'll automatically receive **10% of that round's prize pool**.
+Share your unique referral link with friends or on the timeline. If anyone who joins using your link **ever wins a jackpot**, you'll automatically receive **5% of that round's prize pool**.
 
 You can track your referrals and earnings in the Refer sheet.
 

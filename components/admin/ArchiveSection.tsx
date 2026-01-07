@@ -4,7 +4,7 @@
  * Enhanced with distribution charts, error tracking, and detailed round views
  */
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { AnalyticsChart } from "./AnalyticsChart"
 
 // =============================================================================
@@ -72,7 +72,7 @@ interface Distribution {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
+const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   module: {
@@ -187,6 +187,10 @@ const styles = {
     color: "#dc2626",
     marginBottom: "24px",
     fontFamily,
+    whiteSpace: "pre-wrap" as const,
+    fontSize: "12px",
+    maxHeight: "400px",
+    overflow: "auto",
   },
   success: {
     background: "#f0fdf4",
@@ -238,6 +242,9 @@ function StatCard({ label, value, subtext, loading }: {
 export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [forceSyncing, setForceSyncing] = useState(false)
+  const [rearchiving, setRearchiving] = useState(false)
+  const [fixingRound, setFixingRound] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<ArchiveStats | null>(null)
   const [rounds, setRounds] = useState<ArchivedRound[]>([])
@@ -247,7 +254,11 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [syncResult, setSyncResult] = useState<any>(null)
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null)
   const [distribution, setDistribution] = useState<Distribution | null>(null)
+  const [usernames, setUsernames] = useState<Record<number, string>>({})
+  const [resolvingErrorId, setResolvingErrorId] = useState<number | null>(null)
+  const [loadingDetailFor, setLoadingDetailFor] = useState<number | null>(null)
   const pageSize = 15
+  const detailSectionRef = useRef<HTMLDivElement>(null)
 
   const fetchArchiveData = useCallback(async () => {
     if (!user?.fid) return
@@ -281,15 +292,21 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     }
   }, [user?.fid, page])
 
-  const syncArchive = async () => {
+  const syncArchive = async (force = false) => {
     if (!user?.fid) return
 
-    setSyncing(true)
+    if (force) {
+      setForceSyncing(true)
+    } else {
+      setSyncing(true)
+    }
     setSyncResult(null)
 
     try {
       const response = await fetch(`/api/admin/archive/sync?devFid=${user.fid}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
       })
       if (!response.ok) throw new Error('Failed to sync archive')
       const result = await response.json()
@@ -299,22 +316,181 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       setError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
+      setForceSyncing(false)
+    }
+  }
+
+  const fixAndArchiveRound = async (roundNumber?: number) => {
+    if (!user?.fid) return
+
+    setFixingRound(true)
+    setSyncResult(null)
+    setError(null)
+
+    try {
+      // If no roundNumber specified, let the endpoint find the unarchived round
+      const url = roundNumber
+        ? `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}&roundId=${roundNumber}`
+        : `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}`
+      const response = await fetch(url, { method: 'GET' })
+      const result = await response.json()
+
+      if (result.success) {
+        setSyncResult({
+          archived: 1,
+          alreadyArchived: 0,
+          failed: 0,
+          errors: [],
+          fixResult: result,
+        })
+        await fetchArchiveData()
+      } else {
+        // Build a detailed error message with diagnostic info
+        let errorMsg = result.error || result.details || 'Fix failed'
+        if (result.diagnostic) {
+          const diag = result.diagnostic
+          errorMsg += `\n\nDiagnostic Info:\n`
+          errorMsg += `All rounds: ${JSON.stringify(diag.allRounds, null, 2)}\n`
+          errorMsg += `Archived round numbers: ${JSON.stringify(diag.archivedRoundNumbers)}\n`
+          errorMsg += `Resolved round IDs: ${JSON.stringify(diag.resolvedRoundIds)}\n`
+          errorMsg += `Message: ${diag.message}`
+        }
+        setError(errorMsg)
+        setSyncResult({
+          archived: 0,
+          alreadyArchived: 0,
+          failed: 1,
+          errors: [result.error || result.details],
+        })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fix failed')
+    } finally {
+      setFixingRound(false)
+    }
+  }
+
+  const rearchiveRound = async (roundNumber: number) => {
+    if (!user?.fid) return
+
+    setRearchiving(true)
+    setSyncResult(null)
+
+    try {
+      const response = await fetch(`/api/admin/archive/sync?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundId: roundNumber, force: true }),
+      })
+      if (!response.ok) throw new Error('Failed to re-archive round')
+      const result = await response.json()
+      setSyncResult(result)
+      // Refresh the selected round details
+      await fetchRoundDetail(roundNumber)
+      await fetchArchiveData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Re-archive failed')
+    } finally {
+      setRearchiving(false)
     }
   }
 
   const fetchRoundDetail = async (roundNumber: number) => {
-    if (!user?.fid) return
+    if (!user?.fid) {
+      setError('Not authenticated')
+      return
+    }
+
+    setLoadingDetailFor(roundNumber)
+    setError(null)
 
     try {
       const response = await fetch(
         `/api/archive/${roundNumber}?devFid=${user.fid}&distribution=true`
       )
-      if (!response.ok) throw new Error('Failed to fetch round detail')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to fetch round detail (${response.status})`)
+      }
       const data = await response.json()
+
+      if (!data.round) {
+        throw new Error(`Round ${roundNumber} not found in archive`)
+      }
+
       setSelectedRound(data.round)
       setDistribution(data.distribution)
+
+      // Collect all FIDs that need usernames
+      const fids: number[] = []
+      if (data.round?.winnerFid) fids.push(data.round.winnerFid)
+      if (data.round?.referrerFid) fids.push(data.round.referrerFid)
+      if (data.round?.payoutsJson?.winner?.fid) fids.push(data.round.payoutsJson.winner.fid)
+      if (data.round?.payoutsJson?.referrer?.fid) fids.push(data.round.payoutsJson.referrer.fid)
+      if (data.round?.payoutsJson?.topGuessers) {
+        data.round.payoutsJson.topGuessers.forEach((g: any) => {
+          if (g.fid) fids.push(g.fid)
+        })
+      }
+      if (data.distribution?.byPlayer) {
+        data.distribution.byPlayer.slice(0, 10).forEach((p: any) => {
+          if (p.fid) fids.push(p.fid)
+        })
+      }
+
+      // Fetch usernames for all unique FIDs
+      const uniqueFids = [...new Set(fids)]
+      if (uniqueFids.length > 0) {
+        try {
+          const usernamesRes = await fetch(
+            `/api/admin/usernames?devFid=${user.fid}&fids=${uniqueFids.join(',')}`
+          )
+          if (usernamesRes.ok) {
+            const usernamesData = await usernamesRes.json()
+            if (usernamesData.usernames) {
+              setUsernames(usernamesData.usernames)
+            }
+          }
+        } catch {
+          // Usernames are optional - don't fail if we can't get them
+        }
+      }
+    // Scroll to details section after setting the data
+      setTimeout(() => {
+        detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
     } catch (err) {
       console.error('Failed to fetch round detail:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch round detail')
+    } finally {
+      setLoadingDetailFor(null)
+    }
+  }
+
+  // Helper to display FID with username
+  const formatFid = (fid: number | null | undefined) => {
+    if (!fid) return 'N/A'
+    const username = usernames[fid]
+    return username ? `@${username} (${fid})` : `FID ${fid}`
+  }
+
+  const resolveError = async (errorId: number) => {
+    if (!user?.fid) return
+
+    setResolvingErrorId(errorId)
+    try {
+      const response = await fetch(`/api/admin/archive/resolve-error?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ errorId }),
+      })
+      if (!response.ok) throw new Error('Failed to resolve error')
+      // Remove the resolved error from the list
+      setErrors(prev => prev.filter(e => e.id !== errorId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resolve error')
+    } finally {
+      setResolvingErrorId(null)
     }
   }
 
@@ -382,11 +558,33 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             {loading ? 'Loading...' : 'Refresh'}
           </button>
           <button
-            onClick={syncArchive}
+            onClick={() => syncArchive(false)}
             style={styles.btn}
-            disabled={syncing}
+            disabled={syncing || forceSyncing}
           >
-            {syncing ? 'Syncing...' : 'Sync All Rounds'}
+            {syncing ? 'Syncing...' : 'Sync New'}
+          </button>
+          <button
+            onClick={() => syncArchive(true)}
+            style={{
+              ...styles.btn,
+              background: "#dc2626",
+            }}
+            disabled={syncing || forceSyncing}
+            title="Delete and re-archive all rounds (fixes ranking issues)"
+          >
+            {forceSyncing ? 'Re-syncing...' : 'Force Re-sync All'}
+          </button>
+          <button
+            onClick={() => fixAndArchiveRound()}
+            style={{
+              ...styles.btn,
+              background: "#f59e0b",
+            }}
+            disabled={fixingRound || syncing || forceSyncing}
+            title="Emergency fix - finds and archives any unarchived resolved round"
+          >
+            {fixingRound ? 'Fixing...' : '🔧 Fix Unarchived'}
           </button>
         </div>
       </div>
@@ -434,38 +632,15 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             />
             <StatCard
               label="Avg Duration"
-              value={`${Math.round(stats.avgRoundLengthMinutes)} min`}
+              value={(() => {
+                const totalMinutes = Math.round(stats.avgRoundLengthMinutes)
+                const hours = Math.floor(totalMinutes / 60)
+                const minutes = totalMinutes % 60
+                return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
+              })()}
               subtext="Start to end"
               loading={loading}
             />
-          </div>
-        </div>
-      )}
-
-      {/* Archive Errors */}
-      {errors.length > 0 && (
-        <div style={styles.module}>
-          <h3 style={styles.moduleHeader}>Archive Errors ({errors.length})</h3>
-          <div style={{ background: "#fef3c7", border: "1px solid #fbbf24", borderRadius: "8px", padding: "16px" }}>
-            {errors.slice(0, 5).map((err, idx) => (
-              <div key={idx} style={{
-                padding: "8px 12px",
-                background: "#fffbeb",
-                borderRadius: "6px",
-                marginBottom: "8px",
-                fontSize: "13px",
-              }}>
-                <strong>Round {err.roundNumber}:</strong> {err.errorType} - {err.errorMessage}
-                {err.resolved && (
-                  <span style={{ marginLeft: "8px", color: "#16a34a" }}>(Resolved)</span>
-                )}
-              </div>
-            ))}
-            {errors.length > 5 && (
-              <div style={{ fontSize: "12px", color: "#92400e", marginTop: "8px" }}>
-                ...and {errors.length - 5} more errors
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -520,7 +695,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     <td style={{ ...styles.td, textAlign: "right" }}>{round.uniquePlayers}</td>
                     <td style={styles.td}>
                       {round.winnerFid ? (
-                        <span style={{ color: "#6366f1" }}>FID {round.winnerFid}</span>
+                        <span style={{ color: "#6366f1" }}>{formatFid(round.winnerFid)}</span>
                       ) : (
                         <span style={{ color: "#9ca3af" }}>-</span>
                       )}
@@ -532,9 +707,14 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     <td style={{ ...styles.td, textAlign: "center" }}>
                       <button
                         onClick={() => fetchRoundDetail(round.roundNumber)}
-                        style={styles.btnSmall}
+                        style={{
+                          ...styles.btnSmall,
+                          opacity: loadingDetailFor !== null ? 0.6 : 1,
+                          cursor: loadingDetailFor !== null ? "not-allowed" : "pointer",
+                        }}
+                        disabled={loadingDetailFor !== null}
                       >
-                        Details
+                        {loadingDetailFor === round.roundNumber ? 'Loading...' : 'Details'}
                       </button>
                     </td>
                   </tr>
@@ -578,7 +758,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
 
       {/* Selected Round Detail */}
       {selectedRound && (
-        <div style={styles.module}>
+        <div ref={detailSectionRef} style={styles.module}>
           <h3 style={styles.moduleHeader}>Round #{selectedRound.roundNumber} Details</h3>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
@@ -625,16 +805,16 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                 <table style={{ width: "100%", fontSize: "13px" }}>
                   <tbody>
                     <tr>
-                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Winner FID:</td>
-                      <td style={{ padding: "6px 0" }}>{selectedRound.winnerFid || 'N/A'}</td>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Winner:</td>
+                      <td style={{ padding: "6px 0" }}>{formatFid(selectedRound.winnerFid)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>Winning Guess #:</td>
                       <td style={{ padding: "6px 0" }}>{selectedRound.winnerGuessNumber || 'N/A'}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Referrer FID:</td>
-                      <td style={{ padding: "6px 0" }}>{selectedRound.referrerFid || 'None'}</td>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Referrer:</td>
+                      <td style={{ padding: "6px 0" }}>{selectedRound.referrerFid ? formatFid(selectedRound.referrerFid) : 'None'}</td>
                     </tr>
                     {selectedRound.winnerCastHash && (
                       <tr>
@@ -654,13 +834,13 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                 <div style={{ background: "#f9fafb", borderRadius: "8px", padding: "16px", fontSize: "13px" }}>
                   {selectedRound.payoutsJson.winner && (
                     <div style={{ marginBottom: "8px" }}>
-                      <strong>Winner (FID {selectedRound.payoutsJson.winner.fid}):</strong>{' '}
+                      <strong>Winner ({formatFid(selectedRound.payoutsJson.winner.fid)}):</strong>{' '}
                       {formatEth(selectedRound.payoutsJson.winner.amountEth)} ETH
                     </div>
                   )}
                   {selectedRound.payoutsJson.referrer && (
                     <div style={{ marginBottom: "8px" }}>
-                      <strong>Referrer (FID {selectedRound.payoutsJson.referrer.fid}):</strong>{' '}
+                      <strong>Referrer ({formatFid(selectedRound.payoutsJson.referrer.fid)}):</strong>{' '}
                       {formatEth(selectedRound.payoutsJson.referrer.amountEth)} ETH
                     </div>
                   )}
@@ -669,7 +849,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                       <strong>Top Guessers ({selectedRound.payoutsJson.topGuessers.length}):</strong>
                       <ul style={{ margin: "4px 0 0 20px", padding: 0 }}>
                         {selectedRound.payoutsJson.topGuessers.map((g: any, idx: number) => (
-                          <li key={idx}>#{g.rank} FID {g.fid}: {formatEth(g.amountEth)} ETH</li>
+                          <li key={idx}>#{g.rank} {formatFid(g.fid)}: {formatEth(g.amountEth)} ETH</li>
                         ))}
                       </ul>
                     </div>
@@ -723,7 +903,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
                     <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>#</th>
-                    <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>FID</th>
+                    <th style={{ padding: "8px", textAlign: "left", fontWeight: 600 }}>Player</th>
                     <th style={{ padding: "8px", textAlign: "right", fontWeight: 600 }}>Guesses</th>
                   </tr>
                 </thead>
@@ -731,7 +911,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                   {distribution.byPlayer.slice(0, 10).map((p, idx) => (
                     <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
                       <td style={{ padding: "8px" }}>{idx + 1}</td>
-                      <td style={{ padding: "8px" }}>{p.fid}</td>
+                      <td style={{ padding: "8px" }}>{formatFid(p.fid)}</td>
                       <td style={{ padding: "8px", textAlign: "right" }}>{p.count}</td>
                     </tr>
                   ))}
@@ -740,22 +920,41 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             </div>
           )}
 
-          <button
-            onClick={() => { setSelectedRound(null); setDistribution(null); }}
-            style={{
-              marginTop: "24px",
-              padding: "8px 16px",
-              background: "#6b7280",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontFamily,
-            }}
-          >
-            Close Details
-          </button>
+          <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+            <button
+              onClick={() => rearchiveRound(selectedRound.roundNumber)}
+              disabled={rearchiving}
+              style={{
+                padding: "8px 16px",
+                background: "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: rearchiving ? "not-allowed" : "pointer",
+                fontSize: "13px",
+                fontFamily,
+                opacity: rearchiving ? 0.6 : 1,
+              }}
+              title="Delete and re-archive this round (fixes ranking issues)"
+            >
+              {rearchiving ? 'Re-archiving...' : 'Re-archive This Round'}
+            </button>
+            <button
+              onClick={() => { setSelectedRound(null); setDistribution(null); setUsernames({}); }}
+              style={{
+                padding: "8px 16px",
+                background: "#6b7280",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontFamily,
+              }}
+            >
+              Close Details
+            </button>
+          </div>
         </div>
       )}
     </div>

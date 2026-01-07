@@ -55,10 +55,12 @@ export const rounds = pgTable('rounds', {
   answer: varchar('answer', { length: 100 }).notNull(), // Encrypted answer (iv:tag:ciphertext) or legacy plaintext
   salt: varchar('salt', { length: 64 }).notNull(), // Random salt for hashing
   commitHash: varchar('commit_hash', { length: 64 }).notNull(), // H(salt||answer)
+  bonusWordsCommitHash: varchar('bonus_words_commit_hash', { length: 64 }), // H(salt||bonus words) - Bonus Words feature
   prizePoolEth: decimal('prize_pool_eth', { precision: 20, scale: 18 }).default('0').notNull(),
   seedNextRoundEth: decimal('seed_next_round_eth', { precision: 20, scale: 18 }).default('0').notNull(),
   winnerFid: integer('winner_fid'), // FK to users.fid
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
+  txHash: varchar('tx_hash', { length: 66 }), // Resolve round transaction hash
   isDevTestRound: boolean('is_dev_test_round').default(false).notNull(), // Milestone 4.5: Mid-round test mode flag
   startedAt: timestamp('started_at').defaultNow().notNull(),
   resolvedAt: timestamp('resolved_at'), // null until someone wins
@@ -86,6 +88,7 @@ export const guesses = pgTable('guesses', {
   word: varchar('word', { length: 5 }).notNull(),
   isPaid: boolean('is_paid').default(false).notNull(),
   isCorrect: boolean('is_correct').default(false).notNull(), // True if this guess won the round
+  isBonusWord: boolean('is_bonus_word').default(false).notNull(), // True if this guess was a bonus word (still counts as incorrect)
   guessIndexInRound: integer('guess_index_in_round'), // 1-based index within round (Milestone 7.x: Top-10 lock)
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
@@ -295,6 +298,13 @@ export interface RoundArchivePayouts {
   topGuessers: Array<{ fid: number; amountEth: string; rank: number }>;
   seed?: { amountEth: string };
   creator?: { amountEth: string };
+  bonusWordWinners?: Array<{
+    fid: number;
+    word: string;
+    wordIndex: number;
+    clanktonAmount: string;
+    txHash?: string;
+  }>;
 }
 
 export type RoundArchiveRow = typeof roundArchive.$inferSelect;
@@ -522,9 +532,9 @@ export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
 
 /**
  * Badge Types
- * OG Hunter Campaign: Badge system for special achievements
+ * Badge system for special achievements
  */
-export type BadgeType = 'OG_HUNTER';
+export type BadgeType = 'OG_HUNTER' | 'BONUS_WORD_FINDER';
 
 /**
  * User Badges Table
@@ -563,3 +573,58 @@ export const ogHunterCastProofs = pgTable('og_hunter_cast_proofs', {
 
 export type OgHunterCastProofRow = typeof ogHunterCastProofs.$inferSelect;
 export type OgHunterCastProofInsert = typeof ogHunterCastProofs.$inferInsert;
+
+/**
+ * Round Bonus Words Table
+ * Bonus Words Feature: Stores the 10 bonus words per round
+ */
+export const roundBonusWords = pgTable('round_bonus_words', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  wordIndex: integer('word_index').notNull(), // 0-9 position
+  word: varchar('word', { length: 100 }).notNull(), // Encrypted same as secret word (iv:tag:ciphertext)
+  salt: varchar('salt', { length: 64 }).notNull(), // Individual salt for verification
+  claimedByFid: integer('claimed_by_fid'), // FK to users.fid (null if unclaimed)
+  claimedAt: timestamp('claimed_at'),
+  txHash: varchar('tx_hash', { length: 66 }), // CLANKTON transfer tx hash
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundWordIndexUnique: unique('round_bonus_words_round_word_index_unique').on(table.roundId, table.wordIndex),
+  roundWordUnique: unique('round_bonus_words_round_word_unique').on(table.roundId, table.word),
+  roundIdx: index('round_bonus_words_round_idx').on(table.roundId),
+  claimedIdx: index('round_bonus_words_claimed_idx').on(table.claimedByFid),
+}));
+
+export type RoundBonusWordRow = typeof roundBonusWords.$inferSelect;
+export type RoundBonusWordInsert = typeof roundBonusWords.$inferInsert;
+
+/**
+ * Bonus Word Claim Status Types
+ */
+export type BonusWordClaimStatus = 'pending' | 'confirmed' | 'failed';
+
+/**
+ * Bonus Word Claims Table
+ * Bonus Words Feature: Detailed claim records with transaction tracking
+ */
+export const bonusWordClaims = pgTable('bonus_word_claims', {
+  id: serial('id').primaryKey(),
+  bonusWordId: integer('bonus_word_id').notNull().references(() => roundBonusWords.id),
+  fid: integer('fid').notNull(), // FK to users.fid
+  guessId: integer('guess_id').notNull().references(() => guesses.id),
+  clanktonAmount: varchar('clankton_amount', { length: 78 }).notNull(), // '5000000000000000000000000' (5M * 10^18)
+  walletAddress: varchar('wallet_address', { length: 42 }).notNull(),
+  txHash: varchar('tx_hash', { length: 66 }),
+  txStatus: varchar('tx_status', { length: 20 }).default('pending').notNull().$type<BonusWordClaimStatus>(),
+  claimedAt: timestamp('claimed_at').defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+  errorMessage: varchar('error_message', { length: 1000 }),
+  retryCount: integer('retry_count').default(0).notNull(),
+}, (table) => ({
+  bonusWordIdUnique: unique('bonus_word_claims_bonus_word_id_unique').on(table.bonusWordId),
+  fidIdx: index('bonus_word_claims_fid_idx').on(table.fid),
+  txStatusIdx: index('bonus_word_claims_tx_status_idx').on(table.txStatus),
+}));
+
+export type BonusWordClaimRow = typeof bonusWordClaims.$inferSelect;
+export type BonusWordClaimInsert = typeof bonusWordClaims.$inferInsert;

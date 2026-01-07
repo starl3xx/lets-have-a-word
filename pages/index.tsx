@@ -21,6 +21,9 @@ import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
 import ClanktonBonusModal from '../components/ClanktonBonusModal';
+// Bonus Words Feature (hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true)
+const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+import BonusWordWinModal from '../components/BonusWordWinModal';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
@@ -168,6 +171,9 @@ function GameContent() {
   // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
   const [showClanktonBonusModal, setShowClanktonBonusModal] = useState(false);
+  // Bonus Words Feature: Modal for bonus word win celebration
+  const [showBonusWordWinModal, setShowBonusWordWinModal] = useState(false);
+  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; clanktonAmount: string; txHash: string | null } | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -389,6 +395,16 @@ function GameContent() {
       setShowInstallPromptModal(true);
     }
   }, [router.query.forceInstallPrompt, effectiveFid]);
+
+  /**
+   * Dev mode: Show GuessPurchaseModal immediately when ?forcePurchaseModal=1
+   * Bypasses the need to be out of guesses to see the modal
+   */
+  useEffect(() => {
+    if (router.query.forcePurchaseModal === '1' && effectiveFid) {
+      setShowGuessPurchaseModal(true);
+    }
+  }, [router.query.forcePurchaseModal, effectiveFid]);
 
   /**
    * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
@@ -1010,7 +1026,18 @@ function GameContent() {
         setTimeout(() => {
           setShowWinnerShareCard(true);
         }, 2000); // 2 second delay to let confetti play first
-      } else if (data.status === 'incorrect' || data.status === 'already_guessed_word') {
+      } else if (data.status === 'bonus_word' && BONUS_WORDS_UI_ENABLED) {
+        // Bonus Words Feature: User found a bonus word
+        setBoxResultState('correct'); // Show green success state
+        // Store bonus word data and show celebration modal
+        setBonusWordWinData({
+          word: data.word,
+          clanktonAmount: data.clanktonAmount || '5000000',
+          txHash: data.txHash || null,
+        });
+        setShowBonusWordWinModal(true);
+      } else if (data.status === 'incorrect' || data.status === 'already_guessed_word' || (data.status === 'bonus_word' && !BONUS_WORDS_UI_ENABLED)) {
+        // Note: When bonus words UI is disabled, bonus_word is treated as incorrect for UI purposes
         setBoxResultState('wrong');
         if (data.status === 'already_guessed_word') {
           triggerShake();
@@ -1238,6 +1265,34 @@ function GameContent() {
               <span>Correct! You found the word </span>
               <span className="font-bold">{result.word.toUpperCase()}</span>
               <span> and won this round!</span>
+            </>
+          ),
+        };
+
+      case 'bonus_word':
+        // Bonus Words Feature: Show success banner for bonus word (only if UI enabled)
+        if (!BONUS_WORDS_UI_ENABLED) {
+          // When UI is disabled, show as incorrect
+          return {
+            variant: 'error',
+            icon: null,
+            message: (
+              <>
+                <span>Incorrect! </span>
+                <span className="font-bold">{result.word.toUpperCase()}</span>
+                <span> is not the secret word.</span>
+              </>
+            ),
+          };
+        }
+        return {
+          variant: 'success',
+          icon: null,
+          message: (
+            <>
+              <span>🎣 Bonus word </span>
+              <span className="font-bold">{result.word.toUpperCase()}</span>
+              <span> found! +5M CLANKTON</span>
             </>
           ),
         };
@@ -1855,6 +1910,19 @@ function GameContent() {
       {showClanktonBonusModal && (
         <ClanktonBonusModal
           onClose={() => setShowClanktonBonusModal(false)}
+        />
+      )}
+
+      {/* Bonus Words Feature: Bonus word win celebration modal (only if UI enabled) */}
+      {BONUS_WORDS_UI_ENABLED && showBonusWordWinModal && bonusWordWinData && (
+        <BonusWordWinModal
+          word={bonusWordWinData.word}
+          clanktonAmount={bonusWordWinData.clanktonAmount}
+          txHash={bonusWordWinData.txHash}
+          onClose={() => {
+            setShowBonusWordWinModal(false);
+            setBonusWordWinData(null);
+          }}
         />
       )}
 
