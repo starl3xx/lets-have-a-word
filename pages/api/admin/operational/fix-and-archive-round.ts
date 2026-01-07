@@ -24,30 +24,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!roundId) {
       console.log(`[fix-and-archive] No roundId specified, finding unarchived resolved rounds...`);
 
-      const unarchivedResult = await db.execute(sql`
-        SELECT r.id
+      // First, get full diagnostic data
+      const allRoundsResult = await db.execute(sql`
+        SELECT
+          r.id,
+          r.status::text as status,
+          r.resolved_at,
+          r.resolved_at IS NOT NULL as is_resolved
         FROM rounds r
-        LEFT JOIN round_archive ra ON ra.round_number = r.id
-        WHERE r.resolved_at IS NOT NULL
-          AND ra.id IS NULL
-        ORDER BY r.id ASC
-        LIMIT 1
+        ORDER BY r.id
       `);
 
-      if (!unarchivedResult.rows || unarchivedResult.rows.length === 0) {
-        // List all rounds for debugging
-        const allRounds = await db.execute(sql`
-          SELECT id, status, resolved_at IS NOT NULL as is_resolved
-          FROM rounds
-          ORDER BY id
-        `);
+      const allArchivesResult = await db.execute(sql`
+        SELECT round_number FROM round_archive ORDER BY round_number
+      `);
+
+      const archivedRoundNumbers = (allArchivesResult.rows as any[]).map(r => r.round_number);
+
+      console.log(`[fix-and-archive] All rounds:`, allRoundsResult.rows);
+      console.log(`[fix-and-archive] Archived round numbers:`, archivedRoundNumbers);
+
+      // Find rounds that are resolved but not in archive
+      const resolvedRounds = (allRoundsResult.rows as any[]).filter(r => r.is_resolved);
+      const unarchivedResolved = resolvedRounds.filter(r => !archivedRoundNumbers.includes(r.id));
+
+      console.log(`[fix-and-archive] Resolved rounds:`, resolvedRounds.map(r => r.id));
+      console.log(`[fix-and-archive] Unarchived resolved:`, unarchivedResolved.map(r => r.id));
+
+      if (unarchivedResolved.length === 0) {
         return res.status(404).json({
           error: 'No unarchived resolved rounds found',
-          allRounds: allRounds.rows,
+          diagnostic: {
+            allRounds: allRoundsResult.rows,
+            archivedRoundNumbers,
+            resolvedRoundIds: resolvedRounds.map(r => r.id),
+            message: 'All resolved rounds are already archived, or no rounds have been resolved yet'
+          }
         });
       }
 
-      roundId = (unarchivedResult.rows[0] as any).id;
+      roundId = unarchivedResolved[0].id;
       console.log(`[fix-and-archive] Found unarchived round: ${roundId}`);
     }
 
