@@ -28,6 +28,13 @@ import { getPlaintextAnswer } from './encryption';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 import { getTotalClanktonDistributed } from './jackpot-contract';
 
+// Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
+function getRows<T = any>(result: any): T[] {
+  if (Array.isArray(result)) return result;
+  if (result && Array.isArray(result.rows)) return result.rows;
+  return [];
+}
+
 /**
  * Data required to archive a round (can be passed explicitly or computed)
  */
@@ -951,7 +958,8 @@ async function computeClanktonBonusCount(startTime: Date, endTime: Date): Promis
     AND date <= ${endTime.toISOString().split('T')[0]}
   `);
 
-  return parseInt(result[0]?.count ?? '0', 10);
+  const rows = getRows<{ count: string }>(result);
+  return parseInt(rows[0]?.count ?? '0', 10);
 }
 
 /**
@@ -1021,7 +1029,8 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
     const totalClanktonRaw = await getTotalClanktonDistributed();
     const totalClankton = Number(totalClanktonRaw / BigInt(10 ** 18));
 
-    const row = result[0];
+    const rows = getRows(result);
+    const row = rows[0];
     return {
       totalRounds: parseInt(row?.total_rounds ?? '0', 10),
       totalGuessesAllTime: parseInt(row?.total_guesses_all_time ?? '0', 10),
