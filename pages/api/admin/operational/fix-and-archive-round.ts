@@ -11,6 +11,13 @@ import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 
+// Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
+function getRows(result: any): any[] {
+  if (Array.isArray(result)) return result;
+  if (result && Array.isArray(result.rows)) return result.rows;
+  return [];
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let roundId = req.query.roundId ? parseInt(req.query.roundId as string, 10) : null;
   const adminFid = req.query.devFid as string;
@@ -24,7 +31,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!roundId) {
       console.log(`[fix-and-archive] No roundId specified, finding unarchived resolved rounds...`);
 
-      // First, get full diagnostic data
       const allRoundsResult = await db.execute(sql`
         SELECT
           r.id,
@@ -39,12 +45,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         SELECT round_number FROM round_archive ORDER BY round_number
       `);
 
-      // Handle both array and {rows: []} formats from db.execute
-      const allRounds: any[] = Array.isArray(allRoundsResult) ? allRoundsResult : (allRoundsResult.rows || []);
-      const allArchives: any[] = Array.isArray(allArchivesResult) ? allArchivesResult : (allArchivesResult.rows || []);
+      const allRounds = getRows(allRoundsResult);
+      const allArchives = getRows(allArchivesResult);
 
-      console.log(`[fix-and-archive] Raw allRoundsResult type:`, typeof allRoundsResult, Array.isArray(allRoundsResult));
-      console.log(`[fix-and-archive] Raw allArchivesResult type:`, typeof allArchivesResult, Array.isArray(allArchivesResult));
       console.log(`[fix-and-archive] All rounds (${allRounds.length}):`, JSON.stringify(allRounds));
       console.log(`[fix-and-archive] All archives (${allArchives.length}):`, JSON.stringify(allArchives));
 
@@ -75,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`[fix-and-archive] ========== STARTING FIX FOR ROUND ${roundId} ==========`);
 
-    // Step 1: Get the raw round data - SELECT only specific columns as strings
+    // Step 1: Get the raw round data
     const roundResult = await db.execute(sql`
       SELECT
         id,
@@ -93,13 +96,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       WHERE id = ${roundId}
     `);
 
-    if (!roundResult.rows || roundResult.rows.length === 0) {
-      return res.status(404).json({ error: `Round ${roundId} not found` });
+    const roundRows = getRows(roundResult);
+    console.log(`[fix-and-archive] Round query returned ${roundRows.length} rows`);
+
+    if (roundRows.length === 0) {
+      return res.status(404).json({ error: `Round ${roundId} not found in database` });
     }
 
-    const rawRound = roundResult.rows[0] as any;
+    const rawRound = roundRows[0];
 
-    // Log ALL field types with extreme detail
+    // Log ALL field types
     console.log(`[fix-and-archive] Raw round ${roundId} data:`);
     for (const [key, value] of Object.entries(rawRound)) {
       const valueStr = value === null ? 'NULL' : String(value).substring(0, 100);
@@ -109,9 +115,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Step 2: Check and fix the salt field
     let salt = rawRound.salt;
     let saltFixed = false;
-    let originalSalt = salt;
+    const originalSalt = salt;
 
-    // Check if salt needs fixing
     const saltNeedsFix = (
       salt === null ||
       salt === undefined ||
@@ -129,11 +134,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`  - isHex: ${salt ? /^[a-f0-9]+$/i.test(String(salt)) : 'N/A'}`);
       console.log(`  - value: ${String(salt).substring(0, 50)}`);
 
-      // Generate new salt
       salt = randomBytes(32).toString('hex');
       saltFixed = true;
 
-      // Update in database using raw SQL
       await db.execute(sql`UPDATE rounds SET salt = ${salt} WHERE id = ${roundId}`);
       console.log(`[fix-and-archive] ✅ Salt fixed: ${salt.substring(0, 16)}...`);
     } else {
@@ -145,21 +148,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`[fix-and-archive] Cleared any existing archive for round ${roundId}`);
 
     // Step 4: Get statistics
-    const guessStats = await db.execute(sql`
+    const guessStatsResult = await db.execute(sql`
       SELECT COUNT(*) as total, COUNT(DISTINCT fid) as unique_players
       FROM guesses
       WHERE round_id = ${roundId}
     `);
-    const totalGuesses = parseInt(String((guessStats.rows[0] as any)?.total || 0), 10);
-    const uniquePlayers = parseInt(String((guessStats.rows[0] as any)?.unique_players || 0), 10);
+    const guessStatsRows = getRows(guessStatsResult);
+    const totalGuesses = parseInt(String(guessStatsRows[0]?.total || 0), 10);
+    const uniquePlayers = parseInt(String(guessStatsRows[0]?.unique_players || 0), 10);
+
+    console.log(`[fix-and-archive] Stats: ${totalGuesses} guesses, ${uniquePlayers} players`);
 
     // Step 5: Get payouts
     const payoutsResult = await db.execute(sql`
       SELECT fid, amount_eth, role FROM round_payouts WHERE round_id = ${roundId}
     `);
+    const payoutsRows = getRows(payoutsResult);
 
     const payoutsJson: any = { topGuessers: [] };
-    for (const payout of payoutsResult.rows as any[]) {
+    for (const payout of payoutsRows) {
       if (payout.role === 'winner' && payout.fid) {
         payoutsJson.winner = { fid: payout.fid, amountEth: payout.amount_eth };
       } else if (payout.role === 'referrer' && payout.fid) {
@@ -175,14 +182,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    console.log(`[fix-and-archive] Payouts: ${JSON.stringify(payoutsJson)}`);
+
     // Step 6: Get previous round seed
     let seedEth = '0';
     if (roundId > 1) {
-      const prevRound = await db.execute(sql`
+      const prevRoundResult = await db.execute(sql`
         SELECT seed_next_round_eth::text as seed FROM rounds WHERE id = ${roundId - 1}
       `);
-      if (prevRound.rows.length > 0) {
-        seedEth = (prevRound.rows[0] as any)?.seed || '0';
+      const prevRoundRows = getRows(prevRoundResult);
+      if (prevRoundRows.length > 0) {
+        seedEth = prevRoundRows[0]?.seed || '0';
       }
     }
 
@@ -191,7 +201,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`[fix-and-archive] Answer value: ${targetWord.substring(0, 50)}...`);
 
     if (targetWord.includes(':')) {
-      // Encrypted format: iv:tag:ciphertext
       try {
         const [iv, tag, ciphertext] = targetWord.split(':');
         const key = Buffer.from(process.env.ANSWER_ENCRYPTION_KEY!, 'hex');
@@ -205,7 +214,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Step 8: Insert archive record using raw SQL
+    // Step 8: Insert archive record
+    console.log(`[fix-and-archive] Inserting archive record...`);
     await db.execute(sql`
       INSERT INTO round_archive (
         round_number, target_word, seed_eth, final_jackpot_eth,
