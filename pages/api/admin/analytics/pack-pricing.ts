@@ -37,7 +37,7 @@ interface PhaseDistribution {
 
 export interface PackPricingAnalytics {
   // Current state
-  currentPhase: 'BASE' | 'LATE_1' | 'LATE_2';
+  currentPhase: 'EARLY' | 'MID' | 'LATE';
   currentPhaseLabel: string;
   currentPackPriceEth: string;
   totalGuessesInRound: number;
@@ -104,10 +104,15 @@ export default async function handler(
     const currentPhase = getPricingPhase(totalGuessesInRound);
     const currentPackPriceWei = getPackPriceWei(totalGuessesInRound);
 
+    // Phase labels support both old (BASE/LATE_1/LATE_2) and new (EARLY/MID/LATE) names
     const phaseLabels: Record<string, string> = {
+      'EARLY': 'Early round',
+      'MID': 'Mid round',
+      'LATE': 'Late round',
+      // Legacy fallbacks for historical data
       'BASE': 'Early round',
-      'LATE_1': 'Late round',
-      'LATE_2': 'Late round (max)',
+      'LATE_1': 'Mid round',
+      'LATE_2': 'Late round',
     };
 
     // Query purchases by phase - last 24h
@@ -152,11 +157,12 @@ export default async function handler(
       `);
 
       for (const row of purchases24h || []) {
-        const phase = row.phase || 'BASE';
+        const phase = row.phase || 'EARLY';
         const data = { count: Number(row.count), revenueEth: Number(row.revenue), buyers: Number(row.buyers) };
-        if (phase === 'BASE') last24h.base = data;
-        else if (phase === 'LATE_1') last24h.late1 = data;
-        else if (phase === 'LATE_2') last24h.late2 = data;
+        // Support both old (BASE/LATE_1/LATE_2) and new (EARLY/MID/LATE) phase names
+        if (phase === 'BASE' || phase === 'EARLY') last24h.base = data;
+        else if (phase === 'LATE_1' || phase === 'MID') last24h.late1 = data;
+        else if (phase === 'LATE_2' || phase === 'LATE') last24h.late2 = data;
         last24h.total.count += data.count;
         last24h.total.revenueEth += data.revenueEth;
       }
@@ -189,11 +195,12 @@ export default async function handler(
       `);
 
       for (const row of purchases7d || []) {
-        const phase = row.phase || 'BASE';
+        const phase = row.phase || 'EARLY';
         const data = { count: Number(row.count), revenueEth: Number(row.revenue), buyers: Number(row.buyers) };
-        if (phase === 'BASE') last7d.base = data;
-        else if (phase === 'LATE_1') last7d.late1 = data;
-        else if (phase === 'LATE_2') last7d.late2 = data;
+        // Support both old (BASE/LATE_1/LATE_2) and new (EARLY/MID/LATE) phase names
+        if (phase === 'BASE' || phase === 'EARLY') last7d.base = data;
+        else if (phase === 'LATE_1' || phase === 'MID') last7d.late1 = data;
+        else if (phase === 'LATE_2' || phase === 'LATE') last7d.late2 = data;
         last7d.total.count += data.count;
         last7d.total.revenueEth += data.revenueEth;
       }
@@ -228,11 +235,12 @@ export default async function handler(
         `);
 
         for (const row of purchasesCurrentRound || []) {
-          const phase = row.phase || 'BASE';
+          const phase = row.phase || 'EARLY';
           const data = { count: Number(row.count), revenueEth: Number(row.revenue), buyers: Number(row.buyers) };
-          if (phase === 'BASE') currentRound.base = data;
-          else if (phase === 'LATE_1') currentRound.late1 = data;
-          else if (phase === 'LATE_2') currentRound.late2 = data;
+          // Support both old (BASE/LATE_1/LATE_2) and new (EARLY/MID/LATE) phase names
+          if (phase === 'BASE' || phase === 'EARLY') currentRound.base = data;
+          else if (phase === 'LATE_1' || phase === 'MID') currentRound.late1 = data;
+          else if (phase === 'LATE_2' || phase === 'LATE') currentRound.late2 = data;
           currentRound.total.count += data.count;
           currentRound.total.revenueEth += data.revenueEth;
         }

@@ -72,8 +72,8 @@ export default async function handler(
         ? (prizePoolEthNum * ethUsdRate).toFixed(2)
         : (prizePoolEthNum * 3000).toFixed(2); // Fallback estimate
 
-      // Get Top-10 lock status based on display guess count
-      const top10Status = getTop10LockStatus(devStatus.globalGuessCount);
+      // Get Top-10 lock status based on display guess count and round ID
+      const top10Status = getTop10LockStatus(devStatus.globalGuessCount, devStatus.roundId);
 
       // Return dev round status with actual prize pool, random display values for round/guesses
       const syntheticStatus: RoundStatus = {

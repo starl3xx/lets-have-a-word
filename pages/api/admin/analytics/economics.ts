@@ -25,6 +25,7 @@ import {
   MAX_PACK_PRICE_WEI,
   weiToEthString,
 } from '../../../../src/lib/pack-pricing';
+import { TOP10_LOCK_AFTER_GUESSES } from '../../../../src/lib/top10-lock';
 
 // =============================================================================
 // Target Configuration (static for now)
@@ -384,8 +385,8 @@ async function computeEconomicsData(compareMode?: string): Promise<EconomicsData
   const p25 = roundLengths.length > 0 ? roundLengths[Math.floor(roundLengths.length * 0.25)] : 0;
   const p75 = roundLengths.length > 0 ? roundLengths[Math.floor(roundLengths.length * 0.75)] : 0;
 
-  // % of rounds ending before 750
-  const roundsEndingBefore750 = roundLengths.filter(l => l < 750).length;
+  // % of rounds ending before Top 10 cutoff (850 for new rounds)
+  const roundsEndingBefore750 = roundLengths.filter(l => l < TOP10_LOCK_AFTER_GUESSES).length;
   const roundsEndingBefore750Pct = roundLengths.length > 0
     ? (roundsEndingBefore750 / roundLengths.length) * 100
     : 0;
@@ -671,7 +672,7 @@ async function computeGrowthCurve(roundIds: number[]): Promise<{
 
 function getCurrentEconomicsConfig(): RoundEconomicsConfigData {
   return {
-    top10CutoffGuesses: 750,
+    top10CutoffGuesses: TOP10_LOCK_AFTER_GUESSES,
     pricing: {
       basePrice: weiToEthString(BASE_PACK_PRICE_WEI),
       priceRampStart: PRICE_RAMP_START_GUESSES,
@@ -798,13 +799,13 @@ function computeComparisonMetrics(
   const avgPaidRate = rounds.reduce((sum, r) => sum + r.paidRate, 0) / rounds.length;
   const totalPoolEth = rounds.reduce((sum, r) => sum + r.poolEth, 0);
   const ethPer100 = totalGuesses > 0 ? (totalPoolEth / totalGuesses) * 100 : 0;
-  const roundsEndingBefore750 = rounds.filter(r => r.length < 750).length;
+  const roundsEndingBeforeCutoff = rounds.filter(r => r.length < TOP10_LOCK_AFTER_GUESSES).length;
 
   return {
     paidParticipation: Math.round(avgPaidRate * 10) / 10,
     ethPer100Guesses: Math.round(ethPer100 * 10000) / 10000,
     packsBefore750Pct: 0, // Would need pack data per round
-    roundsEndingBefore750Pct: Math.round((roundsEndingBefore750 / rounds.length) * 100),
+    roundsEndingBefore750Pct: Math.round((roundsEndingBeforeCutoff / rounds.length) * 100),
     roundCount: rounds.length,
   };
 }
