@@ -262,6 +262,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [backfillLoading, setBackfillLoading] = useState(false)
   const [backfillResult, setBackfillResult] = useState<any>(null)
   const [allRoundNumbers, setAllRoundNumbers] = useState<number[]>([])
+  const [clearingCache, setClearingCache] = useState(false)
   const pageSize = 15
   const detailSectionRef = useRef<HTMLDivElement>(null)
 
@@ -562,6 +563,28 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       setError(err instanceof Error ? err.message : 'Backfill failed')
     } finally {
       setBackfillLoading(false)
+    }
+  }
+
+  const clearArchiveCache = async () => {
+    if (!user?.fid) return
+
+    setClearingCache(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/admin/operational/clear-archive-cache?devFid=${user.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundIds: allRoundNumbers }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Clear cache failed')
+      setBackfillResult({ ...backfillResult, cacheCleared: result.cleared })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Clear cache failed')
+    } finally {
+      setClearingCache(false)
     }
   }
 
@@ -1104,17 +1127,31 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
               ))}
             </div>
 
-            <button
-              onClick={backfillStartTxHashes}
-              disabled={backfillLoading || Object.values(txHashInputs).filter(v => v.trim()).length === 0}
-              style={{
-                ...styles.btn,
-                opacity: backfillLoading || Object.values(txHashInputs).filter(v => v.trim()).length === 0 ? 0.6 : 1,
-                cursor: backfillLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {backfillLoading ? 'Saving...' : 'Save Tx Hashes'}
-            </button>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={backfillStartTxHashes}
+                disabled={backfillLoading || Object.values(txHashInputs).filter(v => v.trim()).length === 0}
+                style={{
+                  ...styles.btn,
+                  opacity: backfillLoading || Object.values(txHashInputs).filter(v => v.trim()).length === 0 ? 0.6 : 1,
+                  cursor: backfillLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {backfillLoading ? 'Saving...' : 'Save Tx Hashes'}
+              </button>
+              <button
+                onClick={clearArchiveCache}
+                disabled={clearingCache || allRoundNumbers.length === 0}
+                style={{
+                  ...styles.btnSecondary,
+                  opacity: clearingCache || allRoundNumbers.length === 0 ? 0.6 : 1,
+                  cursor: clearingCache ? "not-allowed" : "pointer",
+                }}
+                title="Clear archive cache so updated tx hashes show on archive pages"
+              >
+                {clearingCache ? 'Clearing...' : 'Clear Cache'}
+              </button>
+            </div>
           </>
         )}
       </div>
