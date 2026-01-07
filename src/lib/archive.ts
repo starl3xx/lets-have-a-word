@@ -121,11 +121,22 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     }
 
     // CRITICAL: Fix corrupted fields IMMEDIATELY after fetching round
-    // The salt field keeps getting corrupted to Date objects - fix it before any other processing
+    // Check if salt is a valid 64-char hex string - if not, regenerate it
     let saltValue = rawRound.salt;
-    if (typeof rawRound.salt !== 'string' || rawRound.salt instanceof Date) {
-      const originalValue = rawRound.salt instanceof Date ? (rawRound.salt as Date).toISOString() : String(rawRound.salt);
-      console.warn(`[archive] ⚠️ Round ${roundId} salt field is corrupted (type=${typeof rawRound.salt}, isDate=${rawRound.salt instanceof Date})`);
+    const isValidSalt = typeof saltValue === 'string' &&
+                        saltValue.length === 64 &&
+                        /^[a-f0-9]+$/i.test(saltValue);
+
+    if (!isValidSalt) {
+      let originalValue: string;
+      try {
+        originalValue = saltValue instanceof Date && typeof saltValue.toISOString === 'function'
+          ? saltValue.toISOString()
+          : String(saltValue);
+      } catch {
+        originalValue = `[unparseable: ${typeof saltValue}]`;
+      }
+      console.warn(`[archive] ⚠️ Round ${roundId} salt field is corrupted (type=${typeof saltValue}, isDate=${saltValue instanceof Date})`);
       console.warn(`[archive] AUTO-FIXING salt immediately: Converting from "${originalValue}"`);
 
       // Generate a new random salt since the original is lost
@@ -148,6 +159,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     }
 
     // Build a round object from raw data for compatibility with rest of the function
+    // Convert date fields to Date objects (raw SQL may return strings)
     const round = {
       id: rawRound.id,
       answer: rawRound.answer,
@@ -157,8 +169,8 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       seedNextRoundEth: rawRound.seed_next_round_eth,
       winnerFid: rawRound.winner_fid,
       referrerFid: rawRound.referrer_fid,
-      startedAt: rawRound.started_at,
-      resolvedAt: rawRound.resolved_at,
+      startedAt: rawRound.started_at instanceof Date ? rawRound.started_at : new Date(rawRound.started_at),
+      resolvedAt: rawRound.resolved_at instanceof Date ? rawRound.resolved_at : new Date(rawRound.resolved_at),
       status: rawRound.status,
     };
 
