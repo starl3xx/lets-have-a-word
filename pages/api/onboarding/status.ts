@@ -45,15 +45,32 @@ export default async function handler(
   }
 
   try {
-    // Get user record
-    const user = await db.query.users.findFirst({
-      where: eq(users.fid, fid),
-      columns: {
-        hasSeenIntro: true,
-        hasSeenOgHunterThanks: true,
-        addedMiniAppAt: true,
-      },
-    });
+    // OPTIMIZATION: Run all queries in parallel instead of sequentially
+    // This reduces total query time from ~150ms (3x50ms) to ~50ms
+    const [user, castProof, badge] = await Promise.all([
+      // Get user record
+      db.query.users.findFirst({
+        where: eq(users.fid, fid),
+        columns: {
+          hasSeenIntro: true,
+          hasSeenOgHunterThanks: true,
+          addedMiniAppAt: true,
+        },
+      }),
+      // Check for cast proof (OG Hunter eligibility)
+      db.query.ogHunterCastProofs.findFirst({
+        where: eq(ogHunterCastProofs.fid, fid),
+        columns: { id: true },
+      }),
+      // Check if badge is already awarded
+      db.query.userBadges.findFirst({
+        where: and(
+          eq(userBadges.fid, fid),
+          eq(userBadges.badgeType, 'OG_HUNTER')
+        ),
+        columns: { id: true },
+      }),
+    ]);
 
     // If user doesn't exist, return defaults (not an error - user may be new)
     if (!user) {
@@ -66,24 +83,8 @@ export default async function handler(
       });
     }
 
-    // Check if user is an OG Hunter (added mini app + has verified cast proof)
-    let isOgHunter = false;
-    if (user.addedMiniAppAt) {
-      const castProof = await db.query.ogHunterCastProofs.findFirst({
-        where: eq(ogHunterCastProofs.fid, fid),
-        columns: { id: true },
-      });
-      isOgHunter = !!castProof;
-    }
-
-    // Check if badge is already awarded
-    const badge = await db.query.userBadges.findFirst({
-      where: and(
-        eq(userBadges.fid, fid),
-        eq(userBadges.badgeType, 'OG_HUNTER')
-      ),
-      columns: { id: true },
-    });
+    // OG Hunter = added mini app + has verified cast proof
+    const isOgHunter = !!(user.addedMiniAppAt && castProof);
     const ogHunterAwarded = !!badge;
 
     return res.status(200).json({
