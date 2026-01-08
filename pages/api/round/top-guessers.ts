@@ -255,157 +255,104 @@ export default async function handler(
         // Get FIDs of top guessers to check for badges
         const topGuesserFids = topGuessersData.map((g) => g.fid);
 
-        // Fetch all wordmarks for these users
-        const [ogHunterBadges, bonusWordBadges, jackpotWinnerBadges, doubleWBadges, patronBadges, quickdrawBadges, encyclopedicBadges, bakersDozenBadges] = topGuesserFids.length > 0
-          ? await Promise.all([
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'OG_HUNTER')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'BONUS_WORD_FINDER')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'JACKPOT_WINNER')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'DOUBLE_W')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'PATRON')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'QUICKDRAW')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'ENCYCLOPEDIC')
-                  )
-                ),
-              db
-                .select({ fid: userBadges.fid })
-                .from(userBadges)
-                .where(
-                  and(
-                    inArray(userBadges.fid, topGuesserFids),
-                    eq(userBadges.badgeType, 'BAKERS_DOZEN')
-                  )
-                ),
-            ])
-          : [[], [], [], [], [], [], [], []];
+        // OPTIMIZATION: Fetch ALL badges for these users in a single query
+        // Instead of 8 separate queries (one per badge type), we fetch all badges
+        // and filter in JavaScript - reduces DB round trips from 8 to 1
+        const allBadges = topGuesserFids.length > 0
+          ? await db
+              .select({ fid: userBadges.fid, badgeType: userBadges.badgeType })
+              .from(userBadges)
+              .where(inArray(userBadges.fid, topGuesserFids))
+          : [];
 
-        const ogHunterFids = new Set(ogHunterBadges.map((b) => b.fid));
-        const bonusWordFids = new Set(bonusWordBadges.map((b) => b.fid));
-        const jackpotWinnerFids = new Set(jackpotWinnerBadges.map((b) => b.fid));
-        const doubleWFids = new Set(doubleWBadges.map((b) => b.fid));
-        const patronFids = new Set(patronBadges.map((b) => b.fid));
-        const quickdrawFids = new Set(quickdrawBadges.map((b) => b.fid));
-        const encyclopedicFids = new Set(encyclopedicBadges.map((b) => b.fid));
-        const bakersDozenFids = new Set(bakersDozenBadges.map((b) => b.fid));
+        // Build sets for O(1) lookup by badge type
+        const ogHunterFids = new Set<number>();
+        const bonusWordFids = new Set<number>();
+        const jackpotWinnerFids = new Set<number>();
+        const doubleWFids = new Set<number>();
+        const patronFids = new Set<number>();
+        const quickdrawFids = new Set<number>();
+        const encyclopedicFids = new Set<number>();
+        const bakersDozenFids = new Set<number>();
 
-        // Check CLANKTON balances for users with wallets
-        // Wrapped in defensive try/catch since this makes RPC calls that could fail
-        const clanktonHolders = new Set<number>();
-        try {
-          const walletsToCheck = topGuessersData
-            .filter((g) => g.signerWalletAddress)
-            .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
-
-          if (walletsToCheck.length > 0) {
-            // Check all wallets in parallel with individual error handling
-            const clanktonResults = await Promise.allSettled(
-              walletsToCheck.map(async ({ fid, wallet }) => ({
-                fid,
-                hasClankton: await hasClanktonBonus(wallet),
-              }))
-            );
-            for (const result of clanktonResults) {
-              if (result.status === 'fulfilled' && result.value.hasClankton) {
-                clanktonHolders.add(result.value.fid);
-              }
-            }
+        for (const badge of allBadges) {
+          switch (badge.badgeType) {
+            case 'OG_HUNTER':
+              ogHunterFids.add(badge.fid);
+              break;
+            case 'BONUS_WORD_FINDER':
+              bonusWordFids.add(badge.fid);
+              break;
+            case 'JACKPOT_WINNER':
+              jackpotWinnerFids.add(badge.fid);
+              break;
+            case 'DOUBLE_W':
+              doubleWFids.add(badge.fid);
+              break;
+            case 'PATRON':
+              patronFids.add(badge.fid);
+              break;
+            case 'QUICKDRAW':
+              quickdrawFids.add(badge.fid);
+              break;
+            case 'ENCYCLOPEDIC':
+              encyclopedicFids.add(badge.fid);
+              break;
+            case 'BAKERS_DOZEN':
+              bakersDozenFids.add(badge.fid);
+              break;
           }
-        } catch (error) {
-          console.warn('[top-guessers] Error checking CLANKTON balances:', error);
-          // Continue without CLANKTON badges on error
         }
 
-        // Fetch profiles from Neynar for ALL top guessers (for accurate PFPs)
+        // OPTIMIZATION: Run CLANKTON checks and Neynar profile fetch in parallel
+        // These are independent external calls that were running sequentially
         const allFids = topGuessersData.map((g) => g.fid);
-        // Filter out invalid FIDs (0, negative, or non-integers)
         const validFids = allFids.filter(fid => fid > 0 && Number.isInteger(fid));
         if (validFids.length !== allFids.length) {
           console.warn(`[top-guessers] Found ${allFids.length - validFids.length} invalid FIDs:`,
             allFids.filter(fid => !validFids.includes(fid)));
         }
 
-        let neynarProfiles: Map<number, { username: string; pfpUrl: string }> = new Map();
-        if (validFids.length > 0) {
-          try {
-            console.log(`[top-guessers] Fetching ${validFids.length} profiles from Neynar:`, validFids);
-            const userData = await neynarClient.fetchBulkUsers({ fids: validFids });
-            console.log(`[top-guessers] Neynar returned ${userData.users?.length || 0} users`);
+        const walletsToCheck = topGuessersData
+          .filter((g) => g.signerWalletAddress)
+          .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
 
-            if (userData.users && userData.users.length > 0) {
-              for (const user of userData.users) {
-                // Log each user's data for debugging
-                console.log(`[top-guessers] Neynar user ${user.fid}: username="${user.username}", pfp="${user.pfp_url?.substring(0, 50)}..."`);
-                neynarProfiles.set(user.fid, {
-                  username: user.username || `fid:${user.fid}`,
-                  pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
-                });
-              }
-              // Log which FIDs are missing from Neynar
-              const returnedFids = new Set(userData.users.map(u => u.fid));
-              const missingFids = validFids.filter(fid => !returnedFids.has(fid));
-              if (missingFids.length > 0) {
-                console.error(`[top-guessers] CRITICAL: Neynar missing data for FIDs:`, missingFids);
-              }
-            } else {
-              console.error(`[top-guessers] CRITICAL: Neynar returned no users for FIDs:`, validFids);
-            }
-          } catch (err) {
-            // Neynar fetch failed, fall back to defaults
-            console.error('[top-guessers] CRITICAL: Failed to fetch profiles from Neynar:', err);
+        // Run both external calls in parallel
+        const [clanktonResults, neynarResult] = await Promise.all([
+          // CLANKTON balance checks (RPC calls)
+          walletsToCheck.length > 0
+            ? Promise.allSettled(
+                walletsToCheck.map(async ({ fid, wallet }) => ({
+                  fid,
+                  hasClankton: await hasClanktonBonus(wallet),
+                }))
+              )
+            : Promise.resolve([]),
+          // Neynar profile fetch
+          validFids.length > 0
+            ? neynarClient.fetchBulkUsers({ fids: validFids }).catch((err) => {
+                console.error('[top-guessers] Failed to fetch profiles from Neynar:', err);
+                return { users: [] };
+              })
+            : Promise.resolve({ users: [] }),
+        ]);
+
+        // Process CLANKTON results
+        const clanktonHolders = new Set<number>();
+        for (const result of clanktonResults) {
+          if (result.status === 'fulfilled' && result.value.hasClankton) {
+            clanktonHolders.add(result.value.fid);
+          }
+        }
+
+        // Process Neynar results
+        const neynarProfiles = new Map<number, { username: string; pfpUrl: string }>();
+        if (neynarResult.users && neynarResult.users.length > 0) {
+          for (const user of neynarResult.users) {
+            neynarProfiles.set(user.fid, {
+              username: user.username || `fid:${user.fid}`,
+              pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
+            });
           }
         }
 
