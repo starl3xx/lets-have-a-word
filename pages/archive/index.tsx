@@ -270,7 +270,7 @@ function StatChip({
 
   return (
     <div className={`inline-flex items-baseline gap-1 rounded-full px-2.5 py-1 ${bgClass}`}>
-      <span className="text-sm font-semibold tabular-nums text-gray-900">
+      <span className="text-sm font-bold tabular-nums text-gray-900">
         {value}
       </span>
       <span className="text-xs text-gray-500">
