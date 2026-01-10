@@ -380,7 +380,7 @@ export default function RoundDetailPage() {
                       }`}>Referrer</div>
                       <div className={`text-xs ${
                         round.referrerFid ? 'text-purple-600/70' : 'text-gray-400'
-                      }`}>(10%)</div>
+                      }`}>(5%)</div>
                       {round.referrerFid ? (
                         <div className="mt-2 text-lg font-bold text-gray-900">
                           .{breakdown.referrer.replace('0.', '')}
