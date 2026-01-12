@@ -33,6 +33,7 @@ interface VerificationResult {
   commitHash?: string;
   onChainCommitHash?: string; // Onchain commitment hash (if available)
   hasOnChainCommitment?: boolean;
+  startTxHash?: string; // Transaction hash for startRoundWithCommitment
   revealedWord?: string;
   revealedSalt?: string;
   computedHash?: string;
@@ -110,6 +111,7 @@ export default function VerifyPage() {
           commitHash: roundData.commitHash,
           onChainCommitHash: roundData.onChainCommitHash,
           hasOnChainCommitment: roundData.hasOnChainCommitment,
+          startTxHash: roundData.startTxHash,
           roundStartedAt: roundData.roundStartedAt,
           bonusWordsCommitHash: roundData.bonusWordsCommitHash,
           hasBonusWords: roundData.hasBonusWords,
@@ -126,6 +128,7 @@ export default function VerifyPage() {
           commitHash: roundData.commitHash,
           onChainCommitHash: roundData.onChainCommitHash,
           hasOnChainCommitment: roundData.hasOnChainCommitment,
+          startTxHash: roundData.startTxHash,
           roundStartedAt: roundData.roundStartedAt,
           roundEndedAt: roundData.roundEndedAt,
           errorMessage: 'Round was cancelled before reveal.',
@@ -151,6 +154,7 @@ export default function VerifyPage() {
           commitHash: roundData.commitHash,
           onChainCommitHash: roundData.onChainCommitHash,
           hasOnChainCommitment: roundData.hasOnChainCommitment,
+          startTxHash: roundData.startTxHash,
           revealedWord: roundData.revealedWord,
           revealedSalt: roundData.revealedSalt,
           computedHash,
@@ -370,6 +374,7 @@ export default function VerifyPage() {
                       hasOnChainCommitment={result.hasOnChainCommitment}
                       onChainCommitHash={result.onChainCommitHash}
                       dbCommitHash={result.commitHash}
+                      startTxHash={result.startTxHash}
                       onCopy={(hash) => copyToClipboard(hash, 'onChainHash')}
                       copied={copied === 'onChainHash'}
                     />
@@ -417,6 +422,7 @@ export default function VerifyPage() {
                       hasOnChainCommitment={result.hasOnChainCommitment}
                       onChainCommitHash={result.onChainCommitHash}
                       dbCommitHash={result.commitHash}
+                      startTxHash={result.startTxHash}
                       onCopy={(hash) => copyToClipboard(hash, 'onChainHash')}
                       copied={copied === 'onChainHash'}
                     />
@@ -706,12 +712,14 @@ function OnChainCommitmentStatus({
   hasOnChainCommitment,
   onChainCommitHash,
   dbCommitHash,
+  startTxHash,
   onCopy,
   copied,
 }: {
   hasOnChainCommitment?: boolean;
   onChainCommitHash?: string;
   dbCommitHash?: string;
+  startTxHash?: string;
   onCopy?: (hash: string) => void;
   copied?: boolean;
 }) {
@@ -762,6 +770,17 @@ function OnChainCommitmentStatus({
             <div className="text-xs text-red-600 mt-1 font-medium">
               ✗ Does NOT match database commitment — potential integrity issue!
             </div>
+          )}
+          {startTxHash && (
+            <button
+              onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${startTxHash}`)}
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-2 font-medium"
+            >
+              <span>View on BaseScan</span>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
           )}
         </div>
         {onCopy && (

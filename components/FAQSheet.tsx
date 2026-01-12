@@ -288,6 +288,26 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: "XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don't really know yet, tbh.",
     },
     {
+      question: "What are Wordmarks?",
+      answer: (
+        <>
+          <strong>Wordmarks</strong> are permanent achievements earned by playing Let's Have A Word! They appear next to your name in leaderboards and game lists.
+          <p className="mt-2">Wordmarks you can earn:</p>
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>🕵️‍♂️ OG Hunter</strong> — Participated in the OG Hunter prelaunch campaign</li>
+            <li><strong>🎣 Side Quest</strong> — Found a bonus word during a round</li>
+            <li><strong>🏆 Jackpot Winner</strong> — Won a round jackpot</li>
+            <li><strong>✌️ Double Dub</strong> — Found two bonus words OR bonus word + secret word in the same round</li>
+            <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>
+            <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
+            <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>
+            <li><strong>🍩 Baker's Dozen</strong> — Earned by guessing words starting with 13 different letters, on 13 different days. Only the <em>first guess of each day</em> counts toward progress.</li>
+          </ul>
+          <p className="mt-2">View your wordmarks collection in your Stats sheet under <strong>Lexicon</strong>.</p>
+        </>
+      ),
+    },
+    {
       question: "Can I play outside of Farcaster?",
       answer: (
         <>

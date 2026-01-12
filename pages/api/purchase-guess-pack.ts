@@ -176,9 +176,10 @@ export default async function handler(
     });
 
     // Award packs one by one (for proper tracking)
+    // Pass roundId so volume tier resets when a new round starts
     let updatedState = currentState;
     for (let i = 0; i < packCount; i++) {
-      updatedState = await awardPaidPack(fid, dateStr);
+      updatedState = await awardPaidPack(fid, dateStr, activeRound?.id);
     }
 
     // Log analytics event - packs purchased with pricing info
