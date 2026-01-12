@@ -13,6 +13,11 @@ interface TopGuesser {
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
   hasBonusWordBadge?: boolean;
+  hasJackpotWinnerBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
 }
 
 // Bonus Words Feature: Winner display type
@@ -28,6 +33,11 @@ interface BonusWordWinner {
   hasOgHunterBadge?: boolean;
   hasClanktonBadge?: boolean;
   hasBonusWordBadge?: boolean;
+  hasJackpotWinnerBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
 }
 
 interface RoundState {
@@ -421,6 +431,11 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
                             hasClanktonBadge={guesser.hasClanktonBadge}
                             hasBonusWordBadge={guesser.hasBonusWordBadge}
+                            hasJackpotWinnerBadge={guesser.hasJackpotWinnerBadge}
+                            hasDoubleWBadge={guesser.hasDoubleWBadge}
+                            hasPatronBadge={guesser.hasPatronBadge}
+                            hasQuickdrawBadge={guesser.hasQuickdrawBadge}
+                            hasEncyclopedicBadge={guesser.hasEncyclopedicBadge}
                             size="sm"
                           />
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
@@ -476,6 +491,11 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
                           hasOgHunterBadge={winner.hasOgHunterBadge}
                           hasClanktonBadge={winner.hasClanktonBadge}
                           hasBonusWordBadge={winner.hasBonusWordBadge}
+                          hasJackpotWinnerBadge={winner.hasJackpotWinnerBadge}
+                          hasDoubleWBadge={winner.hasDoubleWBadge}
+                          hasPatronBadge={winner.hasPatronBadge}
+                          hasQuickdrawBadge={winner.hasQuickdrawBadge}
+                          hasEncyclopedicBadge={winner.hasEncyclopedicBadge}
                           size="sm"
                         />
                       </div>

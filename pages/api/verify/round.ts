@@ -26,7 +26,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { rounds, roundArchive } from '../../../src/db/schema';
-import { eq, desc, isNotNull, and } from 'drizzle-orm';
+import { eq, desc, isNotNull, and, sql } from 'drizzle-orm';
 import { getPlaintextAnswer } from '../../../src/lib/encryption';
 import { getCommitHashOnChain, hasOnChainCommitment as checkOnChainCommitment, isContractDeployed } from '../../../src/lib/jackpot-contract';
 
@@ -36,6 +36,7 @@ export interface VerifyRoundResponse {
   commitHash: string;
   onChainCommitHash?: string; // Onchain commitment hash (null if no onchain commitment)
   hasOnChainCommitment: boolean;
+  startTxHash?: string; // Transaction hash for startRoundWithCommitment
   revealedWord?: string;
   revealedSalt?: string;
   roundStartedAt: string;
@@ -74,28 +75,22 @@ export default async function handler(
       }
     }
 
-    // If no round specified, get the latest completed round
+    // If no round specified, get the latest round (active or completed)
     if (roundNumber === null) {
-      const [latestResolved] = await db
-        .select()
+      const [latestRound] = await db
+        .select({ id: rounds.id })
         .from(rounds)
-        .where(
-          and(
-            isNotNull(rounds.resolvedAt),
-            eq(rounds.status, 'resolved')
-          )
-        )
         .orderBy(desc(rounds.id))
         .limit(1);
 
-      if (!latestResolved) {
+      if (!latestRound) {
         return res.status(404).json({
-          error: 'No completed rounds found yet.',
+          error: 'No rounds found yet.',
           code: 'NO_ROUNDS',
         });
       }
 
-      roundNumber = latestResolved.id;
+      roundNumber = latestRound.id;
     }
 
     // Get round data from the rounds table (contains the ORIGINAL commitHash)
@@ -128,6 +123,20 @@ export default async function handler(
       console.error('[api/verify/round] Failed to fetch onchain commitment:', error);
     }
 
+    // Fetch startTxHash via raw SQL (column may not exist yet)
+    let startTxHash: string | undefined;
+    try {
+      const startTxResult = await db.execute(
+        sql`SELECT start_tx_hash FROM rounds WHERE id = ${roundNumber} LIMIT 1`
+      );
+      const rows = Array.isArray(startTxResult) ? startTxResult : startTxResult.rows || [];
+      if (rows[0]?.start_tx_hash) {
+        startTxHash = rows[0].start_tx_hash;
+      }
+    } catch {
+      // Column doesn't exist yet - migration 0015 not applied
+    }
+
     // Also check archive for additional data (timestamps may differ)
     const [archivedRound] = await db
       .select()
@@ -144,6 +153,7 @@ export default async function handler(
         commitHash: roundData.commitHash,
         onChainCommitHash: onChainCommitHash || undefined,
         hasOnChainCommitment: hasOnChainCommit,
+        startTxHash,
         revealedWord: archivedRound.targetWord,
         revealedSalt: archivedRound.salt,
         roundStartedAt: archivedRound.startTime.toISOString(),
@@ -172,6 +182,7 @@ export default async function handler(
         commitHash: roundData.commitHash,
         onChainCommitHash: onChainCommitHash || undefined,
         hasOnChainCommitment: hasOnChainCommit,
+        startTxHash,
         revealedWord: getPlaintextAnswer(roundData.answer), // Decrypt for reveal
         revealedSalt: roundData.salt,
         roundStartedAt: roundData.startedAt.toISOString(),
@@ -189,6 +200,7 @@ export default async function handler(
       commitHash: roundData.commitHash,
       onChainCommitHash: onChainCommitHash || undefined,
       hasOnChainCommitment: hasOnChainCommit,
+      startTxHash,
       roundStartedAt: roundData.startedAt.toISOString(),
       roundEndedAt: roundData.cancelledAt?.toISOString(),
       // Bonus Words Feature

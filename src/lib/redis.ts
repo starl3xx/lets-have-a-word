@@ -144,6 +144,9 @@ export const CacheKeys = {
 
   /** Guess pack pricing (based on current guess count tier) */
   guessPackPricing: (roundId: number) => `${CACHE_PREFIX}pack-pricing:${roundId}`,
+
+  /** User profile (Neynar data - username, pfpUrl) */
+  userProfile: (fid: number) => `${CACHE_PREFIX}user-profile:${fid}`,
 } as const;
 
 // ============================================================
@@ -185,6 +188,9 @@ export const CacheTTL = {
 
   /** Guess pack pricing - short, changes with guess count */
   guessPackPricing: 10,
+
+  /** User profile - longer TTL, rarely changes */
+  userProfile: 300, // 5 minutes
 } as const;
 
 // ============================================================

@@ -9,7 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db, rounds } from '../../../src/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getArchivedRoundWithUsernames, getRoundGuessDistribution, type ArchivedRoundWithUsernames } from '../../../src/lib/archive';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 import { getCommitHashOnChain, isContractDeployed } from '../../../src/lib/jackpot-contract';
@@ -23,6 +23,8 @@ export interface ArchiveDetailResponse {
     commitHash?: string;
     hasOnChainCommitment?: boolean;
     onChainCommitHash?: string;
+    startTxHash?: string;
+    resolveTxHash?: string;
     bonusWordWinners?: BonusWordWinner[];
   }) | null;
   distribution?: {
@@ -70,15 +72,33 @@ export default async function handler(
         // Serialize decimal/date values
         const serialized = serializeArchiveRow(round);
 
-        // Fetch commit hash from rounds table
+        // Fetch commit hash and transaction hashes from rounds table
+        // Note: startTxHash requires migration 0015 - use raw SQL to handle missing column gracefully
         const [roundData] = await db
-          .select({ commitHash: rounds.commitHash })
+          .select({
+            commitHash: rounds.commitHash,
+            txHash: rounds.txHash,
+          })
           .from(rounds)
           .where(eq(rounds.id, roundNum))
           .limit(1);
 
         if (roundData) {
           serialized.commitHash = roundData.commitHash;
+          serialized.resolveTxHash = roundData.txHash || undefined;
+
+          // Try to fetch startTxHash via raw SQL (column may not exist yet)
+          try {
+            const startTxResult = await db.execute(
+              sql`SELECT start_tx_hash FROM rounds WHERE id = ${roundNum} LIMIT 1`
+            );
+            const rows = Array.isArray(startTxResult) ? startTxResult : startTxResult.rows || [];
+            if (rows[0]?.start_tx_hash) {
+              serialized.startTxHash = rows[0].start_tx_hash;
+            }
+          } catch {
+            // Column doesn't exist yet - migration 0015 not applied
+          }
         }
 
         // Fetch onchain commitment if available

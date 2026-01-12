@@ -217,21 +217,30 @@ export default async function handler(
     const paidRemaining = dailyState.paidGuessCredits;
     const totalRemaining = freeRemaining + paidRemaining;
 
-    // Check if CLANKTON bonus is active
-    // If connected wallet provided, check it directly; otherwise use database value
-    let clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
+    // OPTIMIZATION: Run independent async operations in parallel
+    // These have no dependencies on each other, so parallelizing saves ~100-200ms
+    const totalGuessWords = getGuessWords().length;
+    const [clanktonResult, wheelStartIndex, sourceState] = await Promise.all([
+      // CLANKTON bonus check (if wallet provided)
+      walletAddress
+        ? hasClanktonBonus(walletAddress).catch((err) => {
+            console.error('[user-state] CLANKTON check failed:', err);
+            return null; // Fallback to database value
+          })
+        : Promise.resolve(null),
+      // Wheel start index
+      getOrGenerateWheelStartIndex(fid, undefined, totalGuessWords),
+      // Source-level state for unified guess bar
+      getGuessSourceState(fid),
+    ]);
 
-    // If wallet address provided, do live check
+    // Determine CLANKTON bonus: use live check if available, otherwise database value
+    const clanktonBonusActive = clanktonResult !== null
+      ? clanktonResult
+      : dailyState.freeAllocatedClankton > 0;
+
     if (walletAddress) {
-      console.log(`[user-state] Performing live CLANKTON check for wallet ${walletAddress}`);
-      try {
-        clanktonBonusActive = await hasClanktonBonus(walletAddress);
-        console.log(`[user-state] Live CLANKTON check result: ${clanktonBonusActive}`);
-      } catch (clanktonError) {
-        console.error('[user-state] CLANKTON check failed:', clanktonError);
-        // Non-fatal: continue with database value if live check fails
-        console.log(`[user-state] Falling back to database value: ${clanktonBonusActive}`);
-      }
+      console.log(`[user-state] CLANKTON check result: ${clanktonBonusActive}`);
     }
 
     // Check if can buy more packs
@@ -239,15 +248,6 @@ export default async function handler(
 
     // Milestone 6.3: Check if user has already shared today
     const hasSharedToday = dailyState.freeAllocatedShareBonus > 0;
-
-    // Milestone 4.14: Get wheel start index (with dev mode override support)
-    // In production: stable per-day per-user, from database
-    // In dev mode: fresh random on every request
-    const totalGuessWords = getGuessWords().length;
-    const wheelStartIndex = await getOrGenerateWheelStartIndex(fid, undefined, totalGuessWords);
-
-    // Milestone 6.5: Get source-level state for unified guess bar
-    const sourceState = await getGuessSourceState(fid);
 
     const response: UserStateResponse = {
       fid,

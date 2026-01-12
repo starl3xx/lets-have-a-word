@@ -44,19 +44,39 @@ export default async function handler(
     const fidParam = req.query.fid;
     const fid = fidParam && typeof fidParam === 'string' ? parseInt(fidParam, 10) : null;
 
+    // Get current active round ID first (needed for volume tier reset check)
+    let activeRoundId: number | null = null;
+    if (!isDevModeEnabled()) {
+      const [activeRound] = await db
+        .select({ id: rounds.id })
+        .from(rounds)
+        .where(isNull(rounds.resolvedAt))
+        .limit(1);
+      activeRoundId = activeRound?.id ?? null;
+    }
+
     // Get user's packs purchased today (if FID provided)
+    // Volume tier resets when a new round starts, not just at daily reset
     let packsPurchasedToday = 0;
     if (fid && !isNaN(fid)) {
       const dateStr = getTodayUTC();
       const [userState] = await db
-        .select({ paidPacksPurchased: dailyGuessState.paidPacksPurchased })
+        .select({
+          paidPacksPurchased: dailyGuessState.paidPacksPurchased,
+          packPurchaseRoundId: dailyGuessState.packPurchaseRoundId,
+        })
         .from(dailyGuessState)
         .where(and(
           eq(dailyGuessState.fid, fid),
           eq(dailyGuessState.date, dateStr)
         ))
         .limit(1);
-      packsPurchasedToday = userState?.paidPacksPurchased || 0;
+
+      // Only count packs if they were purchased in the current round
+      // This resets volume tier when a new round starts
+      if (userState?.paidPacksPurchased && userState?.packPurchaseRoundId === activeRoundId) {
+        packsPurchasedToday = userState.paidPacksPurchased;
+      }
     }
 
     // Get total guesses in current round
@@ -71,21 +91,13 @@ export default async function handler(
         const devStatus = await getDevRoundStatus();
         totalGuessesInRound = devStatus.globalGuessCount;
       }
-    } else {
-      // Production: get actual guess count from database
-      const [activeRound] = await db
-        .select({ id: rounds.id })
-        .from(rounds)
-        .where(isNull(rounds.resolvedAt))
-        .limit(1);
-
-      if (activeRound) {
-        const [result] = await db
-          .select({ count: sql<number>`cast(count(*) as int)` })
-          .from(guesses)
-          .where(eq(guesses.roundId, activeRound.id));
-        totalGuessesInRound = result?.count || 0;
-      }
+    } else if (activeRoundId) {
+      // Production: get actual guess count from database (reuse activeRoundId from above)
+      const [result] = await db
+        .select({ count: sql<number>`cast(count(*) as int)` })
+        .from(guesses)
+        .where(eq(guesses.roundId, activeRoundId));
+      totalGuessesInRound = result?.count || 0;
     }
 
     // Get dynamic pricing details including volume tier

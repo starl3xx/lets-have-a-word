@@ -378,26 +378,37 @@ export async function canBuyAnotherPack(
  *
  * Note: Pack purchases are now UNCAPPED. Volume-based pricing tiers apply.
  * Paid guesses still expire at 11:00 UTC daily reset.
+ * Volume tier resets when a new round starts (tracked via packPurchaseRoundId).
+ *
+ * @param fid - Farcaster ID
+ * @param dateStr - Date string (YYYY-MM-DD), defaults to today
+ * @param roundId - Current round ID to track volume tier per-round
  */
 export async function awardPaidPack(
   fid: number,
-  dateStr: string = getTodayUTC()
+  dateStr: string = getTodayUTC(),
+  roundId?: number
 ): Promise<DailyGuessStateRow> {
   const state = await getOrCreateDailyState(fid, dateStr);
+
+  // Check if this is a new round - if so, reset pack count before incrementing
+  const isNewRound = roundId && state.packPurchaseRoundId && state.packPurchaseRoundId !== roundId;
+  const currentPackCount = isNewRound ? 0 : state.paidPacksPurchased;
 
   // Increment pack count and add credits (no cap - unlimited purchases allowed)
   const [updated] = await db
     .update(dailyGuessState)
     .set({
-      paidPacksPurchased: state.paidPacksPurchased + 1,
+      paidPacksPurchased: currentPackCount + 1,
       paidGuessCredits: state.paidGuessCredits + DAILY_LIMITS_RULES.paidGuessPackSize,
+      packPurchaseRoundId: roundId ?? state.packPurchaseRoundId,
       updatedAt: new Date(),
     })
     .where(eq(dailyGuessState.id, state.id))
     .returning();
 
   console.log(
-    `💰 Awarded paid pack to FID ${fid}: pack ${updated.paidPacksPurchased} (unlimited), credits: ${updated.paidGuessCredits}`
+    `💰 Awarded paid pack to FID ${fid}: pack ${updated.paidPacksPurchased} (round ${roundId}), credits: ${updated.paidGuessCredits}`
   );
 
   return updated;

@@ -61,6 +61,7 @@ export const rounds = pgTable('rounds', {
   winnerFid: integer('winner_fid'), // FK to users.fid
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
   txHash: varchar('tx_hash', { length: 66 }), // Resolve round transaction hash
+  startTxHash: varchar('start_tx_hash', { length: 66 }), // Start round with commitment transaction hash
   isDevTestRound: boolean('is_dev_test_round').default(false).notNull(), // Milestone 4.5: Mid-round test mode flag
   startedAt: timestamp('started_at').defaultNow().notNull(),
   resolvedAt: timestamp('resolved_at'), // null until someone wins
@@ -130,7 +131,8 @@ export const dailyGuessState = pgTable('daily_guess_state', {
 
   // Paid guess state for this day
   paidGuessCredits: integer('paid_guess_credits').default(0).notNull(), // Remaining paid guesses
-  paidPacksPurchased: integer('paid_packs_purchased').default(0).notNull(), // How many packs bought today (max 3)
+  paidPacksPurchased: integer('paid_packs_purchased').default(0).notNull(), // How many packs bought today
+  packPurchaseRoundId: integer('pack_purchase_round_id'), // Round ID when packs were purchased (resets volume tier on new round)
 
   // Share bonus tracking
   hasSharedToday: boolean('has_shared_today').default(false).notNull(), // Once share detected, set true
@@ -196,6 +198,7 @@ export const roundPayouts = pgTable('round_payouts', {
   id: serial('id').primaryKey(),
   roundId: integer('round_id').notNull().references(() => rounds.id),
   fid: integer('fid'), // FK to users.fid - recipient of payout (null for seed/creator)
+  walletAddress: varchar('wallet_address', { length: 66 }), // Resolved wallet address at time of payout (for audit trail)
   amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
   role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser', 'seed', 'creator'
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -531,20 +534,24 @@ export type AdminWalletActionRow = typeof adminWalletActions.$inferSelect;
 export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
 
 /**
- * Badge Types
- * Badge system for special achievements
+ * Wordmark Types (formerly "Badge Types")
+ * Wordmarks are permanent achievements earned by playing
+ * Note: Database column remains 'badge_type' for backwards compatibility
  */
-export type BadgeType = 'OG_HUNTER' | 'BONUS_WORD_FINDER';
+export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN';
+
+// Alias for backwards compatibility with existing code
+export type BadgeType = WordmarkType;
 
 /**
- * User Badges Table
- * OG Hunter Campaign: Tracks awarded badges
+ * User Wordmarks Table (table name 'user_badges' kept for backwards compatibility)
+ * Stores permanent achievements (Wordmarks) earned by players
  */
 export const userBadges = pgTable('user_badges', {
   id: serial('id').primaryKey(),
   fid: integer('fid').notNull(),
-  badgeType: varchar('badge_type', { length: 50 }).notNull().$type<BadgeType>(),
-  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // castHash, castUrl, etc.
+  badgeType: varchar('badge_type', { length: 50 }).notNull().$type<WordmarkType>(), // Column name kept for backwards compatibility
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // roundId, word, etc.
   awardedAt: timestamp('awarded_at').defaultNow().notNull(),
 }, (table) => ({
   fidBadgeUnique: unique('user_badges_fid_badge_unique').on(table.fid, table.badgeType),
@@ -554,6 +561,34 @@ export const userBadges = pgTable('user_badges', {
 
 export type UserBadgeRow = typeof userBadges.$inferSelect;
 export type UserBadgeInsert = typeof userBadges.$inferInsert;
+
+/**
+ * Baker's Dozen Progress Table
+ * Tracks progress toward the Baker's Dozen wordmark
+ * Requirement: Guess words starting with 13 different letters across 13 different days
+ *
+ * Storage:
+ * - letterMask: 26-bit bitmask where bit N = 1 if letter (A=0, B=1, ..., Z=25) has been earned
+ * - distinctDays: Count of distinct days with valid guesses (max useful = 13)
+ * - lastDayKey: Day key of the last processed first-guess-of-day (to prevent double-counting)
+ *
+ * Day boundary matches app-wide reset: 11:00 UTC
+ * dayKey = floor((timestamp - 11*3600) / 86400)
+ */
+export const bakersDozenProgress = pgTable('bakers_dozen_progress', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull().unique(),
+  letterMask: integer('letter_mask').default(0).notNull(), // 26-bit mask for letters A-Z
+  distinctDays: integer('distinct_days').default(0).notNull(), // Count of days with first-guess
+  lastDayKey: integer('last_day_key'), // Day key of last processed first-guess
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  fidIdx: index('bakers_dozen_progress_fid_idx').on(table.fid),
+}));
+
+export type BakersDozenProgressRow = typeof bakersDozenProgress.$inferSelect;
+export type BakersDozenProgressInsert = typeof bakersDozenProgress.$inferInsert;
 
 /**
  * OG Hunter Cast Proofs Table

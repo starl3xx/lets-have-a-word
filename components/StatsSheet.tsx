@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { UserStatsResponse } from '../pages/api/user/stats';
 import type { UserProfileResponse } from '../pages/api/user/profile';
+import type { UserWordmarksResponse } from '../pages/api/user/wordmarks';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import { useTranslation } from '../src/hooks/useTranslation';
@@ -28,6 +29,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [xp, setXp] = useState<number>(0);
   const [hasOgHunterBadge, setHasOgHunterBadge] = useState(false);
+  const [wordmarksData, setWordmarksData] = useState<UserWordmarksResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,12 +42,13 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       }
 
       try {
-        // Fetch stats, XP, badge status, and profile in parallel
-        const [statsResponse, xpResponse, badgeResponse, profileResponse] = await Promise.all([
+        // Fetch stats, XP, badge status, profile, and wordmarks in parallel
+        const [statsResponse, xpResponse, badgeResponse, profileResponse, wordmarksResponse] = await Promise.all([
           fetch(`/api/user/stats?devFid=${fid}`),
           fetch(`/api/user/xp?fid=${fid}`),
           fetch(`/api/og-hunter/status?fid=${fid}`),
-          fetch(`/api/user/profile?fid=${fid}`)
+          fetch(`/api/user/profile?fid=${fid}`),
+          fetch(`/api/user/wordmarks?fid=${fid}`)
         ]);
 
         if (!statsResponse.ok) {
@@ -68,6 +71,11 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
           setProfile(profileData);
+        }
+
+        if (wordmarksResponse.ok) {
+          const wordmarksData = await wordmarksResponse.json();
+          setWordmarksData(wordmarksData);
         }
       } catch (err) {
         console.error('Error fetching stats:', err);
@@ -163,6 +171,63 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         {/* Stats Display */}
         {stats && !isLoading && (
           <div className="space-y-4">
+            {/* Lexicon - Your Wordmarks */}
+            {wordmarksData && (
+              <div className="section-card bg-gradient-to-br from-indigo-50 to-purple-50">
+                <div className="mb-4">
+                  <h3 className="text-lg font-bold text-indigo-900">Lexicon</h3>
+                  <p className="text-sm text-indigo-600">
+                    Your Wordmarks · {wordmarksData.earnedCount}/{wordmarksData.totalCount}
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {wordmarksData.wordmarks.map((wordmark) => {
+                    // Map color names to Tailwind classes
+                    const colorMap: Record<string, { bg: string; ring: string }> = {
+                      purple: { bg: 'bg-purple-100', ring: '#c4b5fd' },
+                      cyan: { bg: 'bg-cyan-100', ring: '#67e8f9' },
+                      amber: { bg: 'bg-amber-100', ring: '#fcd34d' },
+                      indigo: { bg: 'bg-indigo-100', ring: '#a5b4fc' },
+                      rose: { bg: 'bg-rose-100', ring: '#fda4af' },
+                      emerald: { bg: 'bg-emerald-100', ring: '#6ee7b7' },
+                      sky: { bg: 'bg-sky-100', ring: '#7dd3fc' },
+                      orange: { bg: 'bg-orange-100', ring: '#fdba74' },
+                    };
+                    const colors = colorMap[wordmark.color] || { bg: 'bg-gray-100', ring: '#d1d5db' };
+
+                    return (
+                      <div
+                        key={wordmark.id}
+                        className={`flex flex-col items-center gap-1.5 transition-opacity ${
+                          wordmark.earned ? '' : 'opacity-40'
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
+                            wordmark.earned ? colors.bg : 'bg-gray-200'
+                          }`}
+                          style={{
+                            boxShadow: wordmark.earned
+                              ? `0 0 0 2px ${colors.ring}`
+                              : '0 0 0 1px #d1d5db'
+                          }}
+                        >
+                          <span role="img" aria-label={wordmark.name}>
+                            {wordmark.emoji}
+                          </span>
+                        </div>
+                        <span className={`text-xs font-medium text-center leading-tight ${
+                          wordmark.earned ? 'text-indigo-900' : 'text-gray-500'
+                        }`}>
+                          {wordmark.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* This round */}
             <div className="section-card bg-brand-50">
               <h3 className="text-base font-semibold text-brand-900">This round</h3>
