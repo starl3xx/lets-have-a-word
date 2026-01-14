@@ -3,7 +3,7 @@ import { eq, isNull, desc, and } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer, selectBonusWords } from './word-lists';
 import { createCommitment, createBonusWordsCommitment, verifyCommit } from './commit-reveal';
-import { resolveRoundAndCreatePayouts } from './economics';
+import { resolveRoundAndCreatePayouts, syncPrizePoolFromContract } from './economics';
 import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 import { trackSlowQuery } from './redis';
@@ -188,6 +188,18 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   }
 
   // Milestone 4.10: Seed words removed - wheel shows all GUESS_WORDS from start
+
+  // Sync prize pool from contract (the contract may have seed ETH from previous round)
+  if (!skipOnChainCommitment) {
+    try {
+      const syncedPrizePool = await syncPrizePoolFromContract(round.id);
+      round.prizePoolEth = syncedPrizePool;
+      console.log(`[rounds] ✅ Synced prize pool from contract: ${syncedPrizePool} ETH`);
+    } catch (error) {
+      console.error('[rounds] Failed to sync prize pool from contract:', error);
+      // Continue - the prize pool will be synced on next purchase or can be manually synced
+    }
+  }
 
   // Milestone 5.1: Announce round started (non-blocking)
   try {
