@@ -159,6 +159,86 @@ const BASE_CHAIN_ID_HEX = '0x2105';
 const CREATOR_PROFIT_WALLET = '0x3Cee630075DC586D5BFdFA81F3a2d77980F0d223';
 
 // =============================================================================
+// Health Badge Helper
+// =============================================================================
+
+type WalletHealthStatus = 'healthy' | 'warning' | 'critical';
+
+interface WalletHealthInfo {
+  status: WalletHealthStatus;
+  emoji: string;
+  label: string;
+  issues: string[];
+}
+
+function computeWalletHealth(
+  balances: WalletBalances | null,
+  opStatus: OperationalStatus | null
+): WalletHealthInfo {
+  const issues: string[] = [];
+
+  // Critical issues
+  if (opStatus?.killSwitch?.enabled) {
+    issues.push('Kill switch is active');
+  }
+
+  if (balances?.pendingRefunds && balances.pendingRefunds.count > 0) {
+    issues.push(`${balances.pendingRefunds.count} pending refunds (${balances.pendingRefunds.totalEth} ETH)`);
+  }
+
+  if (balances?.contractError) {
+    issues.push('Contract connection error');
+  }
+
+  // Warning issues
+  const operatorBalance = parseFloat(balances?.operatorWallet?.balanceEth || '0');
+  if (operatorBalance < 0.01 && balances) {
+    issues.push('Low operator wallet balance');
+  }
+
+  const seedShortfall = parseFloat(balances?.nextRoundSeed?.shortfallEth || '0');
+  if (seedShortfall > 0) {
+    issues.push(`Next round seed ${seedShortfall.toFixed(4)} ETH short of target`);
+  }
+
+  if (opStatus?.deadDay?.enabled) {
+    issues.push('Dead day is active');
+  }
+
+  // Determine status
+  const hasCritical = opStatus?.killSwitch?.enabled ||
+    (balances?.pendingRefunds && balances.pendingRefunds.count > 0) ||
+    balances?.contractError;
+
+  const hasWarning = issues.length > 0;
+
+  if (hasCritical) {
+    return {
+      status: 'critical',
+      emoji: '🔴',
+      label: 'Critical Issues',
+      issues,
+    };
+  }
+
+  if (hasWarning) {
+    return {
+      status: 'warning',
+      emoji: '🟡',
+      label: 'Attention Needed',
+      issues,
+    };
+  }
+
+  return {
+    status: 'healthy',
+    emoji: '🟢',
+    label: 'All Systems Normal',
+    issues: [],
+  };
+}
+
+// =============================================================================
 // Styles
 // =============================================================================
 
@@ -959,8 +1039,77 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const isOnBase = connectedWallet?.chainId === BASE_CHAIN_ID;
   const safetyAlerts = getSafetyAlerts();
 
+  // Compute wallet health
+  const walletHealth = computeWalletHealth(balances, opStatus);
+
   return (
     <div>
+      {/* Wallet Health Badge - At a glance status */}
+      <div style={{
+        ...styles.card,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        background: walletHealth.status === 'critical' ? '#fef2f2' :
+                    walletHealth.status === 'warning' ? '#fffbeb' :
+                    '#f0fdf4',
+        borderColor: walletHealth.status === 'critical' ? '#fecaca' :
+                     walletHealth.status === 'warning' ? '#fde68a' :
+                     '#bbf7d0',
+      }}>
+        <div style={{ fontSize: '48px', lineHeight: 1 }}>
+          {walletHealth.emoji}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: walletHealth.status === 'critical' ? '#991b1b' :
+                   walletHealth.status === 'warning' ? '#92400e' :
+                   '#166534',
+            marginBottom: '4px',
+            fontFamily,
+          }}>
+            {walletHealth.label}
+          </div>
+          {walletHealth.issues.length > 0 ? (
+            <ul style={{
+              margin: 0,
+              padding: '0 0 0 18px',
+              fontSize: '13px',
+              color: walletHealth.status === 'critical' ? '#dc2626' :
+                     walletHealth.status === 'warning' ? '#b45309' :
+                     '#16a34a',
+              fontFamily,
+            }}>
+              {walletHealth.issues.map((issue, i) => (
+                <li key={i}>{issue}</li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{
+              margin: 0,
+              fontSize: '13px',
+              color: '#16a34a',
+              fontFamily,
+            }}>
+              Prize pool, operator wallet, and treasury are functioning normally.
+            </p>
+          )}
+        </div>
+        {balances && (
+          <div style={{
+            textAlign: 'right',
+            fontSize: '11px',
+            color: '#9ca3af',
+            fontFamily,
+          }}>
+            Updated<br />
+            {new Date(balances.lastUpdated).toLocaleTimeString()}
+          </div>
+        )}
+      </div>
+
       {/* Wallet Connection Section */}
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>Wallet Connection</h3>

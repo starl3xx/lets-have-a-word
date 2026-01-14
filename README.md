@@ -19,9 +19,18 @@
 
 - **Word List Expansion**: Added 83 new words to CORE_COMMON, bringing total to 4,440 curated words
 - **Purchase UX**: Added always-visible "+" icon (top right) with subtle shine animation; moved info icon to left
-- **Social Proof**: TopTicker now shows "X hunters bought packs" when players have purchased packs this round
+- **Social Proof**: Moved "X packs purchased" indicator to Round Archive modal as clickable pill
 - **Wheel Fix**: Wheel now loads with all words as "unguessed" even when no active round (between rounds or during dead day)
 - **Prize Pool Sync**: Fixed prize pool not syncing from contract on round creation; added admin sync endpoint
+- **Admin Panel Enhancements**:
+  - Added at-a-glance health badges (Game, Revenue, Retention, DAU) at top of Analytics
+  - Added Live Round Dashboard with real-time prize pool, guesses, Top 10 progress bar
+  - Added WAU trend chart alongside DAU with stickiness ratio indicator
+  - Added Share & Referral Analytics section with channel breakdown and velocity chart
+  - Added Retention & Cohorts section with return rate, churn metrics, user segments
+  - Added Weekly Cohort Retention heatmap with color-coded retention percentages
+  - Added Wallet Health Badge showing at-a-glance system status with issue detection
+  - Created new API endpoints: `/api/admin/analytics/retention`, `/api/admin/analytics/cohorts`
 - **Documentation**: Updated README, GAME_DOCUMENTATION, and CLAUDE.md with current word counts and architecture
 
 ---
