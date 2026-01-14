@@ -1983,7 +1983,7 @@ function GameContent() {
       <RoundArchiveModal
         isOpen={showArchiveModal}
         onClose={() => setShowArchiveModal(false)}
-        currentRoundId={currentRoundId}
+        onOpenPurchaseModal={() => setShowGuessPurchaseModal(true)}
       />
 
       {/* First Time Overlay - only shown in dev mode for testing */}

@@ -286,11 +286,6 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
               ({formatGuessPercentage(status.globalGuessCount, TOTAL_WORD_COUNT)})
             </span>
           </p>
-          {status.packBuyerCount != null && status.packBuyerCount > 0 && (
-            <p className="text-xs font-normal opacity-60 mt-0.5">
-              {status.packBuyerCount} {status.packBuyerCount === 1 ? 'hunter' : 'hunters'} bought packs
-            </p>
-          )}
         </div>
 
         {/* Round Number - Clickable to open archive */}
