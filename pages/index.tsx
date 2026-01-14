@@ -1645,8 +1645,8 @@ function GameContent() {
                 setShowGuessPurchaseModal(true);
                 void haptics.buttonTapMinor();
               }}
-              className="absolute top-0 right-0 p-1.5 text-gray-400 hover:text-green-600 transition-colors"
-              style={{ zIndex: 20 }}
+              className="absolute top-0 right-0 p-1.5 text-emerald-500 hover:text-emerald-600 transition-all"
+              style={{ zIndex: 20, filter: 'drop-shadow(0 1px 2px rgba(16, 185, 129, 0.2))' }}
               aria-label="Buy guesses"
             >
               <svg
