@@ -1640,28 +1640,52 @@ function GameContent() {
 
           {/* Buy Guesses Icon - open purchase modal (absolutely positioned, right side) */}
           {!showFirstTimeOverlay && !showTutorial && (
-            <button
-              onClick={() => {
-                setShowGuessPurchaseModal(true);
-                void haptics.buttonTapMinor();
-              }}
-              className="absolute top-0 right-0 p-1.5 text-emerald-500 hover:text-emerald-600 transition-all"
-              style={{ zIndex: 20, filter: 'drop-shadow(0 1px 2px rgba(16, 185, 129, 0.2))' }}
-              aria-label="Buy guesses"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="w-5 h-5"
+            <>
+              <style jsx>{`
+                @keyframes shine {
+                  0% { transform: translateX(-100%) rotate(25deg); }
+                  100% { transform: translateX(200%) rotate(25deg); }
+                }
+                .shine-button::after {
+                  content: '';
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  width: 50%;
+                  height: 100%;
+                  background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.4),
+                    transparent
+                  );
+                  animation: shine 3s ease-in-out infinite;
+                  animation-delay: 1s;
+                }
+              `}</style>
+              <button
+                onClick={() => {
+                  setShowGuessPurchaseModal(true);
+                  void haptics.buttonTapMinor();
+                }}
+                className="shine-button absolute top-0 right-0 p-1.5 text-gray-400 hover:text-emerald-500 transition-all overflow-hidden"
+                style={{ zIndex: 20 }}
+                aria-label="Buy guesses"
               >
-                <circle cx="12" cy="12" r="9" />
-                <line x1="12" y1="8" x2="12" y2="16" />
-                <line x1="8" y1="12" x2="16" y2="12" />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="w-5 h-5"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <line x1="12" y1="8" x2="12" y2="16" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+              </button>
+            </>
           )}
 
           {/* Wheel + Input Container - fills remaining space with stable height */}

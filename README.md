@@ -18,9 +18,10 @@
 ### 2026-01-14 (after Round 7)
 
 - **Word List Expansion**: Added 83 new words to CORE_COMMON, bringing total to 4,440 curated words
-- **Purchase UX**: Added always-visible "+" icon (top right) to open purchase modal; moved info icon to left
+- **Purchase UX**: Added always-visible "+" icon (top right) with subtle shine animation; moved info icon to left
 - **Social Proof**: TopTicker now shows "X hunters bought packs" when players have purchased packs this round
 - **Wheel Fix**: Wheel now loads with all words as "unguessed" even when no active round (between rounds or during dead day)
+- **Prize Pool Sync**: Fixed prize pool not syncing from contract on round creation; added admin sync endpoint
 - **Documentation**: Updated README, GAME_DOCUMENTATION, and CLAUDE.md with current word counts and architecture
 
 ---
