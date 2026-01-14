@@ -49,6 +49,7 @@ interface RoundState {
   top10GuessesRemaining: number;
   top10LockAfterGuesses: number;
   roundStartedAt?: string;
+  packBuyerCount?: number;
 }
 
 /**
@@ -85,6 +86,7 @@ function formatTimeAgo(isoTimestamp: string): string {
 interface RoundArchiveModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenPurchaseModal?: () => void;
 }
 
 // Top 10 rank distribution percentages (of the Top 10 pool)
@@ -116,7 +118,7 @@ function getRankPayout(rank: number, top10PoolEth: number): string {
  * RoundArchiveModal Component
  * Shows current round stats with prize breakdown and top guessers
  */
-export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModalProps) {
+export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal }: RoundArchiveModalProps) {
   const [loading, setLoading] = useState(true);
   const [roundState, setRoundState] = useState<RoundState | null>(null);
   const [topGuessers, setTopGuessers] = useState<TopGuesser[]>([]);
@@ -296,6 +298,20 @@ export default function RoundArchiveModal({ isOpen, onClose }: RoundArchiveModal
               </span>
               <span className="text-gray-500">players</span>
             </div>
+            {roundState.packBuyerCount != null && roundState.packBuyerCount > 0 && (
+              <button
+                onClick={() => {
+                  onOpenPurchaseModal?.();
+                  onClose();
+                }}
+                className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 rounded-full px-2 py-0.5 transition-colors cursor-pointer"
+              >
+                <span className="font-bold text-emerald-700 tabular-nums">
+                  {roundState.packBuyerCount.toLocaleString()}
+                </span>
+                <span className="text-emerald-600">{roundState.packBuyerCount === 1 ? 'pack' : 'packs'} purchased</span>
+              </button>
+            )}
             {roundState.roundStartedAt && (
               <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
                 <span className="text-gray-500">started</span>
