@@ -277,7 +277,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How many possible words are there?",
       answer: (
         <>
-          Let's Have A Word uses a custom list of <strong>4,373</strong> five-letter words.
+          Let's Have A Word uses a custom list of <strong>4,440</strong> five-letter words.
           <p className="mt-2">This list is curated by the game's creator and is not the same as Wordle's or any other off-the-shelf word list. Unlike Wordle, which uses separate lists for answers and valid guesses, Let's Have A Word uses a single canonical list.</p>
           <p className="mt-2">While there are 12,000+ five-letter entries if you include every possible dictionary term, most of those are obscure or non-standard. The game's list is intentionally curated to keep gameplay fair, challenging, and fun (have you found any easter eggs?).</p>
         </>

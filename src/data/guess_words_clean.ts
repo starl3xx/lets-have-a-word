@@ -23,7 +23,7 @@
 
 /**
  * Core common English vocabulary - everyday words suitable for gameplay
- * Total: 3851 words
+ * Total: 3934 words
  */
 export const CORE_COMMON: string[] = [
   "ABACK",
@@ -4535,7 +4535,7 @@ export const BANNED_GUESSES: string[] = [
  * - No other word list is used at runtime
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 3989 words
+ * Total: 4440 words
  */
 export const WORDS: string[] = [
   ...CORE_COMMON,
