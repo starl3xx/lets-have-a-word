@@ -50,6 +50,13 @@ interface PackPricingAnalytics {
   currentPhaseLabel: string
   currentPackPriceEth: string
   totalGuessesInRound: number
+  currentRoundId: number | null
+  currentRound: {
+    base: { count: number; revenueEth: number; buyers: number }
+    late1: { count: number; revenueEth: number; buyers: number }
+    late2: { count: number; revenueEth: number; buyers: number }
+    total: { count: number; revenueEth: number; buyers: number }
+  }
   last24h: {
     base: { count: number; revenueEth: number; buyers: number }
     late1: { count: number; revenueEth: number; buyers: number }
@@ -86,6 +93,11 @@ interface DAUData {
   active_users: number
 }
 
+interface WAUData {
+  week_start: string
+  active_users: number
+}
+
 interface GuessData {
   day: string
   free_guesses: number
@@ -106,7 +118,7 @@ interface EconomyAnalytics {
 interface GameplayInsights {
   solveRate: number
   medianGuessesToSolve: number
-  hardestWords: Array<{ word: string; solveRate: number }>
+  hardestWords: Array<{ word: string; roundId: number; solveRate: number; medianGuesses: number }>
   guessDistribution: Array<{ guessCount: number; rounds: number }>
 }
 
@@ -117,6 +129,77 @@ interface SimulationResult {
   summary: string
   executionTimeMs?: number
   result?: { status: string; summary: string }
+}
+
+interface RetentionAnalytics {
+  returnRate: number
+  yesterdayUsers: number
+  returningUsers: number
+  wau: number
+  mau: number
+  stickiness: number
+  churnedUsers7d: number
+  churnedUsers30d: number
+  totalUsers: number
+  churnRate7d: number
+  powerUsers: number
+  powerUserPercentage: number
+  dailyRetention: Array<{
+    day: string
+    returning_users: number
+    previous_day_users: number
+    return_rate: number
+  }>
+}
+
+interface CohortData {
+  cohort_week: string
+  cohort_size: number
+  retention: Array<{
+    weeks_after: number
+    active_users: number
+    retention_rate: number
+  }>
+}
+
+interface CohortAnalytics {
+  cohorts: CohortData[]
+  totalCohorts: number
+  oldestCohort: string
+  newestCohort: string
+}
+
+interface ShareFunnelAnalytics {
+  sharePromptsShown: number
+  shareClicks: number
+  shareSuccesses: number
+  promptToClickRate: number
+  clickToSuccessRate: number
+  overallConversionRate: number
+  totalReferralShares: number
+  referralJoins: number
+  referralGuesses: number
+  shareToJoinRate: number
+  joinToGuessRate: number
+  avgGuessesUnlockedViaShare: number
+  shareFunnelDaily: Array<{
+    day: string
+    prompts_shown: number
+    clicks: number
+    successes: number
+    conversion_rate: number
+  }>
+  referralVelocityDaily: Array<{
+    day: string
+    shares: number
+    joins: number
+    guesses: number
+  }>
+  sharesByChannel: Array<{
+    channel: string
+    clicks: number
+    successes: number
+  }>
 }
 
 // =============================================================================
@@ -267,6 +350,24 @@ function formatNumber(value: number): string {
   return value.toLocaleString()
 }
 
+function formatTimeAgo(isoTimestamp: string): string {
+  const startTime = new Date(isoTimestamp).getTime()
+  const now = Date.now()
+  const diffMs = now - startTime
+
+  const minutes = Math.floor(diffMs / (1000 * 60))
+  const hours = Math.floor(diffMs / (1000 * 60 * 60))
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h ago`
+  } else if (hours > 0) {
+    return `${hours}h ${minutes % 60}m ago`
+  } else {
+    return `${minutes}m ago`
+  }
+}
+
 // =============================================================================
 // Analytics Section Component
 // =============================================================================
@@ -282,9 +383,13 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [packPricing, setPackPricing] = useState<PackPricingAnalytics | null>(null)
   const [onboarding, setOnboarding] = useState<OnboardingAnalytics | null>(null)
   const [dauData, setDauData] = useState<DAUData[]>([])
+  const [wauData, setWauData] = useState<WAUData[]>([])
   const [guessData, setGuessData] = useState<GuessData[]>([])
   const [economyAnalytics, setEconomyAnalytics] = useState<EconomyAnalytics | null>(null)
   const [gameplayInsights, setGameplayInsights] = useState<GameplayInsights | null>(null)
+  const [shareFunnel, setShareFunnel] = useState<ShareFunnelAnalytics | null>(null)
+  const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
+  const [cohorts, setCohorts] = useState<CohortAnalytics | null>(null)
   const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([])
   const [runningSimulation, setRunningSimulation] = useState<string | null>(null)
 
@@ -333,17 +438,25 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         packPricingRes,
         onboardingRes,
         dauRes,
+        wauRes,
         guessRes,
         economyRes,
         gameplayRes,
+        shareFunnelRes,
+        retentionRes,
+        cohortsRes,
       ] = await Promise.all([
         fetch(`/api/admin/analytics/dashboard-summary${devFidParam}`),
         fetch(`/api/admin/analytics/pack-pricing${devFidParam}`),
         fetch(`/api/admin/analytics/onboarding${devFidParam}${rangeParam}`),
         fetch(`/api/admin/analytics/dau${devFidParam}`),
+        fetch(`/api/admin/analytics/wau${devFidParam}`),
         fetch(`/api/admin/analytics/free-paid${devFidParam}`),
         fetch(`/api/admin/analytics/economy${devFidParam}${rangeParam}`),
         fetch(`/api/admin/analytics/gameplay${devFidParam}${rangeParam}`),
+        fetch(`/api/admin/analytics/share-funnel${devFidParam}${rangeParam}`),
+        fetch(`/api/admin/analytics/retention${devFidParam}`),
+        fetch(`/api/admin/analytics/cohorts${devFidParam}`),
       ])
 
       // Parse summary first to get current round start time for filtering
@@ -360,12 +473,19 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         const dau = await dauRes.json()
         setDauData(filterByTimeRange(dau.data || dau, timeRange, currentRoundStartTime))
       }
+      if (wauRes.ok) {
+        const wau = await wauRes.json()
+        setWauData(wau.data || wau)
+      }
       if (guessRes.ok) {
         const guesses = await guessRes.json()
         setGuessData(filterByTimeRange(guesses.data || guesses, timeRange, currentRoundStartTime))
       }
       if (economyRes.ok) setEconomyAnalytics(await economyRes.json())
       if (gameplayRes.ok) setGameplayInsights(await gameplayRes.json())
+      if (shareFunnelRes.ok) setShareFunnel(await shareFunnelRes.json())
+      if (retentionRes.ok) setRetention(await retentionRes.json())
+      if (cohortsRes.ok) setCohorts(await cohortsRes.json())
 
     } catch (err: any) {
       setError(err.message)
@@ -418,6 +538,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     "Active Users": d.active_users
   }))
 
+  const wauChartData = [...wauData].reverse().map(d => ({
+    week: new Date(d.week_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+    "Active Users": d.active_users
+  }))
+
   const guessChartData = [...guessData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
     "Free": d.free_guesses,
@@ -434,6 +559,92 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
 
   return (
     <div>
+      {/* At-a-Glance Health Badges */}
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        marginBottom: '16px',
+        flexWrap: 'wrap',
+      }}>
+        {/* Game Health */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '8px 14px',
+          borderRadius: '20px',
+          fontSize: '12px',
+          fontWeight: 500,
+          fontFamily,
+          background: summary?.currentRound?.roundId ? '#dcfce7' : '#fef3c7',
+          color: summary?.currentRound?.roundId ? '#166534' : '#92400e',
+        }}>
+          <span>{summary?.currentRound?.roundId ? '🟢' : '🟡'}</span>
+          <span>Game: {summary?.currentRound?.roundId ? 'Active' : 'Paused'}</span>
+        </div>
+
+        {/* Revenue Health */}
+        {summary && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: 500,
+            fontFamily,
+            background: (summary.packPurchasesToday || 0) > 0 ? '#dcfce7' :
+                        summary.packPurchases7dAvg > 0 ? '#fef3c7' : '#fee2e2',
+            color: (summary.packPurchasesToday || 0) > 0 ? '#166534' :
+                   summary.packPurchases7dAvg > 0 ? '#92400e' : '#991b1b',
+          }}>
+            <span>{(summary.packPurchasesToday || 0) > 0 ? '🟢' : summary.packPurchases7dAvg > 0 ? '🟡' : '🔴'}</span>
+            <span>Revenue: {(summary.packPurchasesToday || 0) > 0 ? 'Active' : 'Low'}</span>
+          </div>
+        )}
+
+        {/* Retention Health */}
+        {retention && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: 500,
+            fontFamily,
+            background: retention.returnRate >= 30 ? '#dcfce7' :
+                        retention.returnRate >= 15 ? '#fef3c7' : '#fee2e2',
+            color: retention.returnRate >= 30 ? '#166534' :
+                   retention.returnRate >= 15 ? '#92400e' : '#991b1b',
+          }}>
+            <span>{retention.returnRate >= 30 ? '🟢' : retention.returnRate >= 15 ? '🟡' : '🔴'}</span>
+            <span>Retention: {formatPercent(retention.returnRate, 0)}</span>
+          </div>
+        )}
+
+        {/* DAU */}
+        {summary && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: 500,
+            fontFamily,
+            background: '#f3f4f6',
+            color: '#374151',
+          }}>
+            <span>👥</span>
+            <span>DAU: {summary.dauToday}</span>
+          </div>
+        )}
+      </div>
+
       {/* Controls */}
       <div style={styles.controlsRow}>
         <AnalyticsControls
@@ -445,6 +656,210 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           loading={loading}
         />
       </div>
+
+      {/* ================================================================== */}
+      {/* LIVE ROUND DASHBOARD - Real-time current round stats */}
+      {/* ================================================================== */}
+      {summary?.currentRound?.roundId && (
+        <div style={{
+          ...styles.section,
+          background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+          borderColor: '#7dd3fc',
+          marginBottom: '24px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ ...styles.sectionTitle, margin: 0, color: '#0369a1' }}>
+              🎯 Live Round #{summary.currentRound.roundId}
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {autoRefresh && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '11px',
+                  color: '#0369a1',
+                  background: '#e0f2fe',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontFamily,
+                }}>
+                  <span style={{ width: '6px', height: '6px', background: '#10b981', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
+                  Live
+                </span>
+              )}
+              {summary.currentRound.startedAt && (
+                <span style={{ fontSize: '11px', color: '#6b7280', fontFamily }}>
+                  Started {formatTimeAgo(summary.currentRound.startedAt)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Big Numbers Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+            {/* Prize Pool */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '20px',
+              textAlign: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', fontFamily }}>
+                Prize Pool
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 700, color: '#059669', fontFamily }}>
+                {formatEth(summary.currentRound.prizePoolEth)}
+              </div>
+              <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>ETH</div>
+            </div>
+
+            {/* Total Guesses */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '20px',
+              textAlign: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', fontFamily }}>
+                Total Guesses
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 700, color: '#6366f1', fontFamily }}>
+                {formatNumber(summary.currentRound.totalGuesses)}
+              </div>
+              <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>this round</div>
+            </div>
+
+            {/* Top 10 Status */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '20px',
+              textAlign: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', fontFamily }}>
+                Top 10 Status
+              </div>
+              {summary.currentRound.top10Locked ? (
+                <>
+                  <div style={{ fontSize: '32px', fontWeight: 700, color: '#dc2626', fontFamily }}>
+                    Locked
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>rankings frozen</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '32px', fontWeight: 700, color: '#f59e0b', fontFamily }}>
+                    {summary.currentRound.guessesToLock}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>guesses to lock</div>
+                </>
+              )}
+            </div>
+
+            {/* Pricing Phase */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '20px',
+              textAlign: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', fontFamily }}>
+                Pack Price
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 700, color: '#8b5cf6', fontFamily }}>
+                {summary.currentRound.packPriceEth}
+              </div>
+              <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>ETH ({summary.currentRound.pricingPhaseLabel})</div>
+            </div>
+          </div>
+
+          {/* Top 10 Progress Bar */}
+          {!summary.currentRound.top10Locked && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '12px', color: '#374151', fontWeight: 500, fontFamily }}>
+                  Top 10 Race Progress
+                </span>
+                <span style={{ fontSize: '12px', color: '#6b7280', fontFamily }}>
+                  {summary.currentRound.eligibleGuesses} / 850 eligible guesses
+                </span>
+              </div>
+              <div style={{
+                height: '12px',
+                background: '#e5e7eb',
+                borderRadius: '6px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min((summary.currentRound.eligibleGuesses / 850) * 100, 100)}%`,
+                  background: summary.currentRound.eligibleGuesses >= 750 ? '#f59e0b' : '#10b981',
+                  borderRadius: '6px',
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                <span style={{ fontSize: '10px', color: '#9ca3af', fontFamily }}>Open</span>
+                <span style={{ fontSize: '10px', color: '#9ca3af', fontFamily }}>850 = Locked</span>
+              </div>
+            </div>
+          )}
+
+          {/* Eligible vs Ineligible */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{
+              background: '#dcfce7',
+              borderRadius: '8px',
+              padding: '12px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: '12px', color: '#166534', fontFamily }}>Eligible Guesses (Top 10 eligible)</span>
+              <span style={{ fontSize: '16px', fontWeight: 600, color: '#166534', fontFamily }}>
+                {formatNumber(summary.currentRound.eligibleGuesses)}
+              </span>
+            </div>
+            <div style={{
+              background: '#fee2e2',
+              borderRadius: '8px',
+              padding: '12px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: '12px', color: '#991b1b', fontFamily }}>Ineligible Guesses (can win, can't rank)</span>
+              <span style={{ fontSize: '16px', fontWeight: 600, color: '#991b1b', fontFamily }}>
+                {formatNumber(summary.currentRound.ineligibleGuesses)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No Active Round State */}
+      {!summary?.currentRound?.roundId && (
+        <div style={{
+          ...styles.section,
+          background: '#fef3c7',
+          borderColor: '#fde68a',
+          textAlign: 'center',
+          padding: '40px 24px',
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>⏸️</div>
+          <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#92400e', margin: '0 0 8px 0', fontFamily }}>
+            No Active Round
+          </h3>
+          <p style={{ fontSize: '13px', color: '#b45309', margin: 0, fontFamily }}>
+            Start a new round from the Operations tab to see live statistics.
+          </p>
+        </div>
+      )}
 
       {/* ================================================================== */}
       {/* TOP SUMMARY ROW */}
@@ -653,19 +1068,342 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       </Module>
 
       {/* ================================================================== */}
-      {/* DAU CHART */}
+      {/* SHARE & REFERRAL ANALYTICS */}
       {/* ================================================================== */}
-      {dauChartData.length > 0 && (
-        <Module title="Daily Active Users">
-          <AnalyticsChart
-            data={dauChartData}
-            type="line"
-            xAxisKey="day"
-            dataKey={["Active Users"]}
-            colors={["#6366f1"]}
-            height={250}
-            embedded
-          />
+      {shareFunnel && (
+        <Module title="Share & Referral Analytics">
+          {/* Summary Stats */}
+          <div style={{ ...styles.grid, gridTemplateColumns: "repeat(4, 1fr)", marginBottom: "24px" }}>
+            <StatCard
+              label="Share Success Rate"
+              value={formatPercent(shareFunnel.overallConversionRate)}
+              subtext={`${shareFunnel.shareSuccesses.toLocaleString()} of ${shareFunnel.sharePromptsShown.toLocaleString()} prompts`}
+              loading={loading}
+            />
+            <StatCard
+              label="Referral Joins"
+              value={shareFunnel.referralJoins.toLocaleString()}
+              subtext={`${formatPercent(shareFunnel.shareToJoinRate)} of shares`}
+              loading={loading}
+            />
+            <StatCard
+              label="Guesses via Referral"
+              value={shareFunnel.referralGuesses.toLocaleString()}
+              subtext={`${formatPercent(shareFunnel.joinToGuessRate)} of joins`}
+              loading={loading}
+            />
+            <StatCard
+              label="Avg Guesses Unlocked"
+              value={shareFunnel.avgGuessesUnlockedViaShare.toFixed(1)}
+              subtext="Per share bonus"
+              loading={loading}
+            />
+          </div>
+
+          {/* Charts Row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+            {/* Channel Breakdown */}
+            {shareFunnel.sharesByChannel.length > 0 && (
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+                  Share Performance by Channel
+                </div>
+                <AnalyticsChart
+                  data={shareFunnel.sharesByChannel.map(c => ({
+                    channel: c.channel === 'unknown' ? 'Direct' : c.channel.charAt(0).toUpperCase() + c.channel.slice(1),
+                    "Clicks": c.clicks,
+                    "Successes": c.successes,
+                  }))}
+                  type="bar"
+                  xAxisKey="channel"
+                  dataKey={["Clicks", "Successes"]}
+                  colors={["#94a3b8", "#10b981"]}
+                  height={200}
+                  embedded
+                />
+              </div>
+            )}
+
+            {/* Referral Velocity */}
+            {shareFunnel.referralVelocityDaily.length > 0 && (
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+                  Daily Referral Velocity
+                </div>
+                <AnalyticsChart
+                  data={[...shareFunnel.referralVelocityDaily].reverse().slice(-14).map(d => ({
+                    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+                    "Shares": d.shares,
+                    "Joins": d.joins,
+                    "Guesses": d.guesses,
+                  }))}
+                  type="line"
+                  xAxisKey="day"
+                  dataKey={["Shares", "Joins", "Guesses"]}
+                  colors={["#6366f1", "#8b5cf6", "#10b981"]}
+                  height={200}
+                  embedded
+                />
+              </div>
+            )}
+          </div>
+        </Module>
+      )}
+
+      {/* ================================================================== */}
+      {/* USER ACTIVITY CHARTS (DAU + WAU) */}
+      {/* ================================================================== */}
+      <Module title="User Activity">
+        <div style={{ display: "grid", gridTemplateColumns: wauChartData.length > 0 ? "1fr 1fr" : "1fr", gap: "24px" }}>
+          {/* DAU Chart */}
+          {dauChartData.length > 0 && (
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+                Daily Active Users (DAU)
+              </div>
+              <AnalyticsChart
+                data={dauChartData}
+                type="line"
+                xAxisKey="day"
+                dataKey={["Active Users"]}
+                colors={["#6366f1"]}
+                height={200}
+                embedded
+              />
+            </div>
+          )}
+          {/* WAU Chart */}
+          {wauChartData.length > 0 && (
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+                Weekly Active Users (WAU)
+              </div>
+              <AnalyticsChart
+                data={wauChartData}
+                type="line"
+                xAxisKey="week"
+                dataKey={["Active Users"]}
+                colors={["#8b5cf6"]}
+                height={200}
+                embedded
+              />
+            </div>
+          )}
+        </div>
+        {/* DAU/WAU Ratio indicator */}
+        {dauData.length > 0 && wauData.length > 0 && (
+          <div style={{ marginTop: "16px", padding: "12px", background: "#f3f4f6", borderRadius: "8px" }}>
+            <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px", fontFamily }}>
+              Stickiness (DAU/WAU Ratio)
+            </div>
+            <div style={{ fontSize: "20px", fontWeight: 600, color: "#111827", fontFamily }}>
+              {wauData[0]?.active_users > 0
+                ? `${((dauData[0]?.active_users / wauData[0]?.active_users) * 100).toFixed(1)}%`
+                : 'N/A'
+              }
+            </div>
+            <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px", fontFamily }}>
+              Higher = more engaged users returning daily
+            </div>
+          </div>
+        )}
+      </Module>
+
+      {/* ================================================================== */}
+      {/* RETENTION & COHORTS */}
+      {/* ================================================================== */}
+      {retention && (
+        <Module title="Retention & User Health">
+          {/* Key Retention Metrics */}
+          <div style={{ ...styles.grid, gridTemplateColumns: "repeat(5, 1fr)", marginBottom: "24px" }}>
+            <div style={{
+              ...styles.statCard,
+              background: retention.returnRate >= 30 ? '#dcfce7' : retention.returnRate >= 15 ? '#fef3c7' : '#fee2e2',
+              borderLeft: `4px solid ${retention.returnRate >= 30 ? '#10b981' : retention.returnRate >= 15 ? '#f59e0b' : '#ef4444'}`,
+            }}>
+              <div style={styles.statLabel}>Return Rate</div>
+              <div style={{ ...styles.statValue, color: retention.returnRate >= 30 ? '#059669' : retention.returnRate >= 15 ? '#d97706' : '#dc2626' }}>
+                {formatPercent(retention.returnRate)}
+              </div>
+              <div style={styles.statSubtext}>
+                {retention.returningUsers} of {retention.yesterdayUsers} returned
+              </div>
+            </div>
+            <StatCard
+              label="Stickiness (DAU/WAU)"
+              value={formatPercent(retention.stickiness)}
+              subtext="Higher = more engaged"
+              loading={loading}
+            />
+            <StatCard
+              label="WAU"
+              value={formatNumber(retention.wau)}
+              subtext="Weekly Active Users"
+              loading={loading}
+            />
+            <StatCard
+              label="MAU"
+              value={formatNumber(retention.mau)}
+              subtext="Monthly Active Users"
+              loading={loading}
+            />
+            <div style={{
+              ...styles.statCard,
+              background: retention.churnRate7d <= 20 ? '#dcfce7' : retention.churnRate7d <= 40 ? '#fef3c7' : '#fee2e2',
+              borderLeft: `4px solid ${retention.churnRate7d <= 20 ? '#10b981' : retention.churnRate7d <= 40 ? '#f59e0b' : '#ef4444'}`,
+            }}>
+              <div style={styles.statLabel}>7-Day Churn</div>
+              <div style={{ ...styles.statValue, color: retention.churnRate7d <= 20 ? '#059669' : retention.churnRate7d <= 40 ? '#d97706' : '#dc2626' }}>
+                {formatPercent(retention.churnRate7d)}
+              </div>
+              <div style={styles.statSubtext}>
+                {retention.churnedUsers7d} inactive users
+              </div>
+            </div>
+          </div>
+
+          {/* Power Users */}
+          <div style={{ marginBottom: "24px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+              User Segments
+            </div>
+            <div style={{ ...styles.grid, gridTemplateColumns: "repeat(3, 1fr)" }}>
+              <div style={{ ...styles.statCard, borderLeft: "3px solid #8b5cf6" }}>
+                <div style={styles.statLabel}>Power Users (10+ Rounds)</div>
+                <div style={styles.statValue}>{retention.powerUsers}</div>
+                <div style={styles.statSubtext}>{formatPercent(retention.powerUserPercentage)} of all users</div>
+              </div>
+              <div style={{ ...styles.statCard, borderLeft: "3px solid #6366f1" }}>
+                <div style={styles.statLabel}>Total Users</div>
+                <div style={styles.statValue}>{formatNumber(retention.totalUsers)}</div>
+                <div style={styles.statSubtext}>All time</div>
+              </div>
+              <div style={{ ...styles.statCard, borderLeft: "3px solid #f59e0b" }}>
+                <div style={styles.statLabel}>Churned (30+ days)</div>
+                <div style={styles.statValue}>{formatNumber(retention.churnedUsers30d)}</div>
+                <div style={styles.statSubtext}>Haven't played in a month</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Retention Chart */}
+          {retention.dailyRetention.length > 0 && (
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>
+                Daily Return Rate Trend
+              </div>
+              <AnalyticsChart
+                data={[...retention.dailyRetention].reverse().map(d => ({
+                  day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+                  "Return Rate %": d.return_rate,
+                }))}
+                type="line"
+                xAxisKey="day"
+                dataKey={["Return Rate %"]}
+                colors={["#10b981"]}
+                height={200}
+                embedded
+              />
+            </div>
+          )}
+        </Module>
+      )}
+
+      {/* Cohort Retention Heatmap */}
+      {cohorts && cohorts.cohorts.length > 0 && (
+        <Module title="Weekly Cohort Retention">
+          <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "16px", fontFamily }}>
+            Each row is a weekly cohort (when users first played). Columns show retention in subsequent weeks.
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "12px",
+              fontFamily,
+            }}>
+              <thead>
+                <tr>
+                  <th style={{
+                    textAlign: "left",
+                    padding: "8px 12px",
+                    borderBottom: "2px solid #e5e7eb",
+                    color: "#374151",
+                    fontWeight: 600,
+                  }}>
+                    Cohort Week
+                  </th>
+                  <th style={{
+                    textAlign: "center",
+                    padding: "8px 12px",
+                    borderBottom: "2px solid #e5e7eb",
+                    color: "#374151",
+                    fontWeight: 600,
+                  }}>
+                    Size
+                  </th>
+                  {[0, 1, 2, 3, 4, 5, 6, 7].map(week => (
+                    <th key={week} style={{
+                      textAlign: "center",
+                      padding: "8px 12px",
+                      borderBottom: "2px solid #e5e7eb",
+                      color: "#6b7280",
+                      fontWeight: 500,
+                    }}>
+                      W{week}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {cohorts.cohorts.slice(0, 8).map((cohort) => (
+                  <tr key={cohort.cohort_week}>
+                    <td style={{
+                      padding: "8px 12px",
+                      borderBottom: "1px solid #f3f4f6",
+                      color: "#374151",
+                      fontWeight: 500,
+                    }}>
+                      {new Date(cohort.cohort_week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </td>
+                    <td style={{
+                      textAlign: "center",
+                      padding: "8px 12px",
+                      borderBottom: "1px solid #f3f4f6",
+                      color: "#6b7280",
+                    }}>
+                      {cohort.cohort_size}
+                    </td>
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map(weekIdx => {
+                      const weekData = cohort.retention.find(r => r.weeks_after === weekIdx);
+                      const rate = weekData?.retention_rate || 0;
+                      // Color gradient: green (100%) -> yellow (50%) -> red (0%)
+                      const bgColor = rate >= 60 ? '#dcfce7' :
+                                      rate >= 40 ? '#d1fae5' :
+                                      rate >= 20 ? '#fef3c7' :
+                                      rate > 0 ? '#fee2e2' :
+                                      '#f9fafb';
+                      return (
+                        <td key={weekIdx} style={{
+                          textAlign: "center",
+                          padding: "8px 12px",
+                          borderBottom: "1px solid #f3f4f6",
+                          background: bgColor,
+                          color: rate > 0 ? '#374151' : '#d1d5db',
+                          fontWeight: rate > 0 ? 500 : 400,
+                        }}>
+                          {rate > 0 ? `${rate}%` : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: "12px", fontSize: "11px", color: "#9ca3af", fontFamily }}>
+            W0 = Same week as signup. Higher retention in later weeks = better engagement.
+          </div>
         </Module>
       )}
 
