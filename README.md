@@ -11,6 +11,20 @@
 - The word only changes when someone guesses it correctly
 - First correct guesser wins an ETH jackpot
 
+---
+
+## Changelog
+
+### 2026-01-14 (after Round 7)
+
+- **Word List Expansion**: Added 83 new words to CORE_COMMON, bringing total to 4,440 curated words
+- **Purchase UX**: Added always-visible "+" icon (top right) to open purchase modal; moved info icon to left
+- **Social Proof**: TopTicker now shows "X hunters bought packs" when players have purchased packs this round
+- **Wheel Fix**: Wheel now loads with all words as "unguessed" even when no active round (between rounds or during dead day)
+- **Documentation**: Updated README, GAME_DOCUMENTATION, and CLAUDE.md with current word counts and architecture
+
+---
+
 ## 🎯 Current Status: Milestone 13 Complete
 
 All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, OG Hunter prelaunch campaign, **and secure Quick Auth authentication to prevent FID spoofing** are fully implemented and production-ready:
@@ -1064,24 +1078,23 @@ Real-time ETH→USD conversion for the jackpot display using CoinGecko's free AP
 
 ### ✅ Milestone 4.11 - Final Word List Integration
 
-Finalized integration of canonical word lists from the official Wordle word sets:
+Finalized integration of canonical word lists (later unified in Milestone 7.1):
 
-- **Canonical Word Lists**
-  - **ANSWER_WORDS**: 2,279 curated words (valid answers only)
-  - **GUESS_WORDS**: 10,516 words (all valid guesses, includes all ANSWER_WORDS)
-  - Located in `src/data/answer_words.ts` and `src/data/guess_words.ts`
+- **Unified Word List** (updated in 7.1)
+  - **WORDS**: 4,440 curated words (single list for guessing and answers)
+  - Located in `src/data/guess_words_clean.ts`
+  - Categories: CORE_COMMON, BIG_PLACES, COMMON_NAMES, MORPHOLOGICAL, SLANG_ALLOWLIST
+  - BANNED_GUESSES excluded automatically
   - All words in UPPERCASE for consistency
-  - Invariant maintained: ANSWER_WORDS ⊆ GUESS_WORDS
 
 - **Integration**
-  - Answer selection uses ANSWER_WORDS exclusively
-  - Guess validation uses GUESS_WORDS
-  - Wheel rendering displays all GUESS_WORDS with status
+  - Answer selection uses unified WORDS list
+  - Guess validation uses same WORDS list (O(1) Set lookup)
+  - Wheel rendering displays all WORDS with status
   - SEED_WORDS deprecated and removed from game logic
 
 - **Word List Processing**
-  - Filtered from official Wordle lists
-  - Simple plurals removed (no words ending in 'S')
+  - Curated categories for fair gameplay
   - Deduplicated and alphabetized
   - Exactly 5 letters, A-Z only
 
@@ -1631,10 +1644,9 @@ Foundation database schema and word lists:
   - Proper foreign key relationships
 
 - **Word Lists**
-  - Import ANSWER_WORDS list (~2,500 words, now 2,279 in 4.11)
-  - Import GUESS_WORDS list (~10,000 words, now 10,516 in 4.11)
-  - Import SEED_WORDS list (deprecated in Milestone 4.11)
-  - Validate no overlap between answer and seed lists
+  - Import unified WORDS list from `guess_words_clean.ts` (4,440 curated words)
+  - Single source of truth for answers and guesses (Milestone 7.1)
+  - SEED_WORDS deprecated (Milestone 4.11)
 
 - **Rules System**
   - getRulesForRound() function
@@ -1746,7 +1758,7 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 
 ### Random Wheel Start Position - Dev Mode Override
 
-The word wheel displays all 10,516 possible guess words, and each user sees a different starting position to provide variety and prevent pattern recognition.
+The word wheel displays all 4,440 possible guess words, and each user sees a different starting position to provide variety and prevent pattern recognition.
 
 **Production Behavior:**
 - Random wheel start position is generated **once per day per user** (at 11:00 UTC)

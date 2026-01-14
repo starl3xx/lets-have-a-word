@@ -174,9 +174,20 @@ export default async function handler(
     // Milestone 9.0: Get active round ID for cache key
     const activeRound = await getActiveRound();
     if (!activeRound) {
-      // No active round - fetch fresh (this will create one)
-      const wheelData = await getActiveWheelData();
-      return res.status(200).json(wheelData);
+      // No active round - return all words as "unguessed"
+      // This allows the wheel to display even between rounds
+      const allGuessWords = getGuessWords();
+      const wheelWords: WheelWord[] = allGuessWords.map((word) => ({
+        word: word.toUpperCase(),
+        status: 'unguessed' as WheelWordStatus,
+      }));
+      wheelWords.sort((a, b) => a.word.localeCompare(b.word));
+
+      return res.status(200).json({
+        roundId: 0, // Indicate no active round
+        totalWords: wheelWords.length,
+        words: wheelWords,
+      });
     }
 
     // Use cache-aside pattern for wheel data

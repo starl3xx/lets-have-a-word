@@ -50,9 +50,9 @@ Each player gets a daily allocation of guesses:
   - +2 guesses/day when market cap < $250k
   - +3 guesses/day when market cap >= $250k
 - **Share Bonus**: +1 for sharing to Farcaster (once per day)
-- **Paid Guess Packs**: Buy 3 guesses for 0.0003 ETH (max 3 packs/day)
+- **Paid Guess Packs**: Buy 3 guesses per pack (unlimited packs, volume pricing applies)
 
-**Total Possible Daily Guesses**: 12-13 (1 base + 2-3 CLANKTON + 1 share + 9 paid)
+**Total Possible Daily Guesses**: Unlimited (1 base + 2-3 CLANKTON + 1 share + unlimited paid)
 
 ### Prize Pool Economics
 - **70% to Prize Pool**: Accumulates for the winner
@@ -73,15 +73,15 @@ Each player gets a daily allocation of guesses:
 
 ### Word Validation
 - Must be exactly **5 letters**
-- Must be in the **GUESS_WORDS** dictionary (10,516 words)
-- Answer must be in **ANSWER_WORDS** subset (2,279 common words)
+- Must be in the **WORDS** dictionary (4,440 curated words)
+- Unified list: same words for guessing and answers (Milestone 7.1)
 - Cannot guess the same word twice in a round
 - Case-insensitive (BRAIN = brain = BrAiN)
 - All words normalized to UPPERCASE internally
 
 ### Per-User Per-Day Random Wheel Start Position
 
-The word wheel displays all 10,516 possible guess words. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
+The word wheel displays all 4,440 possible guess words. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
 
 **Production Behavior:**
 - Random starting index generated **once per day** at 11:00 UTC per user
@@ -188,8 +188,7 @@ lets-have-a-word/
 │   │   └── simulation-engine/
 │   │       └── index.ts             # Adversarial simulations
 │   ├── data/
-│   │   ├── answer_words.ts          # 2,279 canonical answer words (UPPERCASE)
-│   │   ├── guess_words.ts           # 10,516 canonical valid guesses (UPPERCASE)
+│   │   ├── guess_words_clean.ts     # 4,440 unified word list (UPPERCASE)
 │   │   ├── seed-words.ts            # Deprecated (no longer used)
 │   │   └── test-word-lists.ts       # Dev mode word lists
 │   ├── db/
@@ -701,9 +700,9 @@ Preview out of guesses:
 
 ### Dev Mode Word Lists
 Located in `/src/data/test-word-lists.ts`:
-- ~250 ANSWER_WORDS
+- ~250 test words
 - ~80 SEED_WORDS
-- ~600 extra GUESS_WORDS
+- ~600 extra guess words
 - All lowercase, 5 letters
 - No overlap between answer/seed
 
@@ -822,32 +821,23 @@ haptics.wrongGuess()      // Subtle feedback
 
 ## Word Lists & Validation
 
-### Canonical Word Lists (Milestone 4.11)
+### Unified Word List (Milestone 7.1)
 
-#### ANSWER_WORDS (2,279 words)
-Common 5-letter words suitable as answers.
-- **File**: `/src/data/answer_words.ts`
-- **Format**: UPPERCASE array
-- **Examples**: `'ABOUT', 'BRAIN', 'CRANE', 'DREAM'`
-- **Constraint**: Strict subset of GUESS_WORDS
-- **Invariant**: ANSWER_WORDS ⊆ GUESS_WORDS
+#### WORDS (4,440 words)
+Single curated word list for both guessing and answers.
+- **File**: `/src/data/guess_words_clean.ts`
+- **Format**: UPPERCASE array, derived from category arrays
+- **Categories**: CORE_COMMON (3,934), BIG_PLACES (19), COMMON_NAMES (32), MORPHOLOGICAL (402), SLANG_ALLOWLIST (30)
+- **Filtering**: BANNED_GUESSES (14 words) excluded automatically
+- **Usage**: Secret word selection, guess validation, wheel display
 
-#### GUESS_WORDS (10,516 words)
-All valid guessable words - the complete dictionary.
-- **File**: `/src/data/guess_words.ts`
-- **Format**: UPPERCASE array
-- **Examples**: All answer words + obscure words
-- **Constraint**: Must contain all ANSWER_WORDS
-- **Usage**: Displayed on wheel from game start, validation dictionary
+#### Architecture (Milestone 7.1)
+- **Single Source of Truth**: One list for all game operations
+- **No Separate Answer List**: Any word can be an answer (fair gameplay)
+- **Performance**: Uses `Set` for O(1) lookup instead of `includes()`
+- **Wheel**: Displays all 4,440 words using virtualization
 
-#### SEED_WORDS (Deprecated - Milestone 4.11)
-**No longer used in game logic.**
-- Previously used for cosmetic wheel population
-- Replaced by showing all GUESS_WORDS from start
-- `populateRoundSeedWords()` is now a no-op for backwards compatibility
-- Wheel displays all 10,516 GUESS_WORDS using virtualization
-
-### Validation Flow (Milestone 4.11)
+### Validation Flow (Milestone 7.1)
 ```typescript
 // 1. Length check
 if (word.length !== 5) return false;
@@ -855,9 +845,9 @@ if (word.length !== 5) return false;
 // 2. Character check
 if (!/^[a-zA-Z]+$/.test(word)) return false;
 
-// 3. Dictionary check (UPPERCASE normalization)
+// 3. Dictionary check (UPPERCASE normalization, O(1) Set lookup)
 const normalized = word.toUpperCase().trim();
-if (!GUESS_WORDS.includes(normalized)) return false;
+if (!WORDS_SET.has(normalized)) return false;
 
 // 4. Already guessed check
 if (wheelWords.includes(normalized)) return false;
@@ -1046,14 +1036,14 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 ### Milestone 1.1: Data Model + Rules
 - Database schema design (game_rules, users, rounds, guesses)
 - JSON ruleset configuration system
-- Word list imports (ANSWER_WORDS, GUESS_WORDS, SEED_WORDS)
+- Word list imports (WORDS from guess_words_clean.ts)
 - Ruleset management (getRulesForRound)
 - Foreign key relationships
 
 ### Milestone 1.2: Round Lifecycle
 - Round creation with commit-reveal
 - Salt generation and SHA-256 hashing
-- Random answer selection from ANSWER_WORDS
+- Random answer selection from WORDS
 - Prize pool initialization
 - Round resolution logic
 - Winner and referrer settlement
@@ -1165,15 +1155,15 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 - Real layout gap for input boxes
 
 ### Milestone 4.11: Final Word List Integration & Virtualization
-- **Canonical Word Lists**: ANSWER_WORDS (2,279), GUESS_WORDS (10,516)
+- **Unified Word List**: WORDS (4,440 curated words)
 - **UPPERCASE Normalization**: All words stored and validated in UPPERCASE
 - **Deprecated SEED_WORDS**: No longer used in game logic
 - **Virtual Scrolling**: Renders ~100 visible words (99.5% DOM reduction)
 - **Binary Search**: O(log n) alphabetical positioning (750x faster)
-- **Performance**: 60 FPS with 10,516 words
+- **Performance**: 60 FPS with 4,440 words
 - **Fast Rotation**: 150ms animated scroll with visible wheel rotation
 - **Dynamic Gap**: 10vh responsive gap height
-- **Invariant Verification**: ANSWER_WORDS ⊆ GUESS_WORDS maintained
+- **Single List Architecture**: One unified list for guessing and answers
 
 ### Milestone 4.12: ETH/USD Price Integration (CoinGecko)
 - **CoinGecko Integration**: Live ETH/USD price fetching via free API
@@ -1307,7 +1297,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
   - `AnotherGuessModal` - "Want another guess?" popup with randomized interjections
   - `/api/guess-pack-pricing` - Pack pricing info endpoint
   - `/api/purchase-guess-pack` - Purchase processing with validation
-  - 3-packs only @ 0.0003 ETH, max 3 packs/day (9 guesses)
+  - 3-guesses per pack, unlimited purchases with volume pricing
 - **Share-for-Free-Guess**:
   - Updated `SharePromptModal` with translation support
   - Farcaster-only share (no X/Twitter for free guess)
@@ -1405,7 +1395,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 #### Performance Metrics
 - Input boxes re-render only affected slot (not all 5)
 - Wheel animation capped at 100-250ms regardless of distance
-- Virtual scrolling renders ~100 words instead of 10,516
+- Virtual scrolling renders ~100 words instead of 4,440
 - Binary search O(log n) for alphabetical positioning
 
 #### Environment Variables
@@ -2057,7 +2047,7 @@ dailyGuessState {
   freeAllocatedShareBonus: 0|1
   freeUsed: int
   paidGuessCredits: int
-  paidPacksPurchased: int (0-3)
+  paidPacksPurchased: int (tracks daily purchases)
   hasSharedToday: boolean
 }
 ```
@@ -3258,13 +3248,13 @@ Guess Packs are the primary monetization mechanism, allowing players to purchase
 
 | Pack Size | Price (ETH) | Guesses | Daily Limit |
 |-----------|-------------|---------|-------------|
-| 1 Pack    | 0.0003      | 3       | 3 packs max |
-| 2 Packs   | 0.0006      | 6       | 3 packs max |
-| 3 Packs   | 0.0009      | 9       | 3 packs max |
+| 1 Pack    | 0.0003+     | 3       | Unlimited (volume pricing) |
+| 2 Packs   | 0.0006+     | 6       | Unlimited (volume pricing) |
+| 3 Packs   | 0.0009+     | 9       | Unlimited (volume pricing) |
 
 **Key Rules:**
 - Packs contain **3 guesses each** (fixed, not configurable per-pack)
-- Maximum **3 packs per day** (9 paid guesses)
+- **Unlimited packs** with volume-based pricing tiers (1×, 1.5×, 2× multipliers)
 - Price: **0.0003 ETH per pack** (~$1 at current prices)
 - Pack credits **do not expire** - carry over between rounds
 - Pack credits are used **after** free guesses are exhausted
@@ -3328,7 +3318,7 @@ export function decrementGuess(dailyState: DailyGuessState): 'free' | 'paid' {
 SELECT * FROM daily_guess_state WHERE fid = 12345 AND date = CURRENT_DATE;
 
 -- Fields:
--- paid_packs_purchased: Number of packs bought today (max 3)
+-- paid_packs_purchased: Number of packs bought today
 -- paid_guess_credits: Remaining paid guesses
 -- paid_spent: Paid guesses used today
 ```
