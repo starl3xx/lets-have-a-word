@@ -54,6 +54,12 @@ npm run oracle:cron            # Update CLANKTON market cap oracle
 ### Database Schema (`/src/db/schema.ts`)
 Core tables: `users`, `rounds`, `guesses`, `daily_guess_state`, `round_payouts`, `pack_purchases`, `user_badges`, `game_rules`
 
+### Word List (`/src/data/guess_words_clean.ts`)
+- **4,440 curated words** - unified list for guessing and answers
+- Categories: CORE_COMMON (3,934), BIG_PLACES, COMMON_NAMES, MORPHOLOGICAL, SLANG_ALLOWLIST
+- BANNED_GUESSES (14 words) filtered out automatically
+- Uses `Set` for O(1) lookup performance
+
 ## Key Patterns
 
 ### Game Economics
@@ -61,6 +67,7 @@ Core tables: `users`, `rounds`, `guesses`, `daily_guess_state`, `round_payouts`,
 - **Top 10 Lock**: Only guesses 1-850 count for rankings; later guesses win but don't rank (was 750 for rounds 1-3)
 - **Guess Types**: Free (base) → CLANKTON bonus → Share bonus → Paid (consumed in order)
 - **Daily Reset**: 11:00 UTC for free guesses
+- **Pack Purchases**: Unlimited with volume pricing tiers (1×, 1.5×, 2× multipliers)
 
 ### Onchain Fairness
 - **Commit-Reveal**: Answer committed to Base contract before guessing starts
@@ -89,6 +96,14 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 - **Apostrophes**: Use curly apostrophes (') not straight ones (') in UI text
 - **No CLI scripts**: The user does not run anything via command line. Always create API endpoints (in `/pages/api/admin/operational/`) for admin tasks, data migrations, backfills, etc. Never suggest running npm scripts or CLI commands for operational tasks.
+
+## Changelog
+
+When making changes, update the **Changelog** section in README.md:
+- Add entries in **reverse chronological order** (newest first)
+- Format: `### YYYY-MM-DD (after Round N)` or `### YYYY-MM-DD (during Round N)`
+- Combine all changes from the same day into a single entry, even across multiple commits
+- Keep entries concise with bullet points describing what changed
 
 ## Required Environment Variables
 
