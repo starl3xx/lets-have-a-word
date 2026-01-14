@@ -306,10 +306,10 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                 }}
                 className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 rounded-full px-2 py-0.5 transition-colors cursor-pointer"
               >
-                <span className="font-bold text-emerald-700 tabular-nums">
+                <span className="font-bold text-gray-900 tabular-nums">
                   {roundState.packBuyerCount.toLocaleString()}
                 </span>
-                <span className="text-emerald-600">{roundState.packBuyerCount === 1 ? 'pack' : 'packs'} purchased</span>
+                <span className="text-gray-500">{roundState.packBuyerCount === 1 ? 'pack' : 'packs'} purchased</span>
               </button>
             )}
             {roundState.roundStartedAt && (
