@@ -299,6 +299,12 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [shareBonusReason, setShareBonusReason] = useState("")
   const [shareBonusLoading, setShareBonusLoading] = useState(false)
 
+  // Award Pack state
+  const [awardPackFid, setAwardPackFid] = useState("")
+  const [awardPackCount, setAwardPackCount] = useState("1")
+  const [awardPackReason, setAwardPackReason] = useState("")
+  const [awardPackLoading, setAwardPackLoading] = useState(false)
+
   // XP event options with labels and values
   const xpEventOptions = [
     { value: 'DAILY_PARTICIPATION', label: 'Daily participation (+10 XP)', xp: 10 },
@@ -970,6 +976,60 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setError(err.message)
     } finally {
       setShareBonusLoading(false)
+    }
+  }
+
+  const handleAwardPack = async () => {
+    if (!user?.fid) return
+
+    const targetFid = parseInt(awardPackFid, 10)
+    if (isNaN(targetFid) || targetFid <= 0) {
+      setError('Please enter a valid FID')
+      return
+    }
+
+    const packCount = parseInt(awardPackCount, 10)
+    if (isNaN(packCount) || packCount < 1 || packCount > 10) {
+      setError('Pack count must be between 1 and 10')
+      return
+    }
+
+    if (!awardPackReason || awardPackReason.trim().length < 10) {
+      setError('Please enter a reason (at least 10 characters)')
+      return
+    }
+
+    try {
+      setAwardPackLoading(true)
+      setError(null)
+      setSuccess(null)
+
+      const res = await fetch('/api/admin/operational/award-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          targetFid,
+          packCount,
+          reason: awardPackReason.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to award pack')
+      }
+
+      setSuccess(`Awarded ${data.packsAwarded} pack(s) to @${data.username || data.fid} (+${data.guessesAdded} guesses)`)
+      // Clear form on success
+      setAwardPackFid('')
+      setAwardPackCount('1')
+      setAwardPackReason('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setAwardPackLoading(false)
     }
   }
 
@@ -2127,6 +2187,62 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               disabled={shareBonusLoading || !shareBonusFid}
             >
               {shareBonusLoading ? 'Granting...' : 'Grant Share Bonus (+1 guess)'}
+            </button>
+          </div>
+
+          {/* Award Pack Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>Award Guess Pack</h2>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Award guess packs (3 guesses each) to a user. Useful for support, promotions, or compensation.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Target FID</label>
+              <input
+                type="number"
+                style={styles.input}
+                placeholder="e.g., 310815"
+                value={awardPackFid}
+                onChange={(e) => setAwardPackFid(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Number of Packs (1-10)</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                style={styles.input}
+                placeholder="1"
+                value={awardPackCount}
+                onChange={(e) => setAwardPackCount(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Reason (required, min 10 chars)</label>
+              <input
+                type="text"
+                style={styles.input}
+                placeholder="e.g., Compensation for missed pack purchase"
+                value={awardPackReason}
+                onChange={(e) => setAwardPackReason(e.target.value)}
+              />
+            </div>
+
+            <button
+              onClick={handleAwardPack}
+              style={{
+                ...styles.btnPrimary,
+                background: '#059669',
+                opacity: awardPackLoading || !awardPackFid || !awardPackReason || awardPackReason.length < 10 ? 0.6 : 1,
+                cursor: awardPackLoading || !awardPackFid || !awardPackReason || awardPackReason.length < 10 ? 'not-allowed' : 'pointer',
+              }}
+              disabled={awardPackLoading || !awardPackFid || !awardPackReason || awardPackReason.length < 10}
+            >
+              {awardPackLoading ? 'Awarding...' : `Award ${awardPackCount || 1} Pack(s) (+${(parseInt(awardPackCount, 10) || 1) * 3} guesses)`}
             </button>
           </div>
         </>
