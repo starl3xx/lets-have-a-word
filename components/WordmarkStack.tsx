@@ -58,9 +58,10 @@ export default function WordmarkStack({
   }
 
   // Helper to check if overlap should be applied (any previous wordmark is shown)
-  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Side Quest, Double Dub, Jackpot Winner, CLANKTON
+  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Side Quest, Double Dub, CLANKTON, Jackpot Winner
+  // Jackpot Winner is rightmost/highest z-index as the most prestigious achievement
   const shouldOverlap = (position: number): boolean => {
-    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasDoubleW, hasJackpotWinner, hasClanktonHolder];
+    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasDoubleW, hasClanktonHolder, hasJackpotWinner];
     return orderedChecks.slice(0, position).some(Boolean);
   };
 
@@ -152,22 +153,10 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Jackpot Winner (position 8) */}
-      {hasJackpotWinner && (
-        <div
-          className={`${config.wordmark} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[70] ${shouldOverlap(7) ? config.overlap : ''}`}
-          style={{ boxShadow: '0 0 0 1px #fcd34d' }}
-          onMouseEnter={() => setTooltipText('Jackpot Winner')}
-          onTouchStart={() => setTooltipText('Jackpot Winner')}
-        >
-          <span role="img" aria-label="Jackpot Winner">🏆</span>
-        </div>
-      )}
-
-      {/* CLANKTON Holder (position 9 - rightmost, highest z-index) */}
+      {/* CLANKTON Holder (position 8) */}
       {hasClanktonHolder && (
         <div
-          className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[80] ${shouldOverlap(8) ? config.overlap : ''}`}
+          className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[70] ${shouldOverlap(7) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
           onMouseEnter={() => setTooltipText('CLANKTON Holder')}
           onTouchStart={() => setTooltipText('CLANKTON Holder')}
@@ -177,6 +166,18 @@ export default function WordmarkStack({
             alt="CLANKTON Holder"
             className="w-full h-full object-cover"
           />
+        </div>
+      )}
+
+      {/* Jackpot Winner (position 9 - rightmost, highest z-index as most prestigious) */}
+      {hasJackpotWinner && (
+        <div
+          className={`${config.wordmark} bg-amber-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[80] ${shouldOverlap(8) ? config.overlap : ''}`}
+          style={{ boxShadow: '0 0 0 1px #fcd34d' }}
+          onMouseEnter={() => setTooltipText('Jackpot Winner')}
+          onTouchStart={() => setTooltipText('Jackpot Winner')}
+        >
+          <span role="img" aria-label="Jackpot Winner">🏆</span>
         </div>
       )}
 
