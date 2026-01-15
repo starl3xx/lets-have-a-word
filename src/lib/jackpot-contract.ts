@@ -717,10 +717,9 @@ export async function verifyPurchaseTransaction(
       return { valid: false, error: 'Transaction reverted' };
     }
 
-    // Check transaction was to our contract
-    if (receipt.to?.toLowerCase() !== config.jackpotManagerAddress.toLowerCase()) {
-      return { valid: false, error: 'Transaction was not to JackpotManager contract' };
-    }
+    // Note: We don't check receipt.to here because smart wallet (ERC-4337) transactions
+    // go to the Entry Point contract, not directly to JackpotManager. Instead, we verify
+    // that the GuessesPurchased event was emitted by our contract (checked below).
 
     // Create interface to decode event
     const iface = new ethers.Interface(JACKPOT_MANAGER_ABI);
