@@ -178,14 +178,16 @@ export default function SocialSection({ user }: SocialSectionProps) {
     setStatusCastCopied(false)
 
     try {
-      // Fetch fresh round state and top guessers in parallel
-      const [roundStateRes, topGuessersRes] = await Promise.all([
+      // Fetch fresh round state, top guessers, and bonus word winners in parallel
+      const [roundStateRes, topGuessersRes, bonusWinnersRes] = await Promise.all([
         fetch('/api/round-state'),
         fetch('/api/round/top-guessers'),
+        fetch('/api/round/bonus-word-winners'),
       ])
 
       const roundState = roundStateRes.ok ? await roundStateRes.json() : null
       const topGuessersData = topGuessersRes.ok ? await topGuessersRes.json() : { topGuessers: [], uniqueGuessersCount: 0 }
+      const bonusWinnersData = bonusWinnersRes.ok ? await bonusWinnersRes.json() : { winners: [] }
 
       if (!roundState?.roundId) {
         setStatusCastText("No active round found.")
@@ -222,12 +224,26 @@ export default function SocialSection({ user }: SocialSectionProps) {
           .join(" ")
       }
 
+      // Build bonus word finders string
+      let bonusWordFindersStr = ""
+      if (bonusWinnersData.winners && bonusWinnersData.winners.length > 0) {
+        const bonusUsernames = bonusWinnersData.winners.map(
+          (w: { username: string; fid: number }) => `@${w.username || `fid:${w.fid}`}`
+        )
+        bonusWordFindersStr = bonusUsernames.join(" ")
+      }
+
+      // Build cast text, only include bonus finders line if there are winners
+      const bonusWordFindersLine = bonusWordFindersStr
+        ? `\n🎣 Bonus word finders: ${bonusWordFindersStr}`
+        : ""
+
       const castText = `@letshaveaword status
 🔵 Round: #${roundNumber}
 💰 Prize pool: ${prizePool} ETH
 🎯 Global guesses: ${globalGuesses} (≈${guessPercentage}%)
 👥 Players: ${playerCount}
-🏆 Top early guessers: ${topGuessersStr || "N/A"}
+⚡ Top early guessers: ${topGuessersStr || "N/A"}${bonusWordFindersLine}
 🏅 Mini app rank: #`
 
       setStatusCastText(castText)
