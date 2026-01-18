@@ -11,7 +11,7 @@
 
 import { db } from '../db';
 import { guesses, rounds, packPurchases } from '../db/schema';
-import { eq, and, countDistinct } from 'drizzle-orm';
+import { eq, and, sum } from 'drizzle-orm';
 import { getGuessWords } from './word-lists';
 import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
@@ -35,7 +35,7 @@ export interface RoundStatus {
   top10GuessesRemaining: number; // Guesses until lock (0 if locked)
   top10Locked: boolean; // true if globalGuessCount >= threshold
   // Social proof
-  packBuyerCount?: number; // Number of unique users who bought packs this round
+  packBuyerCount?: number; // Total packs purchased this round (sum of all pack purchases)
 }
 
 /**
@@ -180,15 +180,15 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
     throw new Error(`Round ${roundId} not found`);
   }
 
-  // Get global guess count, ETH/USD price, and pack buyer count in parallel
-  const [globalGuessCount, ethUsdRate, packBuyerResult] = await Promise.all([
+  // Get global guess count, ETH/USD price, and total packs purchased in parallel
+  const [globalGuessCount, ethUsdRate, packCountResult] = await Promise.all([
     getGlobalGuessCount(roundId),
     getEthUsdPrice(),
-    db.select({ count: countDistinct(packPurchases.fid) })
+    db.select({ total: sum(packPurchases.packCount) })
       .from(packPurchases)
       .where(eq(packPurchases.roundId, roundId)),
   ]);
-  const packBuyerCount = packBuyerResult[0]?.count ?? 0;
+  const packBuyerCount = Number(packCountResult[0]?.total) || 0;
 
   // Convert prize pool to USD if rate is available
   const prizePoolEthNum = parseFloat(round.prizePoolEth);
