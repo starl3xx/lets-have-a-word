@@ -122,7 +122,7 @@ function GameContent() {
 
   // Winner share card state (Milestone 4.14)
   const [showWinnerShareCard, setShowWinnerShareCard] = useState(false);
-  const [winnerData, setWinnerData] = useState<{ word: string; roundId: number } | null>(null);
+  const [winnerData, setWinnerData] = useState<{ word: string; roundId: number; jackpotEth: string } | null>(null);
 
   // UX state (Milestone 4.3)
   const [isShaking, setIsShaking] = useState(false);
@@ -1025,7 +1025,7 @@ function GameContent() {
         }());
 
         // Milestone 4.14: Show winner share card after short delay
-        setWinnerData({ word: data.word, roundId: data.roundId });
+        setWinnerData({ word: data.word, roundId: data.roundId, jackpotEth: data.jackpotEth || '0.00' });
         setTimeout(() => {
           setShowWinnerShareCard(true);
         }, 2000); // 2 second delay to let confetti play first
@@ -1941,7 +1941,7 @@ function GameContent() {
         <WinnerShareCard
           winnerWord={winnerData.word}
           roundId={winnerData.roundId}
-          jackpotEth={currentJackpotEth}
+          jackpotEth={winnerData.jackpotEth}
           onClose={() => setShowWinnerShareCard(false)}
         />
       )}
