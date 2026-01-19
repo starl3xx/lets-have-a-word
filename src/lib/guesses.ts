@@ -696,11 +696,15 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         });
       }
 
+      // Calculate jackpot amount (80% of prize pool)
+      const jackpotEth = (parseFloat(round.prizePoolEth) * 0.8).toFixed(4);
+
       return {
         status: 'correct',
         word,
         roundId: round.id,
         winnerFid: fid,
+        jackpotEth,
       };
 
     } catch (error: any) {

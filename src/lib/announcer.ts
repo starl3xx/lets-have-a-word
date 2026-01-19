@@ -557,11 +557,20 @@ export async function announceReferralWin(
   const roundNumber = getRoundNumber(round);
   const referrerPayoutEth = formatEth(referrerPayout.amountEth);
 
+  // Fetch usernames for winner and referrer
+  const [winnerUsername, referrerUsername] = await Promise.all([
+    getUsernameByFid(round.winnerFid),
+    getUsernameByFid(referrerPayout.fid),
+  ]);
+
+  const winnerMention = winnerUsername || '@winner';
+  const referrerMention = referrerUsername || '@referrer';
+
   const text = `🤝 Referral win on Let's Have A Word!
 
-In Round #${roundNumber}, the jackpot winner joined through a referral
+In Round #${roundNumber}, ${winnerMention} hit the jackpot!
 
-Their referrer earned ${referrerPayoutEth} ETH just for inviting a friend to play!
+${referrerMention} earned ${referrerPayoutEth} ETH for referring them to play!
 
 Share your link. You can win even when your friends do 👀
 letshaveaword.fun`;
