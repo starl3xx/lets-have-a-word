@@ -2010,7 +2010,14 @@ export default function WalletSection({ user }: WalletSectionProps) {
       </div>
 
       {/* Withdraw Confirmation Modal */}
-      {showWithdrawConfirm && balances && connectedWallet && (
+      {showWithdrawConfirm && balances && connectedWallet && (() => {
+        const treasury = balances.treasury || (balances.creatorPool ? {
+          balanceEth: balances.creatorPool.accumulatedEth,
+          withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
+          address: balances.creatorPool.address,
+        } : null);
+        if (!treasury) return null;
+        return (
         <div style={styles.modal} onClick={() => setShowWithdrawConfirm(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm Withdrawal</h3>
@@ -2026,11 +2033,11 @@ export default function WalletSection({ user }: WalletSectionProps) {
               </div>
               <div style={{ marginBottom: '8px' }}>
                 <span style={{ color: '#6b7280' }}>To (Creator Profit Wallet):</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{CREATOR_PROFIT_WALLET}</div>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{treasury.address || CREATOR_PROFIT_WALLET}</div>
               </div>
               <div>
                 <span style={{ color: '#6b7280' }}>Amount:</span>
-                <div style={{ fontWeight: 600, fontSize: '18px' }}>{parseFloat(balances.creatorPool.accumulatedEth).toFixed(6)} ETH</div>
+                <div style={{ fontWeight: 600, fontSize: '18px' }}>{parseFloat(treasury.withdrawableEth).toFixed(6)} ETH</div>
               </div>
             </div>
 
@@ -2072,7 +2079,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
