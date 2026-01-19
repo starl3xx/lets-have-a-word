@@ -399,8 +399,9 @@ Upgraded smart contract to distribute all prizes atomically in a single transact
 
 - **Prize Distribution Logic**
   - Winner always receives 80%
-  - With referrer: 10% referrer, 10% Top-10 guessers
-  - Without referrer: 17.5% Top-10 guessers, 2.5% next round seed
+  - Top-10 always receives 10% (weighted by rank)
+  - With referrer: 5% referrer, 5% seed (capped at 0.03 ETH, overflow → creator)
+  - Without referrer: 12.5% Top-10 guessers, 7.5% seed
   - Self-referral blocked at signup
 
 - **No Offchain Payouts**
@@ -1144,10 +1145,10 @@ Redesigned the word wheel to show the complete universe of guessable words from 
 Updated jackpot settlement to prevent players from gaming the referral system:
 
 - **Non-Referral Prize Logic**
-  - When a winner has no referrer, the 10% referrer share is NOT given to the winner
-  - Instead, it flows through the seed + creator pipeline:
-    1. First fills next-round seed (up to 0.03 ETH cap)
-    2. Any overflow goes to creator wallet
+  - When a winner has no referrer, the 5% referrer share is split:
+    - 2.5% → Top-10 pool (bringing total to 12.5%)
+    - 2.5% → Seed (bringing total to 7.5%, still capped at 0.03 ETH)
+  - Seed overflow goes to creator wallet
   - Prevents incentive to avoid using referral links
   - Keeps the growth loop healthy
 
@@ -1507,19 +1508,19 @@ Live round status display with polished formatting:
 
 ### ✅ Milestone 3.1 - Jackpot + Split Logic
 
-Complete economic system for prize distribution:
+Complete economic system for prize distribution (Updated January 2026):
 
-- **Per-Guess Economics (80/20 Split)**
-  - 80% → Prize pool
-  - 20% → Seed for next round (up to 0.03 ETH cap)
-  - Overflow → Creator balance
+- **Per-Guess Economics**
+  - Pack purchases add to prize pool (after platform fee)
+  - Prize pool accumulates until round is won
 
 - **Jackpot Resolution (Onchain, Atomic)**
   - 80% → Winner (always)
-  - With referrer: 10% referrer, 10% Top-10 guessers
-  - Without referrer: 17.5% Top-10 guessers, 2.5% next round seed
+  - 10% → Top-10 Early Guessers (weighted: 19%/16%/14%/11%/10%/6%×5)
+  - 5% → Next Round Seed (capped at 0.03 ETH, overflow → creator)
+  - 5% → Referrer (if winner has one)
+  - Without referrer: 12.5% Top-10, 7.5% seed
   - Top-10 ranking: by volume, tiebreaker earliest first guess
-  - **Tiered Top-10 split**: 19%/16%/14%/11%/10%/6%×5 (see Milestone 6.9b)
 
 - **Database Tables**
   - `system_state` - Creator balance tracking
@@ -2201,29 +2202,26 @@ The game uses smart modal sequencing to offer guesses without being annoying:
 - Returns: `decideModal()`, `markShareModalSeen()`, `markPackModalSeen()`
 - See GAME_DOCUMENTATION.md for detailed flow diagrams
 
-### Economics (Milestone 3.1, Updated in 4.9)
-
-**Per Paid Guess (80/20 Split)**
-- 80% → Prize pool
-- 20% → Seed for next round (capped at 0.03 ETH)
-  - Overflow → Creator balance
+### Economics (Milestone 3.1, Updated January 2026)
 
 **Jackpot Resolution (Onchain, Atomic)**
 - 80% → Winner (always)
-- 10% → Referrer (if winner has one)
-- 10-17.5% → Top-10 guessers (tiered distribution)
+- 10% → Top-10 Early Guessers (tiered distribution)
+- 5% → Next Round Seed (capped at 0.03 ETH, overflow → creator)
+- 5% → Referrer (if winner has one)
 
 **Non-Referral Prize Flow (Milestones 4.9, 6.9)**
 
 When a winner **has a referrer**:
 - Winner gets 80%
-- Referrer gets 10%
 - Top-10 get 10% (tiered split)
+- Seed gets 5% (capped at 0.03 ETH)
+- Referrer gets 5%
 
 When a winner **does NOT have a referrer**:
 - Winner gets 80%
-- Top-10 get 17.5% (10% base + 7.5% from referrer share)
-- 2.5% → Next round seed (always, no cap)
+- Top-10 get 12.5% (10% base + 2.5% from referrer share)
+- Seed gets 7.5% (5% base + 2.5% from referrer share, still capped at 0.03 ETH)
 
 This prevents players from avoiding referral links to maximize their payout and keeps the growth loop healthy.
 

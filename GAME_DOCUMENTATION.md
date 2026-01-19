@@ -54,15 +54,16 @@ Each player gets a daily allocation of guesses:
 
 **Total Possible Daily Guesses**: Unlimited (1 base + 2-3 CLANKTON + 1 share + unlimited paid)
 
-### Prize Pool Economics
-- **70% to Prize Pool**: Accumulates for the winner
-- **20% to Next Round Seed**: Ensures minimum prize
-- **10% to Creator**: Platform fee
+### Prize Pool Economics (Updated January 2026)
 
-**Jackpot Distribution** (when won):
-- **80%**: Winner
-- **10%**: Winner's referrer (if they have one)
-- **10%**: Top 10 guessers that round (split equally)
+**Jackpot Distribution** (when round is won):
+- **80%**: Winner (jackpot)
+- **10%**: Top 10 Early Guessers (guesses 1-850 only, weighted by rank)
+- **5%**: Next Round Seed (capped at 0.03 ETH, overflow → creator)
+- **5%**: Referrer (if winner has one)
+
+**When no referrer exists**:
+- Referrer's 5% is split: 2.5% → Top 10 pool (12.5% total), 2.5% → Seed (7.5% total)
 
 ### Round Lifecycle
 1. **Round Creation**: Answer selected (cryptographically random), hash committed onchain
@@ -267,7 +268,7 @@ type InputState =
 ### Wheel Component (`components/Wheel.tsx`)
 
 **Features (Milestone 4.11 - Virtualized, 6.4 - Performance Tuned):**
-- **Alphabetical Display**: All ~5,900 words sorted A-Z
+- **Alphabetical Display**: All 4,440 words sorted A-Z
 - **Virtual Scrolling**: Renders only ~100 visible words (99% DOM reduction)
 - **Fast Rotation**: 200ms CSS transitions with capped scroll animation (100-250ms)
 - **Auto-Scrolling**: Jumps to alphabetical position as you type
@@ -2821,16 +2822,15 @@ Cross-checks prize amounts against expected economic rules.
 
 **Implementation:** `src/services/fairness-monitor/prize-audit.ts`
 
-**Economic Rules Verified:**
+**Economic Rules Verified (January 2026):**
 ```typescript
 const ECONOMIC_RULES = {
-  GUESS_PRICE_ETH: 0.0003,      // Price per paid guess
-  PRIZE_POOL_SHARE: 0.8,        // 80% to prize pool
-  SEED_CREATOR_SHARE: 0.2,      // 20% to seed/creator
+  GUESS_PRICE_ETH: 0.0003,      // Base price per paid guess pack
   WINNER_SHARE: 0.8,            // 80% of jackpot to winner
-  REFERRER_SHARE: 0.1,          // 10% to referrer
-  TOP_GUESSERS_SHARE: 0.1,      // 10% to top guessers
-  SEED_CAP_ETH: 0.03,           // 0.03 ETH seed cap
+  TOP_GUESSERS_SHARE: 0.1,      // 10% to top 10 early guessers
+  SEED_SHARE: 0.05,             // 5% to next round seed
+  REFERRER_SHARE: 0.05,         // 5% to referrer (if exists)
+  SEED_CAP_ETH: 0.03,           // 0.03 ETH seed cap (overflow → creator)
 };
 ```
 
@@ -3568,18 +3568,19 @@ export async function getClanktonBonusTier(): Promise<number> {
 
 Players earn 10% of their referrals' jackpot winnings. This creates viral growth through aligned incentives.
 
-### 10% Jackpot Reward
+### 5% Jackpot Reward
 
 When a referred player wins the jackpot:
 - **80%** goes to the winner
-- **10%** goes to the referrer
-- **10%** goes to top 10 guessers (split equally)
+- **10%** goes to top 10 early guessers (weighted by rank)
+- **5%** goes to next round seed (capped at 0.03 ETH)
+- **5%** goes to the referrer
 
-**Example:**
-- Jackpot: 1.0 ETH
-- Winner receives: 0.8 ETH
-- Referrer receives: 0.1 ETH
-- Top 10 share: 0.1 ETH (0.01 ETH each)
+**Example (1.0 ETH jackpot with referrer):**
+- Winner receives: 0.80 ETH
+- Top 10 share: 0.10 ETH (weighted distribution)
+- Next round seed: 0.03 ETH (capped), 0.02 ETH overflow → creator
+- Referrer receives: 0.05 ETH
 
 ### Tracking
 
