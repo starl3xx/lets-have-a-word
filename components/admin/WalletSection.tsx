@@ -929,12 +929,25 @@ export default function WalletSection({ user }: WalletSectionProps) {
       return;
     }
 
+    // Get treasury data (with legacy creatorPool fallback)
+    const treasury = balances.treasury || (balances.creatorPool ? {
+      balanceEth: balances.creatorPool.accumulatedEth,
+      withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
+      isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
+      address: balances.creatorPool.address,
+    } : null);
+
+    if (!treasury || !treasury.isWithdrawable) {
+      setWalletError('No withdrawable balance available');
+      return;
+    }
+
     setIsWithdrawing(true);
     setWalletError(null);
 
     try {
       // The amount being withdrawn (for logging purposes)
-      const withdrawAmountEth = balances.creatorPool.accumulatedEth;
+      const withdrawAmountEth = treasury.withdrawableEth;
 
       // Call withdrawCreatorProfit() on the contract
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -953,10 +966,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           devFid: user.fid,
-          actionType: 'creator_pool_withdrawal',
+          actionType: 'treasury_withdrawal',
           amountEth: withdrawAmountEth,
           fromAddress: balances.contractAddress,
-          toAddress: CREATOR_PROFIT_WALLET,
+          toAddress: treasury.address || CREATOR_PROFIT_WALLET,
           txHash: tx.hash,
           initiatedByFid: user.fid,
           initiatedByAddress: connectedWallet.address,
