@@ -55,7 +55,7 @@ npm run oracle:cron            # Update CLANKTON market cap oracle
 Core tables: `users`, `rounds`, `guesses`, `daily_guess_state`, `round_payouts`, `pack_purchases`, `user_badges`, `game_rules`
 
 ### Word List (`/src/data/guess_words_clean.ts`)
-- **4,440 curated words** - unified list for guessing and answers
+- **4,439 curated words** - unified list for guessing and answers
 - Categories: CORE_COMMON (3,934), BIG_PLACES, COMMON_NAMES, MORPHOLOGICAL, SLANG_ALLOWLIST
 - BANNED_GUESSES (14 words) filtered out automatically
 - Uses `Set` for O(1) lookup performance

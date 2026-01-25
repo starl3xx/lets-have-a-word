@@ -74,7 +74,7 @@ Each player gets a daily allocation of guesses:
 
 ### Word Validation
 - Must be exactly **5 letters**
-- Must be in the **WORDS** dictionary (4,440 curated words)
+- Must be in the **WORDS** dictionary (4,439 curated words)
 - Unified list: same words for guessing and answers (Milestone 7.1)
 - Cannot guess the same word twice in a round
 - Case-insensitive (BRAIN = brain = BrAiN)
@@ -82,7 +82,7 @@ Each player gets a daily allocation of guesses:
 
 ### Per-User Per-Day Random Wheel Start Position
 
-The word wheel displays all 4,440 possible guess words. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
+The word wheel displays all 4,439 possible guess words. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
 
 **Production Behavior:**
 - Random starting index generated **once per day** at 11:00 UTC per user
@@ -189,7 +189,7 @@ lets-have-a-word/
 │   │   └── simulation-engine/
 │   │       └── index.ts             # Adversarial simulations
 │   ├── data/
-│   │   ├── guess_words_clean.ts     # 4,440 unified word list (UPPERCASE)
+│   │   ├── guess_words_clean.ts     # 4,439 unified word list (UPPERCASE)
 │   │   ├── seed-words.ts            # Deprecated (no longer used)
 │   │   └── test-word-lists.ts       # Dev mode word lists
 │   ├── db/
@@ -268,7 +268,7 @@ type InputState =
 ### Wheel Component (`components/Wheel.tsx`)
 
 **Features (Milestone 4.11 - Virtualized, 6.4 - Performance Tuned):**
-- **Alphabetical Display**: All 4,440 words sorted A-Z
+- **Alphabetical Display**: All 4,439 words sorted A-Z
 - **Virtual Scrolling**: Renders only ~100 visible words (99% DOM reduction)
 - **Fast Rotation**: 200ms CSS transitions with capped scroll animation (100-250ms)
 - **Auto-Scrolling**: Jumps to alphabetical position as you type
@@ -824,7 +824,7 @@ haptics.wrongGuess()      // Subtle feedback
 
 ### Unified Word List (Milestone 7.1)
 
-#### WORDS (4,440 words)
+#### WORDS (4,439 words)
 Single curated word list for both guessing and answers.
 - **File**: `/src/data/guess_words_clean.ts`
 - **Format**: UPPERCASE array, derived from category arrays
@@ -836,7 +836,7 @@ Single curated word list for both guessing and answers.
 - **Single Source of Truth**: One list for all game operations
 - **No Separate Answer List**: Any word can be an answer (fair gameplay)
 - **Performance**: Uses `Set` for O(1) lookup instead of `includes()`
-- **Wheel**: Displays all 4,440 words using virtualization
+- **Wheel**: Displays all 4,439 words using virtualization
 
 ### Validation Flow (Milestone 7.1)
 ```typescript
@@ -1156,12 +1156,12 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 - Real layout gap for input boxes
 
 ### Milestone 4.11: Final Word List Integration & Virtualization
-- **Unified Word List**: WORDS (4,440 curated words)
+- **Unified Word List**: WORDS (4,439 curated words)
 - **UPPERCASE Normalization**: All words stored and validated in UPPERCASE
 - **Deprecated SEED_WORDS**: No longer used in game logic
 - **Virtual Scrolling**: Renders ~100 visible words (99.5% DOM reduction)
 - **Binary Search**: O(log n) alphabetical positioning (750x faster)
-- **Performance**: 60 FPS with 4,440 words
+- **Performance**: 60 FPS with 4,439 words
 - **Fast Rotation**: 150ms animated scroll with visible wheel rotation
 - **Dynamic Gap**: 10vh responsive gap height
 - **Single List Architecture**: One unified list for guessing and answers
@@ -1396,7 +1396,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 #### Performance Metrics
 - Input boxes re-render only affected slot (not all 5)
 - Wheel animation capped at 100-250ms regardless of distance
-- Virtual scrolling renders ~100 words instead of 4,440
+- Virtual scrolling renders ~100 words instead of 4,439
 - Binary search O(log n) for alphabetical positioning
 
 #### Environment Variables
