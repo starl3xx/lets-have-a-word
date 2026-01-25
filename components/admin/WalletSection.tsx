@@ -553,6 +553,29 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [fixFieldValue, setFixFieldValue] = useState<string>('');
   const [fixFieldResult, setFixFieldResult] = useState<FixFieldResult | null>(null);
 
+  // CLANKTON withdrawal state
+  interface ClanktonStatus {
+    contractAddress: string;
+    clanktonTokenAddress: string;
+    balanceWei: string;
+    balanceFormatted: string;
+    balanceInMillions: string;
+    roundsAvailable: number;
+    bonusWordsEnabled: boolean;
+    contractOwner: string;
+    canWithdraw: boolean;
+    withdrawalNote: string;
+  }
+  const [clanktonStatus, setClanktonStatus] = useState<ClanktonStatus | null>(null);
+  const [clanktonLoading, setClanktonLoading] = useState(false);
+  const [clanktonError, setClanktonError] = useState<string | null>(null);
+  const [clanktonWithdrawAddress, setClanktonWithdrawAddress] = useState('');
+  const [clanktonWithdrawLoading, setClanktonWithdrawLoading] = useState(false);
+  const [showClanktonWithdrawConfirm, setShowClanktonWithdrawConfirm] = useState(false);
+  const [clanktonWithdrawConfirmText, setClanktonWithdrawConfirmText] = useState('');
+  const [clanktonWithdrawResult, setClanktonWithdrawResult] = useState<{ txHash: string; amount: string } | null>(null);
+  const [bonusWordsToggleLoading, setBonusWordsToggleLoading] = useState(false);
+
   // =============================================================================
   // Wallet Connection
   // =============================================================================
@@ -734,6 +757,97 @@ export default function WalletSection({ user }: WalletSectionProps) {
     }
   }, [user?.fid]);
 
+  const fetchClanktonStatus = useCallback(async () => {
+    if (!user?.fid) return;
+
+    setClanktonLoading(true);
+    setClanktonError(null);
+    try {
+      const res = await fetch(`/api/admin/operational/withdraw-clankton?devFid=${user.fid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setClanktonStatus(data);
+      } else {
+        const err = await res.json();
+        setClanktonError(err.error || 'Failed to fetch CLANKTON status');
+      }
+    } catch (err) {
+      setClanktonError('Failed to fetch CLANKTON status');
+    } finally {
+      setClanktonLoading(false);
+    }
+  }, [user?.fid]);
+
+  const handleClanktonWithdraw = async () => {
+    if (!user?.fid || !clanktonWithdrawAddress) return;
+
+    if (clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON') {
+      setClanktonError('Please type "WITHDRAW CLANKTON" to confirm');
+      return;
+    }
+
+    setClanktonWithdrawLoading(true);
+    setClanktonError(null);
+
+    try {
+      const res = await fetch('/api/admin/operational/withdraw-clankton', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: 'withdraw',
+          toAddress: clanktonWithdrawAddress,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Withdrawal failed');
+      }
+
+      setClanktonWithdrawResult({ txHash: data.txHash, amount: data.withdrawnAmount });
+      setShowClanktonWithdrawConfirm(false);
+      setClanktonWithdrawConfirmText('');
+      setClanktonWithdrawAddress('');
+      fetchClanktonStatus();
+    } catch (err: any) {
+      setClanktonError(err.message);
+    } finally {
+      setClanktonWithdrawLoading(false);
+    }
+  };
+
+  const handleBonusWordsToggle = async (enable: boolean) => {
+    if (!user?.fid) return;
+
+    setBonusWordsToggleLoading(true);
+    setClanktonError(null);
+
+    try {
+      const res = await fetch('/api/admin/operational/withdraw-clankton', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: enable ? 'enable-bonus-words' : 'disable-bonus-words',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Toggle failed');
+      }
+
+      fetchClanktonStatus();
+    } catch (err: any) {
+      setClanktonError(err.message);
+    } finally {
+      setBonusWordsToggleLoading(false);
+    }
+  };
+
   const debugRound = async (roundId: string) => {
     if (!user?.fid || !roundId) return;
 
@@ -899,6 +1013,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
     fetchOperationalStatus();
     fetchActions();
     fetchBonusDistStatus();
+    fetchClanktonStatus();
 
     // Listen for account/chain changes
     if (window.ethereum) {
@@ -912,7 +1027,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         window.ethereum.removeListener('chainChanged', checkWalletConnection);
       }
     };
-  }, [checkWalletConnection, fetchBalances, fetchOperationalStatus, fetchActions, fetchBonusDistStatus]);
+  }, [checkWalletConnection, fetchBalances, fetchOperationalStatus, fetchActions, fetchBonusDistStatus, fetchClanktonStatus]);
 
   // =============================================================================
   // Withdrawal Handler
@@ -1547,6 +1662,228 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </>
         ) : null}
       </div>
+
+      {/* CLANKTON Withdrawal */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🐟 CLANKTON Management</h3>
+            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
+              Withdraw CLANKTON from the contract (for token migration)
+            </p>
+          </div>
+          <button
+            onClick={() => fetchClanktonStatus()}
+            disabled={clanktonLoading}
+            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
+          >
+            {clanktonLoading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+
+        {clanktonError && (
+          <div style={styles.alert('error')}>{clanktonError}</div>
+        )}
+
+        {clanktonWithdrawResult && (
+          <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
+            <span>✅</span>
+            <span>
+              Withdrew {parseFloat(clanktonWithdrawResult.amount).toLocaleString()} CLANKTON!{' '}
+              <a
+                href={`https://basescan.org/tx/${clanktonWithdrawResult.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.link}
+              >
+                View on BaseScan →
+              </a>
+            </span>
+            <button
+              onClick={() => setClanktonWithdrawResult(null)}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {clanktonLoading && !clanktonStatus ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
+        ) : clanktonStatus ? (
+          <>
+            {/* Status Cards */}
+            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Contract CLANKTON</div>
+                <div style={styles.statValueSmall}>{clanktonStatus.balanceInMillions}</div>
+                <div style={styles.statSubtext}>{clanktonStatus.roundsAvailable} rounds available</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Bonus Words</div>
+                <div style={styles.statValueSmall}>
+                  <span style={{
+                    color: clanktonStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af',
+                    fontWeight: 600,
+                  }}>
+                    {clanktonStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+                <div style={styles.statSubtext}>
+                  <button
+                    onClick={() => handleBonusWordsToggle(!clanktonStatus.bonusWordsEnabled)}
+                    disabled={bonusWordsToggleLoading}
+                    style={{
+                      ...styles.btnSmall,
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      padding: '0',
+                      textDecoration: 'underline',
+                      fontSize: '11px',
+                    }}
+                  >
+                    {bonusWordsToggleLoading ? 'Toggling...' : clanktonStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#f9fafb', borderRadius: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#6b7280' }}>Contract:</span>
+                <a
+                  href={`https://basescan.org/address/${clanktonStatus.contractAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
+                >
+                  {clanktonStatus.contractAddress.slice(0, 10)}...{clanktonStatus.contractAddress.slice(-8)}
+                </a>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#6b7280' }}>CLANKTON Token:</span>
+                <a
+                  href={`https://basescan.org/token/${clanktonStatus.clanktonTokenAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
+                >
+                  {clanktonStatus.clanktonTokenAddress.slice(0, 10)}...{clanktonStatus.clanktonTokenAddress.slice(-8)}
+                </a>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#6b7280' }}>Exact Balance:</span>
+                <span style={{ fontFamily: 'monospace' }}>
+                  {parseFloat(clanktonStatus.balanceFormatted).toLocaleString()} CLANKTON
+                </span>
+              </div>
+            </div>
+
+            {/* Withdrawal Note */}
+            <div style={{
+              ...styles.alert(clanktonStatus.canWithdraw ? 'info' : 'warning'),
+              marginBottom: '16px',
+            }}>
+              <span>{clanktonStatus.canWithdraw ? 'ℹ️' : '⚠️'}</span>
+              <span>{clanktonStatus.withdrawalNote}</span>
+            </div>
+
+            {/* Withdrawal Form */}
+            {clanktonStatus.canWithdraw && (
+              <div>
+                <label style={styles.label}>Withdraw To Address:</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={clanktonWithdrawAddress}
+                    onChange={(e) => setClanktonWithdrawAddress(e.target.value)}
+                    style={{ ...styles.input, flex: 1, fontFamily: 'monospace' }}
+                  />
+                  <button
+                    onClick={() => setShowClanktonWithdrawConfirm(true)}
+                    disabled={!clanktonWithdrawAddress || clanktonWithdrawLoading}
+                    style={{
+                      ...styles.btnDanger,
+                      ...((!clanktonWithdrawAddress || clanktonWithdrawLoading) ? styles.btnDisabled : {}),
+                    }}
+                  >
+                    Withdraw All
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {/* CLANKTON Withdrawal Confirmation Modal */}
+      {showClanktonWithdrawConfirm && clanktonStatus && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm CLANKTON Withdrawal</h3>
+
+            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
+              This action is <strong>irreversible</strong>. All {clanktonStatus.balanceInMillions} CLANKTON will be withdrawn.
+            </div>
+
+            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>Amount:</span>
+                <div style={{ fontWeight: 600, fontSize: '18px' }}>
+                  {parseFloat(clanktonStatus.balanceFormatted).toLocaleString()} CLANKTON
+                </div>
+              </div>
+              <div>
+                <span style={{ color: '#6b7280' }}>To Address:</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                  {clanktonWithdrawAddress}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Type "WITHDRAW CLANKTON" to confirm:</label>
+              <input
+                type="text"
+                value={clanktonWithdrawConfirmText}
+                onChange={(e) => setClanktonWithdrawConfirmText(e.target.value.toUpperCase())}
+                placeholder="WITHDRAW CLANKTON"
+                style={{
+                  ...styles.input,
+                  ...(clanktonWithdrawConfirmText && clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON' ? styles.inputError : {}),
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowClanktonWithdrawConfirm(false);
+                  setClanktonWithdrawConfirmText('');
+                }}
+                style={{ ...styles.btnSecondary, flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClanktonWithdraw}
+                disabled={clanktonWithdrawLoading || clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON'}
+                style={{
+                  ...styles.btnDanger,
+                  flex: 1,
+                  ...(clanktonWithdrawLoading || clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON' ? styles.btnDisabled : {}),
+                }}
+              >
+                {clanktonWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Round Data Repair */}
       <div style={styles.card}>
