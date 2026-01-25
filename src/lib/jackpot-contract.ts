@@ -60,6 +60,9 @@ const JACKPOT_MANAGER_ABI = [
 
   // Write functions (operator only)
   'function seedJackpot() payable',
+  'function emergencyWithdrawClankton(uint256 amount, address to)',
+  'function setBonusWordsEnabled(bool enabled)',
+  'function owner() view returns (address)',
   'function resolveRound(address winner)',
   'function resolveRoundWithPayouts(address[] recipients, uint256[] amounts, uint256 seedForNextRound)',
   'function startNextRound()',
@@ -192,6 +195,26 @@ export function getJackpotManagerWithOperator(): Contract {
 
   const provider = getBaseProvider();
   const wallet = new Wallet(operatorPrivateKey, provider);
+
+  return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, wallet);
+}
+
+/**
+ * Get contract instance with owner signer for owner-only operations
+ *
+ * IMPORTANT: Only use for owner-only functions like emergencyWithdrawClankton
+ * Requires DEPLOYER_PRIVATE_KEY environment variable
+ */
+export function getJackpotManagerWithOwner(): Contract {
+  const config = getContractConfig();
+  const ownerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+
+  if (!ownerPrivateKey) {
+    throw new Error('DEPLOYER_PRIVATE_KEY not configured for owner operations');
+  }
+
+  const provider = getBaseProvider();
+  const wallet = new Wallet(ownerPrivateKey, provider);
 
   return new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, wallet);
 }
@@ -1274,5 +1297,88 @@ export async function isBonusWordClaimedOnChain(
     return await contract.bonusWordsClaimed(roundNumber, bonusWordIndex);
   } catch {
     return false;
+  }
+}
+
+// =============================================================================
+// OWNER-ONLY FUNCTIONS
+// These require DEPLOYER_PRIVATE_KEY (contract owner)
+// =============================================================================
+
+/**
+ * Emergency withdraw CLANKTON tokens from the contract
+ *
+ * This is an owner-only function for recovering CLANKTON tokens,
+ * useful for migrating to a new token or other emergencies.
+ *
+ * @param amountWei - Amount to withdraw in wei (18 decimals)
+ * @param toAddress - Address to send tokens to
+ * @returns Transaction hash
+ */
+export async function emergencyWithdrawClanktonOnChain(
+  amountWei: bigint,
+  toAddress: string
+): Promise<string> {
+  const contract = getJackpotManagerWithOwner();
+
+  console.log(`[CONTRACT] Emergency withdrawing CLANKTON`);
+  console.log(`  - Amount: ${ethers.formatUnits(amountWei, 18)} CLANKTON`);
+  console.log(`  - To: ${toAddress}`);
+
+  const tx = await contract.emergencyWithdrawClankton(amountWei, toAddress, {
+    gasLimit: 100000n,
+  });
+  console.log(`[CONTRACT] Emergency withdraw transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] CLANKTON withdrawn - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
+
+  return tx.hash;
+}
+
+/**
+ * Get the contract owner address
+ *
+ * @returns Owner address
+ */
+export async function getContractOwnerOnChain(): Promise<string> {
+  const contract = getJackpotManagerReadOnly();
+  return await contract.owner();
+}
+
+/**
+ * Set bonus words feature enabled/disabled
+ *
+ * @param enabled - Whether to enable or disable bonus words
+ * @returns Transaction hash
+ */
+export async function setBonusWordsEnabledOnChain(enabled: boolean): Promise<string> {
+  const contract = getJackpotManagerWithOwner();
+
+  console.log(`[CONTRACT] Setting bonus words enabled: ${enabled}`);
+
+  const tx = await contract.setBonusWordsEnabled(enabled, {
+    gasLimit: 100000n,
+  });
+  console.log(`[CONTRACT] Set bonus words transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Bonus words ${enabled ? 'enabled' : 'disabled'} - Block: ${receipt.blockNumber}`);
+
+  return tx.hash;
+}
+
+/**
+ * Get CLANKTON balance of the contract in wei
+ *
+ * @returns Balance in wei as bigint
+ */
+export async function getClanktonBalanceWei(): Promise<bigint> {
+  try {
+    const contract = getJackpotManagerReadOnly();
+    const balance = await contract.getBonusWordRewardsBalance();
+    return balance;
+  } catch {
+    return 0n;
   }
 }
