@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { RoundStatus } from '../src/lib/wheel';
 
 // Total words in the game dictionary (for percentage calculation)
-const TOTAL_WORD_COUNT = 4440;
+const TOTAL_WORD_COUNT = 4439;
 
 interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;

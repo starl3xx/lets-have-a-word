@@ -17,7 +17,7 @@
 
 ### 2026-01-14 (after Round 7)
 
-- **Word List Expansion**: Added 83 new words to CORE_COMMON, bringing total to 4,440 curated words
+- **Word List Expansion**: Added 83 new words to CORE_COMMON, bringing total to 4,439 curated words
 - **Purchase UX**: Added always-visible "+" icon (top right) with subtle shine animation; moved info icon to left
 - **Social Proof**: Moved "X packs purchased" indicator to Round Archive modal as clickable pill
 - **Wheel Fix**: Wheel now loads with all words as "unguessed" even when no active round (between rounds or during dead day)
@@ -1092,7 +1092,7 @@ Real-time ETH→USD conversion for the jackpot display using CoinGecko's free AP
 Finalized integration of canonical word lists (later unified in Milestone 7.1):
 
 - **Unified Word List** (updated in 7.1)
-  - **WORDS**: 4,440 curated words (single list for guessing and answers)
+  - **WORDS**: 4,439 curated words (single list for guessing and answers)
   - Located in `src/data/guess_words_clean.ts`
   - Categories: CORE_COMMON, BIG_PLACES, COMMON_NAMES, MORPHOLOGICAL, SLANG_ALLOWLIST
   - BANNED_GUESSES excluded automatically
@@ -1655,7 +1655,7 @@ Foundation database schema and word lists:
   - Proper foreign key relationships
 
 - **Word Lists**
-  - Import unified WORDS list from `guess_words_clean.ts` (4,440 curated words)
+  - Import unified WORDS list from `guess_words_clean.ts` (4,439 curated words)
   - Single source of truth for answers and guesses (Milestone 7.1)
   - SEED_WORDS deprecated (Milestone 4.11)
 
@@ -1769,7 +1769,7 @@ To test the app in a realistic "mid-round" state with existing guesses and a jac
 
 ### Random Wheel Start Position - Dev Mode Override
 
-The word wheel displays all 4,440 possible guess words, and each user sees a different starting position to provide variety and prevent pattern recognition.
+The word wheel displays all 4,439 possible guess words, and each user sees a different starting position to provide variety and prevent pattern recognition.
 
 **Production Behavior:**
 - Random wheel start position is generated **once per day per user** (at 11:00 UTC)
