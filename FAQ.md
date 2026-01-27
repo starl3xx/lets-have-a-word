@@ -153,7 +153,7 @@ https://docs.neynar.com/docs/neynar-user-quality-score#faqs
 
 ## How many possible words are there?
 
-Let's Have A Word uses a custom list of **4,439** five-letter words.
+Let's Have A Word uses a custom list of **4,438** five-letter words.
 
 This list is curated by the game's creator and is not the same as Wordle's or any other off-the-shelf word list. Unlike Wordle, which uses separate lists for answers and valid guesses, Let's Have A Word uses a single canonical list.
 

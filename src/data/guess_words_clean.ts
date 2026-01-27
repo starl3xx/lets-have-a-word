@@ -2549,7 +2549,6 @@ export const CORE_COMMON: string[] = [
   "RANGE",
   "RANKS",
   "RANTS",
-  "RAPES",
   "RAPID",
   "RAQQA",
   "RARER",
@@ -4518,6 +4517,7 @@ export const BANNED_GUESSES: string[] = [
   "DYKES",
   "FUCKS",
   "RAPED",
+  "RAPES",
   "SLUTS",
   "TITTY",
   "TWATS",
@@ -4535,7 +4535,7 @@ export const BANNED_GUESSES: string[] = [
  * - No other word list is used at runtime
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4439 words
+ * Total: 4438 words
  */
 export const WORDS: string[] = [
   ...CORE_COMMON,
