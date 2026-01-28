@@ -275,8 +275,14 @@ function GameContent() {
    */
   useEffect(() => {
     const getFarcasterContext = async () => {
+      // Timeout helper - sdk.context can hang indefinitely in preview mode
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 2000);
+      });
+
       try {
-        const context = await sdk.context;
+        // Race between SDK context and timeout
+        const context = await Promise.race([sdk.context, timeoutPromise]);
         if (context?.user?.fid) {
           // Set FID immediately so dependent effects can start
           setFid(context.user.fid);
