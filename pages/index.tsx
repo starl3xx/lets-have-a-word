@@ -2029,6 +2029,12 @@ function GameContent() {
 export default function Home() {
   const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
 
+  // MiniAppProvider is client-side only - wait for mount before rendering it
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const content = (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
@@ -2043,7 +2049,7 @@ export default function Home() {
         <title>Let's Have A Word! | Onchain word game</title>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
-      {neynarClientId ? (
+      {mounted && neynarClientId ? (
         <MiniAppProvider clientId={neynarClientId}>
           {content}
         </MiniAppProvider>
