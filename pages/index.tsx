@@ -342,6 +342,7 @@ function GameContent() {
         }
         setIsInMiniApp(false);
         setHasCheckedContext(true);
+        sdk.actions.ready(); // Signal ready even on error so splash screen dismisses
       }
     };
 
