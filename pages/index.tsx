@@ -274,6 +274,10 @@ function GameContent() {
    * to reduce total initialization time by ~500ms
    */
   useEffect(() => {
+    // Signal ready immediately - don't wait for context
+    // This dismisses Warpcast splash screen right away
+    sdk.actions.ready();
+
     const getFarcasterContext = async () => {
       // Timeout helper - sdk.context can hang indefinitely in preview mode
       const timeoutPromise = new Promise<null>((resolve) => {
@@ -289,9 +293,6 @@ function GameContent() {
           setIsInMiniApp(true);
           setHasCheckedContext(true);
           console.log('Farcaster FID:', context.user.fid);
-
-          // Signal ready to Warpcast
-          sdk.actions.ready();
 
           // Track notification opens for Neynar analytics (manual implementation)
           // This replaces MiniAppProvider which caused SDK conflicts
@@ -338,7 +339,6 @@ function GameContent() {
           }
           setIsInMiniApp(false);
           setHasCheckedContext(true);
-          sdk.actions.ready();
         }
       } catch (error) {
         console.log('Not in Farcaster context');
@@ -348,7 +348,6 @@ function GameContent() {
         }
         setIsInMiniApp(false);
         setHasCheckedContext(true);
-        sdk.actions.ready(); // Signal ready even on error so splash screen dismisses
       }
     };
 
