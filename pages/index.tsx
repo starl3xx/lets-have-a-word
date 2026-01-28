@@ -65,7 +65,7 @@ const queryClient = new QueryClient();
  * - utm_source=neynar
  * - utm_campaign=<campaign_id>
  *
- * We detect these and POST to Neynar's analytics endpoint.
+ * We detect these and POST to our backend proxy (which adds the API key).
  */
 function trackNotificationOpen(userFid: number, appFid?: number): void {
   if (typeof window === 'undefined') return;
@@ -82,8 +82,8 @@ function trackNotificationOpen(userFid: number, appFid?: number): void {
 
     console.log(`[Analytics] Tracking notification open: campaign=${campaignId}, fid=${userFid}`);
 
-    // Fire-and-forget POST to Neynar analytics
-    fetch('https://api.neynar.com/v2/farcaster/frame/notifications/open', {
+    // Fire-and-forget POST to our proxy endpoint (adds API key server-side)
+    fetch('/api/track-notification-open', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
