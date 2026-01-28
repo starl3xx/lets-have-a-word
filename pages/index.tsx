@@ -50,11 +50,63 @@ import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MiniAppProvider } from '@neynar/react';
 import { config } from '../src/config/wagmi';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
+
+/**
+ * Track notification opens for Neynar developer portal analytics
+ *
+ * This is a manual implementation that replaces MiniAppProvider, which caused
+ * SDK conflicts when used alongside direct @farcaster/miniapp-sdk usage.
+ *
+ * When a user opens the app via a notification, Neynar adds UTM params:
+ * - utm_source=neynar
+ * - utm_campaign=<campaign_id>
+ *
+ * We detect these and POST to Neynar's analytics endpoint.
+ */
+function trackNotificationOpen(userFid: number, appFid?: number): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get('utm_source');
+    const campaignId = params.get('utm_campaign');
+
+    // Only track if this is a Neynar notification open
+    if (utmSource !== 'neynar' || !campaignId) {
+      return;
+    }
+
+    console.log(`[Analytics] Tracking notification open: campaign=${campaignId}, fid=${userFid}`);
+
+    // Fire-and-forget POST to Neynar analytics
+    fetch('https://api.neynar.com/v2/farcaster/frame/notifications/open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        campaign_id: campaignId,
+        fid: userFid,
+        app_fid: appFid,
+      }),
+    }).then(response => {
+      if (response.ok) {
+        console.log('[Analytics] Notification open tracked successfully');
+      } else {
+        console.warn('[Analytics] Failed to track notification open:', response.status);
+      }
+    }).catch(error => {
+      console.warn('[Analytics] Error tracking notification open:', error);
+    });
+  } catch (error) {
+    // Silently fail - analytics shouldn't break the app
+    console.warn('[Analytics] Error in trackNotificationOpen:', error);
+  }
+}
 
 /**
  * GameContent - Main game component
@@ -232,8 +284,12 @@ function GameContent() {
           setHasCheckedContext(true);
           console.log('Farcaster FID:', context.user.fid);
 
-          // Signal ready early - don't wait for auth token
+          // Signal ready to Warpcast
           sdk.actions.ready();
+
+          // Track notification opens for Neynar analytics (manual implementation)
+          // This replaces MiniAppProvider which caused SDK conflicts
+          trackNotificationOpen(context.user.fid, context.client?.clientFid);
 
           // Extract referral from SDK context.location.embed (non-blocking)
           // When opened from a cast embed, Warpcast stores the original URL here (not in window.location)
@@ -2027,33 +2083,17 @@ function GameContent() {
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
  */
 export default function Home() {
-  // MiniAppProvider is client-side only - wait for mount before rendering it
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const content = (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <GameContent />
-      </QueryClientProvider>
-    </WagmiProvider>
-  );
-
   return (
     <>
       <Head>
         <title>Let's Have A Word! | Onchain word game</title>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
-      {mounted ? (
-        <MiniAppProvider analyticsEnabled>
-          {content}
-        </MiniAppProvider>
-      ) : (
-        content
-      )}
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <GameContent />
+        </QueryClientProvider>
+      </WagmiProvider>
     </>
   );
 }
