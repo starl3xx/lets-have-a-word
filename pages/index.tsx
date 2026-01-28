@@ -2027,8 +2027,6 @@ function GameContent() {
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
  */
 export default function Home() {
-  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
-
   // MiniAppProvider is client-side only - wait for mount before rendering it
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -2049,8 +2047,8 @@ export default function Home() {
         <title>Let's Have A Word! | Onchain word game</title>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
-      {mounted && neynarClientId ? (
-        <MiniAppProvider clientId={neynarClientId}>
+      {mounted ? (
+        <MiniAppProvider analyticsEnabled>
           {content}
         </MiniAppProvider>
       ) : (
