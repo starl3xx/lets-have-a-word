@@ -50,6 +50,7 @@ import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MiniAppProvider } from '@neynar/react';
 import { config } from '../src/config/wagmi';
 
 // Create a client for React Query
@@ -2026,17 +2027,29 @@ function GameContent() {
  * - pages/admin/analytics.tsx: Admin page with NeynarContextProvider
  */
 export default function Home() {
+  const neynarClientId = process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID;
+
+  const content = (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <GameContent />
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+
   return (
     <>
       <Head>
         <title>Let's Have A Word! | Onchain word game</title>
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
       </Head>
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          <GameContent />
-        </QueryClientProvider>
-      </WagmiProvider>
+      {neynarClientId ? (
+        <MiniAppProvider clientId={neynarClientId}>
+          {content}
+        </MiniAppProvider>
+      ) : (
+        content
+      )}
     </>
   );
 }
