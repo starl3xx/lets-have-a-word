@@ -191,6 +191,7 @@ export type XpEventType =
   | 'STREAK_DAY'            // +15 XP for consecutive day playing
   | 'NEAR_MISS'             // 0 XP (tracked for future use)
   | 'CLANKTON_BONUS_DAY'    // +10 XP per day for CLANKTON holders
+  | 'WORD_TOKEN_BONUS_DAY' // +5 XP per day for $WORD token holders
   | 'SHARE_CAST'            // +15 XP for sharing to Farcaster
   | 'PACK_PURCHASE'         // +20 XP per pack purchase
   | 'OG_HUNTER_AWARD'       // +500 XP for OG Hunter badge (prelaunch campaign)
@@ -223,6 +224,7 @@ export const XP_VALUES: Record<XpEventType, number> = {
   STREAK_DAY: 15,
   NEAR_MISS: 0,           // Tracked only, no XP in v1
   CLANKTON_BONUS_DAY: 10,
+  WORD_TOKEN_BONUS_DAY: 5,
   SHARE_CAST: 15,
   PACK_PURCHASE: 20,
   OG_HUNTER_AWARD: 500,   // OG Hunter badge award (prelaunch campaign)
@@ -266,6 +268,14 @@ export interface GuessSourceState {
     used: number;       // 0 to total
     remaining: number;  // 0 to total
     isHolder: boolean;  // Whether user holds CLANKTON
+  };
+
+  /** $WORD token holder bonus source */
+  wordToken: {
+    total: number;      // 0 or 1 (0 if not a holder)
+    used: number;       // 0 or 1
+    remaining: number;  // 0 or 1
+    isHolder: boolean;  // Whether user holds $WORD token
   };
 
   /** Share bonus source */
