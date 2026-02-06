@@ -324,6 +324,12 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [contractStateLoading, setContractStateLoading] = useState(false)
   const [clearSepoliaLoading, setClearSepoliaLoading] = useState(false)
 
+  // Recover stuck round state
+  const [recoverRoundId, setRecoverRoundId] = useState("")
+  const [recoverDiagnosis, setRecoverDiagnosis] = useState<any>(null)
+  const [recoverLoading, setRecoverLoading] = useState(false)
+  const [recoverResult, setRecoverResult] = useState<{ ok: boolean; message: string } | null>(null)
+
   // Simulation states
   const [simAnswer, setSimAnswer] = useState("")
   const [simGuesses, setSimGuesses] = useState("20")
@@ -801,6 +807,49 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setError(err.message)
     } finally {
       setForceResolveLoading(false)
+    }
+  }
+
+  const handleDiagnoseStuckRound = async () => {
+    if (!user?.fid || !recoverRoundId) return
+    try {
+      setRecoverLoading(true)
+      setRecoverResult(null)
+      setError(null)
+      const res = await fetch(`/api/admin/operational/recover-stuck-round?devFid=${user.fid}&roundId=${recoverRoundId}`)
+      const data = await res.json()
+      setRecoverDiagnosis(data.diagnosis || data)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRecoverLoading(false)
+    }
+  }
+
+  const handleRecoverStuckRound = async () => {
+    if (!user?.fid || !recoverRoundId) return
+    if (!confirm(`Recover Round #${recoverRoundId}? This will execute onchain payouts and resolve the round.`)) return
+    try {
+      setRecoverLoading(true)
+      setRecoverResult(null)
+      setError(null)
+      const res = await fetch('/api/admin/operational/recover-stuck-round', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ devFid: user.fid, roundId: parseInt(recoverRoundId, 10) }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Recovery failed')
+      }
+      setRecoverResult({ ok: true, message: data.message })
+      setSuccess(data.message)
+      await fetchStatus()
+    } catch (err: any) {
+      setRecoverResult({ ok: false, message: err.message })
+      setError(err.message)
+    } finally {
+      setRecoverLoading(false)
     }
   }
 
@@ -1685,6 +1734,154 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               ))}
             </div>
           )}
+
+          {/* Recover Stuck Round Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>
+              Recover Stuck Round
+              <span style={{
+                marginLeft: '12px',
+                fontSize: '11px',
+                padding: '2px 8px',
+                background: '#fef3c7',
+                color: '#92400e',
+                borderRadius: '9999px',
+              }}>
+                RECOVERY
+              </span>
+            </h2>
+
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Fix rounds where a winner was found but onchain resolution failed (zombie rounds).
+              The round has winnerFid set but resolvedAt is null and no payouts were distributed.
+            </p>
+
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input
+                type="number"
+                placeholder="Round ID (e.g. 13)"
+                value={recoverRoundId}
+                onChange={(e) => { setRecoverRoundId(e.target.value); setRecoverDiagnosis(null); setRecoverResult(null); }}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                }}
+              />
+              <button
+                onClick={handleDiagnoseStuckRound}
+                style={styles.btnSecondary}
+                disabled={recoverLoading || !recoverRoundId}
+              >
+                {recoverLoading ? 'Checking...' : 'Diagnose'}
+              </button>
+            </div>
+
+            {recoverDiagnosis && (
+              <div style={{
+                background: recoverDiagnosis.isStuck ? '#fef2f2' : '#f0fdf4',
+                border: `1px solid ${recoverDiagnosis.isStuck ? '#fecaca' : '#bbf7d0'}`,
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '16px',
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: '12px', color: recoverDiagnosis.isStuck ? '#dc2626' : '#166534' }}>
+                  {recoverDiagnosis.isStuck ? 'Round IS Stuck' : 'Round OK'}
+                </div>
+
+                {recoverDiagnosis.stuckReason && (
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
+                    {recoverDiagnosis.stuckReason}
+                  </div>
+                )}
+
+                {recoverDiagnosis.round && (
+                  <>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Status</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.round.status}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Winner FID</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.round.winnerFid ?? 'none'}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Answer</span>
+                      <span style={{ ...styles.infoValue, fontFamily: 'monospace' }}>{recoverDiagnosis.round.answer}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Prize Pool</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.round.prizePoolEth} ETH</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Resolved At</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.round.resolvedAt ?? 'null'}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>TX Hash</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.round.txHash ?? 'null'}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Payouts</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.payoutCount} records</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Total Guesses</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.totalGuesses?.toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
+
+                {recoverDiagnosis.contract && (
+                  <>
+                    <div style={{ fontWeight: 600, marginTop: '12px', marginBottom: '8px', fontSize: '13px' }}>Contract State</div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Contract Round</span>
+                      <span style={styles.infoValue}>#{recoverDiagnosis.contract.roundNumber} {recoverDiagnosis.contract.isActive ? '(active)' : '(inactive)'}</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Contract Jackpot</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.contract.jackpotEth} ETH</span>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span style={styles.infoLabel}>Contract Balance</span>
+                      <span style={styles.infoValue}>{recoverDiagnosis.contract.balanceEth} ETH</span>
+                    </div>
+                  </>
+                )}
+
+                {recoverDiagnosis.isStuck && (
+                  <button
+                    onClick={handleRecoverStuckRound}
+                    style={{
+                      ...styles.btnDanger,
+                      marginTop: '16px',
+                      width: '100%',
+                      background: '#059669',
+                    }}
+                    disabled={recoverLoading}
+                  >
+                    {recoverLoading ? 'Recovering...' : `Recover Round #${recoverRoundId} (Execute Payouts)`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {recoverResult && (
+              <div style={{
+                padding: '12px',
+                borderRadius: '6px',
+                background: recoverResult.ok ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${recoverResult.ok ? '#bbf7d0' : '#fecaca'}`,
+                fontSize: '13px',
+                color: recoverResult.ok ? '#166534' : '#dc2626',
+              }}>
+                {recoverResult.message}
+              </div>
+            )}
+          </div>
 
           {/* Contract State Diagnostics Card */}
           <div style={styles.card}>
