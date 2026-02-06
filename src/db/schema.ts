@@ -435,7 +435,8 @@ export type OperationalEventType =
   | 'refunds_started'
   | 'refunds_completed'
   | 'round_cancelled'
-  | 'game_resumed';
+  | 'game_resumed'
+  | 'airdrop';
 
 /**
  * Operational Events Table

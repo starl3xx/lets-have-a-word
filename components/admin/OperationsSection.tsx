@@ -305,6 +305,13 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [awardPackReason, setAwardPackReason] = useState("")
   const [awardPackLoading, setAwardPackLoading] = useState(false)
 
+  // Airdrop state
+  const [airdropCsv, setAirdropCsv] = useState("")
+  const [airdropReason, setAirdropReason] = useState("")
+  const [airdropPreview, setAirdropPreview] = useState<any>(null)
+  const [airdropResult, setAirdropResult] = useState<any>(null)
+  const [airdropLoading, setAirdropLoading] = useState(false)
+
   // XP event options with labels and values
   const xpEventOptions = [
     { value: 'DAILY_PARTICIPATION', label: 'Daily participation (+10 XP)', xp: 10 },
@@ -1079,6 +1086,118 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       setError(err.message)
     } finally {
       setAwardPackLoading(false)
+    }
+  }
+
+  // Parse CSV into recipients array
+  const parseAirdropCsv = (csv: string): Array<{ fid: number; amountEth: string }> => {
+    return csv
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#') && !line.startsWith('//'))
+      .map(line => {
+        const [fidStr, amountStr] = line.split(',').map(s => s.trim())
+        return { fid: parseInt(fidStr, 10), amountEth: amountStr }
+      })
+      .filter(r => !isNaN(r.fid) && r.fid > 0 && r.amountEth && !isNaN(parseFloat(r.amountEth)))
+  }
+
+  const handleAirdropPreview = async () => {
+    if (!user?.fid) return
+
+    const recipients = parseAirdropCsv(airdropCsv)
+    if (recipients.length === 0) {
+      setError('No valid recipients found. Use format: fid,amountEth (one per line)')
+      return
+    }
+
+    if (!airdropReason || airdropReason.trim().length < 5) {
+      setError('Please enter a reason (at least 5 characters)')
+      return
+    }
+
+    try {
+      setAirdropLoading(true)
+      setError(null)
+      setSuccess(null)
+      setAirdropPreview(null)
+      setAirdropResult(null)
+
+      const res = await fetch('/api/admin/operational/airdrop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: 'preview',
+          recipients,
+          reason: airdropReason.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to preview airdrop')
+      }
+
+      setAirdropPreview(data)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setAirdropLoading(false)
+    }
+  }
+
+  const handleAirdropExecute = async () => {
+    if (!user?.fid || !airdropPreview) return
+
+    const recipients = parseAirdropCsv(airdropCsv)
+    if (recipients.length === 0) return
+
+    // Filter to only resolved recipients
+    const resolvedRecipients = recipients.filter(r => {
+      const preview = airdropPreview.recipients.find((p: any) => p.fid === r.fid)
+      return preview && !preview.error
+    })
+
+    if (resolvedRecipients.length === 0) {
+      setError('No recipients with resolved wallets to send to')
+      return
+    }
+
+    if (!confirm(`Send ${airdropPreview.totalEth} ETH to ${resolvedRecipients.length} recipient(s)? This action is irreversible.`)) {
+      return
+    }
+
+    try {
+      setAirdropLoading(true)
+      setError(null)
+      setSuccess(null)
+
+      const res = await fetch('/api/admin/operational/airdrop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          action: 'execute',
+          recipients: resolvedRecipients,
+          reason: airdropReason.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to execute airdrop')
+      }
+
+      setAirdropResult(data)
+      setAirdropPreview(null)
+      setSuccess(`Airdrop complete: ${data.successCount} sent, ${data.failureCount} failed, ${data.totalEthSent} ETH total`)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setAirdropLoading(false)
     }
   }
 
@@ -2441,6 +2560,192 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             >
               {awardPackLoading ? 'Awarding...' : `Award ${awardPackCount || 1} Pack(s) (+${(parseInt(awardPackCount, 10) || 1) * 3} guesses)`}
             </button>
+          </div>
+
+          {/* ETH Airdrop Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>ETH Airdrop</h2>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Send ETH to multiple recipients by FID. Useful for refunds, compensation, or rewards.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Recipients (CSV: fid,amountEth per line)</label>
+              <textarea
+                style={styles.textarea}
+                placeholder={"# fid,amountEth\n1017205,0.001\n738714,0.002"}
+                value={airdropCsv}
+                onChange={(e) => {
+                  setAirdropCsv(e.target.value)
+                  setAirdropPreview(null)
+                  setAirdropResult(null)
+                }}
+                rows={6}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Reason (required, min 5 chars)</label>
+              <input
+                type="text"
+                style={styles.input}
+                placeholder="e.g., Round 13 zombie state refunds"
+                value={airdropReason}
+                onChange={(e) => setAirdropReason(e.target.value)}
+              />
+            </div>
+
+            {/* Preview Button */}
+            {!airdropPreview && !airdropResult && (
+              <button
+                onClick={handleAirdropPreview}
+                style={{
+                  ...styles.btnPrimary,
+                  opacity: airdropLoading || !airdropCsv || !airdropReason || airdropReason.length < 5 ? 0.6 : 1,
+                  cursor: airdropLoading || !airdropCsv || !airdropReason || airdropReason.length < 5 ? 'not-allowed' : 'pointer',
+                }}
+                disabled={airdropLoading || !airdropCsv || !airdropReason || airdropReason.length < 5}
+              >
+                {airdropLoading ? 'Resolving wallets...' : 'Preview Airdrop'}
+              </button>
+            )}
+
+            {/* Preview Results */}
+            {airdropPreview && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={styles.alert(airdropPreview.sufficientBalance ? 'info' : 'warning')}>
+                  <strong>Total: {airdropPreview.totalEth} ETH</strong> to {airdropPreview.resolvedCount} recipient(s)
+                  {airdropPreview.errorCount > 0 && (
+                    <span style={{ color: '#dc2626' }}> ({airdropPreview.errorCount} unresolved)</span>
+                  )}
+                  <br />
+                  <span style={{ fontSize: '13px' }}>
+                    Operator: {airdropPreview.operatorAddress.slice(0, 6)}...{airdropPreview.operatorAddress.slice(-4)} ({airdropPreview.operatorBalance} ETH)
+                    {!airdropPreview.sufficientBalance && ' — INSUFFICIENT BALANCE'}
+                  </span>
+                </div>
+
+                <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                        <th style={{ padding: '8px 12px' }}>FID</th>
+                        <th style={{ padding: '8px 12px' }}>Username</th>
+                        <th style={{ padding: '8px 12px' }}>Wallet</th>
+                        <th style={{ padding: '8px 12px' }}>Amount</th>
+                        <th style={{ padding: '8px 12px' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {airdropPreview.recipients.map((r: any) => (
+                        <tr key={r.fid} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '8px 12px' }}>{r.fid}</td>
+                          <td style={{ padding: '8px 12px' }}>{r.username ? `@${r.username}` : '—'}</td>
+                          <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '12px' }}>
+                            {r.walletAddress ? `${r.walletAddress.slice(0, 6)}...${r.walletAddress.slice(-4)}` : '—'}
+                          </td>
+                          <td style={{ padding: '8px 12px' }}>{r.amountEth} ETH</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            {r.error ? (
+                              <span style={{ color: '#dc2626' }}>{r.error}</span>
+                            ) : (
+                              <span style={{ color: '#16a34a' }}>Ready</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    onClick={handleAirdropExecute}
+                    style={{
+                      ...styles.btnDanger,
+                      background: '#dc2626',
+                      opacity: airdropLoading || !airdropPreview.sufficientBalance || airdropPreview.resolvedCount === 0 ? 0.6 : 1,
+                      cursor: airdropLoading || !airdropPreview.sufficientBalance || airdropPreview.resolvedCount === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                    disabled={airdropLoading || !airdropPreview.sufficientBalance || airdropPreview.resolvedCount === 0}
+                  >
+                    {airdropLoading ? 'Sending...' : `Send ${airdropPreview.totalEth} ETH`}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAirdropPreview(null)
+                      setAirdropResult(null)
+                    }}
+                    style={styles.btnSecondary}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Execute Results */}
+            {airdropResult && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={styles.alert(airdropResult.failureCount === 0 ? 'success' : 'warning')}>
+                  <strong>Airdrop Complete:</strong> {airdropResult.successCount} sent, {airdropResult.failureCount} failed — {airdropResult.totalEthSent} ETH total
+                </div>
+
+                <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                        <th style={{ padding: '8px 12px' }}>FID</th>
+                        <th style={{ padding: '8px 12px' }}>Username</th>
+                        <th style={{ padding: '8px 12px' }}>Amount</th>
+                        <th style={{ padding: '8px 12px' }}>Tx Hash</th>
+                        <th style={{ padding: '8px 12px' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {airdropResult.results.map((r: any) => (
+                        <tr key={r.fid} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '8px 12px' }}>{r.fid}</td>
+                          <td style={{ padding: '8px 12px' }}>{r.username ? `@${r.username}` : '—'}</td>
+                          <td style={{ padding: '8px 12px' }}>{r.amountEth} ETH</td>
+                          <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '12px' }}>
+                            {r.txHash ? (
+                              <a
+                                href={`https://basescan.org/tx/${r.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: '#2563eb', textDecoration: 'none' }}
+                              >
+                                {r.txHash.slice(0, 10)}...
+                              </a>
+                            ) : '—'}
+                          </td>
+                          <td style={{ padding: '8px 12px' }}>
+                            {r.success ? (
+                              <span style={{ color: '#16a34a' }}>Sent</span>
+                            ) : (
+                              <span style={{ color: '#dc2626' }}>{r.error || 'Failed'}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setAirdropCsv('')
+                    setAirdropReason('')
+                    setAirdropPreview(null)
+                    setAirdropResult(null)
+                  }}
+                  style={styles.btnSecondary}
+                >
+                  Reset
+                </button>
+              </div>
+            )}
           </div>
         </>
       ) : null}
