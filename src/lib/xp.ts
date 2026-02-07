@@ -225,6 +225,36 @@ export async function hasReceivedClanktonBonusToday(fid: number): Promise<boolea
 }
 
 /**
+ * Check if user has already received $WORD token bonus XP today
+ * Similar to CLANKTON bonus check
+ *
+ * @param fid - Farcaster ID
+ * @returns true if already received today, false otherwise
+ */
+export async function hasReceivedWordTokenBonusToday(fid: number): Promise<boolean> {
+  try {
+    const todayStart = getTodayStartTimestamp();
+
+    const result = await db
+      .select({ id: xpEvents.id })
+      .from(xpEvents)
+      .where(
+        and(
+          eq(xpEvents.fid, fid),
+          eq(xpEvents.eventType, 'WORD_TOKEN_BONUS_DAY'),
+          gte(xpEvents.createdAt, todayStart)
+        )
+      )
+      .limit(1);
+
+    return result.length > 0;
+  } catch (error) {
+    console.error('[XP] Error checking $WORD token bonus:', error);
+    return false;
+  }
+}
+
+/**
  * Check if user already received share XP today
  *
  * @param fid - Farcaster ID
