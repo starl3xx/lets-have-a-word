@@ -126,6 +126,7 @@ export const dailyGuessState = pgTable('daily_guess_state', {
   // Free guess allocations for this day
   freeAllocatedBase: integer('free_allocated_base').default(0).notNull(), // Base free guesses (usually 1)
   freeAllocatedClankton: integer('free_allocated_clankton').default(0).notNull(), // CLANKTON holder bonus (0 or 3)
+  freeAllocatedWordToken: integer('free_allocated_word_token').default(0).notNull(), // $WORD token holder bonus (0 or 1)
   freeAllocatedShareBonus: integer('free_allocated_share_bonus').default(0).notNull(), // Share bonus (0 or 1)
   freeUsed: integer('free_used').default(0).notNull(), // How many free guesses consumed
 

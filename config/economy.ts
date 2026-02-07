@@ -197,3 +197,45 @@ export const WHEEL_ANIMATION_CONFIG = {
   /** Multiplier applied when debug slow mode is enabled */
   debugMultiplier: 3,
 };
+
+// =============================================================================
+// $WORD Token Configuration
+// =============================================================================
+
+/**
+ * $WORD token holder threshold (1 million tokens)
+ * Users must hold >= this amount to receive bonus guesses
+ */
+export const WORD_TOKEN_HOLDER_THRESHOLD = 1_000_000;
+
+/**
+ * Bonus guesses per day for $WORD token holders
+ * Simple flat bonus to start - no tiers like CLANKTON
+ */
+export const WORD_TOKEN_BONUS_GUESSES = 1;
+
+/**
+ * Get the current $WORD token holder bonus guesses
+ *
+ * @returns Number of bonus guesses (always 1 for $WORD holders)
+ */
+export function getWordTokenHolderBonusGuesses(): number {
+  return WORD_TOKEN_BONUS_GUESSES;
+}
+
+/**
+ * Get the current $WORD token bonus info for display purposes
+ *
+ * @returns Object with bonus info for display
+ */
+export function getWordTokenBonusInfo(): {
+  bonusGuesses: number;
+  thresholdTokens: number;
+  isEnabled: boolean;
+} {
+  return {
+    bonusGuesses: WORD_TOKEN_BONUS_GUESSES,
+    thresholdTokens: WORD_TOKEN_HOLDER_THRESHOLD,
+    isEnabled: true, // Always enabled when configured
+  };
+}
