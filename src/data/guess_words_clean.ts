@@ -4017,6 +4017,8 @@ export const MORPHOLOGICAL: string[] = [
   "DICED",
   "DICES",
   "DIMED",
+  "DIMMER",
+  "DIMMERS",
   "DINED",
   "DINES",
   "DIRTS",
