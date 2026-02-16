@@ -1,6 +1,6 @@
 /**
- * CLANKTON Analytics API
- * Analytics v2: CLANKTON holder behavior and bonus usage
+ * $WORD Analytics API
+ * Analytics v2: $WORD holder behavior and bonus usage
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -9,25 +9,25 @@ import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
 
-export interface ClanktonAnalytics {
+export interface WordTokenAnalytics {
   // Core metrics
-  clanktonUserPercentage: number;
-  clanktonSolveRate: number;
+  wordTokenUserPercentage: number;
+  wordTokenSolveRate: number;
   regularSolveRate: number;
-  avgClanktonBonusUsage: number;
+  avgWordTokenBonusUsage: number;
 
   // Comparative metrics
-  avgGuessesPerRoundClankton: number;
+  avgGuessesPerRoundWordToken: number;
   avgGuessesPerRoundRegular: number;
-  clanktonActiveUsers: number;
+  wordTokenActiveUsers: number;
   regularActiveUsers: number;
 
   // Time series
-  dailyClanktonUsage: Array<{
+  dailyWordTokenUsage: Array<{
     day: string;
-    clankton_guesses: number;
+    wordToken_guesses: number;
     regular_guesses: number;
-    clankton_users: number;
+    wordToken_users: number;
   }>;
 
   timeRange: string;
@@ -35,7 +35,7 @@ export interface ClanktonAnalytics {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ClanktonAnalytics | { error: string }>
+  res: NextApiResponse<WordTokenAnalytics | { error: string }>
 ) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -60,9 +60,10 @@ export default async function handler(
     const timeRange = req.query.range as string || '30d';
     const daysBack = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 9999;
 
-    // Query 1: CLANKTON vs Regular user metrics
+    // Query 1: $WORD vs Regular user metrics
+    // Note: is_word_token_holder uses legacy DB column free_allocated_clankton
     const userMetrics = await db.execute<{
-      is_clankton: boolean;
+      is_word_token_holder: boolean;
       active_users: number;
       total_guesses: number;
       correct_guesses: number;
@@ -72,7 +73,7 @@ export default async function handler(
       WITH user_classification AS (
         SELECT DISTINCT
           dgs.fid,
-          CASE WHEN MAX(dgs.free_allocated_clankton) > 0 THEN true ELSE false END as is_clankton
+          CASE WHEN MAX(dgs.free_allocated_clankton) > 0 THEN true ELSE false END as is_word_token_holder
         FROM daily_guess_state dgs
         WHERE dgs.date >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
         GROUP BY dgs.fid
@@ -80,26 +81,26 @@ export default async function handler(
       guess_stats AS (
         SELECT
           g.fid,
-          uc.is_clankton,
+          uc.is_word_token_holder,
           COUNT(g.id) as total_guesses,
           SUM(CASE WHEN g.is_correct THEN 1 ELSE 0 END) as correct_guesses
         FROM guesses g
         JOIN user_classification uc ON uc.fid = g.fid
         WHERE g.created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
-        GROUP BY g.fid, uc.is_clankton
+        GROUP BY g.fid, uc.is_word_token_holder
       )
       SELECT
-        is_clankton,
+        is_word_token_holder,
         COUNT(DISTINCT fid) as active_users,
         SUM(total_guesses) as total_guesses,
         SUM(correct_guesses) as correct_guesses,
         ROUND(AVG(CASE WHEN total_guesses > 0 THEN correct_guesses::numeric / total_guesses * 100 ELSE 0 END), 2) as solve_rate,
         ROUND(AVG(total_guesses), 2) as avg_guesses_per_round
       FROM guess_stats
-      GROUP BY is_clankton
+      GROUP BY is_word_token_holder
     `);
 
-    // Query 2: CLANKTON bonus usage
+    // Query 2: $WORD bonus usage (free_allocated_clankton is a legacy column name)
     const bonusUsage = await db.execute<{
       avg_bonus_usage: number;
     }>(sql`
@@ -110,26 +111,27 @@ export default async function handler(
         AND date >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
     `);
 
-    // Query 3: Daily CLANKTON usage trend
+    // Query 3: Daily $WORD usage trend
+    // Note: free_allocated_clankton and is_word_token_holder use legacy DB column names
     const dailyUsage = await db.execute<{
       day: string;
-      clankton_guesses: number;
+      word_token_guesses: number;
       regular_guesses: number;
-      clankton_users: number;
+      word_token_users: number;
     }>(sql`
       WITH user_classification AS (
         SELECT DISTINCT
           dgs.fid,
           dgs.date,
-          CASE WHEN dgs.free_allocated_clankton > 0 THEN true ELSE false END as is_clankton
+          CASE WHEN dgs.free_allocated_clankton > 0 THEN true ELSE false END as is_word_token_holder
         FROM daily_guess_state dgs
         WHERE dgs.date >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
       )
       SELECT
         DATE(g.created_at) as day,
-        COUNT(g.id) FILTER (WHERE uc.is_clankton = true) as clankton_guesses,
-        COUNT(g.id) FILTER (WHERE uc.is_clankton = false OR uc.is_clankton IS NULL) as regular_guesses,
-        COUNT(DISTINCT g.fid) FILTER (WHERE uc.is_clankton = true) as clankton_users
+        COUNT(g.id) FILTER (WHERE uc.is_word_token_holder = true) as word_token_guesses,
+        COUNT(g.id) FILTER (WHERE uc.is_word_token_holder = false OR uc.is_word_token_holder IS NULL) as regular_guesses,
+        COUNT(DISTINCT g.fid) FILTER (WHERE uc.is_word_token_holder = true) as word_token_users
       FROM guesses g
       LEFT JOIN user_classification uc ON uc.fid = g.fid AND uc.date = DATE(g.created_at)
       WHERE g.created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
@@ -139,35 +141,35 @@ export default async function handler(
     `);
 
     const metricsArray = Array.isArray(userMetrics) ? userMetrics : [];
-    const clanktonMetrics = metricsArray.find(m => m.is_clankton === true);
-    const regularMetrics = metricsArray.find(m => m.is_clankton === false);
+    const wordTokenMetrics = metricsArray.find(m => m.is_word_token_holder === true);
+    const regularMetrics = metricsArray.find(m => m.is_word_token_holder === false);
     const bonusData = Array.isArray(bonusUsage) ? bonusUsage[0] : bonusUsage;
     const dailyArray = Array.isArray(dailyUsage) ? dailyUsage : [];
 
-    const totalActiveUsers = (Number(clanktonMetrics?.active_users) || 0) + (Number(regularMetrics?.active_users) || 0);
+    const totalActiveUsers = (Number(wordTokenMetrics?.active_users) || 0) + (Number(regularMetrics?.active_users) || 0);
 
-    const analytics: ClanktonAnalytics = {
-      clanktonUserPercentage: totalActiveUsers > 0 ? Number(((Number(clanktonMetrics?.active_users) || 0) / totalActiveUsers * 100).toFixed(2)) : 0,
-      clanktonSolveRate: Number(clanktonMetrics?.solve_rate) || 0,
+    const analytics: WordTokenAnalytics = {
+      wordTokenUserPercentage: totalActiveUsers > 0 ? Number(((Number(wordTokenMetrics?.active_users) || 0) / totalActiveUsers * 100).toFixed(2)) : 0,
+      wordTokenSolveRate: Number(wordTokenMetrics?.solve_rate) || 0,
       regularSolveRate: Number(regularMetrics?.solve_rate) || 0,
-      avgClanktonBonusUsage: Number(bonusData?.avg_bonus_usage) || 0,
-      avgGuessesPerRoundClankton: Number(clanktonMetrics?.avg_guesses_per_round) || 0,
+      avgWordTokenBonusUsage: Number(bonusData?.avg_bonus_usage) || 0,
+      avgGuessesPerRoundWordToken: Number(wordTokenMetrics?.avg_guesses_per_round) || 0,
       avgGuessesPerRoundRegular: Number(regularMetrics?.avg_guesses_per_round) || 0,
-      clanktonActiveUsers: Number(clanktonMetrics?.active_users) || 0,
+      wordTokenActiveUsers: Number(wordTokenMetrics?.active_users) || 0,
       regularActiveUsers: Number(regularMetrics?.active_users) || 0,
-      dailyClanktonUsage: dailyArray.map(d => ({
+      dailyWordTokenUsage: dailyArray.map(d => ({
         day: d.day?.toString() || '',
-        clankton_guesses: Number(d.clankton_guesses) || 0,
+        wordToken_guesses: Number(d.word_token_guesses) || 0,
         regular_guesses: Number(d.regular_guesses) || 0,
-        clankton_users: Number(d.clankton_users) || 0
+        wordToken_users: Number(d.word_token_users) || 0
       })),
       timeRange
     };
 
-    console.log('[analytics/clankton] Returning analytics:', JSON.stringify(analytics).substring(0, 300));
+    console.log('[analytics/word-token] Returning analytics:', JSON.stringify(analytics).substring(0, 300));
     return res.status(200).json(analytics);
   } catch (error) {
-    console.error('[analytics/clankton] Error:', error);
+    console.error('[analytics/word-token] Error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

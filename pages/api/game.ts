@@ -27,12 +27,12 @@ import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/da
  * Supports two dev modes:
  * 1. Forced-state preview: ?devState=RESULT_CORRECT&devInput=CRANE
  *    - Returns snapshot for QC/screenshots
- *    - Uses real user state (CLANKTON balance, guess counts)
+ *    - Uses real user state ($WORD balance, guess counts)
  *    - Requires LHAW_DEV_FORCE_STATE_ENABLED=true
  *
  * 2. Interactive dev mode: (no query params)
  *    - Returns fresh dev round with fixed solution
- *    - Uses real user state (CLANKTON balance, guess counts)
+ *    - Uses real user state ($WORD balance, guess counts)
  *    - Requires LHAW_DEV_MODE=true
  *
  * Query params:
@@ -81,7 +81,7 @@ export default async function handler(
 
       console.log('🎮 Forced-state preview: Using real user state with synthetic round data');
 
-      // Fetch real user state for accurate guess counts and CLANKTON bonus (Milestone 4.12)
+      // Fetch real user state for accurate guess counts and $WORD bonus (Milestone 4.12)
       const dailyState = await getOrCreateDailyState(fid);
       const freeRemaining = getFreeGuessesRemaining(dailyState);
 
@@ -97,7 +97,7 @@ export default async function handler(
       snapshot.userState.freeGuessesRemaining = freeRemaining;
       snapshot.userState.paidGuessesRemaining = dailyState.paidGuessCredits;
       snapshot.userState.totalGuessesRemaining = freeRemaining + dailyState.paidGuessCredits;
-      snapshot.userState.clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
+      snapshot.userState.wordBonusActive = dailyState.freeAllocatedClankton > 0; // legacy DB column name
 
       return res.status(200).json(snapshot);
     }
@@ -106,7 +106,7 @@ export default async function handler(
     if (isDevModeEnabled()) {
       console.log('🎮 Dev mode: Using real user state with synthetic round data');
 
-      // Fetch real user state for accurate guess counts and CLANKTON bonus (Milestone 4.12)
+      // Fetch real user state for accurate guess counts and $WORD bonus (Milestone 4.12)
       const dailyState = await getOrCreateDailyState(fid);
       const freeRemaining = getFreeGuessesRemaining(dailyState);
 
@@ -120,7 +120,7 @@ export default async function handler(
       devGameState.userState.freeGuessesRemaining = freeRemaining;
       devGameState.userState.paidGuessesRemaining = dailyState.paidGuessCredits;
       devGameState.userState.totalGuessesRemaining = freeRemaining + dailyState.paidGuessCredits;
-      devGameState.userState.clanktonBonusActive = dailyState.freeAllocatedClankton > 0;
+      devGameState.userState.wordBonusActive = dailyState.freeAllocatedClankton > 0; // legacy DB column name
 
       return res.status(200).json(devGameState);
     }
@@ -150,7 +150,7 @@ export default async function handler(
         freeGuessesRemaining: freeRemaining,
         paidGuessesRemaining: dailyState.paidGuessCredits,
         totalGuessesRemaining: freeRemaining + dailyState.paidGuessCredits,
-        clanktonBonusActive: dailyState.freeAllocatedClankton > 0,
+        wordBonusActive: dailyState.freeAllocatedClankton > 0, // legacy DB column name
       },
       devMode: false,
     };

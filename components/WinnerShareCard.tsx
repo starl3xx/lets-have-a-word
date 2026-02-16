@@ -176,7 +176,7 @@ interface WinnerShareCardProps {
  * - Round number display
  * - Haptics on save/download
  *
- * Milestone 6.8: Removed CLANKTON references from modal
+ * Milestone 6.8: Removed legacy token references from modal
  */
 export default function WinnerShareCard({
   winnerWord,

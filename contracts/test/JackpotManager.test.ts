@@ -363,55 +363,56 @@ describe("JackpotManager", function () {
     });
   });
 
-  describe("Market Cap Oracle (Milestone 6.2)", function () {
+  // Note: updateClanktonMarketCap() and clanktonMarketCapUsd are deployed onchain ABI names — do not rename
+  describe("$WORD Market Cap Oracle (Milestone 6.2)", function () {
     const LOW_MARKET_CAP = hre.ethers.parseUnits("100000", 8); // $100,000 with 8 decimals
     const HIGH_MARKET_CAP = hre.ethers.parseUnits("300000", 8); // $300,000 with 8 decimals
     const THRESHOLD = hre.ethers.parseUnits("250000", 8); // $250,000 threshold
 
-    it("should allow operator to update market cap", async function () {
+    it("should allow operator to update $WORD market cap", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP); // onchain ABI name
 
-      expect(await jackpotManager.clanktonMarketCapUsd()).to.equal(LOW_MARKET_CAP);
+      expect(await jackpotManager.clanktonMarketCapUsd()).to.equal(LOW_MARKET_CAP); // onchain ABI name
     });
 
     it("should emit MarketCapUpdated event", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await expect(jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP))
+      await expect(jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP)) // onchain ABI name
         .to.emit(jackpotManager, "MarketCapUpdated")
         .withArgs(LOW_MARKET_CAP, (timestamp: bigint) => timestamp > 0n);
     });
 
-    it("should revert if non-operator tries to update market cap", async function () {
+    it("should revert if non-operator tries to update $WORD market cap", async function () {
       const { jackpotManager, player1 } = await loadFixture(deployJackpotManagerFixture);
 
       await expect(
-        jackpotManager.connect(player1).updateClanktonMarketCap(LOW_MARKET_CAP)
+        jackpotManager.connect(player1).updateClanktonMarketCap(LOW_MARKET_CAP) // onchain ABI name
       ).to.be.revertedWithCustomError(jackpotManager, "OnlyOperator");
     });
 
-    it("should return LOW tier when market cap is below threshold", async function () {
+    it("should return LOW tier when $WORD market cap is below threshold", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP); // onchain ABI name
 
       expect(await jackpotManager.getCurrentBonusTier()).to.equal(0); // LOW = 0
     });
 
-    it("should return HIGH tier when market cap meets threshold", async function () {
+    it("should return HIGH tier when $WORD market cap meets threshold", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(THRESHOLD);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(THRESHOLD); // onchain ABI name
 
       expect(await jackpotManager.getCurrentBonusTier()).to.equal(1); // HIGH = 1
     });
 
-    it("should return HIGH tier when market cap exceeds threshold", async function () {
+    it("should return HIGH tier when $WORD market cap exceeds threshold", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP); // onchain ABI name
 
       expect(await jackpotManager.getCurrentBonusTier()).to.equal(1); // HIGH = 1
     });
@@ -419,7 +420,7 @@ describe("JackpotManager", function () {
     it("should return 2 free guesses for LOW tier", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP); // onchain ABI name
 
       expect(await jackpotManager.getFreeGuessesForTier()).to.equal(2);
     });
@@ -427,7 +428,7 @@ describe("JackpotManager", function () {
     it("should return 3 free guesses for HIGH tier", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP); // onchain ABI name
 
       expect(await jackpotManager.getFreeGuessesForTier()).to.equal(3);
     });
@@ -441,15 +442,15 @@ describe("JackpotManager", function () {
     it("should not be stale immediately after update", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(LOW_MARKET_CAP); // onchain ABI name
 
       expect(await jackpotManager.isMarketCapStale()).to.be.false;
     });
 
-    it("should return complete market cap info", async function () {
+    it("should return complete $WORD market cap info", async function () {
       const { jackpotManager, operator } = await loadFixture(deployJackpotManagerFixture);
 
-      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP);
+      await jackpotManager.connect(operator).updateClanktonMarketCap(HIGH_MARKET_CAP); // onchain ABI name
 
       const info = await jackpotManager.getMarketCapInfo();
 

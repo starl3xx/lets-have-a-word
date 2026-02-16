@@ -707,7 +707,7 @@ export async function announceBonusWordFound(
     console.error('[announcer] Error getting remaining bonus words count:', error);
   }
 
-  const text = `🎣 @${username} found a bonus word and won 5M $CLANKTON!
+  const text = `🎣 @${username} found a bonus word and won 5M $WORD!
 
 The word was "${word.toUpperCase()}"
 

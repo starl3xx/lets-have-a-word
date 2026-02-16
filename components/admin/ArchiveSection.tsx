@@ -46,7 +46,7 @@ interface ArchivedRound {
   referrerFid: number | null
   payoutsJson: any
   salt: string
-  clanktonBonusCount: number
+  clanktonBonusCount: number // legacy DB column name
   referralBonusCount: number
   createdAt: string
 }
@@ -871,7 +871,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
               <div style={{ ...styles.grid, gridTemplateColumns: "1fr 1fr" }}>
                 <StatCard label="Total Guesses" value={selectedRound.totalGuesses.toLocaleString()} />
                 <StatCard label="Unique Players" value={selectedRound.uniquePlayers} />
-                <StatCard label="CLANKTON Bonuses" value={selectedRound.clanktonBonusCount} />
+                <StatCard label="$WORD Bonuses" value={selectedRound.clanktonBonusCount} />
                 <StatCard label="Referral Signups" value={selectedRound.referralBonusCount} />
               </div>
             </div>

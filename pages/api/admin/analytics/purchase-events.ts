@@ -9,7 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers, Contract } from 'ethers';
-import { getBaseProvider } from '../../../../src/lib/clankton';
+import { getBaseProvider } from '../../../../src/lib/word-token';
 import { getContractConfig } from '../../../../src/lib/jackpot-contract';
 import { db } from '../../../../src/db';
 import { users } from '../../../../src/db/schema';

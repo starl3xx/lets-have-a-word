@@ -2,12 +2,12 @@
 
 ## Overview
 
-Add 10 "bonus words" per round that instantly win 5M CLANKTON each. These are committed on-chain alongside the secret word for provable fairness.
+Add 10 "bonus words" per round that instantly win 5M $WORD each. These are committed on-chain alongside the secret word for provable fairness.
 
 **Key Requirements:**
-- 10 bonus words per round, each worth 5M CLANKTON
+- 10 bonus words per round, each worth 5M $WORD
 - Committed on-chain (same transaction as secret word if possible)
-- Instant CLANKTON distribution to winner's wallet
+- Instant $WORD distribution to winner's wallet
 - 🎣 badge for bonus word finders
 - 250 XP per bonus word found
 - Auto-announcement via @letshaveaword
@@ -22,8 +22,8 @@ Add 10 "bonus words" per round that instantly win 5M CLANKTON each. These are co
 
 **New State Variables:**
 ```solidity
-IERC20 public clanktonToken;  // CLANKTON ERC-20 contract
-uint256 public constant BONUS_WORD_REWARD = 5_000_000 * 10**18;  // 5M CLANKTON (18 decimals)
+IERC20 public clanktonToken;  // $WORD ERC-20 contract (contract variable name unchanged, deployed onchain)
+uint256 public constant BONUS_WORD_REWARD = 5_000_000 * 10**18;  // 5M $WORD (18 decimals)
 uint256 public constant BONUS_WORDS_PER_ROUND = 10;
 
 struct Round {
@@ -34,7 +34,7 @@ struct Round {
 
 **New Functions:**
 ```solidity
-// Initialize CLANKTON token address (one-time setup)
+// Initialize $WORD token address (one-time setup, contract function name unchanged, deployed onchain)
 function setClanktonToken(address _clanktonToken) external onlyOwner;
 
 // Enhanced round start with both commitments in single tx
@@ -43,13 +43,13 @@ function startRoundWithCommitments(
     bytes32 _bonusWordsCommitHash
 ) external onlyOperator;
 
-// Distribute CLANKTON for bonus word winner (called immediately when found)
+// Distribute $WORD for bonus word winner (called immediately when found)
 function distributeBonusWordReward(
     address recipient,
     uint256 bonusWordIndex  // 0-9, for event logging
 ) external onlyOperator;
 
-// View: Check CLANKTON balance available for rewards
+// View: Check $WORD balance available for rewards
 function getBonusWordRewardsBalance() external view returns (uint256);
 ```
 
@@ -66,8 +66,8 @@ event BonusWordRewardDistributed(
 ### 1.2 Contract Deployment Steps
 
 1. Deploy upgraded JackpotManager (UUPS upgrade)
-2. Transfer 6B CLANKTON to contract address
-3. Call `setClanktonToken(CLANKTON_ADDRESS)`
+2. Transfer 6B $WORD to contract address
+3. Call `setClanktonToken(WORD_TOKEN_ADDRESS)` (contract function name unchanged, deployed onchain)
 4. Verify contract on BaseScan
 
 ---
@@ -86,7 +86,7 @@ CREATE TABLE round_bonus_words (
   salt VARCHAR(64) NOT NULL,    -- Individual salt for verification
   claimed_by_fid INTEGER REFERENCES users(fid),
   claimed_at TIMESTAMP,
-  tx_hash VARCHAR(66),          -- CLANKTON transfer tx hash
+  tx_hash VARCHAR(66),          -- $WORD transfer tx hash
   created_at TIMESTAMP DEFAULT NOW(),
 
   UNIQUE(round_id, word_index),
@@ -101,7 +101,7 @@ CREATE TABLE bonus_word_claims (
   bonus_word_id INTEGER NOT NULL REFERENCES round_bonus_words(id),
   fid INTEGER NOT NULL REFERENCES users(fid),
   guess_id INTEGER NOT NULL REFERENCES guesses(id),
-  clankton_amount VARCHAR(78) NOT NULL,  -- '5000000000000000000000000' (5M * 10^18)
+  clankton_amount VARCHAR(78) NOT NULL,  -- '5000000000000000000000000' (5M $WORD * 10^18, legacy column name)
   wallet_address VARCHAR(42) NOT NULL,
   tx_hash VARCHAR(66),
   tx_status VARCHAR(20) DEFAULT 'pending',  -- pending, confirmed, failed
@@ -304,8 +304,8 @@ async function handleBonusWordWin(
     });
   });
 
-  // 5. Distribute CLANKTON (outside transaction - can retry if fails)
-  const txHash = await distributeBonusWordClankton(user.signerWalletAddress, bonusWord.wordIndex);
+  // 5. Distribute $WORD (outside transaction - can retry if fails)
+  const txHash = await distributeBonusWordTokens(user.signerWalletAddress, bonusWord.wordIndex);
 
   // 6. Update claim record with tx hash
   await db.update(roundBonusWords)
@@ -318,9 +318,9 @@ async function handleBonusWordWin(
   return {
     status: 'bonus_word',
     word,
-    clanktonAmount: '5000000',
+    wordAmount: '5000000',
     txHash,
-    message: 'You found a bonus word! 5M CLANKTON sent to your wallet!',
+    message: 'You found a bonus word! 5M $WORD sent to your wallet!',
   };
 }
 ```
@@ -341,7 +341,7 @@ export async function startRoundWithCommitmentsOnChain(
   return tx.hash;
 }
 
-export async function distributeBonusWordClankton(
+export async function distributeBonusWordTokens(
   recipientAddress: string,
   bonusWordIndex: number
 ): Promise<string> {
@@ -366,7 +366,7 @@ export async function announceBonusWordFound(
   const user = await getUser(fid);
   const username = user?.username || `fid:${fid}`;
 
-  const text = `🎣 @${username} found a bonus word "${word}" and won 5M CLANKTON!
+  const text = `🎣 @${username} found a bonus word "${word}" and won 5M $WORD!
 
 ${10 - claimedCount} bonus words remaining this round.
 
@@ -393,7 +393,7 @@ type SubmitGuessResult =
   | { status: 'incorrect'; ... }
   | { status: 'bonus_word';      // NEW
       word: string;
-      clanktonAmount: string;
+      wordAmount: string;
       txHash: string;
       message: string;
     }
@@ -450,7 +450,7 @@ if (result.status === 'bonus_word') {
   return (
     <BonusWordWinModal
       word={result.word}
-      clanktonAmount={result.clanktonAmount}
+      wordAmount={result.wordAmount}
       txHash={result.txHash}
     />
   );
@@ -460,7 +460,7 @@ if (result.status === 'bonus_word') {
 **BonusWordWinModal Component:**
 - Confetti animation
 - 🎣 badge display
-- "5,000,000 CLANKTON" with animation
+- "5,000,000 $WORD" with animation
 - Link to BaseScan tx
 - "Keep playing!" button
 
@@ -475,7 +475,7 @@ Add new section below Top 10 Early Guessers:
     <h3 className="text-sm font-bold uppercase">
       🎣 Bonus Word Finders
     </h3>
-    <p className="text-xs text-gray-500">5M CLANKTON each</p>
+    <p className="text-xs text-gray-500">5M $WORD each</p>
 
     <div className="space-y-1.5">
       {bonusWordWinners.map((winner) => (
@@ -521,7 +521,7 @@ interface RoundArchivePayouts {
   bonusWordWinners?: Array<{
     fid: number;
     word: string;
-    clanktonAmount: string;
+    wordAmount: string;
     txHash: string;
   }>;
 }
@@ -538,10 +538,10 @@ Add bonus words to `/verify` page:
 ## Implementation Order
 
 ### Week 1: Smart Contract
-1. [ ] Write contract upgrade with CLANKTON distribution
+1. [ ] Write contract upgrade with $WORD distribution
 2. [ ] Write unit tests
 3. [ ] Deploy to Sepolia testnet
-4. [ ] Test with testnet CLANKTON
+4. [ ] Test with testnet $WORD
 5. [ ] Security review
 
 ### Week 2: Database & Backend Core
@@ -553,7 +553,7 @@ Add bonus words to `/verify` page:
 
 ### Week 3: Guess Flow & Distribution
 1. [ ] Update guess flow to check bonus words
-2. [ ] Implement CLANKTON distribution
+2. [ ] Implement $WORD distribution
 3. [ ] Add badge and XP awards
 4. [ ] Implement announcer events
 5. [ ] Add retry logic for failed distributions
@@ -567,7 +567,7 @@ Add bonus words to `/verify` page:
 
 ### Week 5: Deployment
 1. [ ] Deploy contract upgrade to mainnet
-2. [ ] Transfer 6B CLANKTON to contract
+2. [ ] Transfer 6B $WORD to contract
 3. [ ] Deploy backend changes
 4. [ ] Monitor first round with bonus words
 
@@ -577,7 +577,7 @@ Add bonus words to `/verify` page:
 
 1. **Commit-Reveal Integrity**: Bonus words committed on-chain before round starts
 2. **No Front-Running**: Words are encrypted in DB, only revealed when claimed
-3. **Transaction Failures**: Claim is recorded in DB even if CLANKTON transfer fails (can retry)
+3. **Transaction Failures**: Claim is recorded in DB even if $WORD transfer fails (can retry)
 4. **Rate Limiting**: Existing rate limits prevent brute-force guessing
 5. **Wallet Validation**: Only distribute to verified signer wallets
 
@@ -585,8 +585,8 @@ Add bonus words to `/verify` page:
 
 ## Monitoring & Alerts
 
-1. **CLANKTON Balance**: Alert when contract balance < 50M (10 rounds worth)
-2. **Failed Distributions**: Alert on any failed CLANKTON transfers
+1. **$WORD Balance**: Alert when contract balance < 50M (10 rounds worth)
+2. **Failed Distributions**: Alert on any failed $WORD transfers
 3. **Claim Rate**: Monitor claims per round for anomalies
 
 ---

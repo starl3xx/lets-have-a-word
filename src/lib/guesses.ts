@@ -1,5 +1,6 @@
 import { db, guesses, users, rounds, roundBonusWords, bonusWordClaims, userBadges, xpEvents } from '../db';
 import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
+import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
 import { getActiveRound, getActiveRoundForUpdate, createRound } from './rounds';
@@ -156,9 +157,9 @@ export async function getTopGuessersForRound(roundId: number, limit: number = 10
 }
 
 /**
- * BONUS WORD REWARD AMOUNT (5M CLANKTON with 18 decimals)
+ * BONUS WORD REWARD AMOUNT (5M $WORD with 18 decimals)
  */
-const BONUS_WORD_CLANKTON_AMOUNT = '5000000000000000000000000'; // 5M * 10^18
+const BONUS_WORD_TOKEN_AMOUNT = '5000000000000000000000000'; // 5M * 10^18
 
 /**
  * Check if a word is an unclaimed bonus word for a round
@@ -212,7 +213,7 @@ async function checkBonusWordMatch(roundId: number, word: string): Promise<Round
  * - Record the guess with isBonusWord=true
  * - Award the BONUS_WORD_FINDER badge
  * - Award 250 XP
- * - Distribute CLANKTON
+ * - Distribute $WORD tokens
  * - Announce the win
  */
 async function handleBonusWordWin(
@@ -224,7 +225,7 @@ async function handleBonusWordWin(
 ): Promise<SubmitGuessResult> {
   console.log(`🎣 BONUS WORD FOUND! FID ${fid} found "${word}" (index ${bonusWord.wordIndex})`);
 
-  // Get user's wallet address for CLANKTON distribution
+  // Get user's wallet address for $WORD token distribution
   let walletAddress: string | null = null;
   try {
     const userResult = await db
@@ -339,13 +340,13 @@ async function handleBonusWordWin(
     });
   });
 
-  // 5. Distribute CLANKTON (outside transaction - can retry if fails)
+  // 5. Distribute $WORD tokens (outside transaction - can retry if fails)
   let txHash: string | undefined;
   if (walletAddress) {
     try {
-      console.log(`[guesses] Distributing 5M CLANKTON to ${walletAddress}...`);
+      console.log(`[guesses] Distributing 5M $WORD to ${walletAddress}...`);
       txHash = await distributeBonusWordRewardOnChain(walletAddress, bonusWord.wordIndex);
-      console.log(`[guesses] ✅ CLANKTON distributed: ${txHash}`);
+      console.log(`[guesses] ✅ $WORD distributed: ${txHash}`);
 
       // Update bonus word record with tx hash
       await db
@@ -353,26 +354,26 @@ async function handleBonusWordWin(
         .set({ txHash })
         .where(eq(roundBonusWords.id, bonusWord.id));
 
-      // Insert claim record
+      // Insert claim record (clanktonAmount is legacy DB column name)
       await db.insert(bonusWordClaims).values({
         bonusWordId: bonusWord.id,
         fid,
         guessId: guessId!,
-        clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+        clanktonAmount: BONUS_WORD_TOKEN_AMOUNT, // Legacy column name
         walletAddress,
         txHash,
         txStatus: 'confirmed',
         confirmedAt: new Date(),
       });
     } catch (error) {
-      console.error('[guesses] ❌ Failed to distribute CLANKTON:', error);
+      console.error('[guesses] ❌ Failed to distribute $WORD:', error);
 
       // Record failed claim for retry
       await db.insert(bonusWordClaims).values({
         bonusWordId: bonusWord.id,
         fid,
         guessId: guessId!,
-        clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+        clanktonAmount: BONUS_WORD_TOKEN_AMOUNT, // Legacy column name
         walletAddress,
         txStatus: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -386,7 +387,7 @@ async function handleBonusWordWin(
       bonusWordId: bonusWord.id,
       fid,
       guessId: guessId!,
-      clanktonAmount: BONUS_WORD_CLANKTON_AMOUNT,
+      clanktonAmount: BONUS_WORD_TOKEN_AMOUNT, // Legacy column name
       walletAddress: null,
       txStatus: 'pending',
       errorMessage: 'User had no wallet address at time of guess',
@@ -427,9 +428,9 @@ async function handleBonusWordWin(
   return {
     status: 'bonus_word',
     word,
-    clanktonAmount: '5000000', // 5M (display format)
+    tokenRewardAmount: '5000000', // 5M (display format)
     txHash,
-    message: 'You found a bonus word! 5M CLANKTON sent to your wallet!',
+    message: 'You found a bonus word! 5M $WORD sent to your wallet!',
   };
 }
 
@@ -568,14 +569,32 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       });
 
       // PHASE 2: Process payouts (can fail safely - round is already locked)
-      // If this fails, use Emergency Resolution in admin panel to retry
+      // If this fails, use Recover Stuck Round in admin panel to retry
       try {
         await resolveRoundAndCreatePayouts(round.id, fid);
       } catch (payoutError) {
         console.error(`❌ Payout processing failed for round ${round.id}:`, payoutError);
-        console.error(`⚠️  Round is locked but payouts not processed. Use Emergency Resolution to complete.`);
+        console.error(`⚠️  ZOMBIE ROUND: Round is locked but payouts not processed. Use Recover Stuck Round in admin panel.`);
+
+        // CRITICAL: Report to Sentry immediately — this creates a zombie round
+        // where the winner is recorded but won't receive payouts until manual recovery
+        Sentry.captureException(payoutError, {
+          level: 'fatal',
+          tags: {
+            type: 'zombie_round',
+            action: 'phase2_payout_failure',
+            roundId: round.id.toString(),
+          },
+          extra: {
+            roundId: round.id,
+            winnerFid: fid,
+            word,
+            message: 'Phase 2 failed: round has winnerFid set but no onchain resolution or payouts. Use /admin Recover Stuck Round to fix.',
+          },
+        });
+
         // Don't re-throw - the round is locked and winner recorded
-        // Admin can use emergency resolution to complete payouts
+        // Admin must use Recover Stuck Round to complete payouts
       }
 
       // Success!

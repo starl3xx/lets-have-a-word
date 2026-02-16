@@ -1,26 +1,26 @@
 import sdk from '@farcaster/miniapp-sdk';
 import { haptics } from '../src/lib/haptics';
 
-interface ClanktonBonusModalProps {
+interface WordBonusModalProps {
   onClose: () => void;
 }
 
-// CLANKTON token address on Base
-const CLANKTON_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+// $WORD token address on Base
+const WORD_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
 
 /**
- * ClanktonBonusModal
+ * WordBonusModal
  *
- * Explains the CLANKTON holder bonus to users who don't currently hold enough.
- * Opens when user taps the crossed-out "+2 CLANKTON" in the guess bar.
+ * Explains the $WORD holder bonus to users who don't currently hold enough.
+ * Opens when user taps the crossed-out "+2 $WORD" in the guess bar.
  *
  * - Never auto-opens
  * - No frequency caps or "seen" tracking
  * - Always available on tap
  */
-export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps) {
+export default function WordBonusModal({ onClose }: WordBonusModalProps) {
   /**
-   * Handle learn more - opens CLANKTON token page in Farcaster wallet
+   * Handle learn more - opens $WORD token page in Farcaster wallet
    */
   const handleLearnMore = async () => {
     void haptics.buttonTapMinor();
@@ -28,13 +28,13 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
     try {
       // Open the token page via Farcaster SDK viewToken action
       await sdk.actions.viewToken({
-        token: `eip155:8453/erc20:${CLANKTON_TOKEN_ADDRESS}`
+        token: `eip155:8453/erc20:${WORD_TOKEN_ADDRESS}`
       });
     } catch (err) {
       // Fallback to standard URL if SDK fails
-      console.error('[ClanktonBonusModal] Error opening token page:', err);
+      console.error('[WordBonusModal] Error opening token page:', err);
       window.open(
-        `https://basescan.org/token/${CLANKTON_TOKEN_ADDRESS}`,
+        `https://basescan.org/token/${WORD_TOKEN_ADDRESS}`,
         '_blank'
       );
     }
@@ -61,25 +61,25 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
       >
         {/* Header with Logo */}
         <div className="text-center">
-          {/* CLANKTON Logo */}
+          {/* $WORD Logo */}
           <div className="flex justify-center mb-3">
             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-purple-200 bg-white">
               <img
-                src="/clankton-logo.png"
-                alt="CLANKTON"
+                src="/word-token-logo.png"
+                alt="$WORD"
                 className="w-full h-full object-cover"
               />
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900">
-            CLANKTON bonus
+            $WORD bonus
           </h2>
         </div>
 
         {/* Body */}
         <div className="text-center space-y-3">
           <p className="text-gray-700">
-            Holding ≥100M $CLANKTON unlocks bonus guesses every day
+            Holding ≥100M $WORD unlocks bonus guesses every day
           </p>
           <p className="text-sm text-gray-500">
             Holders receive extra guesses in addition to the free daily guess 😏
@@ -94,7 +94,7 @@ export default function ClanktonBonusModal({ onClose }: ClanktonBonusModalProps)
             className="w-full text-lg flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white font-semibold transition-colors"
             style={{ backgroundColor: '#8268ce' }}
           >
-            <span>Learn how to get CLANKTON →</span>
+            <span>Learn how to get $WORD →</span>
           </button>
 
           {/* Secondary: Dismiss */}

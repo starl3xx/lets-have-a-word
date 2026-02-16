@@ -1,6 +1,6 @@
 /**
  * Upgrade Script for JackpotManager
- * Milestone 6.2 - CLANKTON Market Cap Oracle Integration
+ * Milestone 6.2 - $WORD Market Cap Oracle Integration
  * Milestone 6.9 - Multi-recipient payouts
  * Milestone 10.1 - Onchain commitment for provably fair verification
  *

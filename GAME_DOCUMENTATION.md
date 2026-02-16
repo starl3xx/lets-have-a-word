@@ -16,7 +16,7 @@
 13. [Daily Guess Flow](#daily-guess-flow)
 14. [Guess Packs](#guess-packs)
 15. [Share-for-Free-Guess](#share-for-free-guess)
-16. [CLANKTON Holder Bonus](#clankton-holder-bonus)
+16. [$WORD Holder Bonus](#word-holder-bonus)
 17. [Referral System](#referral-system)
 18. [XP & Progression (v1)](#xp--progression-v1)
 19. [UX Design Guidelines](#ux-design-guidelines)
@@ -37,7 +37,7 @@
 - **Social Deduction**: Wrong guesses benefit everyone
 - **Real ETH Stakes**: Prize pool grows with paid guesses
 - **Referral System**: Earn 10% of your referrals' winnings
-- **CLANKTON Bonus**: Token holders get +2-3 daily guesses (scales with market cap)
+- **$WORD Bonus**: Token holders get +2-3 daily guesses (scales with market cap)
 
 ---
 
@@ -46,13 +46,13 @@
 ### Daily Guess Allocation
 Each player gets a daily allocation of guesses:
 - **Base Free Guesses**: 1 per day
-- **CLANKTON Bonus**: +2-3 if holding 100M+ CLANKTON tokens (tiered by market cap)
+- **$WORD Bonus**: +2-3 if holding 100M+ $WORD tokens (tiered by market cap)
   - +2 guesses/day when market cap < $250k
   - +3 guesses/day when market cap >= $250k
 - **Share Bonus**: +1 for sharing to Farcaster (once per day)
 - **Paid Guess Packs**: Buy 3 guesses per pack (unlimited packs, volume pricing applies)
 
-**Total Possible Daily Guesses**: Unlimited (1 base + 2-3 CLANKTON + 1 share + unlimited paid)
+**Total Possible Daily Guesses**: Unlimited (1 base + 2-3 $WORD + 1 share + unlimited paid)
 
 ### Prize Pool Economics (Updated January 2026)
 
@@ -151,7 +151,7 @@ lets-have-a-word/
 │               ├── referral.ts      # Referral funnel
 │               ├── fairness.ts      # Fairness audits (5.3)
 │               ├── simulations.ts   # Run simulations (5.3)
-│               ├── performance.ts   # CLANKTON advantage (5.3)
+│               ├── performance.ts   # $WORD advantage (5.3)
 │               └── export.ts        # Data export (5.3)
 ├── components/
 │   ├── Wheel.tsx                    # 3D word wheel
@@ -174,7 +174,7 @@ lets-have-a-word/
 │   │   ├── prices.ts                # ETH/USD price fetching (CoinGecko)
 │   │   ├── input-state.ts           # Input state machine
 │   │   ├── commit-reveal.ts         # Cryptographic hashing
-│   │   ├── clankton.ts              # Token balance checking
+│   │   ├── word-token.ts            # Token balance checking
 │   │   ├── economics.ts             # Prize pool calculations
 │   │   ├── analytics.ts             # Analytics event logging (5.2)
 │   │   ├── announcer.ts             # Farcaster announcer bot (5.1)
@@ -420,7 +420,7 @@ Get user's daily guess allocations.
 
 **Query Params:**
 - `devFid`: User FID (dev mode)
-- `walletAddress`: Connected wallet (for CLANKTON check)
+- `walletAddress`: Connected wallet (for $WORD check)
 
 **Response:**
 ```json
@@ -429,10 +429,10 @@ Get user's daily guess allocations.
   "freeGuessesRemaining": 5,
   "paidGuessesRemaining": 3,
   "totalGuessesRemaining": 8,
-  "clanktonBonusActive": true,
+  "wordBonusActive": true,
   "freeAllocations": {
     "base": 3,
-    "clankton": 3,
+    "wordToken": 3,
     "shareBonus": 1
   },
   "paidPacksPurchased": 1,
@@ -585,7 +585,7 @@ CREATE TABLE daily_guess_state (
   fid INTEGER REFERENCES users(fid),
   date DATE NOT NULL,
   free_allocated_base INTEGER DEFAULT 0,
-  free_allocated_clankton INTEGER DEFAULT 0,
+  free_allocated_clankton INTEGER DEFAULT 0, -- legacy column name (stores $WORD holder bonus)
   free_allocated_share_bonus INTEGER DEFAULT 0,
   free_spent INTEGER DEFAULT 0,
   paid_packs_purchased INTEGER DEFAULT 0,
@@ -729,11 +729,11 @@ NEXT_PUBLIC_LHAW_DEV_MODE=true
 | Persona | Description |
 |---------|-------------|
 | Real State | Use actual API data (no overrides) |
-| New Non-Holder | 1 free guess, share available, no CLANKTON |
+| New Non-Holder | 1 free guess, share available, no $WORD |
 | Engaged Non-Holder | Share bonus available, no guesses left |
 | Non-Holder Out of Guesses | Share used, no guesses, no packs bought |
-| CLANKTON Holder (Low Tier) | +2 bonus guesses, share available |
-| CLANKTON Holder (High Tier) | +3 bonus guesses, share available |
+| $WORD Holder (Low Tier) | +2 bonus guesses, share available |
+| $WORD Holder (High Tier) | +3 bonus guesses, share available |
 | Maxed-Out Buyer | Max packs bought, share used, no guesses |
 
 **Key Files:**
@@ -1096,7 +1096,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 
 ### Milestone 4.1: User State Display
 - Guess counts (free/paid/total)
-- CLANKTON bonus indicator
+- $WORD bonus indicator
 - Real-time updates after each guess
 
 ### Milestone 4.2: Share Bonus
@@ -1231,12 +1231,12 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 - **New API Endpoints**:
   - GET/POST /api/admin/analytics/fairness - Fairness audits
   - POST /api/admin/analytics/simulations - Run simulations
-  - GET /api/admin/analytics/performance - CLANKTON advantage & referral metrics
+  - GET /api/admin/analytics/performance - $WORD advantage & referral metrics
   - POST /api/admin/analytics/export - CSV/JSON data export
 - **Admin Dashboard Enhancements**:
   - Fairness & Integrity section with alert monitoring
   - User Quality Gating metrics (average score, eligible/blocked)
-  - CLANKTON holder solve-rate advantage
+  - $WORD holder solve-rate advantage
   - Referral performance (guesses, wins, payouts, top referrers)
   - Guess distribution histogram
   - Simulation controls and results viewer
@@ -1249,7 +1249,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 ### Milestone 5.4: Round Archive
 - **Status**: ✅ Complete
 - **Database Schema** (`src/db/schema.ts`):
-  - `round_archive` table with roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount, referralBonusCount
+  - `round_archive` table with roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount (legacy column name), referralBonusCount
   - `round_archive_errors` table for tracking archiving anomalies
   - Index on `round_number` for fast lookups
   - Migration: `drizzle/0002_round_archive.sql`
@@ -1314,7 +1314,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
   - Referrals generated this round
 - **Share Card Polish**:
   - Purple gradient background with brand colors
-  - CLANKTON mascot (🐟) for token holders
+  - $WORD mascot (🐟) for token holders
   - Jackpot amount display with round number badge
   - Text anti-aliasing for smooth rendering
 - **Analytics Events**:
@@ -1329,7 +1329,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
   - `cardSaved()` - Medium impact on save
   - `losing()` / `winning()` - Game result haptics
 - **API Enhancements**:
-  - `/api/user-state` - Added `hasSharedToday`, `isClanktonHolder`
+  - `/api/user-state` - Added `hasSharedToday`, `isWordHolder`
   - `/api/user/stats` - Added histogram, median, referrals this round
   - `/api/analytics/log` - Client-side event logging endpoint
 
@@ -1340,7 +1340,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 - **Smart Contract Development**:
   - JackpotManager contract deployed at `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5`
   - Automated jackpot distribution
-  - CLANKTON Oracle integration for holder verification
+  - $WORD Oracle integration for holder verification
   - Winner payout processing
 - Contract testing and auditing
 - Testnet deployment and validation
@@ -1348,8 +1348,8 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 
 ### Milestone 6.2: Oracle & Enhanced Features
 - **Status**: ✅ Complete
-- CLANKTON Oracle integration for real-time holder verification
-- Multi-wallet support for CLANKTON balance checking
+- $WORD Oracle integration for real-time holder verification
+- Multi-wallet support for $WORD balance checking
 - Enhanced round management with onchain verification
 
 ### Milestone 6.4: Input & Word Wheel Performance Audit
@@ -1491,18 +1491,18 @@ NEXT_PUBLIC_WHEEL_ANIMATION_DEBUG_SLOW=true
 #### Overview
 The unified guess bar shows total guesses left and all sources at a glance:
 - **Left side**: "X guesses left today" (total remaining)
-- **Right side**: Source breakdown (e.g., "1 free · +2 CLANKTON · +1 share · +3 paid")
+- **Right side**: Source breakdown (e.g., "1 free · +2 $WORD · +1 share · +3 paid")
 
 #### Source Order (Consistent)
 1. **Free** - Base daily allocation (always 1)
-2. **CLANKTON** - Holder bonus (2-3 depending on market cap, only if holder)
+2. **$WORD** - Holder bonus (2-3 depending on market cap, only if holder)
 3. **Share** - Share bonus (1, only after sharing)
 4. **Paid** - Purchased packs (only if user has bought packs)
 
 #### Depletion Visualization
 - **Active sources**: Normal text with source-specific colors
   - Free: Default text color
-  - CLANKTON: Purple (#7c3aed)
+  - $WORD: Purple (#7c3aed)
   - Share: Blue (#2563eb)
   - Paid: Blue (#2563eb)
 - **Consumed sources**: Faded opacity (40%) with strikethrough
@@ -1513,7 +1513,7 @@ The system now tracks usage per source:
 interface GuessSourceState {
   totalRemaining: number;
   free: { total: number; used: number; remaining: number; };
-  clankton: { total: number; used: number; remaining: number; isHolder: boolean; };
+  wordToken: { total: number; used: number; remaining: number; isHolder: boolean; };
   share: { total: number; used: number; remaining: number; hasSharedToday: boolean; canClaimBonus: boolean; };
   paid: { total: number; used: number; remaining: number; packsPurchased: number; maxPacksPerDay: number; canBuyMore: boolean; };
 }
@@ -1522,7 +1522,7 @@ interface GuessSourceState {
 #### Consumption Order
 When guesses are used, they are consumed in this order:
 1. Free (base) guesses first
-2. CLANKTON bonus guesses second
+2. $WORD bonus guesses second
 3. Share bonus guesses third
 4. Paid guesses last
 
@@ -1539,7 +1539,7 @@ The dev persona switcher now includes sourceState overrides for testing:
 - **New Non-Holder**: 1 free, nothing used
 - **Engaged Non-Holder**: Free used, share available
 - **Non-Holder Out of Guesses**: All sources depleted
-- **CLANKTON Holder (Low/High Tier)**: With holder bonuses
+- **$WORD Holder (Low/High Tier)**: With holder bonuses
 - **Maxed-Out Buyer**: All sources used including 9 paid guesses
 
 ### Milestone 6.6: Push Notifications & Bug Fixes
@@ -1894,11 +1894,11 @@ RATE_LIMIT_DUPLICATE_WINDOW=10
 6. Only awards bonus if cast is verified
 7. Prevents gaming by just opening composer without posting
 
-#### CLANKTON Mid-Day Tier Upgrade
+#### $WORD Mid-Day Tier Upgrade
 
 **Files:**
-- `src/lib/clankton.ts` - Token balance and tier checking
-- `src/lib/clankton-oracle.ts` - Market cap oracle
+- `src/lib/word-token.ts` - Token balance and tier checking
+- `src/lib/word-oracle.ts` - Market cap oracle
 - `src/lib/daily-limits.ts` - Bonus allocation
 
 **Tier Detection:**
@@ -1908,7 +1908,7 @@ RATE_LIMIT_DUPLICATE_WINDOW=10
 **Mid-Day Upgrade:**
 - If market cap crosses $250K during the day, holders get +1 guess immediately
 - Not just applied at daily reset anymore
-- `CLANKTON_MARKET_CAP_USD` environment variable for testing
+- `WORD_MARKET_CAP_USD` environment variable for testing
 
 #### Leaderboard Lock at 850 Guesses
 
@@ -2036,7 +2036,7 @@ Lessons learned from Sepolia testing:
 
 **Allocation Order (consumed in sequence):**
 1. **Base Free**: 1 guess (always)
-2. **CLANKTON Bonus**: 2 or 3 guesses (if holder)
+2. **$WORD Bonus**: 2 or 3 guesses (if holder)
 3. **Share Bonus**: 1 guess (if shared today)
 4. **Paid Guesses**: 3 per pack (max 9 per day)
 
@@ -2044,7 +2044,7 @@ Lessons learned from Sepolia testing:
 ```sql
 dailyGuessState {
   freeAllocatedBase: 1
-  freeAllocatedClankton: 0|2|3
+  freeAllocatedClankton: 0|2|3  // legacy column name (stores $WORD holder bonus)
   freeAllocatedShareBonus: 0|1
   freeUsed: int
   paidGuessCredits: int
@@ -2058,7 +2058,7 @@ dailyGuessState {
 {
   totalRemaining: number,
   free: { total, used, remaining },
-  clankton: { total, used, remaining, isHolder },
+  wordToken: { total, used, remaining, isHolder },
   share: { total, used, remaining, hasSharedToday, canClaimBonus },
   paid: { total, used, remaining, packsPurchased, maxPacksPerDay, canBuyMore }
 }
@@ -2073,7 +2073,7 @@ dailyGuessState {
 | `RATE_LIMIT_GUESS_*` | Guess rate limits | 8/10s burst, 30/60s sustained |
 | `RATE_LIMIT_PURCHASE_*` | Purchase rate limits | 4 per 300s |
 | `RATE_LIMIT_SHARE_*` | Share rate limits | 6 per 60s |
-| `CLANKTON_MARKET_CAP_USD` | Override market cap for testing | (from oracle) |
+| `WORD_MARKET_CAP_USD` | Override market cap for testing | (from oracle) |
 
 #### Files Added/Modified
 
@@ -2088,7 +2088,7 @@ dailyGuessState {
 - `pages/api/purchase-guess-pack.ts` - Onchain verification
 - `pages/api/share-callback.ts` - Neynar cast verification
 - `src/lib/daily-limits.ts` - Source-level tracking, mid-day upgrade
-- `src/lib/clankton.ts` - Tier upgrade logic
+- `src/lib/word-token.ts` - Tier upgrade logic
 - `src/lib/guesses.ts` - Guess index tracking
 - `components/admin/OperationsSection.tsx` - Force resolve, contract state UI
 
@@ -2927,7 +2927,7 @@ The admin dashboard at `/admin/analytics` includes new sections for Milestone 5.
 **Guess Distribution Section:**
 - Histogram of guesses to solve (1-5, 6-10, 11-20, etc.)
 - Median and mean guesses statistics
-- CLANKTON holder advantage comparison
+- $WORD holder advantage comparison
 
 ### Code Architecture Notes
 
@@ -3029,10 +3029,10 @@ Per FID, per calendar day (UTC):
 | Counter | Description |
 |---------|-------------|
 | `baseFreeGuesses` | 1 per day |
-| `clanktonBonusGuesses` | 2 or 3 (market cap tier dependent) |
+| `wordBonusGuesses` | 2 or 3 (market cap tier dependent) |
 | `shareBonusGuesses` | 1 (Farcaster share, once per day) |
 | `packsPurchasedToday` | 0-3, each pack = 3 guesses |
-| `totalGuessCapToday` | baseFree + clanktonBonus + shareBonus + 3 * packsPurchased |
+| `totalGuessCapToday` | baseFree + wordBonus + shareBonus + 3 * packsPurchased |
 
 **State Flags:**
 - `hasUsedShareBonusToday` - Whether share bonus already claimed
@@ -3049,7 +3049,7 @@ User lands on game
   ↓
 Initialize session:
   - Detect FID
-  - Detect CLANKTON tier
+  - Detect $WORD tier
   - Load counters + flags
   ↓
 LOOP: While user has guessesRemainingToday > 0
@@ -3125,11 +3125,11 @@ These flags reset on:
 
 ### User Type Flows
 
-#### Non-CLANKTON Holder
+#### Non-$WORD Holder
 
 **Daily caps:**
 - Base free guesses: 1
-- CLANKTON bonus: 0
+- $WORD bonus: 0
 - Share bonus: 1
 - Packs available: up to 3 (9 guesses)
 
@@ -3141,11 +3141,11 @@ These flags reset on:
 5. Share bonus used → Pack modal appears
 6. User declines → Out-of-guesses state
 
-#### CLANKTON Holder (LOW Tier: +2, HIGH Tier: +3)
+#### $WORD Holder (LOW Tier: +2, HIGH Tier: +3)
 
 **Daily caps (LOW example):**
 - Base free guesses: 1
-- CLANKTON bonus: 2 → total free = 3
+- $WORD bonus: 2 → total free = 3
 - Share bonus: 1
 - Packs: up to 3
 
@@ -3280,7 +3280,7 @@ export function getPackPricingInfo() {
 
 ### How Guesses Decrement
 
-1. **Free guesses first**: Base (1) → CLANKTON bonus (2-3) → Share bonus (1)
+1. **Free guesses first**: Base (1) → $WORD bonus (2-3) → Share bonus (1)
 2. **Then paid credits**: From `daily_guess_state.paid_guess_credits`
 3. **Track separately**: `free_spent` vs `paid_spent` columns
 
@@ -3475,7 +3475,7 @@ export default async function handler(req, res) {
 {
   "freeAllocations": {
     "base": 1,
-    "clankton": 2,
+    "wordToken": 2,
     "shareBonus": 1  // 0 if not yet shared
   },
   "hasSharedToday": true  // Milestone 6.3 field
@@ -3484,11 +3484,11 @@ export default async function handler(req, res) {
 
 ---
 
-## CLANKTON Holder Bonus
+## $WORD Holder Bonus
 
 ### Overview
 
-CLANKTON token holders receive bonus daily guesses as a loyalty reward. The bonus amount scales with the token's market cap.
+$WORD token holders receive bonus daily guesses as a loyalty reward. The bonus amount scales with the token's market cap.
 
 ### Market Cap Tiers
 
@@ -3501,7 +3501,7 @@ CLANKTON token holders receive bonus daily guesses as a loyalty reward. The bonu
 
 ### Oracle Freshness Rules
 
-The CLANKTON oracle verifies holder status with specific freshness requirements:
+The $WORD oracle verifies holder status with specific freshness requirements:
 
 1. **Check Frequency**: Balance checked on first action of day
 2. **Cache Duration**: 24 hours (same as daily reset)
@@ -3510,22 +3510,22 @@ The CLANKTON oracle verifies holder status with specific freshness requirements:
 
 ### Implementation
 
-**Balance Check** (`src/lib/clankton.ts`):
+**Balance Check** (`src/lib/word-token.ts`):
 ```typescript
-const CLANKTON_MIN_BALANCE = 100_000_000n; // 100M tokens
+const WORD_MIN_BALANCE = 100_000_000n; // 100M tokens
 
-export async function hasClanktonBonus(walletAddress: string): Promise<boolean> {
+export async function hasWordTokenBonus(walletAddress: string): Promise<boolean> {
   try {
     const balance = await publicClient.readContract({
-      address: CLANKTON_TOKEN_ADDRESS,
+      address: WORD_TOKEN_ADDRESS,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
       args: [walletAddress],
     });
 
-    return balance >= CLANKTON_MIN_BALANCE;
+    return balance >= WORD_MIN_BALANCE;
   } catch (error) {
-    console.error('[clankton] Balance check failed:', error);
+    console.error('[word-token] Balance check failed:', error);
     return false; // Conservative fallback
   }
 }
@@ -3533,16 +3533,16 @@ export async function hasClanktonBonus(walletAddress: string): Promise<boolean> 
 
 **Market Cap Check** (via CoinGecko or DEX):
 ```typescript
-export async function getClanktonBonusTier(): Promise<number> {
-  const marketCap = await getClanktonMarketCap();
+export async function getWordBonusTier(): Promise<number> {
+  const marketCap = await getWordMarketCap();
   return marketCap >= 250_000 ? 3 : 2;
 }
 ```
 
 ### Fallback Behavior
 
-1. **Oracle Down**: Use database-cached `clanktonBonusActive` status
-2. **Wallet Not Connected**: No CLANKTON bonus (cannot verify)
+1. **Oracle Down**: Use database-cached `wordBonusActive` status
+2. **Wallet Not Connected**: No $WORD bonus (cannot verify)
 3. **API Error**: Log error, continue with conservative (no bonus) default
 4. **Dev Mode**: Uses real wallet check when wallet connected
 
@@ -3550,11 +3550,11 @@ export async function getClanktonBonusTier(): Promise<number> {
 
 ```json
 {
-  "clanktonBonusActive": true,
-  "isClanktonHolder": true,
+  "wordBonusActive": true,
+  "isWordHolder": true,
   "freeAllocations": {
     "base": 1,
-    "clankton": 2,  // or 3 at higher market cap
+    "wordToken": 2,  // or 3 at higher market cap
     "shareBonus": 0
   }
 }
@@ -3672,7 +3672,7 @@ The XP system tracks player engagement and progression using an **event-sourced 
 | `TOP_TEN_GUESSER` | +50 | Top 10 placement at round resolution |
 | `REFERRAL_FIRST_GUESS` | +20 | Referrer earns when referred user makes first guess |
 | `STREAK_DAY` | +15 | Each consecutive day playing (after day 1) |
-| `CLANKTON_BONUS_DAY` | +10 | CLANKTON holder (100M+) daily participation |
+| `CLANKTON_BONUS_DAY` | +10 | $WORD holder (100M+) daily participation | <!-- event type stored in DB, do not rename -->
 | `SHARE_CAST` | +15 | Sharing to Farcaster (once per day) |
 | `PACK_PURCHASE` | +20 | Each guess pack purchased |
 | `NEAR_MISS` | 0 | Tracked for future use (Hamming distance 1-2) |
@@ -3703,7 +3703,7 @@ XP events are logged at these code locations:
 1. **Guess Submission** (`src/lib/daily-limits.ts`)
    - GUESS: On every valid guess
    - DAILY_PARTICIPATION: First guess of the day
-   - CLANKTON_BONUS_DAY: First participation for CLANKTON holders
+   - CLANKTON_BONUS_DAY: First participation for $WORD holders (event type stored in DB, do not rename)
    - STREAK_DAY: If played yesterday
    - WIN: On correct guess
 
@@ -3886,7 +3886,7 @@ const haptics = {
    - Title: 3xl bold white with text shadow
    - Word: 4xl bold white uppercase with letter-spacing
    - Jackpot: 3xl bold on yellow/orange gradient background
-5. **CLANKTON Mascot**: Show 🐟 emoji with 🎉 for holders only
+5. **$WORD Mascot**: Show 🐟 emoji with 🎉 for holders only
 6. **Text Smoothing**: `fontSmooth: 'always'`, `WebkitFontSmoothing: 'antialiased'`
 
 **Share Text Format:**

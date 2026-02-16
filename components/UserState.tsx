@@ -7,7 +7,7 @@ import GuessBar from './GuessBar';
 interface UserStateProps {
   fid: number | null;
   onGetMore?: () => void;
-  onClanktonHintTap?: () => void;
+  onWordHintTap?: () => void;
 }
 
 /**
@@ -22,7 +22,7 @@ const INITIAL_FALLBACK_SOURCE_STATE: GuessSourceState = {
     used: 1,
     remaining: 0,
   },
-  clankton: {
+  wordToken: {
     total: 0,
     used: 0,
     remaining: 0,
@@ -54,9 +54,9 @@ let cachedSourceState: GuessSourceState | null = null;
 
 /**
  * UserState Component
- * Milestone 4.1: Displays user's daily guess allocations and CLANKTON bonus status
+ * Milestone 4.1: Displays user's daily guess allocations and $WORD bonus status
  * Milestone 6.5: Uses unified GuessBar component for source-level display
- * Milestone 6.8: Dev mode uses real Farcaster wallet and CLANKTON balance
+ * Milestone 6.8: Dev mode uses real Farcaster wallet and $WORD balance
  * Milestone 6.8: Stale-while-revalidate - never shows "Loading..." text
  *
  * Shows:
@@ -69,7 +69,7 @@ let cachedSourceState: GuessSourceState | null = null;
  * - Never collapses to "Loading..." text
  * - Uses module-level cache to persist state across remounts
  */
-export default function UserState({ fid, onGetMore, onClanktonHintTap }: UserStateProps) {
+export default function UserState({ fid, onGetMore, onWordHintTap }: UserStateProps) {
   const [userState, setUserState] = useState<UserStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -189,7 +189,7 @@ export default function UserState({ fid, onGetMore, onClanktonHintTap }: UserSta
     <GuessBar
       sourceState={displaySourceState}
       onGetMore={onGetMore}
-      onClanktonHintTap={onClanktonHintTap}
+      onWordHintTap={onWordHintTap}
     />
   );
 }

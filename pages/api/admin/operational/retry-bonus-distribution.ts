@@ -1,5 +1,5 @@
 /**
- * Retry Failed Bonus Word CLANKTON Distributions
+ * Retry Failed Bonus Word $WORD Distributions
  *
  * GET /api/admin/operational/retry-bonus-distribution
  *   - Lists all failed/pending bonus word distributions
@@ -76,13 +76,13 @@ export default async function handler(
         .where(isNull(roundBonusWords.txHash))
         .innerJoin(users, eq(roundBonusWords.claimedByFid, users.fid));
 
-      // Get contract CLANKTON balance
-      const clanktonBalance = await getBonusWordRewardsBalanceOnChain();
+      // Get contract $WORD balance
+      const wordTokenBalance = await getBonusWordRewardsBalanceOnChain();
 
       return res.status(200).json({
         failedClaims,
         claimedWithoutTx: claimedWithoutRecord,
-        contractClanktonBalance: clanktonBalance,
+        contractWordTokenBalance: wordTokenBalance,
         totalFailedOrPending: failedClaims.length,
       });
     } catch (error: any) {

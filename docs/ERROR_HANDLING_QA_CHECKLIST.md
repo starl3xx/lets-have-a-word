@@ -52,7 +52,7 @@ Use dev mode (`NEXT_PUBLIC_LHAW_DEV_MODE=true`) for most scenarios.
 ### A5. Wallet RPC errors
 **How to test:**
 1. Block Base RPC endpoint in DevTools
-2. Open Stats sheet and check CLANKTON section
+2. Open Stats sheet and check $WORD section
 
 **Expected behavior:**
 - "Unable to verify token balance" message

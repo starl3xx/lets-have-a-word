@@ -27,8 +27,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     setExpandedIndex(expandedIndex === index ? null : index);
   };
 
-  // Helper to create clickable CLANKTON token link
-  const ClanktonLink = ({ children }: { children: React.ReactNode }) => (
+  // Helper to create clickable $WORD token link
+  const WordTokenLink = ({ children }: { children: React.ReactNode }) => (
     <button
       onClick={async (e) => {
         e.stopPropagation();
@@ -124,19 +124,19 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           You can earn bonus free guesses by:
           <ol className="list-decimal list-inside mt-2 space-y-1">
             <li>Sharing your daily guess on Farcaster (+1 guess/day)</li>
-            <li>Holding 100M <ClanktonLink>CLANKTON</ClanktonLink> tokens (+2–3 guesses/day depending on market cap)</li>
+            <li>Holding 100M <WordTokenLink>$WORD</WordTokenLink> tokens (+2–3 guesses/day depending on market cap)</li>
           </ol>
           <p className="mt-2">You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).</p>
         </>
       ),
     },
     {
-      question: "What's the CLANKTON bonus?",
+      question: "What's the $WORD bonus?",
       answer: (
         <>
-          If you hold 100M <ClanktonLink>$CLANKTON</ClanktonLink> in your connected wallet, you receive extra free guesses:
+          If you hold 100M <WordTokenLink>$WORD</WordTokenLink> in your connected wallet, you receive extra free guesses:
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>+2 guesses/day</strong> when $CLANKTON market cap is below $250K</li>
+            <li><strong>+2 guesses/day</strong> when $WORD market cap is below $250K</li>
             <li><strong>+3 guesses/day</strong> when market cap is above $250K</li>
           </ul>
           <p className="mt-2">This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.</p>

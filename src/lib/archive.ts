@@ -26,7 +26,7 @@ import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, or,
 import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
 import { getTop10LockForRound } from './top10-lock';
-import { getTotalClanktonDistributed } from './jackpot-contract';
+import { getTotalWordTokenDistributed } from './jackpot-contract';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
 function getRows<T = any>(result: any): T[] {
@@ -337,9 +337,9 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     }
 
     console.log(`[archive] Step 6: Computing bonus counts for round ${roundId}`);
-    // Compute CLANKTON bonus count
-    // Count users who used clankton bonus during this round's active period
-    const clanktonBonusCount = await computeClanktonBonusCount(
+    // Compute $WORD bonus count
+    // Count users who used $WORD token bonus during this round's active period
+    const clanktonBonusCount = await computeWordTokenBonusCount(
       round.startedAt,
       round.resolvedAt
     );
@@ -559,7 +559,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerUsername: string | null;
   winnerPfpUrl: string | null;
   winnerHasOgHunterBadge?: boolean;
-  winnerHasClanktonBadge?: boolean;
+  winnerHasWordTokenBadge?: boolean;
   winnerHasBonusWordBadge?: boolean;
   winnerHasJackpotWinnerBadge?: boolean;
   winnerHasDoubleWBadge?: boolean;
@@ -575,7 +575,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
     amountEth: string;
     guessCount: number;
     rank: number;
-    hasClanktonBadge?: boolean;
+    hasWordTokenBadge?: boolean;
     hasOgHunterBadge?: boolean;
     hasBonusWordBadge?: boolean;
     hasJackpotWinnerBadge?: boolean;
@@ -592,7 +592,7 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
  */
 export async function getArchivedRoundWithUsernames(roundNumber: number): Promise<ArchivedRoundWithUsernames | null> {
   // Dynamic imports to avoid circular dependencies
-  const { hasClanktonBonus } = await import('./clankton');
+  const { hasWordTokenBonus } = await import('./word-token');
   const { neynarClient } = await import('./farcaster');
 
   return trackSlowQuery(`query:getArchivedRoundWithUsernames:${roundNumber}`, async () => {
@@ -765,33 +765,33 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       }
     }
 
-    // Check CLANKTON balances for top guessers and winner (only those with wallets)
+    // Check $WORD balances for top guessers and winner (only those with wallets)
     // Wrapped in defensive try/catch since this makes RPC calls that could fail
-    const clanktonHolderFids = new Set<number>();
+    const wordTokenHolderFids = new Set<number>();
     try {
-      const fidsToCheckClankton = [...topGuesserFids];
-      if (archived.winnerFid) fidsToCheckClankton.push(archived.winnerFid);
-      const walletsToCheck = fidsToCheckClankton
+      const fidsToCheckWordToken = [...topGuesserFids];
+      if (archived.winnerFid) fidsToCheckWordToken.push(archived.winnerFid);
+      const walletsToCheck = fidsToCheckWordToken
         .filter(fid => userDataMap.get(fid)?.wallet)
         .map(fid => ({ fid, wallet: userDataMap.get(fid)!.wallet! }));
 
       if (walletsToCheck.length > 0) {
         // Check all wallets in parallel with individual error handling
-        const clanktonResults = await Promise.allSettled(
+        const wordTokenResults = await Promise.allSettled(
           walletsToCheck.map(async ({ fid, wallet }) => ({
             fid,
-            hasClankton: await hasClanktonBonus(wallet),
+            hasWordToken: await hasWordTokenBonus(wallet),
           }))
         );
-        for (const result of clanktonResults) {
-          if (result.status === 'fulfilled' && result.value.hasClankton) {
-            clanktonHolderFids.add(result.value.fid);
+        for (const result of wordTokenResults) {
+          if (result.status === 'fulfilled' && result.value.hasWordToken) {
+            wordTokenHolderFids.add(result.value.fid);
           }
         }
       }
     } catch (error) {
-      console.warn('[archive] Error checking CLANKTON balances:', error);
-      // Continue without CLANKTON badges on error
+      console.warn('[archive] Error checking $WORD balances:', error);
+      // Continue without $WORD badges on error
     }
 
     // Build extended response with usernames and PFPs
@@ -807,7 +807,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         amountEth: payoutEntry?.amountEth || '0',
         guessCount: guesser.guess_count,
         rank: index + 1,
-        hasClanktonBadge: clanktonHolderFids.has(guesser.fid),
+        hasWordTokenBadge: wordTokenHolderFids.has(guesser.fid),
         hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
         hasBonusWordBadge: bonusWordBadgeFids.has(guesser.fid),
         hasJackpotWinnerBadge: jackpotWinnerBadgeFids.has(guesser.fid),
@@ -827,7 +827,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       winnerUsername: winnerData?.username || (archived.winnerFid ? `fid:${archived.winnerFid}` : null),
       winnerPfpUrl: winnerData?.pfpUrl || (archived.winnerFid ? `https://avatar.vercel.sh/${archived.winnerFid}` : null),
       winnerHasOgHunterBadge: archived.winnerFid ? ogHunterBadgeFids.has(archived.winnerFid) : undefined,
-      winnerHasClanktonBadge: archived.winnerFid ? clanktonHolderFids.has(archived.winnerFid) : undefined,
+      winnerHasWordTokenBadge: archived.winnerFid ? wordTokenHolderFids.has(archived.winnerFid) : undefined,
       winnerHasBonusWordBadge: archived.winnerFid ? bonusWordBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasJackpotWinnerBadge: archived.winnerFid ? jackpotWinnerBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasDoubleWBadge: archived.winnerFid ? doubleWBadgeFids.has(archived.winnerFid) : undefined,
@@ -1048,10 +1048,10 @@ async function logArchiveError(
 }
 
 /**
- * Compute the number of users who used CLANKTON bonus during a time period
+ * Compute the number of users who used $WORD token bonus during a time period
  */
-async function computeClanktonBonusCount(startTime: Date, endTime: Date): Promise<number> {
-  // Count distinct users who had freeAllocatedClankton > 0 in daily_guess_state
+async function computeWordTokenBonusCount(startTime: Date, endTime: Date): Promise<number> {
+  // Count distinct users who had freeAllocatedClankton > 0 in daily_guess_state (legacy column name)
   // during the round's active period
   const result = await db.execute<{ count: string }>(sql`
     SELECT COUNT(DISTINCT fid) as count
@@ -1093,7 +1093,7 @@ export interface ArchiveStats {
   totalPlayers: number;
   uniqueWinners: number;
   totalJackpotDistributed: string;
-  totalClanktonBonuses: number;
+  totalWordTokenBonuses: number;
   avgGuessesPerRound: number;
   avgPlayersPerRound: number;
   avgRoundLengthMinutes: number;
@@ -1127,10 +1127,10 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       FROM round_archive
     `);
 
-    // Get total CLANKTON distributed from contract (with 18 decimals)
+    // Get total $WORD distributed from contract (with 18 decimals)
     // Convert to human-readable number (divide by 10^18)
-    const totalClanktonRaw = await getTotalClanktonDistributed();
-    const totalClankton = Number(totalClanktonRaw / BigInt(10 ** 18));
+    const totalWordTokenRaw = await getTotalWordTokenDistributed();
+    const totalWordToken = Number(totalWordTokenRaw / BigInt(10 ** 18));
 
     const rows = getRows(result);
     const row = rows[0];
@@ -1140,7 +1140,7 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       totalPlayers: parseInt(row?.total_players ?? '0', 10),
       uniqueWinners: parseInt(row?.unique_winners ?? '0', 10),
       totalJackpotDistributed: row?.total_jackpot_distributed ?? '0',
-      totalClanktonBonuses: totalClankton,
+      totalWordTokenBonuses: totalWordToken,
       avgGuessesPerRound: parseFloat(row?.avg_guesses_per_round ?? '0'),
       avgPlayersPerRound: parseFloat(row?.avg_players_per_round ?? '0'),
       avgRoundLengthMinutes: parseFloat(row?.avg_round_length_minutes ?? '0'),

@@ -14,11 +14,11 @@
  *
  * Layout:
  * Left: "X guesses left" (pill)
- * Right: "1 free +2 CLANKTON +1 share +3 paid"
+ * Right: "1 free +2 $WORD +1 share +3 paid"
  *
  * Rules:
- * - Order of appearance: Free, CLANKTON, Share, Paid
- * - CLANKTON only shows if user is a holder
+ * - Order of appearance: Free, $WORD, Share, Paid
+ * - $WORD only shows if user is a holder
  * - Paid only shows if user has purchased packs
  * - Consumed sources are visually faded (opacity 40%)
  */
@@ -29,7 +29,7 @@ import type { GuessSourceState } from '../src/types';
 interface GuessBarProps {
   sourceState: GuessSourceState;
   onGetMore?: () => void;
-  onClanktonHintTap?: () => void;
+  onWordHintTap?: () => void;
 }
 
 /**
@@ -83,8 +83,8 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-export default function GuessBar({ sourceState, onGetMore, onClanktonHintTap }: GuessBarProps) {
-  const { totalRemaining, free, clankton, share, paid } = sourceState;
+export default function GuessBar({ sourceState, onGetMore, onWordHintTap }: GuessBarProps) {
+  const { totalRemaining, free, wordToken, share, paid } = sourceState;
 
   // Track decrement pulse animation
   const [justDecremented, setJustDecremented] = useState(false);
@@ -113,12 +113,12 @@ export default function GuessBar({ sourceState, onGetMore, onClanktonHintTap }: 
   }, [totalRemaining, prefersReducedMotion]);
 
   // Determine which segments to show
-  // CLANKTON is always shown (as hint for non-holders, normally for holders)
+  // $WORD is always shown (as hint for non-holders, normally for holders)
   const showPaid = paid.total > 0;
 
   // Determine which segments are consumed (remaining === 0)
   const freeConsumed = free.remaining === 0;
-  const clanktonConsumed = clankton.remaining === 0;
+  const wordTokenConsumed = wordToken.remaining === 0;
   const shareConsumed = share.remaining === 0;
   const paidConsumed = paid.remaining === 0;
 
@@ -188,21 +188,21 @@ export default function GuessBar({ sourceState, onGetMore, onClanktonHintTap }: 
             isFirst={true}
           />
 
-          {/* CLANKTON bonus - always shown */}
+          {/* $WORD bonus - always shown */}
           {/* For holders: normal display with their bonus amount */}
           {/* For non-holders: crossed-out hint that's tappable */}
-          {clankton.isHolder ? (
+          {wordToken.isHolder ? (
             <SourceSegment
-              label="CLANKTON"
-              value={clankton.total}
-              isConsumed={clanktonConsumed}
+              label="$WORD"
+              value={wordToken.total}
+              isConsumed={wordTokenConsumed}
               color="#7c3aed" // purple-600
             />
           ) : (
             <span
               onClick={(e) => {
                 e.stopPropagation();
-                onClanktonHintTap?.();
+                onWordHintTap?.();
               }}
               className="cursor-pointer transition-opacity hover:opacity-70"
               style={{
@@ -211,7 +211,7 @@ export default function GuessBar({ sourceState, onGetMore, onClanktonHintTap }: 
               }}
             >
               <span className="line-through">
-                {' '}+2 CLANKTON
+                {' '}+2 $WORD
               </span>
             </span>
           )}

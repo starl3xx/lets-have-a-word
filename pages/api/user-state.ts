@@ -2,7 +2,7 @@
  * User State API
  * Milestone 4.1
  *
- * Returns user's daily guess allocations and CLANKTON bonus status
+ * Returns user's daily guess allocations and $WORD bonus status
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -10,7 +10,7 @@ import * as Sentry from '@sentry/nextjs';
 import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
 import type { GuessSourceState } from '../../src/types';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
-import { hasClanktonBonus } from '../../src/lib/clankton';
+import { hasWordTokenBonus } from '../../src/lib/word-token';
 import { getGuessWords } from '../../src/lib/word-lists';
 import { db } from '../../src/db';
 import { users } from '../../src/db/schema';
@@ -22,10 +22,10 @@ export interface UserStateResponse {
   freeGuessesRemaining: number;
   paidGuessesRemaining: number;
   totalGuessesRemaining: number;
-  clanktonBonusActive: boolean;
+  wordBonusActive: boolean;
   freeAllocations: {
     base: number;
-    clankton: number;
+    wordToken: number; // Legacy DB column: free_allocated_clankton
     shareBonus: number;
   };
   paidPacksPurchased: number;
@@ -34,7 +34,7 @@ export interface UserStateResponse {
   wheelStartIndex: number | null; // Milestone 4.14: Per-user random wheel start position
   // Milestone 6.3: New fields
   hasSharedToday: boolean; // Whether user has already claimed share bonus today
-  isClanktonHolder: boolean; // Whether user holds CLANKTON tokens
+  isWordTokenHolder: boolean; // Whether user holds $WORD tokens
   // Milestone 6.5: Source-level tracking for unified guess bar
   sourceState: GuessSourceState;
 }
@@ -102,11 +102,11 @@ export default async function handler(
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Milestone 4.12: Dev mode now uses real wallet data for CLANKTON bonus
+    // Milestone 4.12: Dev mode now uses real wallet data for $WORD bonus
     // No longer returns synthetic data - falls through to real implementation
     const isDevMode = isDevModeEnabled();
     if (isDevMode) {
-      console.log('🎮 Dev mode: Using real wallet and CLANKTON balance');
+      console.log('🎮 Dev mode: Using real wallet and $WORD balance');
 
       // Milestone 6.5.1: Reset daily state for dev FID on initial page load only
       // IMPORTANT: Only reset when initialLoad=true query param is passed
@@ -220,11 +220,11 @@ export default async function handler(
     // OPTIMIZATION: Run independent async operations in parallel
     // These have no dependencies on each other, so parallelizing saves ~100-200ms
     const totalGuessWords = getGuessWords().length;
-    const [clanktonResult, wheelStartIndex, sourceState] = await Promise.all([
-      // CLANKTON bonus check (if wallet provided)
+    const [wordTokenResult, wheelStartIndex, sourceState] = await Promise.all([
+      // $WORD bonus check (if wallet provided)
       walletAddress
-        ? hasClanktonBonus(walletAddress).catch((err) => {
-            console.error('[user-state] CLANKTON check failed:', err);
+        ? hasWordTokenBonus(walletAddress).catch((err) => {
+            console.error('[user-state] $WORD check failed:', err);
             return null; // Fallback to database value
           })
         : Promise.resolve(null),
@@ -234,13 +234,13 @@ export default async function handler(
       getGuessSourceState(fid),
     ]);
 
-    // Determine CLANKTON bonus: use live check if available, otherwise database value
-    const clanktonBonusActive = clanktonResult !== null
-      ? clanktonResult
-      : dailyState.freeAllocatedClankton > 0;
+    // Determine $WORD bonus: use live check if available, otherwise database value
+    const wordBonusActive = wordTokenResult !== null
+      ? wordTokenResult
+      : dailyState.freeAllocatedClankton > 0; // legacy DB column name
 
     if (walletAddress) {
-      console.log(`[user-state] CLANKTON check result: ${clanktonBonusActive}`);
+      console.log(`[user-state] $WORD check result: ${wordBonusActive}`);
     }
 
     // Check if can buy more packs
@@ -254,10 +254,10 @@ export default async function handler(
       freeGuessesRemaining: freeRemaining,
       paidGuessesRemaining: paidRemaining,
       totalGuessesRemaining: totalRemaining,
-      clanktonBonusActive,
+      wordBonusActive,
       freeAllocations: {
         base: dailyState.freeAllocatedBase,
-        clankton: dailyState.freeAllocatedClankton,
+        wordToken: dailyState.freeAllocatedClankton, // Legacy DB column name
         shareBonus: dailyState.freeAllocatedShareBonus,
       },
       paidPacksPurchased: dailyState.paidPacksPurchased,
@@ -266,7 +266,7 @@ export default async function handler(
       wheelStartIndex, // Milestone 4.14 (now with dev mode override)
       // Milestone 6.3: New fields
       hasSharedToday,
-      isClanktonHolder: clanktonBonusActive,
+      isWordTokenHolder: wordBonusActive,
       // Milestone 6.5: Source-level tracking for unified guess bar
       sourceState,
     };

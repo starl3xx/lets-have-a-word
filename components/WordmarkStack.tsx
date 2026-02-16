@@ -10,7 +10,7 @@ import { useState } from 'react';
 
 interface WordmarkStackProps {
   hasOgHunter?: boolean;
-  hasClanktonHolder?: boolean;
+  hasWordTokenHolder?: boolean;
   hasBonusWordFinder?: boolean;
   hasJackpotWinner?: boolean;
   hasDoubleW?: boolean;
@@ -36,7 +36,7 @@ const sizeConfig = {
 
 export default function WordmarkStack({
   hasOgHunter = false,
-  hasClanktonHolder = false,
+  hasWordTokenHolder = false,
   hasBonusWordFinder = false,
   hasJackpotWinner = false,
   hasDoubleW = false,
@@ -50,7 +50,7 @@ export default function WordmarkStack({
   const config = sizeConfig[size];
 
   // If no wordmarks, render nothing
-  const hasAnyWordmark = hasOgHunter || hasClanktonHolder || hasBonusWordFinder ||
+  const hasAnyWordmark = hasOgHunter || hasWordTokenHolder || hasBonusWordFinder ||
     hasJackpotWinner || hasDoubleW || hasPatron || hasQuickdraw || hasEncyclopedic || hasBakersDozen;
 
   if (!hasAnyWordmark) {
@@ -58,10 +58,10 @@ export default function WordmarkStack({
   }
 
   // Helper to check if overlap should be applied (any previous wordmark is shown)
-  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Side Quest, Double Dub, CLANKTON, Jackpot Winner
+  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Side Quest, Double Dub, $WORD, Jackpot Winner
   // Jackpot Winner is rightmost/highest z-index as the most prestigious achievement
   const shouldOverlap = (position: number): boolean => {
-    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasDoubleW, hasClanktonHolder, hasJackpotWinner];
+    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasDoubleW, hasWordTokenHolder, hasJackpotWinner];
     return orderedChecks.slice(0, position).some(Boolean);
   };
 
@@ -153,17 +153,17 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* CLANKTON Holder (position 8) */}
-      {hasClanktonHolder && (
+      {/* $WORD Holder (position 8) */}
+      {hasWordTokenHolder && (
         <div
           className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[70] ${shouldOverlap(7) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
-          onMouseEnter={() => setTooltipText('CLANKTON Holder')}
-          onTouchStart={() => setTooltipText('CLANKTON Holder')}
+          onMouseEnter={() => setTooltipText('$WORD Holder')}
+          onTouchStart={() => setTooltipText('$WORD Holder')}
         >
           <img
-            src="/clankton-logo-light.png"
-            alt="CLANKTON Holder"
+            src="/word-token-logo-light.png"
+            alt="$WORD Holder"
             className="w-full h-full object-cover"
           />
         </div>
@@ -198,7 +198,7 @@ export default function WordmarkStack({
  */
 export function BadgeStack({
   hasOgHunterBadge = false,
-  hasClanktonBadge = false,
+  hasWordTokenBadge = false,
   hasBonusWordBadge = false,
   hasJackpotWinnerBadge = false,
   hasDoubleWBadge = false,
@@ -209,7 +209,7 @@ export function BadgeStack({
   size = 'sm',
 }: {
   hasOgHunterBadge?: boolean;
-  hasClanktonBadge?: boolean;
+  hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
   hasJackpotWinnerBadge?: boolean;
   hasDoubleWBadge?: boolean;
@@ -222,7 +222,7 @@ export function BadgeStack({
   return (
     <WordmarkStack
       hasOgHunter={hasOgHunterBadge}
-      hasClanktonHolder={hasClanktonBadge}
+      hasWordTokenHolder={hasWordTokenBadge}
       hasBonusWordFinder={hasBonusWordBadge}
       hasJackpotWinner={hasJackpotWinnerBadge}
       hasDoubleW={hasDoubleWBadge}

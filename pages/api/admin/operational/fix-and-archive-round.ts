@@ -184,20 +184,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`[fix-and-archive] Payouts: ${JSON.stringify(payoutsJson)}`);
 
-    // Step 6: Compute CLANKTON bonus count
+    // Step 6: Compute $WORD bonus count (free_allocated_clankton is a legacy column name)
     const startDate = new Date(rawRound.started_at).toISOString().split('T')[0];
     const endDate = new Date(rawRound.resolved_at).toISOString().split('T')[0];
 
-    const clanktonResult = await db.execute(sql`
+    const wordTokenResult = await db.execute(sql`
       SELECT COUNT(DISTINCT fid) as count
       FROM daily_guess_state
       WHERE free_allocated_clankton > 0
       AND date >= ${startDate}
       AND date <= ${endDate}
     `);
-    const clanktonRows = getRows(clanktonResult);
-    const clanktonBonusCount = parseInt(String(clanktonRows[0]?.count || 0), 10);
-    console.log(`[fix-and-archive] CLANKTON bonus count: ${clanktonBonusCount}`);
+    const wordTokenRows = getRows(wordTokenResult);
+    const wordTokenBonusCount = parseInt(String(wordTokenRows[0]?.count || 0), 10);
+    console.log(`[fix-and-archive] $WORD bonus count: ${wordTokenBonusCount}`);
 
     // Step 7: Compute referral bonus count
     const referralResult = await db.execute(sql`
@@ -248,7 +248,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         round_number, target_word, seed_eth, final_jackpot_eth,
         total_guesses, unique_players, winner_fid, winner_guess_number,
         start_time, end_time, referrer_fid, payouts_json, salt,
-        clankton_bonus_count, referral_bonus_count
+        clankton_bonus_count, referral_bonus_count -- legacy column name
       ) VALUES (
         ${roundId},
         ${targetWord},
@@ -263,7 +263,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ${rawRound.referrer_fid},
         ${JSON.stringify(payoutsJson)},
         ${salt},
-        ${clanktonBonusCount},
+        ${wordTokenBonusCount},
         ${referralBonusCount}
       )
     `);

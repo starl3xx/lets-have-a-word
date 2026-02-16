@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { db } from '../../../src/db';
 import { rounds } from '../../../src/db/schema';
-import { sql } from 'drizzle-orm';
+import { sql, and, isNotNull, isNull } from 'drizzle-orm';
 import { checkRedisHealth } from '../../../src/lib/redis';
 import {
   checkDeadDayScheduledReopen,
@@ -143,9 +143,41 @@ export default async function handler(
     // Non-fatal, continue with health check
   }
 
-  // Overall health: database must be OK
+  // Check for zombie rounds (winnerFid set but resolvedAt is null)
+  // These indicate Phase 2 failed during round resolution and need manual recovery
+  let zombieRounds: { id: number; winnerFid: number | null }[] = [];
+  try {
+    zombieRounds = await db
+      .select({ id: rounds.id, winnerFid: rounds.winnerFid })
+      .from(rounds)
+      .where(
+        and(
+          isNotNull(rounds.winnerFid),
+          isNull(rounds.resolvedAt),
+        )
+      );
+
+    if (zombieRounds.length > 0) {
+      const roundIds = zombieRounds.map(r => r.id);
+      console.error(`[CRON] 🧟 ZOMBIE ROUNDS DETECTED: ${roundIds.join(', ')}`);
+
+      Sentry.captureMessage('Zombie round detected: winner set but not resolved', {
+        level: 'fatal',
+        tags: { cron: 'health-check', type: 'zombie_round' },
+        extra: {
+          zombieRounds: zombieRounds.map(r => ({ roundId: r.id, winnerFid: r.winnerFid })),
+          recoveryUrl: '/admin → Operations → Recover Stuck Round',
+        },
+      });
+    }
+  } catch (error) {
+    console.error('[CRON] Error checking for zombie rounds:', error);
+    // Non-fatal for the health check itself
+  }
+
+  // Overall health: database must be OK, no zombie rounds
   // Redis is optional (app works without it)
-  results.overall = results.database.ok;
+  results.overall = results.database.ok && zombieRounds.length === 0;
 
   const duration = Date.now() - startTime;
   console.log(`[CRON] Health check completed in ${duration}ms - Overall: ${results.overall ? 'HEALTHY' : 'UNHEALTHY'}`);
@@ -159,5 +191,6 @@ export default async function handler(
     durationMs: duration,
     checks: results,
     deadDayAutoReopened, // Milestone 9.5
+    zombieRounds: zombieRounds.map(r => ({ roundId: r.id, winnerFid: r.winnerFid })),
   });
 }

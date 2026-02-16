@@ -20,7 +20,7 @@ export interface AdditionalMetrics {
   // Guess metrics
   avgGuessesPerRound: number;
   avgGuessesPerDayPerUser: number;
-  clanktonGuessesPerUser: number;
+  wordTokenGuessesPerUser: number; // $WORD holder guesses per user
 
   // Revenue metrics
   creatorRevenuePerRound: number;
@@ -115,11 +115,11 @@ export default async function handler(
       `
     );
 
-    // Query 4: CLANKTON guesses per user (users with free_allocated_clankton > 0)
-    const clanktonMetrics = await db.execute<{ clankton_guesses_per_user: number }>(
+    // Query 4: $WORD guesses per user (users with free_allocated_clankton > 0) -- legacy column name
+    const wordTokenMetrics = await db.execute<{ word_token_guesses_per_user: number }>(
       sql`
         SELECT
-          COALESCE(AVG(guess_count), 0) as clankton_guesses_per_user
+          COALESCE(AVG(guess_count), 0) as word_token_guesses_per_user
         FROM (
           SELECT dgs.fid, COUNT(g.id) as guess_count
           FROM daily_guess_state dgs
@@ -128,7 +128,7 @@ export default async function handler(
           WHERE dgs.free_allocated_clankton > 0
             AND dgs.date >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
           GROUP BY dgs.fid
-        ) as clankton_users
+        ) as word_token_users
       `
     );
 
@@ -147,7 +147,7 @@ export default async function handler(
     const roundData = Array.isArray(roundMetrics) ? roundMetrics[0] : roundMetrics;
     const guessData = Array.isArray(guessMetrics) ? guessMetrics[0] : guessMetrics;
     const userGuessData = Array.isArray(userGuessMetrics) ? userGuessMetrics[0] : userGuessMetrics;
-    const clanktonData = Array.isArray(clanktonMetrics) ? clanktonMetrics[0] : clanktonMetrics;
+    const wordTokenData = Array.isArray(wordTokenMetrics) ? wordTokenMetrics[0] : wordTokenMetrics;
     const revenueData = Array.isArray(revenueMetrics) ? revenueMetrics[0] : revenueMetrics;
 
     const metrics: AdditionalMetrics = {
@@ -156,7 +156,7 @@ export default async function handler(
       totalRounds: Number(roundData?.total_rounds) || 0,
       avgGuessesPerRound: Number(guessData?.avg_guesses_per_round) || 0,
       avgGuessesPerDayPerUser: Number(userGuessData?.avg_guesses_per_day_per_user) || 0,
-      clanktonGuessesPerUser: Number(clanktonData?.clankton_guesses_per_user) || 0,
+      wordTokenGuessesPerUser: Number(wordTokenData?.word_token_guesses_per_user) || 0,
       creatorRevenuePerRound: Number(revenueData?.revenue_per_round) || 0,
       creatorRevenueTotalEth: Number(revenueData?.total_revenue) || 0,
       timeRange

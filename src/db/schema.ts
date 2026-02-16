@@ -125,8 +125,7 @@ export const dailyGuessState = pgTable('daily_guess_state', {
 
   // Free guess allocations for this day
   freeAllocatedBase: integer('free_allocated_base').default(0).notNull(), // Base free guesses (usually 1)
-  freeAllocatedClankton: integer('free_allocated_clankton').default(0).notNull(), // CLANKTON holder bonus (0 or 3)
-  freeAllocatedWordToken: integer('free_allocated_word_token').default(0).notNull(), // $WORD token holder bonus (0 or 1)
+  freeAllocatedClankton: integer('free_allocated_clankton').default(0).notNull(), // $WORD holder bonus (0 or 3) — legacy column name, was CLANKTON
   freeAllocatedShareBonus: integer('free_allocated_share_bonus').default(0).notNull(), // Share bonus (0 or 1)
   freeUsed: integer('free_used').default(0).notNull(), // How many free guesses consumed
 
@@ -284,7 +283,7 @@ export const roundArchive = pgTable('round_archive', {
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
   payoutsJson: jsonb('payouts_json').$type<RoundArchivePayouts>().notNull(),
   salt: varchar('salt', { length: 64 }).notNull(), // For verification
-  clanktonBonusCount: integer('clankton_bonus_count').notNull().default(0), // Users who got CLANKTON bonus this round
+  clanktonBonusCount: integer('clankton_bonus_count').notNull().default(0), // Users who got $WORD bonus this round — legacy column name, was CLANKTON
   referralBonusCount: integer('referral_bonus_count').notNull().default(0), // Referral signups this round
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
@@ -306,7 +305,7 @@ export interface RoundArchivePayouts {
     fid: number;
     word: string;
     wordIndex: number;
-    clanktonAmount: string;
+    clanktonAmount: string; // legacy field name, was CLANKTON, now $WORD
     txHash?: string;
   }>;
 }
@@ -623,7 +622,7 @@ export const roundBonusWords = pgTable('round_bonus_words', {
   salt: varchar('salt', { length: 64 }).notNull(), // Individual salt for verification
   claimedByFid: integer('claimed_by_fid'), // FK to users.fid (null if unclaimed)
   claimedAt: timestamp('claimed_at'),
-  txHash: varchar('tx_hash', { length: 66 }), // CLANKTON transfer tx hash
+  txHash: varchar('tx_hash', { length: 66 }), // $WORD transfer tx hash (was CLANKTON)
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundWordIndexUnique: unique('round_bonus_words_round_word_index_unique').on(table.roundId, table.wordIndex),
@@ -649,7 +648,7 @@ export const bonusWordClaims = pgTable('bonus_word_claims', {
   bonusWordId: integer('bonus_word_id').notNull().references(() => roundBonusWords.id),
   fid: integer('fid').notNull(), // FK to users.fid
   guessId: integer('guess_id').notNull().references(() => guesses.id),
-  clanktonAmount: varchar('clankton_amount', { length: 78 }).notNull(), // '5000000000000000000000000' (5M * 10^18)
+  clanktonAmount: varchar('clankton_amount', { length: 78 }).notNull(), // '5000000000000000000000000' (5M * 10^18) — legacy column name, was CLANKTON, now $WORD
   walletAddress: varchar('wallet_address', { length: 42 }).notNull(),
   txHash: varchar('tx_hash', { length: 66 }),
   txStatus: varchar('tx_status', { length: 20 }).default('pending').notNull().$type<BonusWordClaimStatus>(),

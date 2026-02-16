@@ -18,7 +18,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers, Wallet } from 'ethers';
 import { isAdminFid } from '../me';
 import { resolveWalletIdentity } from '../../../../src/lib/wallet-identity';
-import { getBaseProvider } from '../../../../src/lib/clankton';
+import { getBaseProvider } from '../../../../src/lib/word-token';
 import { db } from '../../../../src/db';
 import { users, operationalEvents, type OperationalEventType } from '../../../../src/db/schema';
 import { eq } from 'drizzle-orm';

@@ -18,7 +18,7 @@ interface TopGuesserWithUsername {
   amountEth: string;
   guessCount: number;
   rank: number;
-  hasClanktonBadge?: boolean;
+  hasWordTokenBadge?: boolean;
   hasOgHunterBadge?: boolean;
   hasBonusWordBadge?: boolean;
   hasJackpotWinnerBadge?: boolean;
@@ -34,13 +34,13 @@ interface BonusWordWinner {
   fid: number;
   word: string;
   wordIndex: number;
-  clanktonAmount: string;
+  tokenRewardAmount: string;
   claimedAt?: string;
   txHash?: string;
   username?: string;
   pfpUrl?: string;
   hasOgHunterBadge?: boolean;
-  hasClanktonBadge?: boolean;
+  hasWordTokenBadge?: boolean;
   hasDoubleWBadge?: boolean;
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
@@ -62,7 +62,7 @@ interface ArchivedRound {
   winnerCastHash: string | null;
   winnerGuessNumber: number | null;
   winnerHasOgHunterBadge?: boolean;
-  winnerHasClanktonBadge?: boolean;
+  winnerHasWordTokenBadge?: boolean;
   winnerHasBonusWordBadge?: boolean;
   winnerHasJackpotWinnerBadge?: boolean;
   winnerHasDoubleWBadge?: boolean;
@@ -85,7 +85,7 @@ interface ArchivedRound {
     bonusWordWinners?: BonusWordWinner[];
   };
   salt: string;
-  clanktonBonusCount: number;
+  wordTokenBonusCount: number;
   referralBonusCount: number;
   commitHash?: string;
   hasOnChainCommitment?: boolean;
@@ -310,7 +310,7 @@ export default function RoundDetailPage() {
                             </button>
                             <BadgeStack
                               hasOgHunterBadge={round.winnerHasOgHunterBadge}
-                              hasClanktonBadge={round.winnerHasClanktonBadge}
+                              hasWordTokenBadge={round.winnerHasWordTokenBadge}
                               hasBonusWordBadge={round.winnerHasBonusWordBadge}
                               hasJackpotWinnerBadge={round.winnerHasJackpotWinnerBadge}
                               hasDoubleWBadge={round.winnerHasDoubleWBadge}
@@ -439,7 +439,7 @@ export default function RoundDetailPage() {
                           </button>
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
-                            hasClanktonBadge={guesser.hasClanktonBadge}
+                            hasWordTokenBadge={guesser.hasWordTokenBadge}
                             hasBonusWordBadge={guesser.hasBonusWordBadge}
                             hasJackpotWinnerBadge={guesser.hasJackpotWinnerBadge}
                             hasDoubleWBadge={guesser.hasDoubleWBadge}
@@ -463,7 +463,7 @@ export default function RoundDetailPage() {
               {/* Bonus Word Finders (for rounds >= 3 with bonus words) */}
               {round.bonusWordWinners && round.bonusWordWinners.length > 0 && (
                 <Section title="Bonus word finders">
-                  <p className="text-xs text-gray-500 mb-3">5M CLANKTON each</p>
+                  <p className="text-xs text-gray-500 mb-3">5M $WORD each</p>
                   <div className="bg-white rounded-xl border border-cyan-200 overflow-hidden">
                     {[...round.bonusWordWinners]
                       .sort((a, b) => new Date(a.claimedAt || 0).getTime() - new Date(b.claimedAt || 0).getTime())
@@ -497,7 +497,7 @@ export default function RoundDetailPage() {
                           </button>
                           <BadgeStack
                             hasOgHunterBadge={winner.hasOgHunterBadge}
-                            hasClanktonBadge={winner.hasClanktonBadge}
+                            hasWordTokenBadge={winner.hasWordTokenBadge}
                             hasBonusWordBadge={true}
                             hasDoubleWBadge={winner.hasDoubleWBadge}
                             hasPatronBadge={winner.hasPatronBadge}
@@ -564,7 +564,7 @@ export default function RoundDetailPage() {
                   <InfoRow label="Started" value={formatDate(round.startTime)} />
                   <InfoRow label="Ended" value={formatDate(round.endTime)} />
                   <InfoRow label="Seed ETH" value={`${formatEth(round.seedEth)} ETH`} />
-                  <InfoRow label="CLANKTON bonuses" value={round.clanktonBonusCount.toString()} />
+                  <InfoRow label="$WORD bonuses" value={round.wordTokenBonusCount.toString()} />
                   <InfoRow label="Referral signups" value={round.referralBonusCount.toString()} />
 
                   {/* Onchain secret word commitment */}

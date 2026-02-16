@@ -44,15 +44,15 @@ Free guesses reset daily at **11:00 UTC**.
 
 You can earn bonus free guesses by:
 1. Sharing your daily guess on Farcaster (+1 guess/day)
-2. Holding 100M CLANKTON tokens (+2–3 guesses/day depending on market cap)
+2. Holding 100M $WORD tokens (+2–3 guesses/day depending on market cap)
 
 You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).
 
-## What's the CLANKTON bonus?
+## What's the $WORD bonus?
 
-If you hold 100M [$CLANKTON](https://farcaster.xyz/~/token/eip155:8453/erc20:0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07) in your connected wallet, you receive extra free guesses:
+If you hold 100M [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07) in your connected wallet, you receive extra free guesses:
 
-- **+2 guesses/day** when $CLANKTON market cap is below $250K
+- **+2 guesses/day** when $WORD market cap is below $250K
 - **+3 guesses/day** when market cap is above $250K
 
 This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.

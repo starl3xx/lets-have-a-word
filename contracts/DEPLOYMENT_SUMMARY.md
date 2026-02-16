@@ -115,7 +115,7 @@ From the operator wallet (`0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38`):
 - `seedJackpot()` - Seed jackpot with ETH
 - `resolveRound(address winner)` - Resolve round and pay winner
 - `startNextRound()` - Start new round after resolution
-- `updateClanktonMarketCap(uint256)` - Oracle placeholder (M6.2)
+- `updateClanktonMarketCap(uint256)` - $WORD market cap oracle (M6.2, contract function name unchanged — deployed onchain)
 
 ### Player Functions
 - `purchaseGuesses(address player, uint256 quantity)` - Buy guess packs
@@ -166,7 +166,7 @@ From the operator wallet (`0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38`):
 ### Backend Integration
 - Use `src/lib/jackpot-contract.ts` for contract interactions
 - Use `src/lib/wallet-identity.ts` for unified wallet resolution
-- Ensure winner address matches CLANKTON check wallet
+- Ensure winner address matches $WORD check wallet
 
 ### Environment Variables
 ```bash
@@ -193,13 +193,13 @@ OPERATOR_PRIVATE_KEY=<operator-wallet-private-key>
 
 ## Milestone 6.2 - Oracle Integration
 
-CLANKTON market cap oracle integration is **implemented and ready to deploy**.
+$WORD market cap oracle integration is **implemented and ready to deploy**.
 
 ### New Features (6.2)
 
 | Function | Description |
 |----------|-------------|
-| `updateClanktonMarketCap(uint256)` | Push market cap from oracle |
+| `updateClanktonMarketCap(uint256)` | Push $WORD market cap from oracle (contract function name unchanged) |
 | `getCurrentBonusTier()` | Get LOW/HIGH tier |
 | `getFreeGuessesForTier()` | Get 2 or 3 free guesses |
 | `isMarketCapStale()` | Check if data > 1 hour old |
@@ -214,8 +214,8 @@ npx hardhat run scripts/upgrade.ts --network base
 
 ### Backend Files
 
-- `src/lib/clankton-oracle.ts` - Oracle service (DexScreener + CoinGecko)
-- `src/lib/clankton.ts` - Updated with contract integration
+- `src/lib/word-oracle.ts` - Oracle service (DexScreener + CoinGecko)
+- `src/lib/word-token.ts` - Updated with contract integration
 
 See `docs/MILESTONE_6_2_ORACLE_SPEC.md` for full documentation.
 

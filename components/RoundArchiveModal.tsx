@@ -11,7 +11,7 @@ interface TopGuesser {
   guessCount: number;
   pfpUrl: string;
   hasOgHunterBadge?: boolean;
-  hasClanktonBadge?: boolean;
+  hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
   hasJackpotWinnerBadge?: boolean;
   hasDoubleWBadge?: boolean;
@@ -29,9 +29,9 @@ interface BonusWordWinner {
   wordIndex: number;
   claimedAt: string;
   txHash: string | null;
-  clanktonAmount: string;
+  tokenRewardAmount: string;
   hasOgHunterBadge?: boolean;
-  hasClanktonBadge?: boolean;
+  hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
   hasJackpotWinnerBadge?: boolean;
   hasDoubleWBadge?: boolean;
@@ -445,7 +445,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                           </span>
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
-                            hasClanktonBadge={guesser.hasClanktonBadge}
+                            hasWordTokenBadge={guesser.hasWordTokenBadge}
                             hasBonusWordBadge={guesser.hasBonusWordBadge}
                             hasJackpotWinnerBadge={guesser.hasJackpotWinnerBadge}
                             hasDoubleWBadge={guesser.hasDoubleWBadge}
@@ -476,7 +476,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                     Bonus Word Finders
                   </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">5M CLANKTON each</p>
+                  <p className="text-xs text-gray-500 mt-0.5">5M $WORD each</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -505,7 +505,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                         </span>
                         <BadgeStack
                           hasOgHunterBadge={winner.hasOgHunterBadge}
-                          hasClanktonBadge={winner.hasClanktonBadge}
+                          hasWordTokenBadge={winner.hasWordTokenBadge}
                           hasBonusWordBadge={winner.hasBonusWordBadge}
                           hasJackpotWinnerBadge={winner.hasJackpotWinnerBadge}
                           hasDoubleWBadge={winner.hasDoubleWBadge}

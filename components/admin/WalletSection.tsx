@@ -50,7 +50,7 @@ interface WalletBalances {
     withdrawThresholdEth?: string;
     isWithdrawable?: boolean;
   };
-  clanktonRewards?: {
+  wordTokenRewards?: {
     tokenAddress: string;
     balance: string; // Human readable whole number
     balanceRaw: string;
@@ -112,7 +112,7 @@ interface RetrySuccess {
 interface BonusDistributionStatus {
   failedClaims: FailedBonusClaim[];
   claimedWithoutTx: BonusWordWithoutTx[];
-  contractClanktonBalance: string;
+  contractWordTokenBalance: string;
   totalFailedOrPending: number;
 }
 
@@ -553,10 +553,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [fixFieldValue, setFixFieldValue] = useState<string>('');
   const [fixFieldResult, setFixFieldResult] = useState<FixFieldResult | null>(null);
 
-  // CLANKTON withdrawal state
-  interface ClanktonStatus {
+  // $WORD withdrawal state
+  interface WordTokenStatus {
     contractAddress: string;
-    clanktonTokenAddress: string;
+    wordTokenAddress: string;
     balanceWei: string;
     balanceFormatted: string;
     balanceInMillions: string;
@@ -566,14 +566,14 @@ export default function WalletSection({ user }: WalletSectionProps) {
     canWithdraw: boolean;
     withdrawalNote: string;
   }
-  const [clanktonStatus, setClanktonStatus] = useState<ClanktonStatus | null>(null);
-  const [clanktonLoading, setClanktonLoading] = useState(false);
-  const [clanktonError, setClanktonError] = useState<string | null>(null);
-  const [clanktonWithdrawAddress, setClanktonWithdrawAddress] = useState('');
-  const [clanktonWithdrawLoading, setClanktonWithdrawLoading] = useState(false);
-  const [showClanktonWithdrawConfirm, setShowClanktonWithdrawConfirm] = useState(false);
-  const [clanktonWithdrawConfirmText, setClanktonWithdrawConfirmText] = useState('');
-  const [clanktonWithdrawResult, setClanktonWithdrawResult] = useState<{ txHash: string; amount: string } | null>(null);
+  const [wordTokenStatus, setWordTokenStatus] = useState<WordTokenStatus | null>(null);
+  const [wordTokenLoading, setWordTokenLoading] = useState(false);
+  const [wordTokenError, setWordTokenError] = useState<string | null>(null);
+  const [wordTokenWithdrawAddress, setWordTokenWithdrawAddress] = useState('');
+  const [wordTokenWithdrawLoading, setWordTokenWithdrawLoading] = useState(false);
+  const [showWordTokenWithdrawConfirm, setShowWordTokenWithdrawConfirm] = useState(false);
+  const [wordTokenWithdrawConfirmText, setWordTokenWithdrawConfirmText] = useState('');
+  const [wordTokenWithdrawResult, setWordTokenWithdrawResult] = useState<{ txHash: string; amount: string } | null>(null);
   const [bonusWordsToggleLoading, setBonusWordsToggleLoading] = useState(false);
 
   // =============================================================================
@@ -757,46 +757,46 @@ export default function WalletSection({ user }: WalletSectionProps) {
     }
   }, [user?.fid]);
 
-  const fetchClanktonStatus = useCallback(async () => {
+  const fetchWordTokenStatus = useCallback(async () => {
     if (!user?.fid) return;
 
-    setClanktonLoading(true);
-    setClanktonError(null);
+    setWordTokenLoading(true);
+    setWordTokenError(null);
     try {
-      const res = await fetch(`/api/admin/operational/withdraw-clankton?devFid=${user.fid}`);
+      const res = await fetch(`/api/admin/operational/withdraw-word-token?devFid=${user.fid}`);
       if (res.ok) {
         const data = await res.json();
-        setClanktonStatus(data);
+        setWordTokenStatus(data);
       } else {
         const err = await res.json();
-        setClanktonError(err.error || 'Failed to fetch CLANKTON status');
+        setWordTokenError(err.error || 'Failed to fetch $WORD status');
       }
     } catch (err) {
-      setClanktonError('Failed to fetch CLANKTON status');
+      setWordTokenError('Failed to fetch $WORD status');
     } finally {
-      setClanktonLoading(false);
+      setWordTokenLoading(false);
     }
   }, [user?.fid]);
 
-  const handleClanktonWithdraw = async () => {
-    if (!user?.fid || !clanktonWithdrawAddress) return;
+  const handleWordTokenWithdraw = async () => {
+    if (!user?.fid || !wordTokenWithdrawAddress) return;
 
-    if (clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON') {
-      setClanktonError('Please type "WITHDRAW CLANKTON" to confirm');
+    if (wordTokenWithdrawConfirmText !== 'WITHDRAW WORD') {
+      setWordTokenError('Please type "WITHDRAW WORD" to confirm');
       return;
     }
 
-    setClanktonWithdrawLoading(true);
-    setClanktonError(null);
+    setWordTokenWithdrawLoading(true);
+    setWordTokenError(null);
 
     try {
-      const res = await fetch('/api/admin/operational/withdraw-clankton', {
+      const res = await fetch('/api/admin/operational/withdraw-word-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           devFid: user.fid,
           action: 'withdraw',
-          toAddress: clanktonWithdrawAddress,
+          toAddress: wordTokenWithdrawAddress,
         }),
       });
 
@@ -806,15 +806,15 @@ export default function WalletSection({ user }: WalletSectionProps) {
         throw new Error(data.error || 'Withdrawal failed');
       }
 
-      setClanktonWithdrawResult({ txHash: data.txHash, amount: data.withdrawnAmount });
-      setShowClanktonWithdrawConfirm(false);
-      setClanktonWithdrawConfirmText('');
-      setClanktonWithdrawAddress('');
-      fetchClanktonStatus();
+      setWordTokenWithdrawResult({ txHash: data.txHash, amount: data.withdrawnAmount });
+      setShowWordTokenWithdrawConfirm(false);
+      setWordTokenWithdrawConfirmText('');
+      setWordTokenWithdrawAddress('');
+      fetchWordTokenStatus();
     } catch (err: any) {
-      setClanktonError(err.message);
+      setWordTokenError(err.message);
     } finally {
-      setClanktonWithdrawLoading(false);
+      setWordTokenWithdrawLoading(false);
     }
   };
 
@@ -822,10 +822,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
     if (!user?.fid) return;
 
     setBonusWordsToggleLoading(true);
-    setClanktonError(null);
+    setWordTokenError(null);
 
     try {
-      const res = await fetch('/api/admin/operational/withdraw-clankton', {
+      const res = await fetch('/api/admin/operational/withdraw-word-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -840,9 +840,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
         throw new Error(data.error || 'Toggle failed');
       }
 
-      fetchClanktonStatus();
+      fetchWordTokenStatus();
     } catch (err: any) {
-      setClanktonError(err.message);
+      setWordTokenError(err.message);
     } finally {
       setBonusWordsToggleLoading(false);
     }
@@ -1013,7 +1013,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
     fetchOperationalStatus();
     fetchActions();
     fetchBonusDistStatus();
-    fetchClanktonStatus();
+    fetchWordTokenStatus();
 
     // Listen for account/chain changes
     if (window.ethereum) {
@@ -1027,7 +1027,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         window.ethereum.removeListener('chainChanged', checkWalletConnection);
       }
     };
-  }, [checkWalletConnection, fetchBalances, fetchOperationalStatus, fetchActions, fetchBonusDistStatus, fetchClanktonStatus]);
+  }, [checkWalletConnection, fetchBalances, fetchOperationalStatus, fetchActions, fetchBonusDistStatus, fetchWordTokenStatus]);
 
   // =============================================================================
   // Withdrawal Handler
@@ -1454,7 +1454,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           <div>
             <h3 style={{ ...styles.cardTitle, margin: 0 }}>🎣 Bonus Word Distributions</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Retry failed CLANKTON distributions for bonus word winners
+              Retry failed $WORD distributions for bonus word winners
             </p>
           </div>
           <button
@@ -1475,8 +1475,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
             {/* Summary Stats */}
             <div style={{ ...styles.grid2, marginBottom: '16px' }}>
               <div style={styles.statCard}>
-                <div style={styles.statLabel}>Contract CLANKTON</div>
-                <div style={styles.statValueSmall}>{formatClanktonBalance(bonusDistStatus.contractClanktonBalance)}</div>
+                <div style={styles.statLabel}>Contract $WORD</div>
+                <div style={styles.statValueSmall}>{formatTokenBalance(bonusDistStatus.contractWordTokenBalance)}</div>
                 <div style={styles.statSubtext}>Available for rewards</div>
               </div>
               <div style={styles.statCard}>
@@ -1642,7 +1642,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                               ...(retryingBonusWordId === bw.bonusWordId ? styles.btnDisabled : {}),
                             }}
                           >
-                            {retryingBonusWordId === bw.bonusWordId ? 'Sending...' : 'Send CLANKTON'}
+                            {retryingBonusWordId === bw.bonusWordId ? 'Sending...' : 'Send $WORD'}
                           </button>
                         </td>
                       </tr>
@@ -1663,35 +1663,35 @@ export default function WalletSection({ user }: WalletSectionProps) {
         ) : null}
       </div>
 
-      {/* CLANKTON Withdrawal */}
+      {/* $WORD Withdrawal */}
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🐟 CLANKTON Management</h3>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>💬 $WORD Management</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Withdraw CLANKTON from the contract (for token migration)
+              Withdraw $WORD from the contract (for token migration)
             </p>
           </div>
           <button
-            onClick={() => fetchClanktonStatus()}
-            disabled={clanktonLoading}
+            onClick={() => fetchWordTokenStatus()}
+            disabled={wordTokenLoading}
             style={{ ...styles.btnSecondary, ...styles.btnSmall }}
           >
-            {clanktonLoading ? 'Loading...' : 'Refresh'}
+            {wordTokenLoading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
 
-        {clanktonError && (
-          <div style={styles.alert('error')}>{clanktonError}</div>
+        {wordTokenError && (
+          <div style={styles.alert('error')}>{wordTokenError}</div>
         )}
 
-        {clanktonWithdrawResult && (
+        {wordTokenWithdrawResult && (
           <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
             <span>✅</span>
             <span>
-              Withdrew {parseFloat(clanktonWithdrawResult.amount).toLocaleString()} CLANKTON!{' '}
+              Withdrew {parseFloat(wordTokenWithdrawResult.amount).toLocaleString()} $WORD!{' '}
               <a
-                href={`https://basescan.org/tx/${clanktonWithdrawResult.txHash}`}
+                href={`https://basescan.org/tx/${wordTokenWithdrawResult.txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={styles.link}
@@ -1700,7 +1700,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               </a>
             </span>
             <button
-              onClick={() => setClanktonWithdrawResult(null)}
+              onClick={() => setWordTokenWithdrawResult(null)}
               style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
             >
               ×
@@ -1708,30 +1708,30 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </div>
         )}
 
-        {clanktonLoading && !clanktonStatus ? (
+        {wordTokenLoading && !wordTokenStatus ? (
           <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
-        ) : clanktonStatus ? (
+        ) : wordTokenStatus ? (
           <>
             {/* Status Cards */}
             <div style={{ ...styles.grid2, marginBottom: '16px' }}>
               <div style={styles.statCard}>
-                <div style={styles.statLabel}>Contract CLANKTON</div>
-                <div style={styles.statValueSmall}>{clanktonStatus.balanceInMillions}</div>
-                <div style={styles.statSubtext}>{clanktonStatus.roundsAvailable} rounds available</div>
+                <div style={styles.statLabel}>Contract $WORD</div>
+                <div style={styles.statValueSmall}>{wordTokenStatus.balanceInMillions}</div>
+                <div style={styles.statSubtext}>{wordTokenStatus.roundsAvailable} rounds available</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Bonus Words</div>
                 <div style={styles.statValueSmall}>
                   <span style={{
-                    color: clanktonStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af',
+                    color: wordTokenStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af',
                     fontWeight: 600,
                   }}>
-                    {clanktonStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
+                    {wordTokenStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
                   </span>
                 </div>
                 <div style={styles.statSubtext}>
                   <button
-                    onClick={() => handleBonusWordsToggle(!clanktonStatus.bonusWordsEnabled)}
+                    onClick={() => handleBonusWordsToggle(!wordTokenStatus.bonusWordsEnabled)}
                     disabled={bonusWordsToggleLoading}
                     style={{
                       ...styles.btnSmall,
@@ -1744,7 +1744,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                       fontSize: '11px',
                     }}
                   >
-                    {bonusWordsToggleLoading ? 'Toggling...' : clanktonStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
+                    {bonusWordsToggleLoading ? 'Toggling...' : wordTokenStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
                   </button>
                 </div>
               </div>
@@ -1755,60 +1755,60 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ color: '#6b7280' }}>Contract:</span>
                 <a
-                  href={`https://basescan.org/address/${clanktonStatus.contractAddress}`}
+                  href={`https://basescan.org/address/${wordTokenStatus.contractAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ fontFamily: 'monospace', color: '#2563eb' }}
                 >
-                  {clanktonStatus.contractAddress.slice(0, 10)}...{clanktonStatus.contractAddress.slice(-8)}
+                  {wordTokenStatus.contractAddress.slice(0, 10)}...{wordTokenStatus.contractAddress.slice(-8)}
                 </a>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: '#6b7280' }}>CLANKTON Token:</span>
+                <span style={{ color: '#6b7280' }}>$WORD Token:</span>
                 <a
-                  href={`https://basescan.org/token/${clanktonStatus.clanktonTokenAddress}`}
+                  href={`https://basescan.org/token/${wordTokenStatus.wordTokenAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ fontFamily: 'monospace', color: '#2563eb' }}
                 >
-                  {clanktonStatus.clanktonTokenAddress.slice(0, 10)}...{clanktonStatus.clanktonTokenAddress.slice(-8)}
+                  {wordTokenStatus.wordTokenAddress.slice(0, 10)}...{wordTokenStatus.wordTokenAddress.slice(-8)}
                 </a>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#6b7280' }}>Exact Balance:</span>
                 <span style={{ fontFamily: 'monospace' }}>
-                  {parseFloat(clanktonStatus.balanceFormatted).toLocaleString()} CLANKTON
+                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
                 </span>
               </div>
             </div>
 
             {/* Withdrawal Note */}
             <div style={{
-              ...styles.alert(clanktonStatus.canWithdraw ? 'info' : 'warning'),
+              ...styles.alert(wordTokenStatus.canWithdraw ? 'info' : 'warning'),
               marginBottom: '16px',
             }}>
-              <span>{clanktonStatus.canWithdraw ? 'ℹ️' : '⚠️'}</span>
-              <span>{clanktonStatus.withdrawalNote}</span>
+              <span>{wordTokenStatus.canWithdraw ? 'ℹ️' : '⚠️'}</span>
+              <span>{wordTokenStatus.withdrawalNote}</span>
             </div>
 
             {/* Withdrawal Form */}
-            {clanktonStatus.canWithdraw && (
+            {wordTokenStatus.canWithdraw && (
               <div>
                 <label style={styles.label}>Withdraw To Address:</label>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <input
                     type="text"
                     placeholder="0x..."
-                    value={clanktonWithdrawAddress}
-                    onChange={(e) => setClanktonWithdrawAddress(e.target.value)}
+                    value={wordTokenWithdrawAddress}
+                    onChange={(e) => setWordTokenWithdrawAddress(e.target.value)}
                     style={{ ...styles.input, flex: 1, fontFamily: 'monospace' }}
                   />
                   <button
-                    onClick={() => setShowClanktonWithdrawConfirm(true)}
-                    disabled={!clanktonWithdrawAddress || clanktonWithdrawLoading}
+                    onClick={() => setShowWordTokenWithdrawConfirm(true)}
+                    disabled={!wordTokenWithdrawAddress || wordTokenWithdrawLoading}
                     style={{
                       ...styles.btnDanger,
-                      ...((!clanktonWithdrawAddress || clanktonWithdrawLoading) ? styles.btnDisabled : {}),
+                      ...((!wordTokenWithdrawAddress || wordTokenWithdrawLoading) ? styles.btnDisabled : {}),
                     }}
                   >
                     Withdraw All
@@ -1820,41 +1820,41 @@ export default function WalletSection({ user }: WalletSectionProps) {
         ) : null}
       </div>
 
-      {/* CLANKTON Withdrawal Confirmation Modal */}
-      {showClanktonWithdrawConfirm && clanktonStatus && (
+      {/* $WORD Withdrawal Confirmation Modal */}
+      {showWordTokenWithdrawConfirm && wordTokenStatus && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm CLANKTON Withdrawal</h3>
+            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm $WORD Withdrawal</h3>
 
             <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
-              This action is <strong>irreversible</strong>. All {clanktonStatus.balanceInMillions} CLANKTON will be withdrawn.
+              This action is <strong>irreversible</strong>. All {wordTokenStatus.balanceInMillions} $WORD will be withdrawn.
             </div>
 
             <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
               <div style={{ marginBottom: '8px' }}>
                 <span style={{ color: '#6b7280' }}>Amount:</span>
                 <div style={{ fontWeight: 600, fontSize: '18px' }}>
-                  {parseFloat(clanktonStatus.balanceFormatted).toLocaleString()} CLANKTON
+                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
                 </div>
               </div>
               <div>
                 <span style={{ color: '#6b7280' }}>To Address:</span>
                 <div style={{ fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
-                  {clanktonWithdrawAddress}
+                  {wordTokenWithdrawAddress}
                 </div>
               </div>
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={styles.label}>Type "WITHDRAW CLANKTON" to confirm:</label>
+              <label style={styles.label}>Type "WITHDRAW WORD" to confirm:</label>
               <input
                 type="text"
-                value={clanktonWithdrawConfirmText}
-                onChange={(e) => setClanktonWithdrawConfirmText(e.target.value.toUpperCase())}
-                placeholder="WITHDRAW CLANKTON"
+                value={wordTokenWithdrawConfirmText}
+                onChange={(e) => setWordTokenWithdrawConfirmText(e.target.value.toUpperCase())}
+                placeholder="WITHDRAW WORD"
                 style={{
                   ...styles.input,
-                  ...(clanktonWithdrawConfirmText && clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON' ? styles.inputError : {}),
+                  ...(wordTokenWithdrawConfirmText && wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.inputError : {}),
                 }}
               />
             </div>
@@ -1862,23 +1862,23 @@ export default function WalletSection({ user }: WalletSectionProps) {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
                 onClick={() => {
-                  setShowClanktonWithdrawConfirm(false);
-                  setClanktonWithdrawConfirmText('');
+                  setShowWordTokenWithdrawConfirm(false);
+                  setWordTokenWithdrawConfirmText('');
                 }}
                 style={{ ...styles.btnSecondary, flex: 1 }}
               >
                 Cancel
               </button>
               <button
-                onClick={handleClanktonWithdraw}
-                disabled={clanktonWithdrawLoading || clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON'}
+                onClick={handleWordTokenWithdraw}
+                disabled={wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD'}
                 style={{
                   ...styles.btnDanger,
                   flex: 1,
-                  ...(clanktonWithdrawLoading || clanktonWithdrawConfirmText !== 'WITHDRAW CLANKTON' ? styles.btnDisabled : {}),
+                  ...(wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.btnDisabled : {}),
                 }}
               >
-                {clanktonWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
+                {wordTokenWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
               </button>
             </div>
           </div>
@@ -2444,7 +2444,7 @@ function getChainName(chainId: number): string {
   }
 }
 
-function formatClanktonBalance(balance: string): string {
+function formatTokenBalance(balance: string): string {
   const num = parseFloat(balance);
   if (isNaN(num) || num === 0) return '0';
 

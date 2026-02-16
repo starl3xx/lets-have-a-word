@@ -45,7 +45,7 @@ export const XP_EVENT_LABELS: Record<XpEventType, string> = {
   REFERRAL_FIRST_GUESS: 'Referred user makes first guess',
   STREAK_DAY: 'Consecutive day streak',
   NEAR_MISS: 'Near miss (tracked only)',
-  CLANKTON_BONUS_DAY: 'CLANKTON holder daily bonus',
+  CLANKTON_BONUS_DAY: '$WORD holder daily bonus', // DB event type must stay as CLANKTON_BONUS_DAY
   SHARE_CAST: 'Sharing to Farcaster/Base',
   PACK_PURCHASE: 'Buying a guess pack',
   OG_HUNTER_AWARD: 'OG Hunter badge',

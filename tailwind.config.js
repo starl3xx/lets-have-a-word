@@ -27,7 +27,7 @@ module.exports = {
           800: '#15346A',
           900: '#0D224B',
         },
-        // Accent purple (CLANKTON)
+        // Accent purple ($WORD)
         accent: {
           DEFAULT: '#7c3aed',
           50: '#f5f3ff',
@@ -36,7 +36,7 @@ module.exports = {
           300: '#c4b5fd',
           400: '#a78bfa',
           500: '#8b5cf6',
-          600: '#7c3aed', // CLANKTON purple
+          600: '#7c3aed', // $WORD purple
           700: '#6d28d9',
           800: '#5b21b6',
           900: '#4c1d95',

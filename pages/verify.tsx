@@ -392,7 +392,7 @@ export default function VerifyPage() {
                           {result.bonusWordsCommitHash}
                         </div>
                         <div className="text-xs text-cyan-600 mt-1">
-                          10 bonus words committed — 5M CLANKTON each
+                          10 bonus words committed — 5M $WORD each
                         </div>
                       </div>
                     )}
@@ -440,7 +440,7 @@ export default function VerifyPage() {
                           {result.bonusWordsCommitHash}
                         </div>
                         <div className="text-xs text-cyan-600 mt-1">
-                          10 bonus words committed — 5M CLANKTON each
+                          10 bonus words committed — 5M $WORD each
                         </div>
                       </div>
                     )}

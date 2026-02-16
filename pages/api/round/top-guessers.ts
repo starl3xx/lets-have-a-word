@@ -13,7 +13,7 @@ import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
-import { hasClanktonBonus } from '../../../src/lib/clankton';
+import { hasWordTokenBonus } from '../../../src/lib/word-token';
 
 export interface TopGuesser {
   fid: number;
@@ -21,7 +21,7 @@ export interface TopGuesser {
   guessCount: number;
   pfpUrl: string; // Farcaster profile picture URL
   hasOgHunterBadge: boolean;
-  hasClanktonBadge: boolean;
+  hasWordTokenBadge: boolean;
   hasBonusWordBadge: boolean;
   hasJackpotWinnerBadge: boolean;
   // New wordmarks
@@ -125,7 +125,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       guessCount: guessCounts[i],
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       hasOgHunterBadge: false, // Dev mode: no badges
-      hasClanktonBadge: false, // Dev mode: no badges
+      hasWordTokenBadge: false, // Dev mode: no badges
       hasBonusWordBadge: false, // Dev mode: no badges
       hasJackpotWinnerBadge: false, // Dev mode: no badges
       hasDoubleWBadge: false, // Dev mode: no badges
@@ -304,7 +304,7 @@ export default async function handler(
           }
         }
 
-        // OPTIMIZATION: Run CLANKTON checks and Neynar profile fetch in parallel
+        // OPTIMIZATION: Run $WORD checks and Neynar profile fetch in parallel
         // These are independent external calls that were running sequentially
         const allFids = topGuessersData.map((g) => g.fid);
         const validFids = allFids.filter(fid => fid > 0 && Number.isInteger(fid));
@@ -318,13 +318,13 @@ export default async function handler(
           .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
 
         // Run both external calls in parallel
-        const [clanktonResults, neynarResult] = await Promise.all([
-          // CLANKTON balance checks (RPC calls)
+        const [wordTokenResults, neynarResult] = await Promise.all([
+          // $WORD balance checks (RPC calls)
           walletsToCheck.length > 0
             ? Promise.allSettled(
                 walletsToCheck.map(async ({ fid, wallet }) => ({
                   fid,
-                  hasClankton: await hasClanktonBonus(wallet),
+                  hasWordToken: await hasWordTokenBonus(wallet),
                 }))
               )
             : Promise.resolve([]),
@@ -337,11 +337,11 @@ export default async function handler(
             : Promise.resolve({ users: [] }),
         ]);
 
-        // Process CLANKTON results
-        const clanktonHolders = new Set<number>();
-        for (const result of clanktonResults) {
-          if (result.status === 'fulfilled' && result.value.hasClankton) {
-            clanktonHolders.add(result.value.fid);
+        // Process $WORD results
+        const wordTokenHolders = new Set<number>();
+        for (const result of wordTokenResults) {
+          if (result.status === 'fulfilled' && result.value.hasWordToken) {
+            wordTokenHolders.add(result.value.fid);
           }
         }
 
@@ -369,7 +369,7 @@ export default async function handler(
             guessCount: Number(g.guessCount),
             pfpUrl: neynarProfile?.pfpUrl || `https://avatar.vercel.sh/${g.fid}`,
             hasOgHunterBadge: ogHunterFids.has(g.fid),
-            hasClanktonBadge: clanktonHolders.has(g.fid),
+            hasWordTokenBadge: wordTokenHolders.has(g.fid),
             hasBonusWordBadge: bonusWordFids.has(g.fid),
             hasJackpotWinnerBadge: jackpotWinnerFids.has(g.fid),
             hasDoubleWBadge: doubleWFids.has(g.fid),

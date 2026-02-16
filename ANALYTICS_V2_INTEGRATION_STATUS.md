@@ -6,7 +6,7 @@
 All API endpoints are built and ready:
 
 - ✅ `/api/admin/analytics/gameplay` - Gameplay insights, solve rates, word difficulty
-- ✅ `/api/admin/analytics/clankton` - CLANKTON holder analytics and comparisons
+- ✅ `/api/admin/analytics/clankton` - $WORD holder analytics and comparisons (legacy route name)
 - ✅ `/api/admin/analytics/economy` - Revenue, ARPU, jackpot health, pack metrics
 - ✅ `/api/admin/analytics/share-funnel` - Share conversion and referral velocity
 - ✅ `/api/admin/analytics/metrics` - Additional game metrics (Phase 4)
@@ -25,7 +25,7 @@ Core gameplay events are fully instrumented:
 #### ✅ Implemented
 - **GAME_SESSION_START** - Logged when daily state is created
   - Location: `src/lib/daily-limits.ts:136`
-  - Includes: CLANKTON status, free guess allocations
+  - Includes: $WORD status, free guess allocations
 
 - **GUESS_SUBMITTED** - Logged for every guess
   - Location: `src/lib/guesses.ts:246, 341`
@@ -158,22 +158,22 @@ The Analytics v2 API endpoints are ready, but the dashboard UI doesn't yet call 
    const gameplayResponse = await fetch(`/api/admin/analytics/gameplay${devFidParam}${rangeParam}`);
    const gameplayData = await gameplayResponse.json();
 
-   // Fetch CLANKTON analytics
-   const clanktonResponse = await fetch(`/api/admin/analytics/clankton${devFidParam}${rangeParam}`);
-   const clanktonData = await clanktonResponse.json();
+   // Fetch $WORD analytics (legacy route name)
+   const wordResponse = await fetch(`/api/admin/analytics/clankton${devFidParam}${rangeParam}`);
+   const wordData = await wordResponse.json();
 
    // etc.
    ```
 
 2. **Add new dashboard sections**:
    - Gameplay Insights section (median guesses, solve rate, word difficulty)
-   - CLANKTON Analytics section (user %, solve rate comparison)
+   - $WORD Analytics section (user %, solve rate comparison)
    - Enhanced Economy section (ARPU, pack attach rate, sustainability)
    - Share & Referral Funnel section (conversion rates, velocity)
 
 3. **Add new charts**:
    - Guess distribution histogram
-   - CLANKTON vs Regular comparison chart
+   - $WORD vs Regular comparison chart
    - Share funnel visualization
    - Pack sales trend chart
 
@@ -254,7 +254,7 @@ After a user plays one round, you should see:
 # Test gameplay insights
 curl "https://your-domain/api/admin/analytics/gameplay?devFid=6500&range=7d"
 
-# Test CLANKTON analytics
+# Test $WORD analytics (legacy route name)
 curl "https://your-domain/api/admin/analytics/clankton?devFid=6500&range=30d"
 
 # Test economy metrics
@@ -274,7 +274,7 @@ All endpoints should return 200 OK with JSON data (may be empty arrays if no eve
 - ✅ All 4 new API endpoints built and tested
 - ✅ Core gameplay events logging automatically
 - ✅ Letter match calculation for difficulty scoring
-- ✅ CLANKTON status tracking at session start
+- ✅ $WORD status tracking at session start
 - ✅ First guess detection and logging
 
 **What Needs Work:**
@@ -286,7 +286,7 @@ All endpoints should return 200 OK with JSON data (may be empty arrays if no eve
 **Data Quality:**
 The events currently being logged are sufficient to populate:
 - Gameplay insights (solve rates, guess distribution)
-- CLANKTON analytics (basic comparisons)
+- $WORD analytics (basic comparisons)
 - Session metrics (time to first guess, when we have timestamps)
 
 **Next Steps:**

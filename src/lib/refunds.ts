@@ -21,7 +21,7 @@ import {
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { acquireRefundLock, releaseRefundLock } from './operational';
 import { resolveWalletIdentity } from './wallet-identity';
-import { getBaseProvider } from './clankton';
+import { getBaseProvider } from './word-token';
 
 // ============================================================
 // Types

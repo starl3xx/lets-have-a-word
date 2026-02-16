@@ -266,10 +266,10 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.free')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.freeGuessesAllTime}</p>
                 </div>
-                <div className="bg-white rounded-lg p-3 text-center border border-gray-100" title="CLANKTON holder bonus + share bonus">
+                <div className="bg-white rounded-lg p-3 text-center border border-gray-100" title="$WORD holder bonus + share bonus">
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.bonus')}</p>
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.bonusGuessesAllTime}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">CLANKTON + share</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">$WORD + share</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
                   <p className="text-xs text-gray-600">{t('stats.guessBreakdown.paid')}</p>
@@ -389,7 +389,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 mt-2">
                 <li><strong>+2 XP</strong> — Each valid guess</li>
                 <li><strong>+10 XP</strong> — Daily participation (first guess)</li>
-                <li><strong>+10 XP</strong> — CLANKTON holder daily bonus</li>
+                <li><strong>+10 XP</strong> — $WORD holder daily bonus</li>
                 <li><strong>+15 XP</strong> — Consecutive day streak</li>
                 <li><strong>+15 XP</strong> — Sharing to Farcaster/Base</li>
                 <li><strong>+20 XP</strong> — Referred user makes first guess</li>

@@ -1,8 +1,8 @@
-# Milestone 6.2 - CLANKTON Market Cap Oracle Integration
+# Milestone 6.2 - $WORD Market Cap Oracle Integration
 
 ## Overview
 
-This milestone implements a live oracle for CLANKTON token market cap, replacing the environment variable configuration. The oracle feeds market cap data to the JackpotManager contract to enable automatic bonus tier adjustments.
+This milestone implements a live oracle for $WORD token market cap, replacing the environment variable configuration. The oracle feeds market cap data to the JackpotManager contract to enable automatic bonus tier adjustments.
 
 ## Implementation Status
 
@@ -12,7 +12,7 @@ This milestone implements a live oracle for CLANKTON token market cap, replacing
 | Upgrade Script | ✅ Complete |
 | Tests | ✅ Complete (40 passing) |
 | Backend Oracle Service | ✅ Complete |
-| Integration with clankton.ts | ✅ Complete |
+| Integration with word-token.ts | ✅ Complete |
 | Documentation | ✅ Complete |
 
 ## Contract Changes
@@ -20,7 +20,7 @@ This milestone implements a live oracle for CLANKTON token market cap, replacing
 ### New State Variables
 
 ```solidity
-/// @notice CLANKTON market cap in USD (8 decimals precision)
+/// @notice $WORD market cap in USD (8 decimals precision, contract variable name unchanged — deployed onchain)
 uint256 public clanktonMarketCapUsd;
 
 /// @notice Timestamp of last market cap update
@@ -41,8 +41,8 @@ uint256 public constant MARKET_CAP_STALENESS_THRESHOLD = 1 hours;
 
 ```solidity
 enum BonusTier {
-    LOW,  // 2 free guesses per day for CLANKTON holders
-    HIGH  // 3 free guesses per day for CLANKTON holders
+    LOW,  // 2 free guesses per day for $WORD holders
+    HIGH  // 3 free guesses per day for $WORD holders
 }
 ```
 
@@ -50,7 +50,7 @@ enum BonusTier {
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `updateClanktonMarketCap(uint256)` | Operator | Update market cap from oracle |
+| `updateClanktonMarketCap(uint256)` | Operator | Update $WORD market cap from oracle (contract function name unchanged — deployed onchain) |
 | `getCurrentBonusTier()` | View | Get current tier (LOW/HIGH) |
 | `getFreeGuessesForTier()` | View | Get free guesses count (2/3) |
 | `isMarketCapStale()` | View | Check if data is stale (>1 hour) |
@@ -64,18 +64,18 @@ event MarketCapUpdated(uint256 marketCapUsd, uint256 timestamp);
 
 ## Bonus Tier Logic
 
-| Market Cap | Tier | Free Guesses (CLANKTON holders) |
+| Market Cap | Tier | Free Guesses ($WORD holders) |
 |------------|------|--------------------------------|
 | < $250,000 | LOW | 2 per day |
 | >= $250,000 | HIGH | 3 per day |
 
 ## Backend Integration
 
-### Oracle Service (`src/lib/clankton-oracle.ts`)
+### Oracle Service (`src/lib/word-oracle.ts`)
 
 ```typescript
 // Fetch market cap from available sources (DexScreener, CoinGecko)
-const marketCap = await fetchClanktonMarketCap();
+const marketCap = await fetchWordMarketCap();
 
 // Push to contract
 await pushMarketCapToContract();
@@ -98,14 +98,14 @@ const guesses = await getFreeGuessesFromContract();
    - Rate limited on free tier
    - Requires token to be listed
 
-### CLANKTON Integration (`src/lib/clankton.ts`)
+### $WORD Integration (`src/lib/word-token.ts`)
 
 ```typescript
 // Get free guesses from contract (with env fallback)
-const guesses = await getClanktonFreeGuesses();
+const guesses = await getWordFreeGuesses();
 
 // Get bonus tier from contract (with env fallback)
-const tier = await getClanktonBonusTier();
+const tier = await getWordBonusTier();
 ```
 
 ## Upgrade Process
@@ -135,7 +135,7 @@ Update market cap every 15 minutes:
 
 ```typescript
 import cron from 'node-cron';
-import { runOracleUpdate } from './lib/clankton-oracle';
+import { runOracleUpdate } from './lib/word-oracle';
 
 // Every 15 minutes
 cron.schedule('*/15 * * * *', runOracleUpdate);
@@ -143,7 +143,7 @@ cron.schedule('*/15 * * * *', runOracleUpdate);
 
 Alternative using system cron:
 ```bash
-*/15 * * * * cd /app && node -e "require('./lib/clankton-oracle').runOracleUpdate()"
+*/15 * * * * cd /app && node -e "require('./lib/word-oracle').runOracleUpdate()"
 ```
 
 ## Test Results
@@ -183,8 +183,8 @@ JackpotManager
 | `contracts/src/JackpotManager.sol` | Added oracle state and functions |
 | `contracts/scripts/upgrade.ts` | New upgrade script |
 | `contracts/test/JackpotManager.test.ts` | Added 13 new tests |
-| `src/lib/clankton-oracle.ts` | New oracle service |
-| `src/lib/clankton.ts` | Added contract integration |
+| `src/lib/word-oracle.ts` | New oracle service |
+| `src/lib/word-token.ts` | Added contract integration |
 | `src/lib/jackpot-contract.ts` | Extended ABI |
 
 ## Environment Variables
@@ -194,12 +194,12 @@ No new environment variables required. The oracle fetches data from public APIs 
 Optional for fallback:
 ```bash
 # Fallback market cap if contract unavailable
-CLANKTON_MARKET_CAP_USD=150000
+WORD_MARKET_CAP_USD=150000
 ```
 
 ## References
 
-- CLANKTON Token: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
+- $WORD Token: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
 - JackpotManager Proxy: `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5`
 - DexScreener API: https://docs.dexscreener.com/
 - CoinGecko API: https://www.coingecko.com/api/documentation
@@ -207,4 +207,4 @@ CLANKTON_MARKET_CAP_USD=150000
 ---
 
 *Implemented: 2025-11-25*
-*Milestone: 6.2 - CLANKTON Market Cap Oracle Integration*
+*Milestone: 6.2 - $WORD Market Cap Oracle Integration*

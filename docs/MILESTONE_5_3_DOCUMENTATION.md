@@ -298,7 +298,7 @@ const results = await runFullSimulationSuite();
 - Median guesses to solve
 - Mean guesses to solve
 - Guess distribution histogram (buckets)
-- CLANKTON holder solve-rate advantage
+- $WORD holder solve-rate advantage
 - Referral-generated guesses
 - User quality metrics
 
@@ -316,15 +316,15 @@ const results = await runFullSimulationSuite();
 - JSON export
 - Supports: rounds, guesses, users, payouts, analytics_events
 
-### CLANKTON Holder Advantage
+### $WORD Holder Advantage
 ```typescript
-interface ClanktonAdvantage {
-  clanktonSolveRate: number;
+interface WordHolderAdvantage {
+  wordHolderSolveRate: number;
   regularSolveRate: number;
-  clanktonAvgGuesses: number;
+  wordHolderAvgGuesses: number;
   regularAvgGuesses: number;
   advantagePercentage: number;
-  clanktonWinRate: number;
+  wordHolderWinRate: number;
   regularWinRate: number;
 }
 ```
@@ -412,7 +412,7 @@ Run simulations.
 ```
 
 ### GET /api/admin/analytics/performance
-Returns performance metrics with CLANKTON advantage and referral metrics.
+Returns performance metrics with $WORD holder advantage and referral metrics.
 
 ### POST /api/admin/analytics/export
 Export data in CSV or JSON format.

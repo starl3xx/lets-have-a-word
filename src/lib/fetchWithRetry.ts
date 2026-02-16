@@ -203,12 +203,12 @@ export async function fetchUserState(fid: number): Promise<{
   freeGuessesRemaining: number;
   paidGuessesRemaining: number;
   totalGuessesRemaining: number;
-  clanktonBonusActive: boolean;
+  wordBonusActive: boolean;
   paidPacksPurchased: number;
   maxPaidPacksPerDay: number;
   canBuyMorePacks: boolean;
   hasSharedToday: boolean;
-  isClanktonHolder: boolean;
+  isWordHolder: boolean;
 }> {
   return fetchWithRetry(`/api/user-state?fid=${fid}`, {
     fallbackErrorCode: AppErrorCodes.USER_STATE_UNAVAILABLE,

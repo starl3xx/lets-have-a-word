@@ -14,7 +14,7 @@
  */
 
 import { ethers, Contract, Wallet } from 'ethers';
-import { getBaseProvider, getSepoliaProvider } from './clankton';
+import { getBaseProvider, getSepoliaProvider } from './word-token';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 
 /**
@@ -202,7 +202,7 @@ export function getJackpotManagerWithOperator(): Contract {
 /**
  * Get contract instance with owner signer for owner-only operations
  *
- * IMPORTANT: Only use for owner-only functions like emergencyWithdrawClankton
+ * IMPORTANT: Only use for owner-only functions like emergencyWithdrawClankton (legacy ABI name)
  * Requires DEPLOYER_PRIVATE_KEY environment variable
  */
 export function getJackpotManagerWithOwner(): Contract {
@@ -281,11 +281,13 @@ export async function getCurrentJackpotOnChainWei(): Promise<bigint> {
 }
 
 /**
- * Get total CLANKTON distributed from contract
+ * Get total $WORD tokens distributed from contract
  * Returns the raw bigint value (with 18 decimals)
  * To get human-readable value: divide by 10^18
+ *
+ * NOTE: Calls contract.totalClanktonDistributed() - deployed contract ABI name
  */
-export async function getTotalClanktonDistributed(): Promise<bigint> {
+export async function getTotalWordTokenDistributed(): Promise<bigint> {
   try {
     const contract = getJackpotManagerReadOnly();
     return await contract.totalClanktonDistributed();
@@ -1135,7 +1137,7 @@ export async function isBonusWordsEnabledOnChain(): Promise<boolean> {
 }
 
 /**
- * Get CLANKTON token balance available for bonus word rewards
+ * Get $WORD token balance available for bonus word rewards
  *
  * @returns Balance in wei (string formatted as ETH for display)
  */
@@ -1232,9 +1234,9 @@ export async function startRoundWithBothCommitmentsOnChain(
 }
 
 /**
- * Distribute CLANKTON reward to a bonus word finder
+ * Distribute $WORD token reward to a bonus word finder
  *
- * @param recipientAddress - Wallet address to receive CLANKTON
+ * @param recipientAddress - Wallet address to receive $WORD tokens
  * @param bonusWordIndex - Index of the bonus word (0-9)
  * @returns Transaction hash
  */
@@ -1306,23 +1308,25 @@ export async function isBonusWordClaimedOnChain(
 // =============================================================================
 
 /**
- * Emergency withdraw CLANKTON tokens from the contract
+ * Emergency withdraw $WORD tokens from the contract
  *
- * This is an owner-only function for recovering CLANKTON tokens,
+ * This is an owner-only function for recovering $WORD tokens,
  * useful for migrating to a new token or other emergencies.
+ *
+ * NOTE: Calls contract.emergencyWithdrawClankton() - deployed contract ABI name
  *
  * @param amountWei - Amount to withdraw in wei (18 decimals)
  * @param toAddress - Address to send tokens to
  * @returns Transaction hash
  */
-export async function emergencyWithdrawClanktonOnChain(
+export async function emergencyWithdrawWordTokenOnChain(
   amountWei: bigint,
   toAddress: string
 ): Promise<string> {
   const contract = getJackpotManagerWithOwner();
 
-  console.log(`[CONTRACT] Emergency withdrawing CLANKTON`);
-  console.log(`  - Amount: ${ethers.formatUnits(amountWei, 18)} CLANKTON`);
+  console.log(`[CONTRACT] Emergency withdrawing $WORD tokens`);
+  console.log(`  - Amount: ${ethers.formatUnits(amountWei, 18)} $WORD`);
   console.log(`  - To: ${toAddress}`);
 
   const tx = await contract.emergencyWithdrawClankton(amountWei, toAddress, {
@@ -1331,7 +1335,7 @@ export async function emergencyWithdrawClanktonOnChain(
   console.log(`[CONTRACT] Emergency withdraw transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
-  console.log(`[CONTRACT] CLANKTON withdrawn - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
+  console.log(`[CONTRACT] $WORD tokens withdrawn - Block: ${receipt.blockNumber}, Gas: ${receipt.gasUsed}`);
 
   return tx.hash;
 }
@@ -1369,11 +1373,11 @@ export async function setBonusWordsEnabledOnChain(enabled: boolean): Promise<str
 }
 
 /**
- * Get CLANKTON balance of the contract in wei
+ * Get $WORD token balance of the contract in wei
  *
  * @returns Balance in wei as bigint
  */
-export async function getClanktonBalanceWei(): Promise<bigint> {
+export async function getWordTokenBalanceWei(): Promise<bigint> {
   try {
     const contract = getJackpotManagerReadOnly();
     const balance = await contract.getBonusWordRewardsBalance();

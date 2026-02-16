@@ -53,7 +53,7 @@ You can earn additional free guesses each day:
 | Bonus Type | Guesses | How to Earn |
 |------------|---------|-------------|
 | Share Bonus | +1/day | Share your guess on Farcaster |
-| CLANKTON Bonus | +2–3/day | Hold 100M+ CLANKTON tokens |
+| $WORD Bonus | +2–3/day | Hold 100M+ $WORD tokens |
 
 ### Word Validation
 
@@ -162,11 +162,11 @@ The Top 10 pool is split using fixed percentages:
 
 ---
 
-## CLANKTON Bonus
+## $WORD Bonus
 
 ### What Is It?
 
-If you hold **100 million $CLANKTON** tokens in your connected wallet, you receive extra free guesses every day:
+If you hold **100 million $WORD** tokens in your connected wallet, you receive extra free guesses every day:
 
 | Market Cap | Bonus Guesses |
 |------------|---------------|
@@ -179,7 +179,7 @@ If you hold **100 million $CLANKTON** tokens in your connected wallet, you recei
 - Market cap is updated every 15 minutes via a live onchain oracle
 - If market cap crosses $250K mid-day, you get the upgrade immediately
 
-**Token:** [$CLANKTON on Base](https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07)
+**Token:** [$WORD on Base](https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07)
 
 ---
 
@@ -308,7 +308,7 @@ Yes. Every round uses cryptographic commit-reveal to ensure the word cannot be c
 ### How do I earn more guesses?
 
 1. **Share your guess** on Farcaster (+1 free guess per day)
-2. **Hold 100M CLANKTON** tokens (+2–3 guesses per day)
+2. **Hold 100M $WORD** tokens (+2–3 guesses per day)
 3. **Purchase guess packs** (3 guesses per pack, unlimited purchases)
 
 ### What if I don't win the jackpot?
@@ -342,7 +342,7 @@ All transactions are verifiable on [BaseScan](https://basescan.org/address/0xfcb
 - **Archive:** https://letshaveaword.fun/archive
 - **Verify:** https://letshaveaword.fun/verify
 - **Follow:** [@letshaveaword on Farcaster](https://warpcast.com/letshaveaword)
-- **CLANKTON:** [Token on Base](https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07)
+- **$WORD:** [Token on Base](https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07)
 
 ---
 

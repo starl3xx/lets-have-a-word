@@ -1,12 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
-import { runOracleUpdate, initializeOracle, getContractMarketCapInfo, formatMarketCap } from '../../../src/lib/clankton-oracle';
+import { runOracleUpdate, initializeOracle, getContractMarketCapInfo, formatMarketCap } from '../../../src/lib/word-oracle';
 
 /**
  * POST /api/cron/oracle-update
  * Milestone 9.1 - Vercel Cron Integration
  *
- * Updates CLANKTON market cap on the JackpotManager contract.
+ * Updates $WORD market cap on the JackpotManager contract.
  * Called every 15 minutes by Vercel Cron.
  *
  * Security:

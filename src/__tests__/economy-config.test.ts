@@ -1,60 +1,60 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CLANKTON_HOLDER_THRESHOLD,
-  CLANKTON_BONUS_MCAP_THRESHOLD_USD,
-  CLANKTON_BONUS_GUESSES_TIER_LOW,
-  CLANKTON_BONUS_GUESSES_TIER_HIGH,
-  getClanktonHolderBonusGuesses,
-  getClanktonBonusTierInfo,
+  WORD_HOLDER_THRESHOLD,
+  WORD_BONUS_MCAP_THRESHOLD_USD,
+  WORD_BONUS_GUESSES_TIER_LOW,
+  WORD_BONUS_GUESSES_TIER_HIGH,
+  getWordHolderBonusGuesses,
+  getWordBonusTierInfo,
   formatMarketCap,
 } from '../../config/economy';
 
 /**
  * Economy Config Tests
- * Milestone 5.4c: CLANKTON Bonus Market Cap Tiers
+ * Milestone 5.4c: $WORD Bonus Market Cap Tiers
  */
 
-describe('CLANKTON Bonus Market Cap Tiers - Milestone 5.4c', () => {
+describe('$WORD Bonus Market Cap Tiers - Milestone 5.4c', () => {
   describe('Constants', () => {
     it('should have correct holder threshold (100M)', () => {
-      expect(CLANKTON_HOLDER_THRESHOLD).toBe(100_000_000);
+      expect(WORD_HOLDER_THRESHOLD).toBe(100_000_000);
     });
 
     it('should have correct market cap threshold ($250k)', () => {
-      expect(CLANKTON_BONUS_MCAP_THRESHOLD_USD).toBe(250_000);
+      expect(WORD_BONUS_MCAP_THRESHOLD_USD).toBe(250_000);
     });
 
     it('should have correct tier bonuses (2 low, 3 high)', () => {
-      expect(CLANKTON_BONUS_GUESSES_TIER_LOW).toBe(2);
-      expect(CLANKTON_BONUS_GUESSES_TIER_HIGH).toBe(3);
+      expect(WORD_BONUS_GUESSES_TIER_LOW).toBe(2);
+      expect(WORD_BONUS_GUESSES_TIER_HIGH).toBe(3);
     });
   });
 
-  describe('getClanktonHolderBonusGuesses()', () => {
+  describe('getWordHolderBonusGuesses()', () => {
     it('should return TIER_LOW (2) when market cap is 0', () => {
-      expect(getClanktonHolderBonusGuesses(0)).toBe(2);
+      expect(getWordHolderBonusGuesses(0)).toBe(2);
     });
 
     it('should return TIER_LOW (2) when market cap is below threshold', () => {
-      expect(getClanktonHolderBonusGuesses(100_000)).toBe(2);
-      expect(getClanktonHolderBonusGuesses(200_000)).toBe(2);
-      expect(getClanktonHolderBonusGuesses(249_999)).toBe(2);
+      expect(getWordHolderBonusGuesses(100_000)).toBe(2);
+      expect(getWordHolderBonusGuesses(200_000)).toBe(2);
+      expect(getWordHolderBonusGuesses(249_999)).toBe(2);
     });
 
     it('should return TIER_HIGH (3) when market cap equals threshold', () => {
-      expect(getClanktonHolderBonusGuesses(250_000)).toBe(3);
+      expect(getWordHolderBonusGuesses(250_000)).toBe(3);
     });
 
     it('should return TIER_HIGH (3) when market cap is above threshold', () => {
-      expect(getClanktonHolderBonusGuesses(250_001)).toBe(3);
-      expect(getClanktonHolderBonusGuesses(500_000)).toBe(3);
-      expect(getClanktonHolderBonusGuesses(1_000_000)).toBe(3);
+      expect(getWordHolderBonusGuesses(250_001)).toBe(3);
+      expect(getWordHolderBonusGuesses(500_000)).toBe(3);
+      expect(getWordHolderBonusGuesses(1_000_000)).toBe(3);
     });
   });
 
-  describe('getClanktonBonusTierInfo()', () => {
+  describe('getWordBonusTierInfo()', () => {
     it('should return correct info for low tier (below threshold)', () => {
-      const info = getClanktonBonusTierInfo(100_000);
+      const info = getWordBonusTierInfo(100_000);
 
       expect(info.bonusGuesses).toBe(2);
       expect(info.tier).toBe('low');
@@ -64,7 +64,7 @@ describe('CLANKTON Bonus Market Cap Tiers - Milestone 5.4c', () => {
     });
 
     it('should return correct info for high tier (at threshold)', () => {
-      const info = getClanktonBonusTierInfo(250_000);
+      const info = getWordBonusTierInfo(250_000);
 
       expect(info.bonusGuesses).toBe(3);
       expect(info.tier).toBe('high');
@@ -74,7 +74,7 @@ describe('CLANKTON Bonus Market Cap Tiers - Milestone 5.4c', () => {
     });
 
     it('should return correct info for high tier (above threshold)', () => {
-      const info = getClanktonBonusTierInfo(500_000);
+      const info = getWordBonusTierInfo(500_000);
 
       expect(info.bonusGuesses).toBe(3);
       expect(info.tier).toBe('high');
@@ -110,10 +110,10 @@ describe('CLANKTON Bonus Market Cap Tiers - Milestone 5.4c', () => {
       // Import dynamically to test the integration
       const { DAILY_LIMITS_RULES } = await import('../lib/daily-limits');
 
-      // The clanktonBonusGuesses should match the helper function result
-      // for the current CLANKTON_MARKET_CAP_USD env value
-      const expectedBonus = getClanktonHolderBonusGuesses();
-      expect(DAILY_LIMITS_RULES.clanktonBonusGuesses).toBe(expectedBonus);
+      // The wordBonusGuesses should match the helper function result
+      // for the current WORD_MARKET_CAP_USD env value
+      const expectedBonus = getWordHolderBonusGuesses();
+      expect(DAILY_LIMITS_RULES.wordBonusGuesses).toBe(expectedBonus);
     });
   });
 });

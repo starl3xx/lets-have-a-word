@@ -5,7 +5,7 @@
 
 import { db, roundBonusWords, users, rounds, userBadges } from '../db';
 import { eq, and, isNotNull, isNull, desc, inArray } from 'drizzle-orm';
-import { hasClanktonBonus } from './clankton';
+import { hasWordTokenBonus } from './word-token';
 import { getPlaintextAnswer } from './encryption';
 
 /**
@@ -172,9 +172,9 @@ export interface BonusWordWinner {
   wordIndex: number;
   claimedAt: string;
   txHash: string | null;
-  clanktonAmount: string; // "5000000" (5M CLANKTON)
+  tokenRewardAmount: string; // "5000000" (5M $WORD)
   hasOgHunterBadge?: boolean;
-  hasClanktonBadge?: boolean;
+  hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
 }
 
@@ -214,8 +214,8 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
     }
   }
 
-  // Get CLANKTON holder status via wallet balances (same as top-guessers)
-  const clanktonHolderMap = new Map<number, boolean>();
+  // Get $WORD token holder status via wallet balances (same as top-guessers)
+  const wordTokenHolderMap = new Map<number, boolean>();
   try {
     // Get user wallets
     const userRecords = winnerFids.length > 0
@@ -231,21 +231,21 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
 
     if (walletsToCheck.length > 0) {
       // Check all wallets in parallel with individual error handling
-      const clanktonResults = await Promise.allSettled(
+      const tokenResults = await Promise.allSettled(
         walletsToCheck.map(async ({ fid, wallet }) => ({
           fid,
-          hasClankton: await hasClanktonBonus(wallet),
+          hasWordToken: await hasWordTokenBonus(wallet),
         }))
       );
-      for (const result of clanktonResults) {
-        if (result.status === 'fulfilled' && result.value.hasClankton) {
-          clanktonHolderMap.set(result.value.fid, true);
+      for (const result of tokenResults) {
+        if (result.status === 'fulfilled' && result.value.hasWordToken) {
+          wordTokenHolderMap.set(result.value.fid, true);
         }
       }
     }
   } catch (error) {
-    console.warn('[bonus-words] Error checking CLANKTON balances:', error);
-    // Continue without CLANKTON badges on error
+    console.warn('[bonus-words] Error checking $WORD token balances:', error);
+    // Continue without $WORD badges on error
   }
 
   return status.claimedWords.map(cw => {
@@ -258,9 +258,9 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
       wordIndex: cw.wordIndex,
       claimedAt: cw.claimedAt,
       txHash: cw.txHash,
-      clanktonAmount: '5000000', // 5M CLANKTON per bonus word
+      tokenRewardAmount: '5000000', // 5M $WORD per bonus word
       hasOgHunterBadge: badges?.hasOgHunter || false,
-      hasClanktonBadge: clanktonHolderMap.get(cw.claimedBy.fid) || false,
+      hasWordTokenBadge: wordTokenHolderMap.get(cw.claimedBy.fid) || false,
       hasBonusWordBadge: badges?.hasBonusWord || false,
     };
   });

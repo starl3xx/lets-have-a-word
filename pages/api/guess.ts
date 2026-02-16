@@ -66,7 +66,7 @@ const quickAuthClient = createQuickAuthClient();
  *
  * Dev Mode Behavior (Milestone 6.5.1):
  *   - Uses the same daily limits logic as production
- *   - Guesses consume from the same sources (free, CLANKTON, share, paid)
+ *   - Guesses consume from the same sources (free, $WORD, share, paid)
  *   - Share bonus only awarded after actual share via modal
  *   - Pack purchases work the same as production
  *   - Only difference: round uses a fixed solution (LHAW_DEV_FIXED_SOLUTION env var)

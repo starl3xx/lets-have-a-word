@@ -46,7 +46,7 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       expect(state.fid).toBe(testFid);
       expect(state.date).toBe(testDate);
       expect(state.freeAllocatedBase).toBe(DAILY_LIMITS_RULES.freeGuessesPerDayBase);
-      expect(state.freeAllocatedClankton).toBe(0); // Stub returns false
+      expect(state.freeAllocatedClankton).toBe(0); // legacy column name — Stub returns false
       expect(state.freeAllocatedShareBonus).toBe(0);
       expect(state.freeUsed).toBe(0);
       expect(state.paidGuessCredits).toBe(0);
@@ -65,7 +65,7 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
     it('should calculate free guesses remaining correctly', async () => {
       const state = await getOrCreateDailyState(testFid, testDate);
 
-      // Initially: 1 base + 0 CLANKTON + 0 share = 1 total
+      // Initially: 1 base + 0 $WORD + 0 share = 1 total
       expect(getFreeGuessesRemaining(state)).toBe(1);
 
       // After using 1
@@ -463,22 +463,22 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
   });
 
   /**
-   * CLANKTON Tier Upgrade Tests
+   * $WORD Tier Upgrade Tests
    * Milestone 5.4c: Market cap tier upgrade mid-day
    *
-   * These tests verify that CLANKTON holders get upgraded from 2→3 free guesses
+   * These tests verify that $WORD holders get upgraded from 2→3 free guesses
    * when the market cap crosses $250K during the day.
    */
-  describe('CLANKTON Tier Upgrade Mid-Day', () => {
+  describe('$WORD Tier Upgrade Mid-Day', () => {
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    it('should upgrade CLANKTON holder from 2 to 3 guesses when tier increases mid-day', async () => {
+    it('should upgrade $WORD holder from 2 to 3 guesses when tier increases mid-day', async () => {
       // Simulate LOW tier (mcap < $250K) - holder gets 2 bonus guesses
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
 
-      // Create a daily state with CLANKTON bonus at LOW tier
+      // Create a daily state with $WORD bonus at LOW tier
       // We'll manually insert a row to simulate an existing holder
       const [initialState] = await db
         .insert(dailyGuessState)
@@ -486,7 +486,7 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
           fid: testFid,
           date: testDate,
           freeAllocatedBase: 1,
-          freeAllocatedClankton: 2, // LOW tier
+          freeAllocatedClankton: 2, // legacy column name — LOW tier
           freeAllocatedShareBonus: 0,
           freeUsed: 0,
           paidGuessCredits: 0,
@@ -495,31 +495,31 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
         })
         .returning();
 
-      expect(initialState.freeAllocatedClankton).toBe(2);
-      expect(getFreeGuessesRemaining(initialState)).toBe(3); // 1 base + 2 CLANKTON
+      expect(initialState.freeAllocatedClankton).toBe(2); // legacy column name
+      expect(getFreeGuessesRemaining(initialState)).toBe(3); // 1 base + 2 $WORD
 
       // Now simulate market cap crossing $250K (HIGH tier)
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
 
       // User opens app again - should get upgraded
       const upgradedState = await getOrCreateDailyState(testFid, testDate);
 
-      expect(upgradedState.freeAllocatedClankton).toBe(3); // Upgraded!
-      expect(getFreeGuessesRemaining(upgradedState)).toBe(4); // 1 base + 3 CLANKTON
+      expect(upgradedState.freeAllocatedClankton).toBe(3); // legacy column name — Upgraded!
+      expect(getFreeGuessesRemaining(upgradedState)).toBe(4); // 1 base + 3 $WORD
     });
 
-    it('should NOT downgrade CLANKTON holder if market cap drops below threshold', async () => {
+    it('should NOT downgrade $WORD holder if market cap drops below threshold', async () => {
       // Start with HIGH tier (mcap >= $250K)
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
 
-      // Create a daily state with CLANKTON bonus at HIGH tier
+      // Create a daily state with $WORD bonus at HIGH tier
       const [initialState] = await db
         .insert(dailyGuessState)
         .values({
           fid: testFid,
           date: testDate,
           freeAllocatedBase: 1,
-          freeAllocatedClankton: 3, // HIGH tier
+          freeAllocatedClankton: 3, // legacy column name — HIGH tier
           freeAllocatedShareBonus: 0,
           freeUsed: 0,
           paidGuessCredits: 0,
@@ -528,21 +528,21 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
         })
         .returning();
 
-      expect(initialState.freeAllocatedClankton).toBe(3);
+      expect(initialState.freeAllocatedClankton).toBe(3); // legacy column name
 
       // Simulate market cap dropping below $250K (LOW tier)
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
 
       // User opens app again - should NOT be downgraded
       const state = await getOrCreateDailyState(testFid, testDate);
 
-      expect(state.freeAllocatedClankton).toBe(3); // Still 3, not downgraded
-      expect(getFreeGuessesRemaining(state)).toBe(4); // 1 base + 3 CLANKTON
+      expect(state.freeAllocatedClankton).toBe(3); // legacy column name — Still 3, not downgraded
+      expect(getFreeGuessesRemaining(state)).toBe(4); // 1 base + 3 $WORD
     });
 
-    it('should not affect non-CLANKTON holders when tier changes', async () => {
+    it('should not affect non-$WORD holders when tier changes', async () => {
       // Simulate LOW tier
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
 
       // Create a daily state for non-holder
       const [initialState] = await db
@@ -551,7 +551,7 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
           fid: testFid,
           date: testDate,
           freeAllocatedBase: 1,
-          freeAllocatedClankton: 0, // NOT a holder
+          freeAllocatedClankton: 0, // legacy column name — NOT a holder
           freeAllocatedShareBonus: 0,
           freeUsed: 0,
           paidGuessCredits: 0,
@@ -560,30 +560,30 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
         })
         .returning();
 
-      expect(initialState.freeAllocatedClankton).toBe(0);
+      expect(initialState.freeAllocatedClankton).toBe(0); // legacy column name
 
       // Simulate market cap crossing $250K (HIGH tier)
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
 
       // User opens app again - should NOT get any bonus (not a holder)
       const state = await getOrCreateDailyState(testFid, testDate);
 
-      expect(state.freeAllocatedClankton).toBe(0); // Still 0
+      expect(state.freeAllocatedClankton).toBe(0); // legacy column name — Still 0
       expect(getFreeGuessesRemaining(state)).toBe(1); // Just 1 base
     });
 
     it('should upgrade holder who already used some guesses', async () => {
       // Simulate LOW tier initially
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(2);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
 
-      // Create a daily state with CLANKTON bonus, some guesses used
+      // Create a daily state with $WORD bonus, some guesses used
       const [initialState] = await db
         .insert(dailyGuessState)
         .values({
           fid: testFid,
           date: testDate,
           freeAllocatedBase: 1,
-          freeAllocatedClankton: 2, // LOW tier
+          freeAllocatedClankton: 2, // legacy column name — LOW tier
           freeAllocatedShareBonus: 0,
           freeUsed: 2, // Used 2 guesses already
           paidGuessCredits: 0,
@@ -592,17 +592,17 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
         })
         .returning();
 
-      // Originally had 3 total (1 base + 2 CLANKTON), used 2, so 1 remaining
+      // Originally had 3 total (1 base + 2 $WORD), used 2, so 1 remaining
       expect(getFreeGuessesRemaining(initialState)).toBe(1);
 
       // Simulate market cap crossing $250K (HIGH tier)
-      vi.spyOn(economyConfig, 'getClanktonHolderBonusGuesses').mockReturnValue(3);
+      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
 
       // User opens app again - should get upgraded
       const upgradedState = await getOrCreateDailyState(testFid, testDate);
 
-      expect(upgradedState.freeAllocatedClankton).toBe(3); // Upgraded!
-      // Now has 4 total (1 base + 3 CLANKTON), used 2, so 2 remaining
+      expect(upgradedState.freeAllocatedClankton).toBe(3); // legacy column name — Upgraded!
+      // Now has 4 total (1 base + 3 $WORD), used 2, so 2 remaining
       expect(getFreeGuessesRemaining(upgradedState)).toBe(2);
     });
   });

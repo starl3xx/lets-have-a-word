@@ -25,7 +25,7 @@ export interface UserStatsResponse {
   referralEthWon: string;
   // Milestone 6.3: New stats
   freeGuessesAllTime: number;
-  bonusGuessesAllTime: number; // CLANKTON + share bonus
+  bonusGuessesAllTime: number; // $WORD + share bonus
   guessesPerRoundHistogram: { round: number; guesses: number }[];
   medianGuessesToSolve: number | null;
   referralsGeneratedThisRound: number;

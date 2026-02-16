@@ -43,9 +43,9 @@ async function main() {
   await tx1.wait();
   console.log("Owner is now operator");
 
-  // Step 2: Push market cap
-  console.log("\nStep 2: Pushing market cap...");
-  const tx2 = await JackpotManager.updateClanktonMarketCap(marketCapScaled);
+  // Step 2: Push $WORD market cap
+  console.log("\nStep 2: Pushing $WORD market cap...");
+  const tx2 = await JackpotManager.updateClanktonMarketCap(marketCapScaled); // onchain ABI name
   console.log(`Transaction hash: ${tx2.hash}`);
   const receipt = await tx2.wait();
   console.log(`Confirmed in block: ${receipt?.blockNumber}`);

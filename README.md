@@ -15,6 +15,13 @@
 
 ## Changelog
 
+### 2026-02-06 (after Round 13)
+
+- **Round 13 Recovery**: Built `recover-stuck-round` admin endpoint to fix "zombie rounds" where Phase 1 (DB winner lock) succeeded but Phase 2 (onchain resolution + payouts) failed. Bypasses `getActiveRound()` filter that can't find zombie rounds. Auto-enables dead day after recovery.
+- **Guess Submission Resilience**: Added `fetchWithRetry` to client-side guess submission with 12-second timeout and 1 automatic retry on timeout/network failure. Prevents indefinite "SUBMITTING..." hang that caused a player to lose a correct guess in Round 13.
+- **Zombie Round Alerting**: Added Sentry `fatal` alert when Phase 2 (onchain payout) fails after Phase 1 (DB winner lock) succeeds. Also added zombie round detection to the cron health check (runs every 30 minutes) so stuck rounds are caught even if the initial alert is lost.
+- **Notification Open Tracking**: Added Neynar notification open tracking proxy endpoint and client-side UTM detection for developer portal analytics.
+
 ### 2026-01-14 (after Round 7)
 
 - **Word List Expansion**: Added 83 new words to CORE_COMMON, bringing total to 4,438 curated words
@@ -37,7 +44,7 @@
 
 ## 🎯 Current Status: Milestone 13 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, CLANKTON oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, OG Hunter prelaunch campaign, **and secure Quick Auth authentication to prevent FID spoofing** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, $WORD oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, OG Hunter prelaunch campaign, **and secure Quick Auth authentication to prevent FID spoofing** are fully implemented and production-ready:
 
 ### ✅ Milestone 13 - Security: Quick Auth Authentication (Latest)
 
@@ -136,7 +143,7 @@ Production-hardened game operations with onchain pack purchases, comprehensive e
   - Searches for cast mentioning `letshaveaword.fun` in last 10 minutes
   - Prevents gaming by opening composer without posting
 
-- **CLANKTON Mid-Day Tier Upgrade** (`src/lib/clankton.ts`, `src/lib/daily-limits.ts`)
+- **$WORD Mid-Day Tier Upgrade** (`src/lib/word-token.ts`, `src/lib/daily-limits.ts`)
   - When market cap crosses $250K, holders get +1 guess (2→3)
   - Upgrade detected and applied mid-day, not just at daily reset
   - Market cap fetched from DexScreener with CoinGecko fallback
@@ -178,8 +185,8 @@ Production-hardened game operations with onchain pack purchases, comprehensive e
   - Graceful fallbacks when contract state mismatches detected
 
 - **Bonus Guesses Tracking** (`src/lib/daily-limits.ts`)
-  - Per-source tracking: base, CLANKTON, share, paid
-  - Consumption order: free → CLANKTON → share → paid
+  - Per-source tracking: base, $WORD, share, paid
+  - Consumption order: free → $WORD → share → paid
   - `GuessSourceState` interface for detailed breakdown
   - API returns `sourceState` with remaining by source
 
@@ -456,7 +463,7 @@ Introduced a comprehensive XP tracking system with event-sourced backend and Tot
   - `TOP_TEN_GUESSER` (+50 XP) — Top 10 placement at round resolution
   - `REFERRAL_FIRST_GUESS` (+20 XP) — Referred user makes first guess
   - `STREAK_DAY` (+15 XP) — Consecutive day playing
-  - `CLANKTON_BONUS_DAY` (+10 XP) — CLANKTON holder daily bonus
+  - `CLANKTON_BONUS_DAY` (+10 XP) — $WORD holder daily bonus (event type stored in DB, do not rename)
   - `SHARE_CAST` (+15 XP) — Sharing to Farcaster
   - `PACK_PURCHASE` (+20 XP) — Buying a guess pack
   - `NEAR_MISS` (0 XP) — Tracked for future use
@@ -531,8 +538,8 @@ Added a client-side persona switcher for QA testing different user states withou
   - New Non-Holder (1 free guess, share available)
   - Engaged Non-Holder (share bonus available, no guesses)
   - Non-Holder Out of Guesses (share used, no guesses)
-  - CLANKTON Holder Low Tier (+2 bonus guesses)
-  - CLANKTON Holder High Tier (+3 bonus guesses)
+  - $WORD Holder Low Tier (+2 bonus guesses)
+  - $WORD Holder High Tier (+3 bonus guesses)
   - Maxed-Out Buyer (max packs, share used, no guesses)
 - **Reset Button**: Clear overrides and return to real API state
 - **Environment**: Only visible when `NEXT_PUBLIC_LHAW_DEV_MODE=true`
@@ -694,7 +701,7 @@ Comprehensive UX and growth mechanics for pre-production readiness:
 
 - **Share Card Polish**
   - Brand color palette (purple gradient)
-  - CLANKTON mascot for token holders
+  - $WORD mascot for token holders
   - Jackpot amount display
   - Round number badge
   - Text anti-aliasing
@@ -733,7 +740,7 @@ Comprehensive round archive system for storing and browsing historical round dat
 
 - **Database Schema**
   - New `round_archive` table for archived round data
-  - Fields: roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount, referralBonusCount
+  - Fields: roundNumber, targetWord, seedEth, finalJackpotEth, totalGuesses, uniquePlayers, winnerFid, winnerCastHash, winnerGuessNumber, startTime, endTime, referrerFid, payoutsJson, salt, clanktonBonusCount (legacy column name), referralBonusCount
   - Index on `round_number` for fast lookups
   - New `round_archive_errors` table for tracking archive anomalies
   - Migration: `drizzle/0002_round_archive.sql`
@@ -741,7 +748,7 @@ Comprehensive round archive system for storing and browsing historical round dat
 - **Backend Logic**
   - `archiveRound()` function computes and stores round statistics
   - Idempotent - safe to call multiple times
-  - Computes: totalGuesses, uniquePlayers, CLANKTON bonus count, referral signups
+  - Computes: totalGuesses, uniquePlayers, $WORD bonus count, referral signups
   - Attaches payout JSON with winner, referrer, top guessers, seed, creator
   - Module: `src/lib/archive.ts`
 
@@ -809,7 +816,7 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
 - **Enhanced Analytics Dashboard**
   - Fairness & Integrity section with alert monitoring
   - User Quality Gating metrics (eligible/blocked users)
-  - CLANKTON holder solve-rate advantage analysis
+  - $WORD holder solve-rate advantage analysis
   - Referral performance tracking (guesses, wins, payouts)
   - Guess distribution histogram
   - Simulation controls and results viewer
@@ -824,7 +831,7 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
 - **New API Endpoints**
   - `GET/POST /api/admin/analytics/fairness` - Fairness dashboard and audits
   - `POST /api/admin/analytics/simulations` - Run adversarial simulations
-  - `GET /api/admin/analytics/performance` - CLANKTON advantage & referral metrics
+  - `GET /api/admin/analytics/performance` - $WORD advantage & referral metrics
   - `POST /api/admin/analytics/export` - CSV/JSON data export
 
 - **Database Schema Updates**
@@ -1260,7 +1267,7 @@ Comprehensive input state machine for consistent visual feedback and error handl
   - Consistent spacing and padding throughout interface
   - Rounded background blocker behind input boxes
   - Sentence case headers in Stats and Referral sheets
-  - Purple color for CLANKTON and ETH earned (brand consistency)
+  - Purple color for $WORD and ETH earned (brand consistency)
   - Improved keyboard interaction and backspace behavior
 
 - **Integration**
@@ -1395,7 +1402,7 @@ Comprehensive user experience improvements:
 - **FAQ Sheet**
   - Accordion-style comprehensive FAQ
   - 12 questions covering all game mechanics
-  - Topics: free guesses, paid guesses, CLANKTON, sharing, jackpot, fairness, referrals, XP
+  - Topics: free guesses, paid guesses, $WORD, sharing, jackpot, fairness, referrals, XP
   - Collapsible answers for easy scanning
 
 - **XP Sheet Placeholder**
@@ -1445,17 +1452,17 @@ Social engagement rewards:
   - `freeAllocatedShareBonus` tracks bonus allocation
   - Resets daily at 11:00 UTC
 
-### ✅ Milestone 4.1 - CLANKTON Integration
+### ✅ Milestone 4.1 - $WORD Integration
 
 Onchain token bonus system:
 
 - **Real Balance Checking**
-  - Queries CLANKTON balance on Base network
+  - Queries $WORD balance on Base network
   - Uses ethers.js and Base RPC
   - Checks user's Farcaster signer wallet
 
 - **Bonus System (Milestone 5.4c: Market Cap Tiers)**
-  - Holding ≥ 100M CLANKTON → +2-3 free guesses per day (tiered by market cap)
+  - Holding ≥ 100M $WORD → +2-3 free guesses per day (tiered by market cap)
     - +2 guesses/day when market cap < $250k
     - +3 guesses/day when market cap >= $250k
   - Verified onchain at daily reset
@@ -1469,7 +1476,7 @@ Onchain token bonus system:
 
 - **User State UI**
   - Live display of remaining guesses (free + paid)
-  - CLANKTON bonus status indicator
+  - $WORD bonus status indicator
   - Daily allocation breakdown
   - Buy more guesses button
   - Real-time updates after each guess
@@ -1555,7 +1562,7 @@ Complete daily guess allocation system:
 
 - **Free Guesses**
   - 1 base free guess per day
-  - +2-3 for CLANKTON holders (≥100M tokens, tiered by market cap)
+  - +2-3 for $WORD holders (≥100M tokens, tiered by market cap)
   - +1 for sharing to Farcaster
 
 - **Paid Guesses**
@@ -1696,7 +1703,7 @@ cp .env.example .env
 # Edit .env and configure:
 # - DATABASE_URL (PostgreSQL connection string)
 # - NEYNAR_API_KEY (optional, for Farcaster auth)
-# - BASE_RPC_URL (optional, for CLANKTON balance checking)
+# - BASE_RPC_URL (optional, for $WORD balance checking)
 # Note: ETH_USD_RATE env var is deprecated as of Milestone 4.12 (uses CoinGecko API)
 ```
 
@@ -2066,7 +2073,7 @@ All analytics logging is:
 
 - `GET /api/user-state` - Get user's daily guess allocations (Milestone 4.1)
   - Requires: `devFid` or `frameMessage` param
-  - Returns: `{ fid, freeGuessesRemaining, paidGuessesRemaining, totalGuessesRemaining, clanktonBonusActive, freeAllocations, paidPacksPurchased, maxPaidPacksPerDay, canBuyMorePacks }`
+  - Returns: `{ fid, freeGuessesRemaining, paidGuessesRemaining, totalGuessesRemaining, wordBonusActive, freeAllocations, paidPacksPurchased, maxPaidPacksPerDay, canBuyMorePacks }`
 
 - `POST /api/share-callback` - Award share bonus (Milestone 4.2)
   - Requires: `{ fid, castHash }`
@@ -2161,7 +2168,7 @@ This creates a global, real-time elimination board shared by every player. As mo
 
 **Free Guesses (per day)**
 - 1 base free guess
-- +2-3 for CLANKTON holders (≥100M tokens, tiered by market cap)
+- +2-3 for $WORD holders (≥100M tokens, tiered by market cap)
 - +1 for sharing to Farcaster
 
 **Paid Guesses (per day)**
@@ -2179,7 +2186,7 @@ Users can earn **1 extra free guess per day** by sharing their previous guess to
 - Share bonus can only be earned once per day.
 - Maximum free guesses per day:
   - 1 (base)
-  - +2-3 if holding ≥100M CLANKTON (tiered by market cap)
+  - +2-3 if holding ≥100M $WORD (tiered by market cap)
   - +1 share bonus
 
 ### Daily Guess Flow Modal Logic
@@ -2330,19 +2337,19 @@ curl -X POST /api/admin/analytics/simulations \
   -d '{"type": "full_suite"}'
 ```
 
-### CLANKTON Bonus (Milestone 4.1)
+### $WORD Bonus (Milestone 4.1)
 
-Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra free guesses per day**.
+Holding **≥ 100,000,000 $WORD** in your **signer wallet** grants **3 extra free guesses per day**.
 
 - **Onchain Verification**: Balance checked using `balanceOf` on Base network
-- **CLANKTON Contract**: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07` (Base)
+- **$WORD Contract**: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07` (Base)
 - **Signer Wallet Only**: v1 checks only the Farcaster signer wallet
 - **Future**: Multi-wallet support planned for later milestone
 
 **How it works:**
 1. User opens mini app → Wallet auto-connects via Farcaster SDK
 2. Frontend gets wallet address using Wagmi
-3. Backend queries CLANKTON balance onchain (live check)
+3. Backend queries $WORD balance onchain (live check)
 4. If balance ≥ 100M tokens → +3 free guesses per day
 5. Bonus recalculated at daily reset (11:00 UTC)
 
@@ -2350,7 +2357,7 @@ Holding **≥ 100,000,000 CLANKTON** in your **signer wallet** grants **3 extra 
 - Uses Wagmi with Farcaster miniapp connector
 - Automatically connects to user's wallet via Farcaster SDK
 - If no connected wallet, falls back to Farcaster verified addresses
-- Live CLANKTON balance check from connected wallet
+- Live $WORD balance check from connected wallet
 
 **Configuration:**
 - Set `BASE_RPC_URL` in `.env` for custom RPC endpoint
@@ -2504,7 +2511,7 @@ Let's Have A Word uses Farcaster mini-app haptics to make the game feel more tac
 
 **Content Sections**
 1. **How It Works** - Global word, wheel, jackpot
-2. **Your Guesses** - Free, CLANKTON, share, paid
+2. **Your Guesses** - Free, $WORD, share, paid
 3. **The Jackpot** - Prize distribution (winner, referrer, Top-10)
 4. **Provably Fair** - Commit-reveal explanation
 
@@ -2545,7 +2552,7 @@ Referral data:
 Topics covered:
 - How the game works
 - Free vs paid guesses
-- CLANKTON bonus
+- $WORD bonus
 - Share bonus
 - Jackpot mechanics
 - Provably fair system
@@ -2609,7 +2616,7 @@ src/
 │   ├── daily-limits.ts    # Daily guess limits
 │   ├── wheel.ts           # Wheel + ticker data
 │   ├── economics.ts       # Jackpot + payouts
-│   ├── clankton.ts        # CLANKTON bonus checking
+│   ├── word-token.ts      # $WORD bonus checking
 │   ├── prices.ts          # ETH/USD price fetching (Milestone 4.12)
 │   ├── announcer.ts       # Farcaster announcer bot (Milestone 5.1)
 │   ├── analytics.ts       # Analytics event logging (Milestone 5.2)
@@ -2660,7 +2667,7 @@ pages/
 │           ├── referral.ts    # Referral funnel
 │           ├── fairness.ts    # Fairness audits (Milestone 5.3)
 │           ├── simulations.ts # Run simulations (Milestone 5.3)
-│           ├── performance.ts # CLANKTON advantage (Milestone 5.3)
+│           ├── performance.ts # $WORD advantage (Milestone 5.3)
 │           └── export.ts      # Data export (Milestone 5.3)
 ├── admin/
 │   └── analytics.tsx      # Admin dashboard (Milestone 5.2/5.3)
@@ -2670,7 +2677,7 @@ pages/
 components/
 ├── Wheel.tsx              # Spinning word wheel
 ├── TopTicker.tsx          # Live status ticker
-├── UserState.tsx          # User guess allocations & CLANKTON bonus
+├── UserState.tsx          # User guess allocations & $WORD bonus
 ├── SharePromptModal.tsx   # Share-to-earn modal (Milestone 4.2)
 ├── LetterBoxes.tsx        # 5-letter input boxes (Milestone 4.3)
 ├── FirstTimeOverlay.tsx   # Tutorial for new users (Milestone 4.3)
@@ -2758,10 +2765,10 @@ await resolveRound(roundId, winnerFid, referrerFid);
   - `resolveRoundWithPayouts()` - Atomic multi-recipient payout (winner + referrer + Top-10)
   - `purchaseGuesses()` - 80/20 split (jackpot/seed+creator)
   - `seedJackpot()` - Operator seeding for new rounds
-- **Features**: Jackpot management, guess purchase, onchain prize distribution, CLANKTON oracle
+- **Features**: Jackpot management, guess purchase, onchain prize distribution, $WORD oracle
 - **Events**: `RoundResolvedWithPayouts`, `PayoutSent`, `GuessesPurchased`, `RoundStarted`
 
-### CLANKTON Oracle
+### $WORD Oracle
 - Market cap oracle for dynamic bonus tiers
 - Threshold: $250,000 USD for tier upgrade
 - Bonus tiers: LOW (+2 guesses), HIGH (+3 guesses)
@@ -2772,7 +2779,7 @@ await resolveRound(roundId, winnerFid, referrerFid);
 
 Each player's daily allocation:
 1. **Base**: 1 free guess per day
-2. **CLANKTON Bonus**: +2 or +3 guesses if holding 100M+ tokens
+2. **$WORD Bonus**: +2 or +3 guesses if holding 100M+ tokens
    - Market cap < $250k: +2 guesses/day
    - Market cap >= $250k: +3 guesses/day
 3. **Share Bonus**: +1 guess for sharing to Farcaster (once per day)
@@ -2814,7 +2821,7 @@ npm run dev
 ### Production Scripts
 
 ```bash
-# Run CLANKTON market cap oracle (cron)
+# Run $WORD market cap oracle (cron)
 npm run oracle:cron
 
 # Create a new round (after previous round resolves)
@@ -2840,7 +2847,7 @@ CREATOR_PROFIT_WALLET=0x3Cee63...
 
 # Economy
 GUESS_PACK_PRICE_ETH=0.0003
-CLANKTON_MARKET_CAP_USD=...
+WORD_MARKET_CAP_USD=...
 
 # Analytics
 ANALYTICS_ENABLED=true
@@ -2866,7 +2873,7 @@ Planned future milestones:
 - Transaction tracking
 
 ### 🎯 Future Enhancements
-- Multi-wallet CLANKTON support
+- Multi-wallet $WORD support
 - XP system v2 with progression
 - Leaderboard system
 - Full localization (translations)

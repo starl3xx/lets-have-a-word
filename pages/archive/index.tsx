@@ -24,7 +24,7 @@ interface ArchiveStats {
   totalPlayers: number;
   uniqueWinners: number;
   totalJackpotDistributed: string;
-  totalClanktonBonuses: number;
+  totalWordTokenDistributed: number;
   avgGuessesPerRound: number;
   avgPlayersPerRound: number;
   avgRoundLengthMinutes: number;
@@ -139,8 +139,8 @@ export default function ArchiveListPage() {
                   variant="green"
                 />
                 <StatChip
-                  label="CLANKTON distributed"
-                  value={formatCompactNumber(stats.totalClanktonBonuses)}
+                  label="$WORD distributed"
+                  value={formatCompactNumber(stats.totalWordTokenDistributed)}
                   variant="purple"
                 />
               </div>

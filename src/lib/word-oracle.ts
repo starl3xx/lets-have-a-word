@@ -1,18 +1,20 @@
 /**
- * CLANKTON Market Cap Oracle Service
+ * $WORD Token Market Cap Oracle Service
+ * (Formerly CLANKTON Oracle - rebranded to $WORD)
+ *
  * Milestone 6.2 - Oracle Integration
  *
- * Fetches CLANKTON market cap from DEX/API and pushes to JackpotManager contract.
+ * Fetches $WORD market cap from DEX/API and pushes to JackpotManager contract.
  * Enables automatic bonus tier adjustment based on token market cap.
+ *
+ * NOTE: The contract ABI function names (e.g. updateClanktonMarketCap) are
+ * unchanged because the contract is already deployed. Only wrapper function
+ * names are rebranded.
  */
 
 import { ethers } from 'ethers';
 import { getJackpotManagerReadOnly, getJackpotManagerWithOperator } from './jackpot-contract';
-
-/**
- * CLANKTON token address on Base
- */
-export const CLANKTON_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+import { WORD_TOKEN_ADDRESS } from './word-token';
 
 /**
  * Market cap tier thresholds (in USD)
@@ -52,7 +54,7 @@ export interface ContractMarketCapInfo {
 }
 
 /**
- * Fetch CLANKTON market cap from DexScreener API
+ * Fetch $WORD market cap from DexScreener API
  *
  * DexScreener provides free API access for token data including market cap.
  * Endpoint: https://api.dexscreener.com/latest/dex/tokens/{address}
@@ -60,7 +62,7 @@ export interface ContractMarketCapInfo {
 export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
   try {
     const response = await fetch(
-      `https://api.dexscreener.com/latest/dex/tokens/${CLANKTON_TOKEN_ADDRESS}`
+      `https://api.dexscreener.com/latest/dex/tokens/${WORD_TOKEN_ADDRESS}`
     );
 
     if (!response.ok) {
@@ -72,7 +74,7 @@ export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
 
     // DexScreener returns pairs array - find the most liquid pair
     if (!data.pairs || data.pairs.length === 0) {
-      console.warn('[ORACLE] No pairs found for CLANKTON on DexScreener');
+      console.warn('[ORACLE] No pairs found for $WORD on DexScreener');
       return null;
     }
 
@@ -103,20 +105,20 @@ export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
 }
 
 /**
- * Fetch CLANKTON market cap from CoinGecko API
+ * Fetch $WORD market cap from CoinGecko API
  *
- * CoinGecko may have CLANKTON listed - check by contract address.
+ * CoinGecko may have $WORD listed - check by contract address.
  * Note: Rate limited on free tier.
  */
 export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
   try {
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/base/contract/${CLANKTON_TOKEN_ADDRESS}`
+      `https://api.coingecko.com/api/v3/coins/base/contract/${WORD_TOKEN_ADDRESS}`
     );
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.log('[ORACLE] CLANKTON not found on CoinGecko');
+        console.log('[ORACLE] $WORD not found on CoinGecko');
       } else {
         console.warn(`[ORACLE] CoinGecko API error: ${response.status}`);
       }
@@ -145,7 +147,7 @@ export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
 }
 
 /**
- * Fetch CLANKTON market cap from available sources
+ * Fetch $WORD market cap from available sources
  *
  * Tries sources in priority order:
  * 1. DexScreener (most reliable for new tokens)
@@ -153,8 +155,8 @@ export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
  *
  * @returns Market cap data or null if all sources fail
  */
-export async function fetchClanktonMarketCap(): Promise<MarketCapData | null> {
-  console.log('[ORACLE] Fetching CLANKTON market cap...');
+export async function fetchWordTokenMarketCap(): Promise<MarketCapData | null> {
+  console.log('[ORACLE] Fetching $WORD market cap...');
 
   // Try DexScreener first
   const dexData = await fetchFromDexScreener();
@@ -221,12 +223,15 @@ export async function isMarketCapStaleOnContract(): Promise<boolean> {
  * Fetches latest market cap from oracles and updates the contract.
  * Only callable with operator credentials.
  *
+ * NOTE: Calls contract.updateClanktonMarketCap() - this is the deployed
+ * contract's function name and cannot be changed without redeployment.
+ *
  * @returns Transaction hash or null if update failed
  */
 export async function pushMarketCapToContract(): Promise<string | null> {
   try {
     // Fetch latest market cap
-    const marketCapData = await fetchClanktonMarketCap();
+    const marketCapData = await fetchWordTokenMarketCap();
 
     if (!marketCapData) {
       console.error('[ORACLE] Failed to fetch market cap - skipping update');
@@ -244,7 +249,7 @@ export async function pushMarketCapToContract(): Promise<string | null> {
     // Get contract with operator signer
     const contract = getJackpotManagerWithOperator();
 
-    // Update market cap on contract
+    // Update market cap on contract (legacy ABI function name - deployed contract)
     const tx = await contract.updateClanktonMarketCap(marketCapScaled);
     console.log(`[ORACLE] Transaction submitted: ${tx.hash}`);
 
@@ -304,7 +309,7 @@ export function formatMarketCap(marketCapUsd: number): string {
  *
  * @example
  * // Using node-cron or similar
- * import { runOracleUpdate } from './clankton-oracle';
+ * import { runOracleUpdate } from './word-oracle';
  * cron.schedule('0,15,30,45 * * * *', runOracleUpdate);
  */
 export async function runOracleUpdate(): Promise<void> {
@@ -338,7 +343,7 @@ export async function runOracleUpdate(): Promise<void> {
  */
 export async function initializeOracle(): Promise<boolean> {
   try {
-    console.log('[ORACLE] Initializing CLANKTON market cap oracle...');
+    console.log('[ORACLE] Initializing $WORD market cap oracle...');
 
     // Check contract is accessible
     const info = await getContractMarketCapInfo();

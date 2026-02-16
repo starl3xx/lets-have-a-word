@@ -4,7 +4,7 @@
  */
 export interface GameRulesConfig {
   freeGuessesPerDayBase: number;
-  clanktonBonusGuesses: number;
+  wordBonusGuesses: number;
   shareBonusGuesses: number;
   paidGuessPackSize: number; // Number of guesses per pack (e.g., 3)
   paidGuessPackPriceEth: string; // Price per pack (e.g., "0.0003")
@@ -16,7 +16,7 @@ export interface GameRulesConfig {
     top10: number; // 0.1 = 10%
   };
   seedCapEth: string; // e.g. "0.03"
-  clanktonThreshold: string; // e.g. "100000000"
+  wordThreshold: string; // e.g. "100000000"
 }
 
 /**
@@ -85,7 +85,7 @@ export type SubmitGuessResult =
   | { status: 'no_guesses_left_today' } // Milestone 2.2: Daily limits enforced
   | { status: 'duplicate_ignored'; word: string; message: string } // Milestone 9.6: Idempotent duplicate handling
   | { status: 'rate_limited'; message: string; retryAfterSeconds?: number } // Milestone 9.6: Rate limit soft block
-  | { status: 'bonus_word'; word: string; clanktonAmount: string; txHash?: string; message: string }; // Bonus Words feature
+  | { status: 'bonus_word'; word: string; tokenRewardAmount: string; txHash?: string; message: string }; // Bonus Words feature
 
 /**
  * Submit Guess Parameters
@@ -166,7 +166,7 @@ export interface GameStateResponse {
     freeGuessesRemaining: number;
     paidGuessesRemaining: number;
     totalGuessesRemaining: number;
-    clanktonBonusActive: boolean;
+    wordBonusActive: boolean;
   };
   wheelWords?: string[]; // Only in dev mode - production uses /api/wheel
   devMode?: boolean;
@@ -190,12 +190,11 @@ export type XpEventType =
   | 'REFERRAL_FIRST_GUESS'  // +20 XP when referred user makes first guess
   | 'STREAK_DAY'            // +15 XP for consecutive day playing
   | 'NEAR_MISS'             // 0 XP (tracked for future use)
-  | 'CLANKTON_BONUS_DAY'    // +10 XP per day for CLANKTON holders
-  | 'WORD_TOKEN_BONUS_DAY' // +5 XP per day for $WORD token holders
+  | 'CLANKTON_BONUS_DAY'    // +10 XP per day for $WORD holders (legacy DB event name)
   | 'SHARE_CAST'            // +15 XP for sharing to Farcaster
   | 'PACK_PURCHASE'         // +20 XP per pack purchase
   | 'OG_HUNTER_AWARD'       // +500 XP for OG Hunter badge (prelaunch campaign)
-  | 'BONUS_WORD';           // +250 XP for finding a bonus word (5M CLANKTON)
+  | 'BONUS_WORD';           // +250 XP for finding a bonus word (5M $WORD)
 
 /**
  * XP Event
@@ -223,12 +222,11 @@ export const XP_VALUES: Record<XpEventType, number> = {
   REFERRAL_FIRST_GUESS: 20,
   STREAK_DAY: 15,
   NEAR_MISS: 0,           // Tracked only, no XP in v1
-  CLANKTON_BONUS_DAY: 10,
-  WORD_TOKEN_BONUS_DAY: 5,
+  CLANKTON_BONUS_DAY: 10, // Legacy event name - now represents $WORD holder bonus
   SHARE_CAST: 15,
   PACK_PURCHASE: 20,
   OG_HUNTER_AWARD: 500,   // OG Hunter badge award (prelaunch campaign)
-  BONUS_WORD: 250,        // Finding a bonus word (5M CLANKTON)
+  BONUS_WORD: 250,        // Finding a bonus word (5M $WORD)
 };
 
 /**
@@ -247,7 +245,7 @@ export interface XpSummaryResponse {
  *
  * Tracks allocations and usage for each guess source:
  * - free: Base daily free guess (always 1)
- * - clankton: CLANKTON holder bonus (0, 2, or 3 depending on mcap)
+ * - wordToken: $WORD holder bonus (0, 2, or 3 depending on mcap)
  * - share: Share bonus (0 or 1, earned by sharing)
  * - paid: Purchased guess packs (0-9, in increments of 3)
  */
@@ -262,20 +260,12 @@ export interface GuessSourceState {
     remaining: number;  // 0 or 1
   };
 
-  /** CLANKTON holder bonus source */
-  clankton: {
+  /** $WORD token holder bonus source */
+  wordToken: {
     total: number;      // 0, 2, or 3 (0 if not a holder)
     used: number;       // 0 to total
     remaining: number;  // 0 to total
-    isHolder: boolean;  // Whether user holds CLANKTON
-  };
-
-  /** $WORD token holder bonus source */
-  wordToken: {
-    total: number;      // 0 or 1 (0 if not a holder)
-    used: number;       // 0 or 1
-    remaining: number;  // 0 or 1
-    isHolder: boolean;  // Whether user holds $WORD token
+    isHolder: boolean;  // Whether user holds $WORD
   };
 
   /** Share bonus source */

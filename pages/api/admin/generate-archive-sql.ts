@@ -175,18 +175,18 @@ export default async function handler(
       });
     }
 
-    // Calculate CLANKTON bonus count
-    // Count distinct users who had freeAllocatedClankton > 0 in daily_guess_state during round
-    let clanktonBonusCount = 0;
+    // Calculate $WORD bonus count
+    // Count distinct users who had $WORD bonus (legacy column: freeAllocatedClankton) in daily_guess_state during round
+    let wordTokenBonusCount = 0;
     if (round.startedAt && round.resolvedAt) {
-      const clanktonResult = await db.execute<{ count: string }>(sql`
+      const wordTokenResult = await db.execute<{ count: string }>(sql`
         SELECT COUNT(DISTINCT fid) as count
         FROM daily_guess_state
-        WHERE free_allocated_clankton > 0
+        WHERE free_allocated_clankton > 0  -- legacy column name
         AND date >= ${round.startedAt.toISOString().split('T')[0]}
         AND date <= ${round.resolvedAt.toISOString().split('T')[0]}
       `);
-      clanktonBonusCount = parseInt(clanktonResult[0]?.count ?? '0', 10);
+      wordTokenBonusCount = parseInt(wordTokenResult[0]?.count ?? '0', 10);
     }
 
     // Calculate referral bonus count
@@ -229,7 +229,7 @@ INSERT INTO round_archive (
   referrer_fid,
   payouts_json,
   salt,
-  clankton_bonus_count,
+  clankton_bonus_count,  -- legacy column name
   referral_bonus_count
 ) VALUES (
   ${roundId},
@@ -246,7 +246,7 @@ INSERT INTO round_archive (
   ${referrerPayout?.fid || 'NULL'},
   '${JSON.stringify(payoutsJson).replace(/'/g, "''")}',
   '${round.salt}',
-  ${clanktonBonusCount},
+  ${wordTokenBonusCount},
   ${referralBonusCount}
 );
     `.trim();
@@ -263,7 +263,7 @@ INSERT INTO round_archive (
         resolvedAt: round.resolvedAt,
         seedEthForThisRound,
         prizePoolEth: round.prizePoolEth,
-        clanktonBonusCount,
+        wordTokenBonusCount,
         referralBonusCount,
       },
       roundPayoutsFromDb: payouts.map(p => ({

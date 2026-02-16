@@ -17,7 +17,7 @@
  *       "wordIndex": 2,
  *       "claimedAt": "2025-01-04T12:00:00Z",
  *       "txHash": "0x...",
- *       "clanktonAmount": "5000000"
+ *       "tokenRewardAmount": "5000000"
  *     }
  *   ]
  * }
@@ -78,7 +78,7 @@ export default async function handler(
             wordIndex: 3,
             claimedAt: new Date(Date.now() - 3600000).toISOString(),
             txHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-            clanktonAmount: '5000000',
+            tokenRewardAmount: '5000000',
           },
           {
             fid: 456,
@@ -88,7 +88,7 @@ export default async function handler(
             wordIndex: 7,
             claimedAt: new Date(Date.now() - 1800000).toISOString(),
             txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-            clanktonAmount: '5000000',
+            tokenRewardAmount: '5000000',
           },
         ],
       };

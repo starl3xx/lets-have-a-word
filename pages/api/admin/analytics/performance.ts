@@ -5,7 +5,7 @@
  * Provides:
  * - Median guesses to solve
  * - Guess distribution histogram
- * - CLANKTON holder solve-rate advantage
+ * - $WORD holder solve-rate advantage
  * - Referral-generated guesses
  */
 
@@ -29,14 +29,14 @@ export interface PerformanceMetrics {
     percentage: number;
   }>;
 
-  // CLANKTON holder advantage
-  clanktonAdvantage: {
-    clanktonSolveRate: number;
+  // $WORD holder advantage
+  wordTokenAdvantage: {
+    wordTokenSolveRate: number;
     regularSolveRate: number;
-    clanktonAvgGuesses: number;
+    wordTokenAvgGuesses: number;
     regularAvgGuesses: number;
-    advantagePercentage: number; // How much better CLANKTON holders perform
-    clanktonWinRate: number;
+    advantagePercentage: number; // How much better $WORD holders perform
+    wordTokenWinRate: number;
     regularWinRate: number;
   };
 
@@ -158,9 +158,10 @@ export default async function handler(
         END
     `);
 
-    // Query 3: CLANKTON holder advantage
-    const clanktonAdvantage = await db.execute<{
-      is_clankton: boolean;
+    // Query 3: $WORD holder advantage
+    // Note: is_word_token_holder uses legacy DB column free_allocated_clankton
+    const wordTokenAdvantage = await db.execute<{
+      is_word_token_holder: boolean;
       solve_rate: number;
       avg_guesses: number;
       win_rate: number;
@@ -169,7 +170,7 @@ export default async function handler(
       WITH user_classification AS (
         SELECT DISTINCT
           dgs.fid,
-          CASE WHEN MAX(dgs.free_allocated_clankton) > 0 THEN true ELSE false END as is_clankton
+          CASE WHEN MAX(dgs.free_allocated_clankton) > 0 THEN true ELSE false END as is_word_token_holder
         FROM daily_guess_state dgs
         WHERE dgs.date >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
         GROUP BY dgs.fid
@@ -177,7 +178,7 @@ export default async function handler(
       user_stats AS (
         SELECT
           uc.fid,
-          uc.is_clankton,
+          uc.is_word_token_holder,
           COUNT(g.id) as total_guesses,
           SUM(CASE WHEN g.is_correct THEN 1 ELSE 0 END) as correct_guesses,
           COUNT(DISTINCT CASE WHEN r.winner_fid = uc.fid THEN r.id END) as wins,
@@ -187,16 +188,16 @@ export default async function handler(
         JOIN rounds r ON r.id = g.round_id
         WHERE g.created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
           AND r.is_dev_test_round = false
-        GROUP BY uc.fid, uc.is_clankton
+        GROUP BY uc.fid, uc.is_word_token_holder
       )
       SELECT
-        is_clankton,
+        is_word_token_holder,
         ROUND(AVG(CASE WHEN total_guesses > 0 THEN correct_guesses::numeric / total_guesses * 100 ELSE 0 END), 2) as solve_rate,
         ROUND(AVG(total_guesses), 2) as avg_guesses,
         ROUND(AVG(CASE WHEN rounds_played > 0 THEN wins::numeric / rounds_played * 100 ELSE 0 END), 2) as win_rate,
         COUNT(*) as user_count
       FROM user_stats
-      GROUP BY is_clankton
+      GROUP BY is_word_token_holder
     `);
 
     // Query 4: Referral metrics
@@ -284,13 +285,13 @@ export default async function handler(
     // Process results
     const solveData = Array.isArray(solveMetrics) ? solveMetrics[0] : solveMetrics;
     const guessDistArray = Array.isArray(guessDistQuery) ? guessDistQuery : [];
-    const clanktonArray = Array.isArray(clanktonAdvantage) ? clanktonAdvantage : [];
+    const wordTokenArray = Array.isArray(wordTokenAdvantage) ? wordTokenAdvantage : [];
     const referralData = Array.isArray(referralMetrics) ? referralMetrics[0] : referralMetrics;
     const topReferrersArray = Array.isArray(topReferrers) ? topReferrers : [];
     const userQualityData = Array.isArray(userQualityMetrics) ? userQualityMetrics[0] : userQualityMetrics;
 
-    const clanktonStats = clanktonArray.find(c => c.is_clankton === true);
-    const regularStats = clanktonArray.find(c => c.is_clankton === false);
+    const wordTokenStats = wordTokenArray.find(c => c.is_word_token_holder === true);
+    const regularStats = wordTokenArray.find(c => c.is_word_token_holder === false);
 
     const totalBuckets = guessDistArray.reduce((sum, item) => sum + Number(item.count), 0);
     const guessDistribution = guessDistArray.map(item => ({
@@ -299,11 +300,11 @@ export default async function handler(
       percentage: totalBuckets > 0 ? Number(((Number(item.count) / totalBuckets) * 100).toFixed(2)) : 0,
     }));
 
-    // Calculate CLANKTON advantage percentage
-    const clanktonSolveRate = Number(clanktonStats?.solve_rate) || 0;
+    // Calculate $WORD advantage percentage
+    const wordTokenSolveRate = Number(wordTokenStats?.solve_rate) || 0;
     const regularSolveRate = Number(regularStats?.solve_rate) || 0;
     const advantagePercentage = regularSolveRate > 0
-      ? Number((((clanktonSolveRate - regularSolveRate) / regularSolveRate) * 100).toFixed(2))
+      ? Number((((wordTokenSolveRate - regularSolveRate) / regularSolveRate) * 100).toFixed(2))
       : 0;
 
     const metrics: PerformanceMetrics = {
@@ -314,13 +315,13 @@ export default async function handler(
 
       guessDistribution,
 
-      clanktonAdvantage: {
-        clanktonSolveRate,
+      wordTokenAdvantage: {
+        wordTokenSolveRate,
         regularSolveRate,
-        clanktonAvgGuesses: Number(clanktonStats?.avg_guesses) || 0,
+        wordTokenAvgGuesses: Number(wordTokenStats?.avg_guesses) || 0,
         regularAvgGuesses: Number(regularStats?.avg_guesses) || 0,
         advantagePercentage,
-        clanktonWinRate: Number(clanktonStats?.win_rate) || 0,
+        wordTokenWinRate: Number(wordTokenStats?.win_rate) || 0,
         regularWinRate: Number(regularStats?.win_rate) || 0,
       },
 

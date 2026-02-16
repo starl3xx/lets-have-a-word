@@ -5,7 +5,7 @@
  * Features:
  * - Confetti celebration
  * - 🎣 badge animation
- * - 5M CLANKTON reward display
+ * - 5M $WORD reward display
  * - Link to BaseScan transaction
  *
  * Bonus Words Feature
@@ -17,7 +17,7 @@ import { triggerHaptic } from '../src/lib/haptics';
 
 interface BonusWordWinModalProps {
   word: string;
-  clanktonAmount: string;
+  tokenRewardAmount: string;
   txHash: string | null;
   onClose: () => void;
 }
@@ -72,16 +72,16 @@ function fireCelebration() {
 }
 
 /**
- * Format CLANKTON amount with commas
+ * Format token reward amount with commas
  */
-function formatClankton(amount: string): string {
+function formatTokenReward(amount: string): string {
   const num = parseInt(amount, 10);
   return num.toLocaleString('en-US');
 }
 
 export default function BonusWordWinModal({
   word,
-  clanktonAmount,
+  tokenRewardAmount,
   txHash,
   onClose,
 }: BonusWordWinModalProps) {
@@ -152,13 +152,13 @@ export default function BonusWordWinModal({
         <div className="bg-gradient-to-r from-purple-100 to-cyan-100 rounded-xl p-5 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
             <img
-              src="/clankton-logo.png"
-              alt="CLANKTON"
+              src="/word-token-logo.png"
+              alt="$WORD"
               className="w-10 h-10 rounded-full border-2 border-white shadow"
             />
             <div>
               <div className="text-2xl font-bold text-purple-700">
-                +{formatClankton(clanktonAmount)} CLANKTON
+                +{formatTokenReward(tokenRewardAmount)} $WORD
               </div>
               <div className="text-sm text-purple-500">
                 Sent to your wallet

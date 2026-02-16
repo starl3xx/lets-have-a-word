@@ -366,7 +366,7 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
   },
   [AppErrorCodes.WALLET_NOT_CONNECTED]: {
     userTitle: 'Wallet not connected',
-    userBody: 'Connect your wallet to check CLANKTON balance.',
+    userBody: 'Connect your wallet to check $WORD balance.',
     primaryCtaLabel: 'Connect',
     primaryCtaAction: 'connect_wallet',
     bannerVariant: 'info',

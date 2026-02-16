@@ -20,7 +20,7 @@ import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
 // Milestone 6.3: New components
 import GuessPurchaseModal from '../components/GuessPurchaseModal';
-import ClanktonBonusModal from '../components/ClanktonBonusModal';
+import WordBonusModal from '../components/WordBonusModal';
 // Bonus Words Feature (hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true)
 const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
 import BonusWordWinModal from '../components/BonusWordWinModal';
@@ -39,6 +39,48 @@ function isClientDevMode(): boolean {
   if (typeof window === 'undefined') return false;
   return process.env.NEXT_PUBLIC_LHAW_DEV_MODE === 'true';
 }
+/**
+ * Fetch with timeout and automatic retry
+ *
+ * Wraps fetch() with an AbortController-based timeout. If the request
+ * times out or fails with a network error, retries once automatically.
+ * This prevents the "SUBMITTING..." hang when Vercel/network is slow.
+ *
+ * @param url - Request URL
+ * @param options - Standard fetch options (method, headers, body, etc.)
+ * @param timeoutMs - Timeout per attempt in milliseconds (default: 12000)
+ * @returns Response from fetch
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  timeoutMs = 12000,
+): Promise<Response> {
+  const attempt = async (isRetry: boolean): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (error: any) {
+      // Retry once on timeout or network failure (not on abort from unmount)
+      if (!isRetry && (error.name === 'AbortError' || error.message === 'Failed to fetch')) {
+        console.warn(`[fetchWithRetry] ${error.name === 'AbortError' ? 'Timeout' : 'Network error'} on first attempt, retrying...`);
+        return attempt(true);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  return attempt(false);
+}
+
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import { isValidGuess } from '../src/lib/word-lists';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
@@ -136,7 +178,7 @@ function GameContent() {
   const [isInMiniApp, setIsInMiniApp] = useState(false);
   const [hasCheckedContext, setHasCheckedContext] = useState(false);
 
-  // Get connected wallet from Wagmi for CLANKTON bonus check
+  // Get connected wallet from Wagmi for $WORD bonus check
   const { address: connectedWalletAddress } = useAccount();
 
   // Effective FID: use real Farcaster FID, or dev fallback in dev mode
@@ -223,12 +265,12 @@ function GameContent() {
 
   // Milestone 6.3: Guess purchase modal state
   const [showGuessPurchaseModal, setShowGuessPurchaseModal] = useState(false);
-  const [showClanktonBonusModal, setShowClanktonBonusModal] = useState(false);
+  const [showWordModal, setShowWordModal] = useState(false);
   // Bonus Words Feature: Modal for bonus word win celebration
   const [showBonusWordWinModal, setShowBonusWordWinModal] = useState(false);
-  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; clanktonAmount: string; txHash: string | null } | null>(null);
+  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; tokenRewardAmount: string; txHash: string | null } | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
-  const [isClanktonHolder, setIsClanktonHolder] = useState(false); // For winner share card
+  const [isWordTokenHolder, setIsWordTokenHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
   const [paidPacksPurchased, setPaidPacksPurchased] = useState(0); // Packs purchased today
   const [maxPaidPacksPerDay, setMaxPaidPacksPerDay] = useState(3); // Max packs allowed per day
@@ -558,7 +600,7 @@ function GameContent() {
 
   /**
    * Fetch user state to check if user has guesses left (Milestone 4.6)
-   * Milestone 6.3: Also check share bonus eligibility, CLANKTON holder status, and pack purchase status
+   * Milestone 6.3: Also check share bonus eligibility, $WORD holder status, and pack purchase status
    * Milestone 6.4.7: Apply dev persona overrides for QA testing
    * Uses effectiveFid (real FID or dev fallback) for consistent FID handling
    */
@@ -571,7 +613,7 @@ function GameContent() {
         const isInitialLoad = isFirstUserStateFetchRef.current;
         isFirstUserStateFetchRef.current = false;
 
-        // Build URL with FID and wallet address for CLANKTON bonus check
+        // Build URL with FID and wallet address for $WORD bonus check
         const params = new URLSearchParams();
         params.append('devFid', effectiveFid.toString());
         if (isInitialLoad) params.append('initialLoad', 'true');
@@ -596,8 +638,8 @@ function GameContent() {
           setHasGuessesLeft(data.totalGuessesRemaining > 0);
           // Milestone 6.3: Check if user can still claim share bonus
           setCanClaimShareBonus(!data.hasSharedToday);
-          // Milestone 6.3: Check if user is CLANKTON holder
-          setIsClanktonHolder(data.isClanktonHolder || false);
+          // Milestone 6.3: Check if user is $WORD holder
+          setIsWordTokenHolder(data.isWordTokenHolder || false);
           // Milestone 6.3: Track pack purchases for modal decision logic
           setPaidPacksPurchased(data.paidPacksPurchased || 0);
           setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
@@ -994,8 +1036,8 @@ function GameContent() {
         console.log(`[Referral] No referrerFid in sessionStorage`);
       }
 
-      // Call API
-      const response = await fetch('/api/guess', {
+      // Call API (with 12s timeout + 1 automatic retry on timeout/network failure)
+      const response = await fetchWithRetry('/api/guess', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1098,7 +1140,7 @@ function GameContent() {
         // Store bonus word data and show celebration modal
         setBonusWordWinData({
           word: data.word,
-          clanktonAmount: data.clanktonAmount || '5000000',
+          tokenRewardAmount: data.tokenRewardAmount || '5000000',
           txHash: data.txHash || null,
         });
         setShowBonusWordWinModal(true);
@@ -1266,8 +1308,10 @@ function GameContent() {
 
     } catch (error: any) {
       console.error('Error submitting guess:', error);
-      // In dev mode, show the actual error for debugging
-      if (isClientDevMode() && error.message && error.message !== 'Failed to submit guess') {
+      // Show specific message for timeout vs generic errors
+      if (error.name === 'AbortError') {
+        setErrorMessage('Request timed out — please try again.');
+      } else if (isClientDevMode() && error.message && error.message !== 'Failed to submit guess') {
         setErrorMessage(error.message);
       } else {
         setErrorMessage('Something went wrong. Please try again.');
@@ -1358,7 +1402,7 @@ function GameContent() {
             <>
               <span>🎣 Bonus word </span>
               <span className="font-bold">{result.word.toUpperCase()}</span>
-              <span> found! +5M CLANKTON</span>
+              <span> found! +5M $WORD</span>
             </>
           ),
         };
@@ -1661,7 +1705,7 @@ function GameContent() {
               key={userStateKey}
               fid={effectiveFid}
               onGetMore={() => setShowGuessPurchaseModal(true)}
-              onClanktonHintTap={() => setShowClanktonBonusModal(true)}
+              onWordHintTap={() => setShowWordModal(true)}
             />
           </div>
         </div>
@@ -2022,10 +2066,10 @@ function GameContent() {
         />
       )}
 
-      {/* CLANKTON Bonus Modal - explains bonus for non-holders */}
-      {showClanktonBonusModal && (
-        <ClanktonBonusModal
-          onClose={() => setShowClanktonBonusModal(false)}
+      {/* $WORD Bonus Modal - explains bonus for non-holders */}
+      {showWordModal && (
+        <WordBonusModal
+          onClose={() => setShowWordModal(false)}
         />
       )}
 
@@ -2033,7 +2077,7 @@ function GameContent() {
       {BONUS_WORDS_UI_ENABLED && showBonusWordWinModal && bonusWordWinData && (
         <BonusWordWinModal
           word={bonusWordWinData.word}
-          clanktonAmount={bonusWordWinData.clanktonAmount}
+          tokenRewardAmount={bonusWordWinData.tokenRewardAmount}
           txHash={bonusWordWinData.txHash}
           onClose={() => {
             setShowBonusWordWinModal(false);

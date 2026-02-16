@@ -196,40 +196,11 @@ export async function hasReceivedDailyParticipationToday(fid: number): Promise<b
 }
 
 /**
- * Check if user already received CLANKTON bonus XP today
+ * Check if user already received $WORD token bonus XP today
+ * NOTE: Queries legacy DB event name 'CLANKTON_BONUS_DAY'
  *
  * @param fid - Farcaster ID
  * @returns true if already awarded today
- */
-export async function hasReceivedClanktonBonusToday(fid: number): Promise<boolean> {
-  try {
-    const todayStart = getTodayStartTimestamp();
-
-    const result = await db
-      .select({ id: xpEvents.id })
-      .from(xpEvents)
-      .where(
-        and(
-          eq(xpEvents.fid, fid),
-          eq(xpEvents.eventType, 'CLANKTON_BONUS_DAY'),
-          gte(xpEvents.createdAt, todayStart)
-        )
-      )
-      .limit(1);
-
-    return result.length > 0;
-  } catch (error) {
-    console.error('[XP] Error checking CLANKTON bonus:', error);
-    return false;
-  }
-}
-
-/**
- * Check if user has already received $WORD token bonus XP today
- * Similar to CLANKTON bonus check
- *
- * @param fid - Farcaster ID
- * @returns true if already received today, false otherwise
  */
 export async function hasReceivedWordTokenBonusToday(fid: number): Promise<boolean> {
   try {
@@ -241,7 +212,7 @@ export async function hasReceivedWordTokenBonusToday(fid: number): Promise<boole
       .where(
         and(
           eq(xpEvents.fid, fid),
-          eq(xpEvents.eventType, 'WORD_TOKEN_BONUS_DAY'),
+          eq(xpEvents.eventType, 'CLANKTON_BONUS_DAY'), // Legacy DB event name
           gte(xpEvents.createdAt, todayStart)
         )
       )
@@ -253,6 +224,7 @@ export async function hasReceivedWordTokenBonusToday(fid: number): Promise<boole
     return false;
   }
 }
+
 
 /**
  * Check if user already received share XP today

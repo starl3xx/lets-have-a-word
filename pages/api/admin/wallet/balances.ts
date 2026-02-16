@@ -6,7 +6,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
-import { getBaseProvider } from '../../../../src/lib/clankton';
+import { getBaseProvider } from '../../../../src/lib/word-token';
 import { getContractConfig, getJackpotManagerReadOnly } from '../../../../src/lib/jackpot-contract';
 import { db } from '../../../../src/db';
 import { refunds, rounds } from '../../../../src/db/schema';
@@ -44,7 +44,7 @@ export interface WalletBalancesResponse {
     withdrawableEth: string; // Only amount ABOVE what's needed for seed
     isWithdrawable: boolean; // True if withdrawableEth > 0
   };
-  clanktonRewards: {
+  wordTokenRewards: {
     tokenAddress: string;
     balance: string; // Human readable (e.g., "5000000000" for 5B)
     balanceRaw: string; // Raw with 18 decimals
@@ -104,15 +104,15 @@ export default async function handler(
       contractError = 'Contract not deployed or not accessible';
     }
 
-    // Fetch CLANKTON token balance held by the JackpotManager contract
-    const CLANKTON_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
-    let clanktonBalance: bigint = 0n;
+    // Fetch $WORD token balance held by the JackpotManager contract
+    const WORD_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+    let wordTokenBalance: bigint = 0n;
     try {
       const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
-      const clanktonContract = new ethers.Contract(CLANKTON_TOKEN_ADDRESS, erc20Abi, provider);
-      clanktonBalance = await clanktonContract.balanceOf(config.jackpotManagerAddress);
+      const wordTokenContract = new ethers.Contract(WORD_TOKEN_ADDRESS, erc20Abi, provider);
+      wordTokenBalance = await wordTokenContract.balanceOf(config.jackpotManagerAddress);
     } catch (err) {
-      console.warn('[admin/wallet/balances] CLANKTON balance fetch failed:', err);
+      console.warn('[admin/wallet/balances] $WORD balance fetch failed:', err);
     }
 
     // Database query for pending refunds
@@ -129,10 +129,10 @@ export default async function handler(
       console.warn('[admin/wallet/balances] Refunds query failed:', err);
     }
 
-    // Format CLANKTON balance (18 decimals) to human readable
-    const clanktonHumanReadable = ethers.formatUnits(clanktonBalance, 18);
+    // Format $WORD balance (18 decimals) to human readable
+    const wordTokenHumanReadable = ethers.formatUnits(wordTokenBalance, 18);
     // Round to whole number for display (e.g., "5000000000" for 5B)
-    const clanktonWhole = Math.floor(parseFloat(clanktonHumanReadable)).toString();
+    const wordTokenWhole = Math.floor(parseFloat(wordTokenHumanReadable)).toString();
 
     // =========================================================================
     // TREASURY + SEED CALCULATION
@@ -191,10 +191,10 @@ export default async function handler(
         withdrawableEth: withdrawableAmount.toFixed(18),
         isWithdrawable,
       },
-      clanktonRewards: {
-        tokenAddress: CLANKTON_TOKEN_ADDRESS,
-        balance: clanktonWhole,
-        balanceRaw: clanktonBalance.toString(),
+      wordTokenRewards: {
+        tokenAddress: WORD_TOKEN_ADDRESS,
+        balance: wordTokenWhole,
+        balanceRaw: wordTokenBalance.toString(),
       },
       pendingRefunds: {
         count: pendingRefunds.count,

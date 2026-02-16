@@ -3,7 +3,7 @@
  * Milestone 2.2
  *
  * Implements:
- * - Daily free guess allocations (base + CLANKTON + share bonus)
+ * - Daily free guess allocations (base + $WORD token + share bonus)
  * - Paid guess pack purchases and limits
  * - Share bonus awards
  * - Daily state management
@@ -16,21 +16,19 @@ import { submitGuess } from './guesses';
 import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult, GuessSourceState } from '../types';
-import { hasClanktonBonus } from './clankton';
 import { hasWordTokenBonus } from './word-token';
 import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import {
-  getClanktonHolderBonusGuesses,
-  CLANKTON_MARKET_CAP_USD,
-  CLANKTON_BONUS_GUESSES_TIER_HIGH,
-  CLANKTON_BONUS_GUESSES_TIER_LOW,
+  getWordHolderBonusGuesses,
+  WORD_MARKET_CAP_USD,
+  WORD_BONUS_GUESSES_TIER_HIGH,
+  WORD_BONUS_GUESSES_TIER_LOW,
   MAX_PACKS_PER_DAY,
 } from '../../config/economy';
 import {
   logXpEvent,
   hasReceivedDailyParticipationToday,
-  hasReceivedClanktonBonusToday,
   hasReceivedWordTokenBonusToday,
   hasReceivedShareXpToday,
   checkAndAwardStreakXp,
@@ -43,8 +41,8 @@ import {
  * Game rules for daily limits
  * These will eventually come from the game_rules table
  *
- * Note: clanktonBonusGuesses is now dynamic based on market cap (Milestone 5.4c)
- * Use getClanktonHolderBonusGuesses() for the current value
+ * Note: wordBonusGuesses is now dynamic based on market cap (Milestone 5.4c)
+ * Use getWordHolderBonusGuesses() for the current value
  *
  * Pack purchases are now UNCAPPED - users can buy unlimited packs per day.
  * However, paid guesses still expire at 11:00 UTC daily reset.
@@ -52,12 +50,10 @@ import {
  */
 export const DAILY_LIMITS_RULES = {
   freeGuessesPerDayBase: 1,
-  /** @deprecated Use getClanktonHolderBonusGuesses() instead - value depends on market cap */
-  clanktonBonusGuesses: getClanktonHolderBonusGuesses(), // Dynamic: 2 if mcap < $250k, 3 if >= $250k
-  wordTokenBonusGuesses: 1, // $WORD token holder bonus (flat rate)
+  /** @deprecated Use getWordHolderBonusGuesses() instead - value depends on market cap */
+  wordBonusGuesses: getWordHolderBonusGuesses(), // Dynamic: 2 if mcap < $250k, 3 if >= $250k
   shareBonusGuesses: 1,
-  clanktonThreshold: 100_000_000, // 100M tokens
-  wordTokenThreshold: 1_000_000, // 1M tokens
+  wordThreshold: 100_000_000, // 100M tokens
   paidGuessPackSize: 3,
   paidGuessPackPriceEth: '0.0003', // ETH (base price, multipliers apply)
   /** Pack purchases are uncapped. Volume pricing tiers apply. */
@@ -77,7 +73,7 @@ export const DEV_MODE_FID = 6500;
  * This deletes today's daily state row for the user, forcing
  * getOrCreateDailyState to create a fresh one with:
  * - 1 base free guess
- * - CLANKTON bonus (if holder)
+ * - $WORD token bonus (if holder)
  * - 0 share guesses (until they share)
  * - 0 paid guesses
  *
@@ -123,42 +119,13 @@ export function getTodayUTC(): string {
 }
 
 /**
- * CLANKTON Bonus Check
+ * $WORD Token Bonus Check
  * Milestone 4.1: Real onchain balance checking
  *
- * Checks if the user's signer wallet holds >= 100M CLANKTON tokens.
+ * Checks if the user's signer wallet holds >= 100M $WORD tokens.
  *
  * @param fid - Farcaster ID of the user
- * @returns true if user has CLANKTON bonus, false otherwise
- */
-export async function hasCLANKTONBonus(fid: number): Promise<boolean> {
-  try {
-    // Look up user's signer wallet address
-    const [user] = await db
-      .select({ signerWalletAddress: users.signerWalletAddress })
-      .from(users)
-      .where(eq(users.fid, fid))
-      .limit(1);
-
-    if (!user || !user.signerWalletAddress) {
-      console.log(`[CLANKTON] No signer wallet found for FID ${fid}`);
-      return false;
-    }
-
-    // Query onchain CLANKTON balance
-    return await hasClanktonBonus(user.signerWalletAddress);
-  } catch (error) {
-    console.error(`[CLANKTON] Error checking bonus for FID ${fid}:`, error);
-    return false;
-  }
-}
-
-/**
- * Check if user has $WORD token holder bonus
- * Similar to CLANKTON bonus check but for $WORD token
- *
- * @param fid - Farcaster ID
- * @returns true if user holds >= 1M $WORD tokens
+ * @returns true if user has $WORD token bonus, false otherwise
  */
 export async function hasWORDTokenBonus(fid: number): Promise<boolean> {
   try {
@@ -170,14 +137,14 @@ export async function hasWORDTokenBonus(fid: number): Promise<boolean> {
       .limit(1);
 
     if (!user || !user.signerWalletAddress) {
-      console.log(`[WORD] No signer wallet found for FID ${fid}`);
+      console.log(`[$WORD] No signer wallet found for FID ${fid}`);
       return false;
     }
 
     // Query onchain $WORD token balance
     return await hasWordTokenBonus(user.signerWalletAddress);
   } catch (error) {
-    console.error(`[WORD] Error checking bonus for FID ${fid}:`, error);
+    console.error(`[$WORD] Error checking bonus for FID ${fid}:`, error);
     return false;
   }
 }
@@ -205,11 +172,11 @@ export async function getOrCreateDailyState(
   if (existing.length > 0) {
     const state = existing[0];
 
-    // Milestone 5.4c upgrade: If CLANKTON holder and market cap tier increased mid-day,
+    // Milestone 5.4c upgrade: If $WORD holder and market cap tier increased mid-day,
     // upgrade their allocation. We only upgrade (2→3), never downgrade.
     // This ensures "if mcap >= $250K at any point in a day, holders get 3 free"
-    if (state.freeAllocatedClankton > 0) {
-      const currentTierGuesses = getClanktonHolderBonusGuesses();
+    if (state.freeAllocatedClankton > 0) { // Legacy DB column name
+      const currentTierGuesses = getWordHolderBonusGuesses();
       if (currentTierGuesses > state.freeAllocatedClankton) {
         const [upgraded] = await db
           .update(dailyGuessState)
@@ -221,47 +188,27 @@ export async function getOrCreateDailyState(
           .returning();
 
         console.log(
-          `🚀 [CLANKTON] Upgraded FID ${fid} bonus: ${state.freeAllocatedClankton} → ${currentTierGuesses} guesses (mcap tier increased)`
+          `🚀 [$WORD] Upgraded FID ${fid} bonus: ${state.freeAllocatedClankton} → ${currentTierGuesses} guesses (mcap tier increased)`
         );
         return upgraded;
       }
     } else {
-      // User has no CLANKTON bonus allocated - check if they should have it now
+      // User has no $WORD token bonus allocated - check if they should have it now
       // This handles the case where daily state was created before wallet was connected
-      const hasClankton = await hasCLANKTONBonus(fid);
-      if (hasClankton) {
-        const clanktonBonusGuesses = getClanktonHolderBonusGuesses();
-        const [upgraded] = await db
-          .update(dailyGuessState)
-          .set({
-            freeAllocatedClankton: clanktonBonusGuesses,
-            updatedAt: new Date(),
-          })
-          .where(eq(dailyGuessState.id, state.id))
-          .returning();
-
-        console.log(
-          `🎁 [CLANKTON] Late allocation for FID ${fid}: +${clanktonBonusGuesses} bonus guesses (wallet connected after daily state creation)`
-        );
-        return upgraded;
-      }
-    }
-
-    // Check for $WORD token late allocation
-    if (state.freeAllocatedWordToken === 0) {
       const hasWordToken = await hasWORDTokenBonus(fid);
       if (hasWordToken) {
+        const wordBonusGuesses = getWordHolderBonusGuesses();
         const [upgraded] = await db
           .update(dailyGuessState)
           .set({
-            freeAllocatedWordToken: DAILY_LIMITS_RULES.wordTokenBonusGuesses,
+            freeAllocatedClankton: wordBonusGuesses, // Legacy DB column name
             updatedAt: new Date(),
           })
           .where(eq(dailyGuessState.id, state.id))
           .returning();
 
         console.log(
-          `🎁 [WORD] Late allocation for FID ${fid}: +${DAILY_LIMITS_RULES.wordTokenBonusGuesses} bonus guesses (wallet connected after daily state creation)`
+          `🎁 [$WORD] Late allocation for FID ${fid}: +${wordBonusGuesses} bonus guesses (wallet connected after daily state creation)`
         );
         return upgraded;
       }
@@ -271,11 +218,10 @@ export async function getOrCreateDailyState(
   }
 
   // Create new state for today
-  const hasClankton = await hasCLANKTONBonus(fid);
   const hasWordToken = await hasWORDTokenBonus(fid);
 
-  // Milestone 5.4c: Get dynamic CLANKTON bonus based on current market cap
-  const clanktonBonusGuesses = getClanktonHolderBonusGuesses();
+  // Milestone 5.4c: Get dynamic $WORD bonus based on current market cap
+  const wordBonusGuesses = getWordHolderBonusGuesses();
 
   // Generate random wheel start index (Milestone 4.14)
   // Random index between 0 and (total GUESS_WORDS - 1)
@@ -286,8 +232,7 @@ export async function getOrCreateDailyState(
     fid,
     date: dateStr,
     freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
-    freeAllocatedClankton: hasClankton ? clanktonBonusGuesses : 0,
-    freeAllocatedWordToken: hasWordToken ? DAILY_LIMITS_RULES.wordTokenBonusGuesses : 0,
+    freeAllocatedClankton: hasWordToken ? wordBonusGuesses : 0, // Legacy DB column name
     freeAllocatedShareBonus: 0,
     freeUsed: 0,
     paidGuessCredits: 0,
@@ -302,11 +247,9 @@ export async function getOrCreateDailyState(
 
     // Use defined values for logging (TypeScript Insert type allows undefined due to DB defaults)
     const baseGuesses = DAILY_LIMITS_RULES.freeGuessesPerDayBase;
-    const clanktonGuesses = hasClankton ? clanktonBonusGuesses : 0;
-    const wordTokenGuesses = hasWordToken ? DAILY_LIMITS_RULES.wordTokenBonusGuesses : 0;
-    const totalFreeGuesses = baseGuesses + clanktonGuesses + wordTokenGuesses;
+    const wordTokenGuesses = hasWordToken ? wordBonusGuesses : 0;
     console.log(
-      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${clanktonGuesses} CLANKTON + ${wordTokenGuesses} $WORD = ${totalFreeGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
+      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${wordTokenGuesses} $WORD = ${baseGuesses + wordTokenGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
     );
 
     // Analytics v2: Log game session start (non-blocking)
@@ -315,8 +258,8 @@ export async function getOrCreateDailyState(
       data: {
         date: dateStr,
         free_base: baseGuesses,
-        free_clankton: clanktonGuesses,
-        has_clankton: hasClankton,
+        free_word_token: wordTokenGuesses,
+        has_word_token: hasWordToken,
       },
     });
 
@@ -410,7 +353,7 @@ export async function getOrGenerateWheelStartIndex(
  */
 export function getFreeGuessesRemaining(state: DailyGuessStateRow): number {
   const totalAllocated =
-    state.freeAllocatedBase + state.freeAllocatedClankton + state.freeAllocatedWordToken + state.freeAllocatedShareBonus;
+    state.freeAllocatedBase + state.freeAllocatedClankton + state.freeAllocatedShareBonus; // Legacy DB column name for freeAllocatedClankton
   return Math.max(0, totalAllocated - state.freeUsed);
 }
 
@@ -527,7 +470,7 @@ export async function awardShareBonus(
  * consume credits.
  *
  * Order of consumption (when guess is valid):
- * 1. Free guesses (base + CLANKTON + share bonus)
+ * 1. Free guesses (base + $WORD + share bonus)
  * 2. Paid guess credits
  * 3. If neither available, reject with "no_guesses_left_today"
  */
@@ -639,26 +582,15 @@ export async function submitGuessWithDailyLimits(params: {
         metadata: { date: dateStr },
       });
 
-      // 3. Award CLANKTON_BONUS_DAY XP (+10 XP, once per day for CLANKTON holders)
-      const isClanktonHolder = state.freeAllocatedClankton > 0;
-      if (isClanktonHolder) {
-        const alreadyReceivedClankton = await hasReceivedClanktonBonusToday(fid);
-        if (!alreadyReceivedClankton) {
-          logXpEvent(fid, 'CLANKTON_BONUS_DAY', {
+      // 3. Award $WORD holder bonus XP (+10 XP, once per day for $WORD holders)
+      // NOTE: Event name 'CLANKTON_BONUS_DAY' is legacy DB string - kept for data compatibility
+      const isTokenHolder = state.freeAllocatedClankton > 0; // Legacy DB column name
+      if (isTokenHolder) {
+        const alreadyReceivedTokenBonus = await hasReceivedWordTokenBonusToday(fid);
+        if (!alreadyReceivedTokenBonus) {
+          logXpEvent(fid, 'CLANKTON_BONUS_DAY', { // Legacy event name - kept for DB compatibility
             roundId: xpRoundId,
-            metadata: { clankton_bonus: state.freeAllocatedClankton },
-          });
-        }
-      }
-
-      // 3b. Award WORD_TOKEN_BONUS_DAY XP (+5 XP, once per day for $WORD token holders)
-      const isWordTokenHolder = state.freeAllocatedWordToken > 0;
-      if (isWordTokenHolder) {
-        const alreadyReceivedWordToken = await hasReceivedWordTokenBonusToday(fid);
-        if (!alreadyReceivedWordToken) {
-          logXpEvent(fid, 'WORD_TOKEN_BONUS_DAY', {
-            roundId: xpRoundId,
-            metadata: { word_token_bonus: state.freeAllocatedWordToken },
+            metadata: { word_token_bonus: state.freeAllocatedClankton },
           });
         }
       }
@@ -694,7 +626,7 @@ export async function submitGuessWithDailyLimits(params: {
  * Milestone 6.5: Returns per-source tracking information
  *
  * This function calculates how many guesses have been used from each source
- * based on the consumption order: Free -> CLANKTON -> Share -> Paid
+ * based on the consumption order: Free -> $WORD -> Share -> Paid
  *
  * @param fid - Farcaster ID of the user
  * @returns GuessSourceState with detailed per-source tracking
@@ -705,13 +637,12 @@ export async function getGuessSourceState(fid: number): Promise<GuessSourceState
 
   // Total allocations for each source
   const freeTotal = state.freeAllocatedBase;
-  const clanktonTotal = state.freeAllocatedClankton;
-  const wordTokenTotal = state.freeAllocatedWordToken;
+  const wordTokenTotal = state.freeAllocatedClankton; // Legacy DB column name
   const shareTotal = state.freeAllocatedShareBonus;
   const paidTotal = state.paidGuessCredits + getPaidGuessesUsedFromState(state);
 
   // Calculate used guesses per source based on consumption order:
-  // Free (base) -> CLANKTON -> $WORD -> Share
+  // Free (base) -> $WORD -> Share
   // Paid guesses are tracked separately in paidGuessCredits
   let freeUsedRemaining = state.freeUsed;
 
@@ -719,15 +650,11 @@ export async function getGuessSourceState(fid: number): Promise<GuessSourceState
   const freeUsed = Math.min(freeUsedRemaining, freeTotal);
   freeUsedRemaining -= freeUsed;
 
-  // CLANKTON is consumed second
-  const clanktonUsed = Math.min(freeUsedRemaining, clanktonTotal);
-  freeUsedRemaining -= clanktonUsed;
-
-  // $WORD token is consumed third
+  // $WORD token bonus is consumed second
   const wordTokenUsed = Math.min(freeUsedRemaining, wordTokenTotal);
   freeUsedRemaining -= wordTokenUsed;
 
-  // Share bonus is consumed fourth
+  // Share bonus is consumed third
   const shareUsed = Math.min(freeUsedRemaining, shareTotal);
 
   // Paid guesses used: total purchased minus remaining credits
@@ -735,17 +662,15 @@ export async function getGuessSourceState(fid: number): Promise<GuessSourceState
 
   // Calculate remaining for each source
   const freeRemaining = Math.max(0, freeTotal - freeUsed);
-  const clanktonRemaining = Math.max(0, clanktonTotal - clanktonUsed);
   const wordTokenRemaining = Math.max(0, wordTokenTotal - wordTokenUsed);
   const shareRemaining = Math.max(0, shareTotal - shareUsed);
   const paidRemaining = state.paidGuessCredits;
 
   // Total remaining across all sources
-  const totalRemaining = freeRemaining + clanktonRemaining + wordTokenRemaining + shareRemaining + paidRemaining;
+  const totalRemaining = freeRemaining + wordTokenRemaining + shareRemaining + paidRemaining;
 
-  // Token holder checks
-  const isClanktonHolder = state.freeAllocatedClankton > 0;
-  const isWordTokenHolder = state.freeAllocatedWordToken > 0;
+  // $WORD token holder check
+  const isWordTokenHolder = state.freeAllocatedClankton > 0; // Legacy DB column name
 
   // Share bonus eligibility
   const hasSharedToday = state.hasSharedToday;
@@ -761,12 +686,6 @@ export async function getGuessSourceState(fid: number): Promise<GuessSourceState
       total: freeTotal,
       used: freeUsed,
       remaining: freeRemaining,
-    },
-    clankton: {
-      total: clanktonTotal,
-      used: clanktonUsed,
-      remaining: clanktonRemaining,
-      isHolder: isClanktonHolder,
     },
     wordToken: {
       total: wordTokenTotal,

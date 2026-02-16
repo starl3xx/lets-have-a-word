@@ -4,12 +4,12 @@
  *
  * Implements the "Unified Player Wallet Identity" requirement:
  * - ONE canonical wallet address per user per round
- * - Used for: CLANKTON eligibility checks, paid guess tracking, free guess allocation, jackpot payout
+ * - Used for: $WORD eligibility checks, paid guess tracking, free guess allocation, jackpot payout
  *
  * Resolution flow:
  * 1. Neynar -> FID
  * 2. FID -> signer wallet (from Farcaster authentication)
- * 3. signer wallet -> CLANKTON balance check
+ * 3. signer wallet -> $WORD balance check
  * 4. signer wallet -> all game state for that round
  */
 
@@ -33,7 +33,7 @@ export interface WalletIdentityResult {
  *
  * This is the SINGLE SOURCE OF TRUTH for wallet identity.
  * The resolved wallet address MUST be used for:
- * - CLANKTON balance checking
+ * - $WORD balance checking
  * - Paid guess purchases (passed to smart contract)
  * - Round resolution (winner payout address)
  *
@@ -167,18 +167,18 @@ export async function validateWalletForUser(
 }
 
 /**
- * Get wallet address for CLANKTON balance check
+ * Get wallet address for $WORD balance check
  *
- * Ensures CLANKTON checks use the same wallet as all other game operations.
+ * Ensures $WORD checks use the same wallet as all other game operations.
  *
  * @param fid - User's FID
  * @returns Wallet address for balance check, or null if not resolvable
  */
-export async function getClanktonCheckWallet(fid: number): Promise<string | null> {
+export async function getWordTokenCheckWallet(fid: number): Promise<string | null> {
   const identity = await resolveWalletIdentity(fid);
 
   if (!identity.isValid) {
-    console.log(`[WALLET] CLANKTON check skipped - ${identity.error}`);
+    console.log(`[WALLET] $WORD check skipped - ${identity.error}`);
     return null;
   }
 
@@ -238,7 +238,7 @@ export async function bulkResolveWallets(
 /**
  * Log wallet identity resolution for debugging
  *
- * @param context - Context string (e.g., "PAYOUT", "CLANKTON", "PURCHASE")
+ * @param context - Context string (e.g., "PAYOUT", "WORD_TOKEN", "PURCHASE")
  * @param fid - User's FID
  * @param wallet - Resolved wallet address
  */

@@ -1,8 +1,8 @@
 /**
- * CLANKTON Market Cap Oracle Cron Job
+ * $WORD Market Cap Oracle Cron Job
  * Milestone 6.2 - Oracle Integration
  *
- * This script fetches CLANKTON market cap and pushes to the JackpotManager contract.
+ * This script fetches $WORD market cap and pushes to the JackpotManager contract.
  * Run every 15 minutes via cron or scheduler.
  *
  * Usage:
@@ -12,7 +12,7 @@
  *   0,15,30,45 * * * * cd /app && npx tsx src/scripts/oracle-cron.ts >> /var/log/oracle-cron.log 2>&1
  */
 
-import { runOracleUpdate, initializeOracle } from '../lib/clankton-oracle';
+import { runOracleUpdate, initializeOracle } from '../lib/word-oracle';
 
 async function main() {
   console.log(`[ORACLE CRON] Starting at ${new Date().toISOString()}`);
