@@ -199,7 +199,7 @@ WORD_MARKET_CAP_USD=150000
 
 ## References
 
-- $WORD Token: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
+- $WORD Token: `0x304e649e69979298BD1AEE63e175ADf07885fb4b`
 - JackpotManager Proxy: `0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5`
 - DexScreener API: https://docs.dexscreener.com/
 - CoinGecko API: https://www.coingecko.com/api/documentation

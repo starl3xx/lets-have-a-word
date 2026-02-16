@@ -35,7 +35,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         try {
           console.log('[FAQ] Attempting to view token...');
           const result = await sdk.actions.viewToken({
-            token: 'eip155:8453/erc20:0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07'
+            token: 'eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b'
           });
           console.log('[FAQ] viewToken result:', result);
         } catch (error) {

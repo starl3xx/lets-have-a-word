@@ -6,7 +6,7 @@ interface WordBonusModalProps {
 }
 
 // $WORD token address on Base
-const WORD_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+const WORD_TOKEN_ADDRESS = '0x304e649e69979298BD1AEE63e175ADf07885fb4b';
 
 /**
  * WordBonusModal

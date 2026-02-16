@@ -125,7 +125,7 @@ export default async function handler(
     }
 
     // Fetch $WORD token balance held by the JackpotManager contract
-    const WORD_TOKEN_ADDRESS = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+    const WORD_TOKEN_ADDRESS = '0x304e649e69979298BD1AEE63e175ADf07885fb4b';
     let wordTokenBalance: bigint = 0n;
     try {
       const erc20Abi = ['function balanceOf(address) view returns (uint256)'];

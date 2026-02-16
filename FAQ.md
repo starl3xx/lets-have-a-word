@@ -50,7 +50,7 @@ You can also purchase paid guess packs (3 guesses per pack, unlimited purchases 
 
 ## What's the $WORD bonus?
 
-If you hold 100M [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07) in your connected wallet, you receive extra free guesses:
+If you hold 100M [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b) in your connected wallet, you receive extra free guesses:
 
 - **+2 guesses/day** when $WORD market cap is below $250K
 - **+3 guesses/day** when market cap is above $250K
