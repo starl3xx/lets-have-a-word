@@ -1466,7 +1466,7 @@ Onchain token bonus system:
     - +2 guesses/day when market cap < $250k
     - +3 guesses/day when market cap >= $250k
   - Verified onchain at daily reset
-  - Contract: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07`
+  - Contract: `0x304e649e69979298BD1AEE63e175ADf07885fb4b`
 
 - **Wallet Integration (Wagmi)**
   - Automatic wallet connection via Farcaster SDK
@@ -2342,7 +2342,7 @@ curl -X POST /api/admin/analytics/simulations \
 Holding **≥ 100,000,000 $WORD** in your **signer wallet** grants **3 extra free guesses per day**.
 
 - **Onchain Verification**: Balance checked using `balanceOf` on Base network
-- **$WORD Contract**: `0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07` (Base)
+- **$WORD Contract**: `0x304e649e69979298BD1AEE63e175ADf07885fb4b` (Base)
 - **Signer Wallet Only**: v1 checks only the Farcaster signer wallet
 - **Future**: Multi-wallet support planned for later milestone
 

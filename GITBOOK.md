@@ -179,7 +179,7 @@ If you hold **100 million $WORD** tokens in your connected wallet, you receive e
 - Market cap is updated every 15 minutes via a live onchain oracle
 - If market cap crosses $250K mid-day, you get the upgrade immediately
 
-**Token:** [$WORD on Base](https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07)
+**Token:** [$WORD on Base](https://basescan.org/token/0x304e649e69979298BD1AEE63e175ADf07885fb4b)
 
 ---
 
@@ -342,7 +342,7 @@ All transactions are verifiable on [BaseScan](https://basescan.org/address/0xfcb
 - **Archive:** https://letshaveaword.fun/archive
 - **Verify:** https://letshaveaword.fun/verify
 - **Follow:** [@letshaveaword on Farcaster](https://warpcast.com/letshaveaword)
-- **$WORD:** [Token on Base](https://basescan.org/token/0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07)
+- **$WORD:** [Token on Base](https://basescan.org/token/0x304e649e69979298BD1AEE63e175ADf07885fb4b)
 
 ---
 
