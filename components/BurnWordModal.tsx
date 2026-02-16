@@ -119,7 +119,7 @@ export default function BurnWordModal({
           </div>
 
           <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-500 bg-clip-text text-transparent mb-2">
-            Burn Word Found!
+            Burn word found!
           </h2>
           <p className="text-gray-600">
             You found a secret burn word
@@ -146,7 +146,7 @@ export default function BurnWordModal({
                 -{formatTokenReward(burnAmount)} $WORD
               </div>
               <div className="text-sm text-orange-500">
-                Permanently destroyed
+                Permanently burned
               </div>
             </div>
           </div>
@@ -154,7 +154,7 @@ export default function BurnWordModal({
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className="text-xl">🏆</span>
             <span className="text-sm font-medium text-orange-600">
-              +100 XP &amp; 🔥 Badge earned!
+              +100 XP &amp; 🔥 badge earned!
             </span>
           </div>
         </div>
@@ -166,7 +166,7 @@ export default function BurnWordModal({
               onClick={handleViewTransaction}
               className="w-full px-4 py-3 bg-white border-2 border-orange-200 hover:border-orange-400 text-orange-700 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
             >
-              <span>View Transaction</span>
+              <span>View transaction</span>
               <span className="text-sm">↗</span>
             </button>
           )}
@@ -175,7 +175,7 @@ export default function BurnWordModal({
             onClick={handleContinue}
             className="w-full px-4 py-3 bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-700 hover:to-red-600 text-white rounded-xl font-semibold transition-all shadow-lg"
           >
-            Keep Playing!
+            Keep playing!
           </button>
         </div>
 

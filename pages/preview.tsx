@@ -156,19 +156,19 @@ export default function PreviewPage() {
             onClick={() => setShowBurnModal(true)}
             className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-semibold"
           >
-            Show BurnWordModal
+            Show burn word modal
           </button>
           <button
             onClick={() => setShowBonusModal(true)}
             className="w-full py-3 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-xl font-semibold"
           >
-            Show BonusWordWinModal
+            Show bonus word modal
           </button>
           <button
             onClick={() => setShowStakingModal(true)}
             className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-xl font-semibold"
           >
-            Show StakingModal (Coming Soon)
+            Show staking modal (coming soon)
           </button>
         </div>
 

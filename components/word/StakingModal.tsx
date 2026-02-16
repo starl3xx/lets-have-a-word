@@ -59,7 +59,7 @@ export default function StakingModal({
           /* Coming Soon state */
           <div className="text-center py-8 space-y-3">
             <div className="text-4xl">🔒</div>
-            <h4 className="text-lg font-semibold text-gray-700">Staking Coming Soon</h4>
+            <h4 className="text-lg font-semibold text-gray-700">Staking coming soon</h4>
             <p className="text-sm text-gray-500">
               The $WORD staking contract is being finalized. Once deployed, you'll be able to stake your tokens to earn rewards and increase your effective balance for higher bonus tiers.
             </p>

@@ -134,7 +134,7 @@ export default function BonusWordWinModal({
           </div>
 
           <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-cyan-500 bg-clip-text text-transparent mb-2">
-            Bonus Word Found!
+            Bonus word found!
           </h2>
           <p className="text-gray-600">
             You found a secret bonus word
@@ -169,7 +169,7 @@ export default function BonusWordWinModal({
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className="text-xl">🏆</span>
             <span className="text-sm font-medium text-purple-600">
-              +250 XP &amp; 🎣 Badge earned!
+              +250 XP &amp; 🎣 badge earned!
             </span>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function BonusWordWinModal({
               onClick={handleViewTransaction}
               className="w-full px-4 py-3 bg-white border-2 border-purple-200 hover:border-purple-400 text-purple-700 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
             >
-              <span>View Transaction</span>
+              <span>View transaction</span>
               <span className="text-sm">↗</span>
             </button>
           )}
@@ -190,7 +190,7 @@ export default function BonusWordWinModal({
             onClick={handleContinue}
             className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-700 hover:to-cyan-600 text-white rounded-xl font-semibold transition-all shadow-lg"
           >
-            Keep Playing!
+            Keep playing!
           </button>
         </div>
 

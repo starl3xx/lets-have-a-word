@@ -54,7 +54,7 @@ export default function WordHoldings({
       {/* Top row: Total balance + tier badge */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <div className="text-xs text-gray-500 uppercase tracking-wider font-medium">Total Balance</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wider font-medium">Total balance</div>
           <div className="text-2xl font-bold text-gray-900">{formatTokenAmount(effective)} $WORD</div>
           <div className="text-sm text-gray-500">${valueUsd} USD</div>
         </div>
@@ -75,7 +75,7 @@ export default function WordHoldings({
         </div>
         <div className="bg-gray-50 rounded-lg p-3">
           <div className="text-xs text-gray-500">
-            Staked {!stakingAvailable && <span className="text-gray-400">(Coming Soon)</span>}
+            Staked {!stakingAvailable && <span className="text-gray-400">(coming soon)</span>}
           </div>
           <div className="text-sm font-semibold text-gray-900">{formatTokenAmount(staked)}</div>
         </div>

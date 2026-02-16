@@ -49,7 +49,7 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <div className="text-lg font-bold text-gray-900">{formatLargeNumber(data.totalSupply)}</div>
-            <div className="text-xs text-gray-500">Total Supply</div>
+            <div className="text-xs text-gray-500">Total supply</div>
           </div>
           <div>
             <div className="text-lg font-bold text-red-600">{formatLargeNumber(data.totalBurned)}</div>
@@ -64,12 +64,12 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
 
       {/* Game stats */}
       <div className="section-card">
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Game Activity</h4>
+        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Game activity</h4>
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-red-50 rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-sm">🔥</span>
-              <span className="text-xs font-medium text-red-700">Burn Words</span>
+              <span className="text-xs font-medium text-red-700">Burn words</span>
             </div>
             <div className="text-lg font-bold text-red-700">{data.burnStats.burnWordsFound}</div>
             <div className="text-xs text-red-500">{formatLargeNumber(data.burnStats.totalBurned)} tokens burned</div>
@@ -77,7 +77,7 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
           <div className="bg-purple-50 rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-sm">🎣</span>
-              <span className="text-xs font-medium text-purple-700">Bonus Words</span>
+              <span className="text-xs font-medium text-purple-700">Bonus words</span>
             </div>
             <div className="text-lg font-bold text-purple-700">{data.bonusStats.bonusWordsFound}</div>
             <div className="text-xs text-purple-500">{formatLargeNumber(data.bonusStats.totalDistributed)} distributed</div>
@@ -87,13 +87,13 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
 
       {/* Fee distribution */}
       <div className="section-card">
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Fee Distribution</h4>
+        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Fee distribution</h4>
         <div className="space-y-2">
           {[
-            { label: 'Game Treasury', value: data.feeDistribution.gameTreasury, color: '#2D68C7' },
-            { label: 'Buyback & Stake', value: data.feeDistribution.buybackStake, color: '#7c3aed' },
-            { label: 'Player Rewards', value: data.feeDistribution.playerRewards, color: '#10b981' },
-            { label: 'Top 10 Referral', value: data.feeDistribution.top10Referral, color: '#f59e0b' },
+            { label: 'Game treasury', value: data.feeDistribution.gameTreasury, color: '#2D68C7' },
+            { label: 'Buyback & stake', value: data.feeDistribution.buybackStake, color: '#7c3aed' },
+            { label: 'Player rewards', value: data.feeDistribution.playerRewards, color: '#10b981' },
+            { label: 'Top 10 referral', value: data.feeDistribution.top10Referral, color: '#f59e0b' },
           ].map(({ label, value, color }) => (
             <div key={label} className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">

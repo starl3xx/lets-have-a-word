@@ -119,7 +119,7 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
                   }}
                   className="w-full mt-3 py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
                 >
-                  <span>🔒</span> Manage Staking
+                  <span>🔒</span> Manage staking
                 </button>
               </div>
             ) : (
@@ -146,7 +146,7 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
           {tokenomicsData && (
             <div className="mt-3 section-card">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Market Cap</span>
+                <span className="text-gray-500">Market cap</span>
                 <span className="font-semibold text-gray-900">
                   ${parseInt(tokenomicsData.marketCap).toLocaleString('en-US')}
                 </span>
