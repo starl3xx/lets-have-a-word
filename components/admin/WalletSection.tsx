@@ -62,12 +62,17 @@ interface WalletBalances {
       address: string;
       bps: number;
       percent: number;
-      wethBalanceEth: string;
-      ethBalanceEth?: string;
-      totalEth: string;
+      wethBalance: string;
+      ethBalance: string;
+      usdcBalance: string;
+      wordBalance: string;
     }[];
-    totalWethEth: string;
-    grandTotalEth: string;
+    totals: {
+      weth: string;
+      eth: string;
+      usdc: string;
+      word: string;
+    };
   };
   pendingRefunds: {
     count: number;
@@ -1467,23 +1472,31 @@ export default function WalletSection({ user }: WalletSectionProps) {
         <div style={styles.card}>
           <h3 style={{ ...styles.cardTitle, margin: 0 }}>Fee Recipients</h3>
           <p style={{ ...styles.cardSubtitle, margin: '4px 0 16px 0' }}>
-            WETH distributions from Uniswap V3 position fees
+            Token balances across Uniswap V3 fee recipient wallets
           </p>
 
           {/* Summary row */}
-          <div style={{ ...styles.grid2, marginBottom: '16px' }}>
+          <div style={styles.grid4}>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Total WETH</div>
-              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.totalWethEth).toFixed(4)} ETH</div>
+              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.totals.weth).toFixed(4)}</div>
             </div>
             <div style={styles.statCard}>
-              <div style={styles.statLabel}>Grand Total (WETH + ETH)</div>
-              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.grandTotalEth).toFixed(4)} ETH</div>
+              <div style={styles.statLabel}>Total ETH</div>
+              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.totals.eth).toFixed(4)}</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Total USDC</div>
+              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.totals.usdc).toFixed(2)}</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Total $WORD</div>
+              <div style={styles.statValueSmall}>{Number(balances.feeRecipients.totals.word).toLocaleString()}</div>
             </div>
           </div>
 
           {/* Recipient cards */}
-          <div style={styles.grid4}>
+          <div style={{ ...styles.grid4, marginTop: '16px' }}>
             {balances.feeRecipients.recipients.map((r) => (
               <div key={r.id} style={styles.statCard}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -1508,17 +1521,19 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 <div style={{ marginTop: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
                     <span>WETH</span>
-                    <span style={{ fontWeight: 600 }}>{parseFloat(r.wethBalanceEth).toFixed(4)}</span>
+                    <span style={{ fontWeight: 600 }}>{parseFloat(r.wethBalance).toFixed(4)}</span>
                   </div>
-                  {r.ethBalanceEth !== undefined && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
-                      <span>ETH</span>
-                      <span style={{ fontWeight: 600 }}>{parseFloat(r.ethBalanceEth).toFixed(4)}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#111827', fontWeight: 600, borderTop: '1px solid #e5e7eb', paddingTop: '4px', marginTop: '4px' }}>
-                    <span>Total</span>
-                    <span>{parseFloat(r.totalEth).toFixed(4)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
+                    <span>ETH</span>
+                    <span style={{ fontWeight: 600 }}>{parseFloat(r.ethBalance).toFixed(4)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
+                    <span>USDC</span>
+                    <span style={{ fontWeight: 600 }}>{parseFloat(r.usdcBalance).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
+                    <span>$WORD</span>
+                    <span style={{ fontWeight: 600 }}>{Number(r.wordBalance).toLocaleString()}</span>
                   </div>
                 </div>
                 <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '6px' }}>{r.bps} BPS</div>

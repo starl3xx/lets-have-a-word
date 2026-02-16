@@ -12,7 +12,7 @@ import { db } from '../../../../src/db';
 import { refunds, rounds } from '../../../../src/db/schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { SEED_CAP_ETH } from '../../../../src/lib/economics';
-import { FEE_RECIPIENTS, WETH_ADDRESS_BASE } from '../../../../src/lib/fee-recipients';
+import { FEE_RECIPIENTS, WETH_ADDRESS_BASE, USDC_ADDRESS_BASE, WORD_ADDRESS_BASE } from '../../../../src/lib/fee-recipients';
 
 // Minimum seed target for next round
 // Treasury funds below this threshold prioritize seeding rounds
@@ -57,12 +57,17 @@ export interface WalletBalancesResponse {
       address: string;
       bps: number;
       percent: number;
-      wethBalanceEth: string;
-      ethBalanceEth?: string;
-      totalEth: string;
+      wethBalance: string;
+      ethBalance: string;
+      usdcBalance: string;
+      wordBalance: string;
     }[];
-    totalWethEth: string;
-    grandTotalEth: string;
+    totals: {
+      weth: string;
+      eth: string;
+      usdc: string;
+      word: string;
+    };
   };
   pendingRefunds: {
     count: number;
@@ -130,36 +135,33 @@ export default async function handler(
       console.warn('[admin/wallet/balances] $WORD balance fetch failed:', err);
     }
 
-    // Fetch fee recipient WETH balances (+ native ETH for Player Rewards)
+    // Fetch fee recipient balances: WETH, ETH, USDC, $WORD for all 4 wallets
     let feeRecipientsData: WalletBalancesResponse['feeRecipients'] = undefined;
     try {
-      const wethAbi = ['function balanceOf(address) view returns (uint256)'];
-      const wethContract = new ethers.Contract(WETH_ADDRESS_BASE, wethAbi, provider);
+      const erc20BalanceOf = ['function balanceOf(address) view returns (uint256)'];
+      const wethContract = new ethers.Contract(WETH_ADDRESS_BASE, erc20BalanceOf, provider);
+      const usdcContract = new ethers.Contract(USDC_ADDRESS_BASE, erc20BalanceOf, provider);
+      const wordContract = new ethers.Contract(WORD_ADDRESS_BASE, erc20BalanceOf, provider);
 
-      // Build parallel calls: WETH balance for all 4 + native ETH for 'BOTH' recipients
-      const wethPromises = FEE_RECIPIENTS.map(r => wethContract.balanceOf(r.address));
-      const ethPromises = FEE_RECIPIENTS
-        .filter(r => r.receives === 'BOTH')
-        .map(r => provider.getBalance(r.address));
-
-      const [wethResults, ethResults] = await Promise.all([
-        Promise.all(wethPromises),
-        Promise.all(ethPromises),
+      // 4 wallets × 3 ERC-20s + 4 native ETH = 16 parallel calls
+      const [wethResults, ethResults, usdcResults, wordResults] = await Promise.all([
+        Promise.all(FEE_RECIPIENTS.map(r => wethContract.balanceOf(r.address))),
+        Promise.all(FEE_RECIPIENTS.map(r => provider.getBalance(r.address))),
+        Promise.all(FEE_RECIPIENTS.map(r => usdcContract.balanceOf(r.address))),
+        Promise.all(FEE_RECIPIENTS.map(r => wordContract.balanceOf(r.address))),
       ]);
 
-      let ethIdx = 0;
-      let totalWeth = 0;
-      let grandTotal = 0;
+      const totals = { weth: 0, eth: 0, usdc: 0, word: 0 };
 
       const recipients = FEE_RECIPIENTS.map((r, i) => {
-        const wethBal = parseFloat(ethers.formatEther(wethResults[i]));
-        let ethBal: number | undefined;
-        if (r.receives === 'BOTH') {
-          ethBal = parseFloat(ethers.formatEther(ethResults[ethIdx++]));
-        }
-        const total = wethBal + (ethBal ?? 0);
-        totalWeth += wethBal;
-        grandTotal += total;
+        const weth = parseFloat(ethers.formatEther(wethResults[i]));
+        const eth = parseFloat(ethers.formatEther(ethResults[i]));
+        const usdc = parseFloat(ethers.formatUnits(usdcResults[i], 6));
+        const word = parseFloat(ethers.formatEther(wordResults[i]));
+        totals.weth += weth;
+        totals.eth += eth;
+        totals.usdc += usdc;
+        totals.word += word;
 
         return {
           id: r.id,
@@ -167,16 +169,21 @@ export default async function handler(
           address: r.address,
           bps: r.bps,
           percent: r.bps / 100,
-          wethBalanceEth: wethBal.toFixed(6),
-          ...(ethBal !== undefined && { ethBalanceEth: ethBal.toFixed(6) }),
-          totalEth: total.toFixed(6),
+          wethBalance: weth.toFixed(6),
+          ethBalance: eth.toFixed(6),
+          usdcBalance: usdc.toFixed(6),
+          wordBalance: Math.floor(word).toString(),
         };
       });
 
       feeRecipientsData = {
         recipients,
-        totalWethEth: totalWeth.toFixed(6),
-        grandTotalEth: grandTotal.toFixed(6),
+        totals: {
+          weth: totals.weth.toFixed(6),
+          eth: totals.eth.toFixed(6),
+          usdc: totals.usdc.toFixed(6),
+          word: Math.floor(totals.word).toString(),
+        },
       };
     } catch (err) {
       console.warn('[admin/wallet/balances] Fee recipient balance fetch failed:', err);
