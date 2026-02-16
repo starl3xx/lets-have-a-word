@@ -55,6 +55,20 @@ interface WalletBalances {
     balance: string; // Human readable whole number
     balanceRaw: string;
   };
+  feeRecipients?: {
+    recipients: {
+      id: string;
+      name: string;
+      address: string;
+      bps: number;
+      percent: number;
+      wethBalanceEth: string;
+      ethBalanceEth?: string;
+      totalEth: string;
+    }[];
+    totalWethEth: string;
+    grandTotalEth: string;
+  };
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -1447,6 +1461,72 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </>
         ) : null}
       </div>
+
+      {/* Fee Recipients */}
+      {balances && balances.feeRecipients && (
+        <div style={styles.card}>
+          <h3 style={{ ...styles.cardTitle, margin: 0 }}>Fee Recipients</h3>
+          <p style={{ ...styles.cardSubtitle, margin: '4px 0 16px 0' }}>
+            WETH distributions from Uniswap V3 position fees
+          </p>
+
+          {/* Summary row */}
+          <div style={{ ...styles.grid2, marginBottom: '16px' }}>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Total WETH</div>
+              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.totalWethEth).toFixed(4)} ETH</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Grand Total (WETH + ETH)</div>
+              <div style={styles.statValueSmall}>{parseFloat(balances.feeRecipients.grandTotalEth).toFixed(4)} ETH</div>
+            </div>
+          </div>
+
+          {/* Recipient cards */}
+          <div style={styles.grid4}>
+            {balances.feeRecipients.recipients.map((r) => (
+              <div key={r.id} style={styles.statCard}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>{r.name}</div>
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#2563eb',
+                    background: '#eff6ff',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                  }}>{r.percent}%</div>
+                </div>
+                <a
+                  href={`https://basescan.org/address/${r.address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'monospace', textDecoration: 'none' }}
+                >
+                  {r.address.slice(0, 6)}...{r.address.slice(-4)}
+                </a>
+                <div style={{ marginTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
+                    <span>WETH</span>
+                    <span style={{ fontWeight: 600 }}>{parseFloat(r.wethBalanceEth).toFixed(4)}</span>
+                  </div>
+                  {r.ethBalanceEth !== undefined && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
+                      <span>ETH</span>
+                      <span style={{ fontWeight: 600 }}>{parseFloat(r.ethBalanceEth).toFixed(4)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#111827', fontWeight: 600, borderTop: '1px solid #e5e7eb', paddingTop: '4px', marginTop: '4px' }}>
+                    <span>Total</span>
+                    <span>{parseFloat(r.totalEth).toFixed(4)}</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '6px' }}>{r.bps} BPS</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Bonus Word Distributions */}
       <div style={styles.card}>

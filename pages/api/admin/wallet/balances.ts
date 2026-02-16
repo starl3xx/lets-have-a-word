@@ -12,6 +12,7 @@ import { db } from '../../../../src/db';
 import { refunds, rounds } from '../../../../src/db/schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { SEED_CAP_ETH } from '../../../../src/lib/economics';
+import { FEE_RECIPIENTS, WETH_ADDRESS_BASE } from '../../../../src/lib/fee-recipients';
 
 // Minimum seed target for next round
 // Treasury funds below this threshold prioritize seeding rounds
@@ -48,6 +49,20 @@ export interface WalletBalancesResponse {
     tokenAddress: string;
     balance: string; // Human readable (e.g., "5000000000" for 5B)
     balanceRaw: string; // Raw with 18 decimals
+  };
+  feeRecipients?: {
+    recipients: {
+      id: string;
+      name: string;
+      address: string;
+      bps: number;
+      percent: number;
+      wethBalanceEth: string;
+      ethBalanceEth?: string;
+      totalEth: string;
+    }[];
+    totalWethEth: string;
+    grandTotalEth: string;
   };
   pendingRefunds: {
     count: number;
@@ -113,6 +128,58 @@ export default async function handler(
       wordTokenBalance = await wordTokenContract.balanceOf(config.jackpotManagerAddress);
     } catch (err) {
       console.warn('[admin/wallet/balances] $WORD balance fetch failed:', err);
+    }
+
+    // Fetch fee recipient WETH balances (+ native ETH for Player Rewards)
+    let feeRecipientsData: WalletBalancesResponse['feeRecipients'] = undefined;
+    try {
+      const wethAbi = ['function balanceOf(address) view returns (uint256)'];
+      const wethContract = new ethers.Contract(WETH_ADDRESS_BASE, wethAbi, provider);
+
+      // Build parallel calls: WETH balance for all 4 + native ETH for 'BOTH' recipients
+      const wethPromises = FEE_RECIPIENTS.map(r => wethContract.balanceOf(r.address));
+      const ethPromises = FEE_RECIPIENTS
+        .filter(r => r.receives === 'BOTH')
+        .map(r => provider.getBalance(r.address));
+
+      const [wethResults, ethResults] = await Promise.all([
+        Promise.all(wethPromises),
+        Promise.all(ethPromises),
+      ]);
+
+      let ethIdx = 0;
+      let totalWeth = 0;
+      let grandTotal = 0;
+
+      const recipients = FEE_RECIPIENTS.map((r, i) => {
+        const wethBal = parseFloat(ethers.formatEther(wethResults[i]));
+        let ethBal: number | undefined;
+        if (r.receives === 'BOTH') {
+          ethBal = parseFloat(ethers.formatEther(ethResults[ethIdx++]));
+        }
+        const total = wethBal + (ethBal ?? 0);
+        totalWeth += wethBal;
+        grandTotal += total;
+
+        return {
+          id: r.id,
+          name: r.name,
+          address: r.address,
+          bps: r.bps,
+          percent: r.bps / 100,
+          wethBalanceEth: wethBal.toFixed(6),
+          ...(ethBal !== undefined && { ethBalanceEth: ethBal.toFixed(6) }),
+          totalEth: total.toFixed(6),
+        };
+      });
+
+      feeRecipientsData = {
+        recipients,
+        totalWethEth: totalWeth.toFixed(6),
+        grandTotalEth: grandTotal.toFixed(6),
+      };
+    } catch (err) {
+      console.warn('[admin/wallet/balances] Fee recipient balance fetch failed:', err);
     }
 
     // Database query for pending refunds
@@ -196,6 +263,7 @@ export default async function handler(
         balance: wordTokenWhole,
         balanceRaw: wordTokenBalance.toString(),
       },
+      ...(feeRecipientsData && { feeRecipients: feeRecipientsData }),
       pendingRefunds: {
         count: pendingRefunds.count,
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),
