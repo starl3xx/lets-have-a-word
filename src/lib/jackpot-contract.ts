@@ -56,7 +56,7 @@ const JACKPOT_MANAGER_ABI = [
   'function BONUS_WORDS_PER_ROUND() view returns (uint256)',
   'function clanktonToken() view returns (address)',
   'function totalClanktonDistributed() view returns (uint256)',
-  'function getBonusWordRewardsBalance() view returns (uint256)',
+  'function getClanktonBalance() view returns (uint256)',
 
   // Write functions (operator only)
   'function seedJackpot() payable',
@@ -1144,7 +1144,7 @@ export async function isBonusWordsEnabledOnChain(): Promise<boolean> {
 export async function getBonusWordRewardsBalanceOnChain(): Promise<string> {
   try {
     const contract = getJackpotManagerReadOnly();
-    const balance = await contract.getBonusWordRewardsBalance();
+    const balance = await contract.getClanktonBalance();
     return ethers.formatEther(balance);
   } catch {
     return '0';
@@ -1380,7 +1380,7 @@ export async function setBonusWordsEnabledOnChain(enabled: boolean): Promise<str
 export async function getWordTokenBalanceWei(): Promise<bigint> {
   try {
     const contract = getJackpotManagerReadOnly();
-    const balance = await contract.getBonusWordRewardsBalance();
+    const balance = await contract.getClanktonBalance();
     return balance;
   } catch {
     return 0n;
