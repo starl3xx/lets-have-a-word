@@ -10,7 +10,7 @@ export const WETH_ADDRESS_BASE = '0x4200000000000000000000000000000000000006';
 export const USDC_ADDRESS_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 /** $WORD token contract on Base (18 decimals) */
-export const WORD_ADDRESS_BASE = '0x461DEb53515CaC6c923EeD9Eb7eD5Be80F4e0b07';
+export const WORD_ADDRESS_BASE = '0x304e649e69979298bd1aee63e175adf07885fb4b';
 
 export interface FeeRecipient {
   id: string;
