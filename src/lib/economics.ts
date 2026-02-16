@@ -744,6 +744,59 @@ export async function resolveRoundAndCreatePayouts(
     await db.insert(roundPayouts).values(dbPayouts);
   }
 
+  // Milestone 14: Distribute $WORD top-10 rewards (non-blocking, never blocks ETH payouts)
+  if (topGuesserFids.length > 0) {
+    (async () => {
+      try {
+        const { getTop10WordAmounts, WORD_MARKET_CAP_USD } = await import('../../config/economy');
+        const { distributeTop10RewardsOnChain } = await import('./word-manager');
+        const { wordRewards: wordRewardsTable, roundPayouts: roundPayoutsTable } = await import('../db/schema');
+
+        const wordAmounts = getTop10WordAmounts(WORD_MARKET_CAP_USD);
+        const playerAmounts = wordAmounts.slice(0, topGuesserFids.length);
+
+        // Look up wallet addresses for top guessers
+        const walletResults = await Promise.all(
+          topGuesserFids.map(async (fid) => {
+            const [user] = await db
+              .select({ wallet: users.signerWalletAddress })
+              .from(users)
+              .where(eq(users.fid, fid))
+              .limit(1);
+            return { fid, wallet: user?.wallet || null };
+          })
+        );
+
+        const validPlayers = walletResults.filter(p => p.wallet !== null);
+
+        if (validPlayers.length > 0) {
+          // Onchain distribution (single batch tx)
+          const txHash = await distributeTop10RewardsOnChain(
+            roundId,
+            validPlayers.map(p => p.wallet!),
+            playerAmounts.slice(0, validPlayers.length)
+          );
+
+          // Record each payout in word_rewards audit trail
+          for (let i = 0; i < validPlayers.length; i++) {
+            await db.insert(wordRewardsTable).values({
+              roundId,
+              fid: validPlayers[i].fid,
+              rewardType: 'top10',
+              amount: playerAmounts[i],
+              txHash,
+            });
+          }
+
+          console.log(`[economics] ✅ Distributed $WORD top-10 rewards for round ${roundId} (${validPlayers.length} players)`);
+        }
+      } catch (error) {
+        console.error(`[economics] $WORD top-10 distribution failed for round ${roundId}:`, error);
+        // CRITICAL: $WORD payout failure must NOT block ETH payouts or round resolution
+      }
+    })();
+  }
+
   // Milestone 6.7: Award TOP_TEN_GUESSER XP (+50 XP each, fire-and-forget)
   if (topGuesserFids.length > 0) {
     awardTopTenGuesserXp(roundId, topGuesserFids);

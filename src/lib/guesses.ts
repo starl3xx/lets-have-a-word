@@ -3,6 +3,7 @@ import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
+import { checkBurnWordMatch, handleBurnWordWin } from './burn-words';
 import { getActiveRound, getActiveRoundForUpdate, createRound } from './rounds';
 import { shouldBlockNewRoundCreation } from './operational-guard';
 import { isValidGuess } from './word-lists';
@@ -745,7 +746,15 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       return await handleBonusWordWin(round.id, fid, word, bonusWordMatch, isPaidGuess);
     }
 
-    // INCORRECT GUESS (not secret word, not bonus word)
+    // Milestone 14: Check if this is an unclaimed burn word
+    const burnWordMatch = await checkBurnWordMatch(round.id, word);
+
+    if (burnWordMatch) {
+      // 🔥 BURN WORD FOUND!
+      return await handleBurnWordWin(round.id, fid, word, burnWordMatch, isPaidGuess);
+    }
+
+    // INCORRECT GUESS (not secret word, not bonus word, not burn word)
 
     // Use transaction to atomically get index and insert
     let guessIndexInRound: number;

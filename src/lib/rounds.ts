@@ -1,4 +1,5 @@
 import { db, rounds, roundBonusWords } from '../db';
+import { selectBurnWordsForRound } from './burn-words';
 import { eq, isNull, desc, and } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer, selectBonusWords } from './word-lists';
@@ -177,6 +178,18 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     }
 
     console.log(`[rounds] ✅ Stored ${bonusWords.length} bonus words for round ${round.id}`);
+  }
+
+  // Milestone 14: Select burn words (5 per round, no overlap with answer or bonus words)
+  try {
+    const excludeWords = [selectedAnswer, ...bonusWords];
+    const burnWords = await selectBurnWordsForRound(round.id, excludeWords);
+    if (burnWords.length > 0) {
+      console.log(`[rounds] ✅ Selected ${burnWords.length} burn words for round ${round.id}`);
+    }
+  } catch (error) {
+    console.error(`[rounds] Failed to select burn words for round ${round.id}:`, error);
+    // Continue — burn word failure should never block round creation
   }
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);

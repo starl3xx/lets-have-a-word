@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, index, date, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, numeric, index, date, unique } from 'drizzle-orm/pg-core';
 import type { GameRulesConfig } from '../types';
 
 /**
@@ -90,6 +90,7 @@ export const guesses = pgTable('guesses', {
   isPaid: boolean('is_paid').default(false).notNull(),
   isCorrect: boolean('is_correct').default(false).notNull(), // True if this guess won the round
   isBonusWord: boolean('is_bonus_word').default(false).notNull(), // True if this guess was a bonus word (still counts as incorrect)
+  isBurnWord: boolean('is_burn_word').default(false).notNull(), // Milestone 14: True if this guess was a burn word
   guessIndexInRound: integer('guess_index_in_round'), // 1-based index within round (Milestone 7.x: Top-10 lock)
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
@@ -200,7 +201,8 @@ export const roundPayouts = pgTable('round_payouts', {
   fid: integer('fid'), // FK to users.fid - recipient of payout (null for seed/creator)
   walletAddress: varchar('wallet_address', { length: 66 }), // Resolved wallet address at time of payout (for audit trail)
   amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
-  role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser', 'seed', 'creator'
+  amountWord: varchar('amount_word', { length: 78 }), // Milestone 14: $WORD token amount (nullable, for top10_word payouts)
+  role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser', 'seed', 'creator', 'top10_word'
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundIdx: index('round_payouts_round_idx').on(table.roundId),
@@ -664,3 +666,53 @@ export const bonusWordClaims = pgTable('bonus_word_claims', {
 
 export type BonusWordClaimRow = typeof bonusWordClaims.$inferSelect;
 export type BonusWordClaimInsert = typeof bonusWordClaims.$inferInsert;
+
+/**
+ * Round Burn Words Table
+ * Milestone 14: Stores the 5 burn words per round
+ * Discovery permanently destroys $WORD supply
+ */
+export const roundBurnWords = pgTable('round_burn_words', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  wordIndex: integer('word_index').notNull(), // 0-4 position
+  word: varchar('word', { length: 100 }).notNull(), // Encrypted same as bonus words (iv:tag:ciphertext)
+  salt: varchar('salt', { length: 64 }).notNull(), // Individual salt for verification
+  burnAmount: varchar('burn_amount', { length: 78 }).notNull(), // Amount burned in wei (5M * 10^18)
+  finderFid: integer('finder_fid'), // FK to users.fid (null if unclaimed)
+  foundAt: timestamp('found_at'),
+  txHash: varchar('tx_hash', { length: 66 }), // Burn transaction hash
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundWordIndexUnique: unique('round_burn_words_round_word_index_unique').on(table.roundId, table.wordIndex),
+  roundWordUnique: unique('round_burn_words_round_word_unique').on(table.roundId, table.word),
+  roundIdx: index('round_burn_words_round_idx').on(table.roundId),
+  finderIdx: index('round_burn_words_finder_idx').on(table.finderFid),
+}));
+
+export type RoundBurnWordRow = typeof roundBurnWords.$inferSelect;
+export type RoundBurnWordInsert = typeof roundBurnWords.$inferInsert;
+
+/**
+ * Word Rewards Table
+ * Milestone 14: Unified audit trail for all $WORD token events
+ * Tracks bonus word rewards, burn events, top-10 rewards, and staking
+ */
+export const wordRewards = pgTable('word_rewards', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').references(() => rounds.id),
+  fid: integer('fid'), // FK to users.fid — NULL for burn events (tokens destroyed, not awarded)
+  rewardType: varchar('reward_type', { length: 30 }).notNull(), // 'bonus_word' | 'burn' | 'top10' | 'staking'
+  amount: varchar('amount', { length: 78 }).notNull(), // Token amount in wei
+  word: varchar('word', { length: 10 }), // NULL for top10/staking
+  txHash: varchar('tx_hash', { length: 66 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundIdx: index('word_rewards_round_idx').on(table.roundId),
+  fidIdx: index('word_rewards_fid_idx').on(table.fid),
+  rewardTypeIdx: index('word_rewards_reward_type_idx').on(table.rewardType),
+  createdAtIdx: index('word_rewards_created_at_idx').on(table.createdAt),
+}));
+
+export type WordRewardRow = typeof wordRewards.$inferSelect;
+export type WordRewardInsert = typeof wordRewards.$inferInsert;

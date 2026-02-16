@@ -16,7 +16,7 @@ import { submitGuess } from './guesses';
 import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult, GuessSourceState } from '../types';
-import { hasWordTokenBonus } from './word-token';
+import { hasWordTokenBonus, getWordBonusTier } from './word-token';
 import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import {
@@ -121,13 +121,26 @@ export function getTodayUTC(): string {
 /**
  * $WORD Token Bonus Check
  * Milestone 4.1: Real onchain balance checking
+ * @deprecated Use getWordBonusTierForFid() for tier-specific logic
  *
- * Checks if the user's signer wallet holds >= 100M $WORD tokens.
+ * Checks if the user's signer wallet holds enough $WORD tokens.
  *
  * @param fid - Farcaster ID of the user
  * @returns true if user has $WORD token bonus, false otherwise
  */
 export async function hasWORDTokenBonus(fid: number): Promise<boolean> {
+  const tier = await getWordBonusTierForFid(fid);
+  return tier > 0;
+}
+
+/**
+ * Get $WORD holder bonus tier for a user by FID
+ * Milestone 14: Returns tier level (0-3) based on effective balance × market cap
+ *
+ * @param fid - Farcaster ID of the user
+ * @returns Tier level: 0 (none), 1, 2, or 3
+ */
+export async function getWordBonusTierForFid(fid: number): Promise<number> {
   try {
     // Look up user's signer wallet address
     const [user] = await db
@@ -138,14 +151,14 @@ export async function hasWORDTokenBonus(fid: number): Promise<boolean> {
 
     if (!user || !user.signerWalletAddress) {
       console.log(`[$WORD] No signer wallet found for FID ${fid}`);
-      return false;
+      return 0;
     }
 
-    // Query onchain $WORD token balance
-    return await hasWordTokenBonus(user.signerWalletAddress);
+    // Query onchain effective balance and compute tier
+    return await getWordBonusTier(user.signerWalletAddress);
   } catch (error) {
-    console.error(`[$WORD] Error checking bonus for FID ${fid}:`, error);
-    return false;
+    console.error(`[$WORD] Error checking tier for FID ${fid}:`, error);
+    return 0;
   }
 }
 
@@ -172,56 +185,39 @@ export async function getOrCreateDailyState(
   if (existing.length > 0) {
     const state = existing[0];
 
-    // Milestone 5.4c upgrade: If $WORD holder and market cap tier increased mid-day,
-    // upgrade their allocation. We only upgrade (2→3), never downgrade.
-    // This ensures "if mcap >= $250K at any point in a day, holders get 3 free"
-    if (state.freeAllocatedClankton > 0) { // Legacy DB column name
-      const currentTierGuesses = getWordHolderBonusGuesses();
-      if (currentTierGuesses > state.freeAllocatedClankton) {
-        const [upgraded] = await db
-          .update(dailyGuessState)
-          .set({
-            freeAllocatedClankton: currentTierGuesses,
-            updatedAt: new Date(),
-          })
-          .where(eq(dailyGuessState.id, state.id))
-          .returning();
+    // Milestone 14 upgrade: Re-check tier and bump allocation if higher.
+    // We only upgrade (never downgrade) within a day.
+    // freeAllocatedClankton stores the tier value (0-3), which IS the bonus guess count.
+    const currentTier = await getWordBonusTierForFid(fid);
 
-        console.log(
-          `🚀 [$WORD] Upgraded FID ${fid} bonus: ${state.freeAllocatedClankton} → ${currentTierGuesses} guesses (mcap tier increased)`
-        );
-        return upgraded;
-      }
-    } else {
-      // User has no $WORD token bonus allocated - check if they should have it now
-      // This handles the case where daily state was created before wallet was connected
-      const hasWordToken = await hasWORDTokenBonus(fid);
-      if (hasWordToken) {
-        const wordBonusGuesses = getWordHolderBonusGuesses();
-        const [upgraded] = await db
-          .update(dailyGuessState)
-          .set({
-            freeAllocatedClankton: wordBonusGuesses, // Legacy DB column name
-            updatedAt: new Date(),
-          })
-          .where(eq(dailyGuessState.id, state.id))
-          .returning();
+    if (currentTier > state.freeAllocatedClankton) { // Legacy DB column name
+      const [upgraded] = await db
+        .update(dailyGuessState)
+        .set({
+          freeAllocatedClankton: currentTier,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyGuessState.id, state.id))
+        .returning();
 
+      if (state.freeAllocatedClankton === 0) {
         console.log(
-          `🎁 [$WORD] Late allocation for FID ${fid}: +${wordBonusGuesses} bonus guesses (wallet connected after daily state creation)`
+          `🎁 [$WORD] Late allocation for FID ${fid}: +${currentTier} bonus guesses (tier ${currentTier})`
         );
-        return upgraded;
+      } else {
+        console.log(
+          `🚀 [$WORD] Upgraded FID ${fid} bonus: ${state.freeAllocatedClankton} → ${currentTier} guesses (tier increased)`
+        );
       }
+      return upgraded;
     }
 
     return state;
   }
 
   // Create new state for today
-  const hasWordToken = await hasWORDTokenBonus(fid);
-
-  // Milestone 5.4c: Get dynamic $WORD bonus based on current market cap
-  const wordBonusGuesses = getWordHolderBonusGuesses();
+  // Milestone 14: Use tier-based allocation (0-3 bonus guesses)
+  const wordBonusTier = await getWordBonusTierForFid(fid);
 
   // Generate random wheel start index (Milestone 4.14)
   // Random index between 0 and (total GUESS_WORDS - 1)
@@ -232,7 +228,7 @@ export async function getOrCreateDailyState(
     fid,
     date: dateStr,
     freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
-    freeAllocatedClankton: hasWordToken ? wordBonusGuesses : 0, // Legacy DB column name
+    freeAllocatedClankton: wordBonusTier, // Legacy DB column name — stores tier value (0-3)
     freeAllocatedShareBonus: 0,
     freeUsed: 0,
     paidGuessCredits: 0,
@@ -247,9 +243,8 @@ export async function getOrCreateDailyState(
 
     // Use defined values for logging (TypeScript Insert type allows undefined due to DB defaults)
     const baseGuesses = DAILY_LIMITS_RULES.freeGuessesPerDayBase;
-    const wordTokenGuesses = hasWordToken ? wordBonusGuesses : 0;
     console.log(
-      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${wordTokenGuesses} $WORD = ${baseGuesses + wordTokenGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
+      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${wordBonusTier} $WORD (tier ${wordBonusTier}) = ${baseGuesses + wordBonusTier} free guesses, wheelStartIndex: ${wheelStartIndex}`
     );
 
     // Analytics v2: Log game session start (non-blocking)
@@ -258,8 +253,8 @@ export async function getOrCreateDailyState(
       data: {
         date: dateStr,
         free_base: baseGuesses,
-        free_word_token: wordTokenGuesses,
-        has_word_token: hasWordToken,
+        free_word_token: wordBonusTier,
+        word_bonus_tier: wordBonusTier,
       },
     });
 
@@ -669,8 +664,8 @@ export async function getGuessSourceState(fid: number): Promise<GuessSourceState
   // Total remaining across all sources
   const totalRemaining = freeRemaining + wordTokenRemaining + shareRemaining + paidRemaining;
 
-  // $WORD token holder check
-  const isWordTokenHolder = state.freeAllocatedClankton > 0; // Legacy DB column name
+  // $WORD token holder check — tier > 0 means holder
+  const isWordTokenHolder = state.freeAllocatedClankton > 0; // Legacy DB column name, stores tier (0-3)
 
   // Share bonus eligibility
   const hasSharedToday = state.hasSharedToday;

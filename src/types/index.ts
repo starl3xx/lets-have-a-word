@@ -85,7 +85,8 @@ export type SubmitGuessResult =
   | { status: 'no_guesses_left_today' } // Milestone 2.2: Daily limits enforced
   | { status: 'duplicate_ignored'; word: string; message: string } // Milestone 9.6: Idempotent duplicate handling
   | { status: 'rate_limited'; message: string; retryAfterSeconds?: number } // Milestone 9.6: Rate limit soft block
-  | { status: 'bonus_word'; word: string; tokenRewardAmount: string; txHash?: string; message: string }; // Bonus Words feature
+  | { status: 'bonus_word'; word: string; tokenRewardAmount: string; txHash?: string; message: string } // Bonus Words feature
+  | { status: 'burn_word'; word: string; burnAmount: string; txHash?: string; message: string }; // Milestone 14: Burn Words
 
 /**
  * Submit Guess Parameters
@@ -194,7 +195,8 @@ export type XpEventType =
   | 'SHARE_CAST'            // +15 XP for sharing to Farcaster
   | 'PACK_PURCHASE'         // +20 XP per pack purchase
   | 'OG_HUNTER_AWARD'       // +500 XP for OG Hunter badge (prelaunch campaign)
-  | 'BONUS_WORD';           // +250 XP for finding a bonus word (5M $WORD)
+  | 'BONUS_WORD'            // +250 XP for finding a bonus word (5M $WORD)
+  | 'BURN_WORD';            // Milestone 14: +100 XP for discovering a burn word (tokens destroyed)
 
 /**
  * XP Event
@@ -227,6 +229,7 @@ export const XP_VALUES: Record<XpEventType, number> = {
   PACK_PURCHASE: 20,
   OG_HUNTER_AWARD: 500,   // OG Hunter badge award (prelaunch campaign)
   BONUS_WORD: 250,        // Finding a bonus word (5M $WORD)
+  BURN_WORD: 100,         // Milestone 14: Discovering a burn word (tokens destroyed)
 };
 
 /**

@@ -124,22 +124,41 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           You can earn bonus free guesses by:
           <ol className="list-decimal list-inside mt-2 space-y-1">
             <li>Sharing your daily guess on Farcaster (+1 guess/day)</li>
-            <li>Holding 100M <WordTokenLink>$WORD</WordTokenLink> tokens (+2–3 guesses/day depending on market cap)</li>
+            <li>Holding <WordTokenLink>$WORD</WordTokenLink> tokens (+1 to +3 guesses/day depending on balance and market cap tier)</li>
           </ol>
           <p className="mt-2">You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).</p>
         </>
       ),
     },
     {
-      question: "What's the $WORD bonus?",
+      question: "What is $WORD?",
       answer: (
         <>
-          If you hold 100M <WordTokenLink>$WORD</WordTokenLink> in your connected wallet, you receive extra free guesses:
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>+2 guesses/day</strong> when $WORD market cap is below $250K</li>
-            <li><strong>+3 guesses/day</strong> when market cap is above $250K</li>
+          <WordTokenLink>$WORD</WordTokenLink> is the native token of Let's Have A Word. It powers the game's economy through holder bonuses, burn mechanics, and staking rewards.
+          <p className="mt-2">Tap the <strong>$WORD</strong> button in the nav bar to view your balance, staking, and tokenomics.</p>
+        </>
+      ),
+    },
+    {
+      question: "How do $WORD holder tiers work?",
+      answer: (
+        <>
+          Holding <WordTokenLink>$WORD</WordTokenLink> tokens gives you bonus free guesses every day. The number of bonus guesses depends on your <strong>balance</strong> and the <strong>current market cap</strong>:
+          <p className="mt-2"><strong>When market cap is below $150K:</strong></p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>100M tokens → <strong>+1 guess/day</strong> (Tier 1)</li>
+            <li>200M tokens → <strong>+2 guesses/day</strong> (Tier 2)</li>
+            <li>300M tokens → <strong>+3 guesses/day</strong> (Tier 3)</li>
           </ul>
-          <p className="mt-2">This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.</p>
+          <p className="mt-2"><strong>When market cap is $150K–$300K:</strong></p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>50M → +1, 100M → +2, 150M → +3</li>
+          </ul>
+          <p className="mt-2"><strong>When market cap is above $300K:</strong></p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>25M → +1, 50M → +2, 75M → +3</li>
+          </ul>
+          <p className="mt-2">Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.</p>
         </>
       ),
     },
@@ -304,6 +323,67 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>🍩 Baker's Dozen</strong> — Earned by guessing words starting with 13 different letters, on 13 different days. Only the <em>first guess of each day</em> counts toward progress.</li>
           </ul>
           <p className="mt-2">View your wordmarks collection in your Stats sheet under <strong>Lexicon</strong>.</p>
+        </>
+      ),
+    },
+    {
+      question: "What are bonus words?",
+      answer: (
+        <>
+          Each round has <strong>10 hidden bonus words</strong>. If your guess matches a bonus word, you receive a <WordTokenLink>$WORD</WordTokenLink> token reward sent directly to your wallet.
+          <p className="mt-2">Bonus words are committed onchain alongside the secret word, so they can't be changed mid-round. You'll see a celebration modal when you find one!</p>
+        </>
+      ),
+    },
+    {
+      question: "What are burn words?",
+      answer: (
+        <>
+          Each round has <strong>5 hidden burn words</strong>. When you guess a burn word, <strong>5M $WORD tokens are permanently destroyed</strong> (burned), reducing the total supply forever.
+          <p className="mt-2">Burn words are fire-themed (FLAME, BLAZE, EMBER, etc.) and finding one earns you <strong>+100 XP</strong> and a 🔥 badge. The burn transaction happens onchain and is verifiable.</p>
+        </>
+      ),
+    },
+    {
+      question: "What is $WORD staking?",
+      answer: (
+        <>
+          Staking lets you lock your <WordTokenLink>$WORD</WordTokenLink> tokens in the WordManager contract to earn staking rewards over time.
+          <p className="mt-2">Staked tokens count toward your <strong>effective balance</strong> for holder tier calculations, so staking can help you reach a higher bonus tier without buying more tokens.</p>
+          <p className="mt-2">Manage staking from the $WORD sheet (tap 💰 $WORD in the nav).</p>
+        </>
+      ),
+    },
+    {
+      question: "Do top 10 players earn $WORD too?",
+      answer: (
+        <>
+          <strong>Yes!</strong> In addition to ETH payouts, the Top 10 Early Guessers receive <WordTokenLink>$WORD</WordTokenLink> token rewards distributed via the WordManager contract.
+          <p className="mt-2">The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.</p>
+        </>
+      ),
+    },
+    {
+      question: "How does the $WORD fee distribution work?",
+      answer: (
+        <>
+          The <WordTokenLink>$WORD</WordTokenLink> ecosystem has a built-in fee structure:
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>50%</strong> → Game Treasury (operations, development)</li>
+            <li><strong>25%</strong> → Buyback &amp; Stake (market support)</li>
+            <li><strong>15%</strong> → Player Rewards (bonus/burn/top 10)</li>
+            <li><strong>10%</strong> → Top 10 Referral rewards</li>
+          </ul>
+          <p className="mt-2">View the full tokenomics breakdown in the $WORD sheet.</p>
+        </>
+      ),
+    },
+    {
+      question: "How do I buy $WORD?",
+      answer: (
+        <>
+          Tap the <strong>Buy $WORD</strong> button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
+          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e...fb4b).</p>
         </>
       ),
     },

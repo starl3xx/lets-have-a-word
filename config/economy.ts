@@ -3,34 +3,53 @@
  * Milestone 5.4c: $WORD Token Bonus Market Cap Tiers (formerly CLANKTON)
  * Milestone 6.3: Guess Pack Configuration
  * Milestone 6.4: Animation Debug Settings
+ * Milestone 14: $WORD Token Integration — tiered holder bonuses, burn words, top-10 rewards
  *
  * Centralized configuration for economy-related constants
  * including $WORD holder bonuses, market cap thresholds,
  * and guess pack pricing.
  */
 
-/**
- * $WORD holder threshold (100 million tokens)
- * Users must hold >= this amount to receive bonus guesses
- * Note: Actual threshold check uses ethers.parseUnits in word-token.ts
- */
-export const WORD_HOLDER_THRESHOLD = 100_000_000;
+// =============================================================================
+// Milestone 14: $WORD Holder Bonus Tier Matrix
+// =============================================================================
 
 /**
- * Market cap threshold for tier upgrade (in USD)
- * Below this: TIER_LOW bonus, at or above: TIER_HIGH bonus
+ * Market cap breakpoints (USD) for holder tier thresholds
  */
-export const WORD_BONUS_MCAP_THRESHOLD_USD = 250_000;
+export const MCAP_TIER_1 = 150_000; // $150K
+export const MCAP_TIER_2 = 300_000; // $300K
 
 /**
- * Bonus guesses per day for $WORD holders when market cap < $250k
+ * Balance thresholds in whole tokens (without 18 decimals) per market cap tier
+ * Each tier has 3 levels: +1, +2, +3 bonus guesses
  */
-export const WORD_BONUS_GUESSES_TIER_LOW = 2;
+export const HOLDER_TIER_MATRIX = {
+  low: {   // mcap < $150K
+    bonus1: 100_000_000,  // 100M tokens → +1
+    bonus2: 200_000_000,  // 200M tokens → +2
+    bonus3: 300_000_000,  // 300M tokens → +3
+  },
+  mid: {   // $150K <= mcap < $300K
+    bonus1: 50_000_000,   // 50M tokens → +1
+    bonus2: 100_000_000,  // 100M tokens → +2
+    bonus3: 150_000_000,  // 150M tokens → +3
+  },
+  high: {  // mcap >= $300K
+    bonus1: 25_000_000,   // 25M tokens → +1
+    bonus2: 50_000_000,   // 50M tokens → +2
+    bonus3: 75_000_000,   // 75M tokens → +3
+  },
+};
 
 /**
- * Bonus guesses per day for $WORD holders when market cap >= $250k
+ * Get the tier thresholds (in whole tokens) for a given market cap
  */
-export const WORD_BONUS_GUESSES_TIER_HIGH = 3;
+export function getHolderTierThresholds(marketCapUsd: number): typeof HOLDER_TIER_MATRIX.low {
+  if (marketCapUsd >= MCAP_TIER_2) return HOLDER_TIER_MATRIX.high;
+  if (marketCapUsd >= MCAP_TIER_1) return HOLDER_TIER_MATRIX.mid;
+  return HOLDER_TIER_MATRIX.low;
+}
 
 /**
  * Current $WORD market cap in USD
@@ -42,17 +61,41 @@ export const WORD_MARKET_CAP_USD = Number(
 );
 
 /**
+ * @deprecated Use getHolderTierThresholds() — kept for backward compat during migration
+ */
+export const WORD_HOLDER_THRESHOLD = 100_000_000;
+
+/**
+ * @deprecated Use getHolderTierThresholds() with market cap
+ */
+export const WORD_BONUS_MCAP_THRESHOLD_USD = 250_000;
+
+/**
+ * @deprecated Replaced by tier matrix
+ */
+export const WORD_BONUS_GUESSES_TIER_LOW = 2;
+
+/**
+ * @deprecated Replaced by tier matrix
+ */
+export const WORD_BONUS_GUESSES_TIER_HIGH = 3;
+
+/**
  * Get the current $WORD holder bonus guesses based on market cap
+ * Milestone 14: Now returns tier-appropriate max (for backward compat uses max tier value)
  *
  * @param marketCapUsd - Current market cap in USD (defaults to env var)
- * @returns Number of bonus guesses (2 if below threshold, 3 if at/above)
+ * @returns Number of bonus guesses (1, 2, or 3)
  */
 export function getWordHolderBonusGuesses(
   marketCapUsd: number = WORD_MARKET_CAP_USD
 ): number {
-  return marketCapUsd >= WORD_BONUS_MCAP_THRESHOLD_USD
-    ? WORD_BONUS_GUESSES_TIER_HIGH
-    : WORD_BONUS_GUESSES_TIER_LOW;
+  // Backward compat: this is called with a binary check from daily-limits.ts
+  // After M14, daily-limits calls getWordBonusTier() directly for the tier value.
+  // This function is now only used as a fallback.
+  if (marketCapUsd >= MCAP_TIER_2) return 3;
+  if (marketCapUsd >= MCAP_TIER_1) return 2;
+  return 2; // Keep at 2 for backward compat when called from legacy code
 }
 
 /**
@@ -65,20 +108,19 @@ export function getWordBonusTierInfo(
   marketCapUsd: number = WORD_MARKET_CAP_USD
 ): {
   bonusGuesses: number;
-  tier: 'low' | 'high';
+  tier: 'low' | 'mid' | 'high';
   marketCapUsd: number;
-  thresholdUsd: number;
-  isAboveThreshold: boolean;
+  thresholds: typeof HOLDER_TIER_MATRIX.low;
 } {
-  const isAboveThreshold = marketCapUsd >= WORD_BONUS_MCAP_THRESHOLD_USD;
+  const tier = marketCapUsd >= MCAP_TIER_2 ? 'high'
+    : marketCapUsd >= MCAP_TIER_1 ? 'mid'
+    : 'low';
+  const thresholds = getHolderTierThresholds(marketCapUsd);
   return {
-    bonusGuesses: isAboveThreshold
-      ? WORD_BONUS_GUESSES_TIER_HIGH
-      : WORD_BONUS_GUESSES_TIER_LOW,
-    tier: isAboveThreshold ? 'high' : 'low',
+    bonusGuesses: 3, // max possible
+    tier,
     marketCapUsd,
-    thresholdUsd: WORD_BONUS_MCAP_THRESHOLD_USD,
-    isAboveThreshold,
+    thresholds,
   };
 }
 
@@ -96,6 +138,57 @@ export function formatMarketCap(marketCapUsd: number): string {
   } else {
     return `$${marketCapUsd}`;
   }
+}
+
+// =============================================================================
+// Milestone 14: Burn Words Configuration
+// =============================================================================
+
+/** Number of burn words selected per round */
+export const BURN_WORDS_PER_ROUND = 5;
+
+/** Amount of $WORD burned per burn word discovery (5M with 18 decimals) */
+export const BURN_WORD_AMOUNT = '5000000000000000000000000'; // 5M * 10^18
+
+/** Amount in whole tokens for display */
+export const BURN_WORD_AMOUNT_DISPLAY = 5_000_000;
+
+// =============================================================================
+// Milestone 14: Bonus Words Configuration
+// =============================================================================
+
+/** Number of bonus words selected per round */
+export const BONUS_WORDS_PER_ROUND = 10;
+
+/** Bonus word reward amount based on market cap */
+export function getBonusWordRewardAmount(marketCapUsd: number = WORD_MARKET_CAP_USD): string {
+  // >= $150K mcap: 2.5M $WORD, below: 5M $WORD
+  return marketCapUsd >= MCAP_TIER_1
+    ? '2500000000000000000000000'  // 2.5M * 10^18
+    : '5000000000000000000000000'; // 5M * 10^18
+}
+
+// =============================================================================
+// Milestone 14: Top 10 $WORD Rewards
+// =============================================================================
+
+/** Percentage distribution for top 10 $WORD rewards (sums to 100) */
+export const TOP10_WORD_PERCENTAGES = [19, 16, 14, 11, 10, 6, 6, 6, 6, 6];
+
+/**
+ * Calculate $WORD reward amounts for top 10 players
+ * @param marketCapUsd - Current market cap
+ * @returns Array of amounts in wei (up to 10 entries)
+ */
+export function getTop10WordAmounts(marketCapUsd: number = WORD_MARKET_CAP_USD): string[] {
+  // First place base: 10M below $150K, 5M at/above $150K
+  const firstPlaceTokens = marketCapUsd >= MCAP_TIER_1 ? 5_000_000n : 10_000_000n;
+  const firstPlaceWei = firstPlaceTokens * 10n ** 18n;
+
+  return TOP10_WORD_PERCENTAGES.map(pct => {
+    const amount = (firstPlaceWei * BigInt(pct)) / 19n; // Scale relative to 1st place (19%)
+    return amount.toString();
+  });
 }
 
 // =============================================================================
@@ -199,34 +292,28 @@ export const WHEEL_ANIMATION_CONFIG = {
 };
 
 // =============================================================================
-// $WORD Token Configuration
+// $WORD Token Configuration (legacy — kept for backward compat)
 // =============================================================================
 
 /**
- * $WORD token holder threshold (1 million tokens)
- * Users must hold >= this amount to receive bonus guesses
+ * @deprecated Use HOLDER_TIER_MATRIX with getWordBonusTier() from word-token.ts
  */
 export const WORD_TOKEN_HOLDER_THRESHOLD = 1_000_000;
 
 /**
- * Bonus guesses per day for $WORD token holders
- * Simple flat bonus to start - no tiers like CLANKTON
+ * @deprecated Use getWordBonusTier() from word-token.ts
  */
 export const WORD_TOKEN_BONUS_GUESSES = 1;
 
 /**
- * Get the current $WORD token holder bonus guesses
- *
- * @returns Number of bonus guesses (always 1 for $WORD holders)
+ * @deprecated Use getWordBonusTier() from word-token.ts
  */
 export function getWordTokenHolderBonusGuesses(): number {
   return WORD_TOKEN_BONUS_GUESSES;
 }
 
 /**
- * Get the current $WORD token bonus info for display purposes
- *
- * @returns Object with bonus info for display
+ * @deprecated Use getWordBonusTierInfo() instead
  */
 export function getWordTokenBonusInfo(): {
   bonusGuesses: number;
@@ -236,6 +323,6 @@ export function getWordTokenBonusInfo(): {
   return {
     bonusGuesses: WORD_TOKEN_BONUS_GUESSES,
     thresholdTokens: WORD_TOKEN_HOLDER_THRESHOLD,
-    isEnabled: true, // Always enabled when configured
+    isEnabled: true,
   };
 }

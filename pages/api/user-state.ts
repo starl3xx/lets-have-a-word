@@ -10,7 +10,7 @@ import * as Sentry from '@sentry/nextjs';
 import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
 import type { GuessSourceState } from '../../src/types';
 import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
-import { hasWordTokenBonus } from '../../src/lib/word-token';
+import { hasWordTokenBonus, getWordBonusTier } from '../../src/lib/word-token';
 import { getGuessWords } from '../../src/lib/word-lists';
 import { db } from '../../src/db';
 import { users } from '../../src/db/schema';
@@ -35,6 +35,7 @@ export interface UserStateResponse {
   // Milestone 6.3: New fields
   hasSharedToday: boolean; // Whether user has already claimed share bonus today
   isWordTokenHolder: boolean; // Whether user holds $WORD tokens
+  wordBonusTier: number; // Milestone 14: 0-3 holder tier
   // Milestone 6.5: Source-level tracking for unified guess bar
   sourceState: GuessSourceState;
 }
@@ -220,11 +221,11 @@ export default async function handler(
     // OPTIMIZATION: Run independent async operations in parallel
     // These have no dependencies on each other, so parallelizing saves ~100-200ms
     const totalGuessWords = getGuessWords().length;
-    const [wordTokenResult, wheelStartIndex, sourceState] = await Promise.all([
-      // $WORD bonus check (if wallet provided)
+    const [wordTierResult, wheelStartIndex, sourceState] = await Promise.all([
+      // Milestone 14: $WORD tier check (if wallet provided) — returns 0-3
       walletAddress
-        ? hasWordTokenBonus(walletAddress).catch((err) => {
-            console.error('[user-state] $WORD check failed:', err);
+        ? getWordBonusTier(walletAddress).catch((err) => {
+            console.error('[user-state] $WORD tier check failed:', err);
             return null; // Fallback to database value
           })
         : Promise.resolve(null),
@@ -234,13 +235,14 @@ export default async function handler(
       getGuessSourceState(fid),
     ]);
 
-    // Determine $WORD bonus: use live check if available, otherwise database value
-    const wordBonusActive = wordTokenResult !== null
-      ? wordTokenResult
-      : dailyState.freeAllocatedClankton > 0; // legacy DB column name
+    // Determine $WORD bonus: use live tier if available, otherwise database value
+    const wordBonusTier = wordTierResult !== null
+      ? wordTierResult
+      : dailyState.freeAllocatedClankton; // legacy DB column name, stores tier (0-3)
+    const wordBonusActive = wordBonusTier > 0;
 
     if (walletAddress) {
-      console.log(`[user-state] $WORD check result: ${wordBonusActive}`);
+      console.log(`[user-state] $WORD tier result: ${wordBonusTier} (active: ${wordBonusActive})`);
     }
 
     // Check if can buy more packs
@@ -267,6 +269,7 @@ export default async function handler(
       // Milestone 6.3: New fields
       hasSharedToday,
       isWordTokenHolder: wordBonusActive,
+      wordBonusTier, // Milestone 14: 0-3 holder tier
       // Milestone 6.5: Source-level tracking for unified guess bar
       sourceState,
     };
