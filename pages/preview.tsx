@@ -65,19 +65,8 @@ export default function PreviewPage() {
   const [showBonusModal, setShowBonusModal] = useState(false);
   const [showStakingModal, setShowStakingModal] = useState(false);
 
-  // Only allow in dev mode
-  const isDev = process.env.NEXT_PUBLIC_LHAW_DEV_MODE === 'true';
-
-  if (!isDev) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-700 mb-2">Preview Unavailable</h1>
-          <p className="text-gray-500">This page is only available in dev mode.</p>
-        </div>
-      </div>
-    );
-  }
+  // Preview page uses only hardcoded mock data — no auth or API calls needed
+  // Safe to expose in all environments for QC purposes
 
   return (
     <>
