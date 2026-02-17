@@ -19,7 +19,7 @@ const FONT_FAMILY = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-
 
 // Smart contract addresses on Base
 const JACKPOT_CONTRACT_ADDRESS = '0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5';
-const WORD_MANAGER_ADDRESS = '0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c';
+const WORD_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS || '0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c';
 
 type VerificationStatus = 'idle' | 'loading' | 'verified' | 'mismatch' | 'pending' | 'error';
 
@@ -40,7 +40,7 @@ interface VerificationResult {
   // Bonus Words Feature
   bonusWordsCommitHash?: string;
   hasBonusWords?: boolean;
-  // Milestone 14: WordManagerV2 commitment
+  // Milestone 14: WordManager commitment
   roundCommitTxHash?: string;
   wordManagerCommitted?: boolean;
   wordManagerAddress?: string;
@@ -389,7 +389,7 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
-                    {/* WordManagerV2 commitment (keccak256 hashes for 16 words) */}
+                    {/* WordManager commitment (keccak256 hashes for 16 words) */}
                     <WordManagerCommitmentStatus
                       wordManagerCommitted={result.wordManagerCommitted}
                       roundCommitTxHash={result.roundCommitTxHash}
@@ -426,7 +426,7 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
-                    {/* WordManagerV2 commitment (keccak256 hashes for 16 words) */}
+                    {/* WordManager commitment (keccak256 hashes for 16 words) */}
                     <WordManagerCommitmentStatus
                       wordManagerCommitted={result.wordManagerCommitted}
                       roundCommitTxHash={result.roundCommitTxHash}
@@ -514,7 +514,7 @@ export default function VerifyPage() {
                 </p>
               </div>
 
-              {/* WordManagerV2 */}
+              {/* WordManager */}
               <div>
                 <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1.5">
                   WordManager ($WORD token + word commitments)
@@ -796,7 +796,7 @@ function OnChainCommitmentStatus({
 /**
  * WordManager Commitment Status Component
  * Shows whether the round's 16 word hashes (1 secret + 10 bonus + 5 burn) were committed
- * to the WordManagerV2 contract using keccak256(abi.encodePacked(word, salt))
+ * to the WordManager contract using keccak256(abi.encodePacked(word, salt))
  */
 function WordManagerCommitmentStatus({
   wordManagerCommitted,

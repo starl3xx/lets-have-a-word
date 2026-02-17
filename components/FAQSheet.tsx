@@ -349,7 +349,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What is $WORD staking?",
       answer: (
         <>
-          Staking lets you lock your <WordTokenLink>$WORD</WordTokenLink> tokens in the WordManager contract to earn staking rewards over time.
+          Staking lets you lock your <WordTokenLink>$WORD</WordTokenLink> tokens in the WordManager contract to earn streaming staking rewards. Rewards are distributed proportionally to all stakers every second during active reward periods.
           <p className="mt-2">Staked tokens count toward your <strong>effective balance</strong> for holder tier calculations, so staking can help you reach a higher bonus tier without buying more tokens.</p>
           <p className="mt-2">Manage staking from the $WORD sheet (tap 💰 $WORD in the nav).</p>
         </>

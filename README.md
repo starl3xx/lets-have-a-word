@@ -97,7 +97,7 @@ One secret word. One winner. Provably fair.
 |-------|------|
 | Framework | Next.js 14 (Pages Router) |
 | Database | PostgreSQL (Neon) + Drizzle ORM |
-| Chain | Base — JackpotManager (UUPS proxy) + WordManagerV2 |
+| Chain | Base — JackpotManager (UUPS proxy) + WordManagerV3 (UUPS proxy) |
 | Auth | Farcaster Quick Auth (JWT) |
 | Cache | Upstash Redis |
 | Frontend | Wagmi v3, Tailwind CSS, Farcaster Mini App SDK |
@@ -131,7 +131,7 @@ src/
 │   ├── economics.ts       # Prize pool & payouts
 │   ├── daily-limits.ts    # Free/paid allocation
 │   ├── jackpot-contract.ts # Base contract interactions
-│   ├── word-manager.ts    # WordManagerV2 contract
+│   ├── word-manager.ts    # WordManager contract (V3)
 │   ├── encryption.ts      # AES-256-GCM answer encryption
 │   ├── announcer.ts       # Farcaster bot (@letshaveaword)
 │   ├── xp.ts              # XP event system
@@ -181,7 +181,7 @@ npm run oracle:cron            # Update $WORD market cap oracle
 | `OPERATOR_PRIVATE_KEY` | Contract transaction signing key |
 | `ANSWER_ENCRYPTION_KEY` | 32-byte hex for AES-256-GCM |
 | `JACKPOT_MANAGER_ADDRESS` | JackpotManager proxy on Base |
-| `WORD_MANAGER_ADDRESS` | WordManagerV2 contract on Base |
+| `WORD_MANAGER_ADDRESS` | WordManager (V3) contract on Base |
 | `NEYNAR_SIGNER_UUID` | Announcer bot signer UUID |
 | `ANNOUNCER_ENABLED` | Enable Farcaster announcements (`true` in prod) |
 | `ANALYTICS_ENABLED` | Enable analytics event logging |
@@ -211,6 +211,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-02-17 (after Round 13)
 
+- **WordManagerV3 — Synthetix Streaming Staking**: Upgraded staking contract from bare vault to Synthetix `StakingRewards` pattern. Global accumulator (`rewardPerTokenStored`) distributes rewards proportionally to all stakers in O(1) gas. 30-day reward periods started by operator via `notifyRewardAmount()`. UUPS upgradeable proxy. Same-token safety check accounts for staked balance + accrued unclaimed rewards. All V2 game functions preserved (commitRound, bonus/burn claims, top-10 distribution). Frontend StakingModal now shows real streaming reward counter capped at period end, estimated APR, and period countdown. Admin contract diagnostics card shows reward period status and rate.
 - **XP-Boosted Staking Rewards**: Connected XP system to staking yield. Four XP tiers (Passive/Bronze/Silver/Gold) with multipliers (1.0x/1.15x/1.35x/1.60x) based on lifetime XP. StakingModal fully wired with live stake/unstake/claim via Wagmi, ticking reward counter, XP tier progression card with roadmap, and tier-up celebration animation. XPSheet now shows live tier progression instead of "Coming Soon." Added 7-day rolling XP rate helper, enriched `/api/word-balance` with XP tier data, created `useStaking` hook, and admin `fund-staking-pool` endpoint.
 
 ### 2026-02-16 (after Round 13)
@@ -250,7 +251,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Milestone 14 - $WORD Token Game Mechanics
 
-Integrated $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via a new WordManagerV2 contract on Base:
+Integrated $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via the WordManager contract on Base (upgraded to V3 with Synthetix-style streaming staking rewards):
 
 - **Bonus Words** (`src/lib/guesses.ts`, `src/lib/word-lists.ts`)
   - Each round includes 10 hidden bonus words drawn from the full dictionary
@@ -269,18 +270,18 @@ Integrated $WORD token rewards and penalties into round gameplay, with onchain c
   - 9 wordmarks: OG Hunter, Side Quest, Arsonist, Jackpot Winner, Double W, Patron, Quickdraw, Encyclopedic, Baker's Dozen
   - Displayed on profile and archive pages
 
-- **WordManagerV2 Contract** (`src/lib/word-manager.ts`)
-  - Standalone contract on Base: `0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c`
+- **WordManager Contract** (`src/lib/word-manager.ts`)
+  - UUPS upgradeable proxy on Base (V3 with Synthetix streaming rewards)
   - Owner/Operator pattern: deployer wallet for admin, server wallet for game operations
   - `commitRound()` — commits 16 keccak256 hashes (1 secret + 10 bonus + 5 burn) before round starts
   - `claimBonusReward()` / `claimBurnWord()` — verified claims that check hash before execution
   - `distributeTop10Rewards()` — batch top-10 $WORD distribution in one transaction
 
-- **$WORD Staking** (WordManager contract)
-  - Users stake $WORD tokens to earn more $WORD staking rewards over time
+- **$WORD Staking** (WordManager V3)
+  - Synthetix-style streaming rewards — `rewardRate` $WORD/second distributed to all stakers proportionally
+  - 30-day reward periods started by operator via `notifyRewardAmount()`
   - Staked tokens count toward effective balance for holder tier calculations
-  - No ETH involved — purely $WORD in, $WORD out
-  - Functions: `stake()`, `withdraw()`, `claimRewards()`
+  - Functions: `stake()`, `withdraw()`, `getReward()`, `exit()`
 
 - **Top-10 $WORD Rewards** (`src/lib/economics.ts`)
   - Top 10 guessers receive $WORD rewards in addition to ETH payouts
@@ -288,7 +289,7 @@ Integrated $WORD token rewards and penalties into round gameplay, with onchain c
   - Same ranking percentages as ETH (19% for #1, 16% for #2, etc.)
 
 - **Dual-Contract Verification** (`pages/verify.tsx`)
-  - `/verify` page shows commitments from both JackpotManager (SHA-256) and WordManagerV2 (keccak256)
+  - `/verify` page shows commitments from both JackpotManager (SHA-256) and WordManager (keccak256)
   - Links to both contracts on BaseScan
   - Manual verification instructions for both hash types
 
@@ -303,7 +304,7 @@ Integrated $WORD token rewards and penalties into round gameplay, with onchain c
   - `word_rewards` — audit trail for all $WORD token distributions
 
 - **Environment Variables**
-  - `WORD_MANAGER_ADDRESS` — WordManagerV2 contract address on Base
+  - `WORD_MANAGER_ADDRESS` — WordManager (V3 proxy) contract address on Base
 
 ### Milestone 13 - Security: Quick Auth Authentication
 

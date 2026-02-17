@@ -82,6 +82,11 @@ interface WordManagerState {
   totalDistributed: string
   operatorAuthorized: boolean
   ourSigningWallet: string
+  // V3: Synthetix streaming reward fields
+  rewardRate: string
+  periodFinish: number
+  rewardsDuration: number
+  rewardPeriodActive: boolean
   error?: string
 }
 
@@ -2269,6 +2274,33 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                           {contractState.wordManager.operatorAuthorized ? '✅ Authorized' : '❌ Not authorized'}
                         </span>
                       </div>
+                      <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '8px', paddingTop: '8px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Staking Rewards
+                        </div>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Reward Period</span>
+                        <span style={{ ...styles.infoValue, color: contractState.wordManager.rewardPeriodActive ? '#166534' : '#6b7280' }}>
+                          {contractState.wordManager.rewardPeriodActive
+                            ? `Active (ends ${new Date(contractState.wordManager.periodFinish * 1000).toLocaleDateString()})`
+                            : 'Inactive'}
+                        </span>
+                      </div>
+                      {contractState.wordManager.rewardPeriodActive && (
+                        <div style={styles.infoRow}>
+                          <span style={styles.infoLabel}>Reward Rate</span>
+                          <span style={styles.infoValue}>
+                            {(() => {
+                              const rateWei = BigInt(contractState.wordManager.rewardRate || '0');
+                              const ratePerDay = rateWei * 86400n / BigInt(1e18);
+                              if (ratePerDay >= 1000000n) return `${(Number(ratePerDay) / 1e6).toFixed(1)}M/day`;
+                              if (ratePerDay >= 1000n) return `${(Number(ratePerDay) / 1e3).toFixed(1)}K/day`;
+                              return `${ratePerDay.toString()}/day`;
+                            })()}
+                          </span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -96,7 +96,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       bonusWordsCommitment = createBonusWordsCommitment(bonusWords);
       console.log(`[rounds] Bonus words commit hash: ${bonusWordsCommitment.commitHash}`);
 
-      // Create unified keccak256 commitments for all 16 words (for WordManager V2)
+      // Create unified keccak256 commitments for all 16 words (for WordManager)
       roundCommitment = createRoundCommitment(selectedAnswer, bonusWords, burnWords);
       console.log(`[rounds] Round commitment: 1 secret + ${bonusWords.length} bonus + ${burnWords.length} burn word hashes`);
     }
@@ -128,7 +128,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       );
       console.log(`[rounds] ✅ JackpotManager commitment successful: ${onChainCommitmentTxHash}`);
 
-      // Commit all 16 word hashes to WordManager V2
+      // Commit all 16 word hashes to WordManager
       if (roundCommitment) {
         try {
           // We use a temporary roundId — will be the next serial ID
@@ -222,7 +222,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     }
   }
 
-  // Commit all 16 word hashes to WordManager V2 (now that we have the round ID)
+  // Commit all 16 word hashes to WordManager (now that we have the round ID)
   if (roundCommitment && !skipOnChainCommitment) {
     try {
       roundCommitTxHash = await commitRoundOnChain(
