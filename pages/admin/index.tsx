@@ -78,6 +78,7 @@ interface OperationalStatus {
     enabled: boolean
     activatedAt?: string
   }
+  wordManagerConfigured?: boolean
   timestamp: string
 }
 
@@ -368,6 +369,29 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
               <span>{formatDate(sinceTimestamp)}</span>
             </div>
           )}
+
+          {/* $WORD contract indicator */}
+          <div style={styles.statusItem}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 8px',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              background: status.wordManagerConfigured ? '#dcfce7' : '#f3f4f6',
+              color: status.wordManagerConfigured ? '#166534' : '#9ca3af',
+            }}>
+              <span style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: status.wordManagerConfigured ? '#22c55e' : '#d1d5db',
+              }} />
+              $WORD
+            </span>
+          </div>
         </div>
 
         {/* Last updated */}

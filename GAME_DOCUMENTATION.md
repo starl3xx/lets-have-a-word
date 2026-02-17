@@ -12,7 +12,7 @@
 9. [Word Lists & Validation](#word-lists--validation)
 10. [Farcaster Integration](#farcaster-integration)
 11. [OG Hunter Prelaunch Campaign](#og-hunter-prelaunch-campaign)
-12. [Key Features by Milestone](#key-features-by-milestone)
+12. [Key Features by Milestone](#key-features-by-milestone) (includes [Milestone 14: $WORD Token Game Mechanics](#milestone-14-word-token-game-mechanics))
 13. [Daily Guess Flow](#daily-guess-flow)
 14. [Guess Packs](#guess-packs)
 15. [Share-for-Free-Guess](#share-for-free-guess)
@@ -32,12 +32,15 @@
 - **Collaborative Elimination**: Wrong guesses are shared publicly, helping everyone
 - **Single Winner**: First person to guess correctly wins the entire prize pool
 - **Provably Fair**: Answer hash committed onchain before guessing begins, verifiable at `/verify`
+- **Bonus Words**: 10 hidden side-quest words per round — find one and earn 5M $WORD tokens
+- **Burn Words**: 5 hidden burn words per round — find one and 5M $WORD tokens are destroyed forever
 
 ### Key Differentiators
 - **Social Deduction**: Wrong guesses benefit everyone
 - **Real ETH Stakes**: Prize pool grows with paid guesses
 - **Referral System**: Earn 10% of your referrals' winnings
 - **$WORD Bonus**: Token holders get +2-3 daily guesses (scales with market cap)
+- **$WORD Token Mechanics**: Bonus words reward $WORD tokens, burn words destroy them — every guess might trigger a token event
 
 ---
 
@@ -66,11 +69,11 @@ Each player gets a daily allocation of guesses:
 - Referrer's 5% is split: 2.5% → Top 10 pool (12.5% total), 2.5% → Seed (7.5% total)
 
 ### Round Lifecycle
-1. **Round Creation**: Answer selected (cryptographically random), hash committed onchain
-2. **Guessing Phase**: Players submit guesses (valid 5-letter words only)
+1. **Round Creation**: Answer selected (cryptographically random). 16 words committed onchain — 1 secret word + 10 bonus words + 5 burn words — via `WordManagerV2.commitRound()` (keccak256). Secret word also committed to JackpotManager (SHA-256) for the ETH prize pool.
+2. **Guessing Phase**: Players submit guesses (valid 5-letter words only). Each guess is checked against bonus and burn word lists — bonus words trigger a $WORD token transfer, burn words trigger a token burn.
 3. **Wrong Guesses**: Added to public wheel, visible to all players
-4. **Correct Guess**: Round ends, winner determined, payouts processed onchain
-5. **Resolution**: Answer + salt revealed, verifiable at `/verify?round=N`
+4. **Correct Guess**: Round ends, winner determined, ETH payouts processed onchain. Top-10 $WORD rewards distributed via `distributeTop10Rewards`.
+5. **Resolution**: Answer + salt revealed, verifiable at `/verify?round=N`. Both JackpotManager (SHA-256) and WordManagerV2 (keccak256) commitments can be independently verified.
 
 ### Word Validation
 - Must be exactly **5 letters**
@@ -559,7 +562,12 @@ CREATE TABLE rounds (
   referrer_fid INTEGER REFERENCES users(fid),
   started_at TIMESTAMP DEFAULT NOW(),
   resolved_at TIMESTAMP,
-  is_dev_test_round BOOLEAN DEFAULT FALSE
+  is_dev_test_round BOOLEAN DEFAULT FALSE,
+  -- Milestone 14: $WORD Token Game Mechanics
+  bonus_words_commit_hash TEXT,            -- SHA-256 hash of bonus words
+  round_commit_tx_hash TEXT,               -- WordManager commitment transaction hash
+  start_tx_hash TEXT,                      -- JackpotManager start transaction hash
+  status TEXT DEFAULT 'active'             -- 'active' | 'resolved' | 'cancelled'
 );
 ```
 
@@ -615,6 +623,55 @@ CREATE TABLE round_payouts (
   fid INTEGER REFERENCES users(fid),
   payout_type TEXT NOT NULL,  -- 'winner' | 'referrer' | 'top10'
   amount_eth NUMERIC(18,18) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### `round_bonus_words`
+Bonus words per round with encrypted storage and per-word salts. Each round has 10 bonus words committed onchain via keccak256.
+```sql
+CREATE TABLE round_bonus_words (
+  id SERIAL PRIMARY KEY,
+  round_id INTEGER REFERENCES rounds(id),
+  word_index INTEGER NOT NULL,            -- 0-9 position in commitment array
+  encrypted_word TEXT NOT NULL,            -- AES-256-GCM encrypted word
+  salt TEXT NOT NULL,                      -- Per-word salt for keccak256 hash
+  found_by_fid INTEGER REFERENCES users(fid),
+  found_at TIMESTAMP,
+  claim_tx_hash TEXT,                      -- Onchain claim transaction
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(round_id, word_index)
+);
+```
+
+#### `round_burn_words`
+Burn words per round with encrypted storage and per-word salts. Each round has 5 burn words committed onchain via keccak256.
+```sql
+CREATE TABLE round_burn_words (
+  id SERIAL PRIMARY KEY,
+  round_id INTEGER REFERENCES rounds(id),
+  word_index INTEGER NOT NULL,            -- 0-4 position in commitment array
+  encrypted_word TEXT NOT NULL,            -- AES-256-GCM encrypted word
+  salt TEXT NOT NULL,                      -- Per-word salt for keccak256 hash
+  found_by_fid INTEGER REFERENCES users(fid),
+  found_at TIMESTAMP,
+  burn_tx_hash TEXT,                       -- Onchain burn transaction
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(round_id, word_index)
+);
+```
+
+#### `word_rewards`
+Audit trail for all $WORD token operations — bonus distributions, burns, and top-10 rewards.
+```sql
+CREATE TABLE word_rewards (
+  id SERIAL PRIMARY KEY,
+  round_id INTEGER REFERENCES rounds(id),
+  fid INTEGER REFERENCES users(fid),
+  reward_type TEXT NOT NULL,              -- 'bonus' | 'burn' | 'top10'
+  amount NUMERIC NOT NULL,                -- $WORD token amount
+  tx_hash TEXT,                           -- Onchain transaction hash
+  word TEXT,                              -- The word (for bonus/burn types)
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
@@ -2161,6 +2218,142 @@ const fid = verifyResult.sub; // Verified FID from JWT
 #### Dependencies Added
 - `@farcaster/quick-auth` - Server-side JWT verification
 
+### Milestone 14: $WORD Token Game Mechanics
+- **Status**: ✅ Complete
+- **Goal**: Integrate $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via a new WordManagerV2 contract
+
+#### Bonus Words
+Each round includes **10 hidden bonus words** drawn from the full 4,438-word dictionary. These aren't the secret answer — they're side-quest discoveries that reward explorers.
+
+- Each bonus word is worth **5M $WORD tokens**, transferred directly to the finder's wallet
+- Detected automatically during guess submission — no special action required
+- Committed onchain before the round starts via `keccak256(abi.encodePacked(word, salt))`, so the game can't retroactively change them
+- Stored in the `round_bonus_words` table with encrypted words and per-word salts
+- Selection logic lives in `src/lib/word-lists.ts`; detection and verified claim flow in `src/lib/guesses.ts`
+
+#### Burn Words
+Each round also includes **5 hidden burn words**. Finding one destroys $WORD tokens permanently — a deflationary mechanic that keeps the economy honest.
+
+- Each burn word sends **5M $WORD tokens** to the `0xdead` address (permanent burn)
+- The finder receives **+100 XP** and the **"Arsonist" wordmark** — bragging rights, but no token reward
+- Uses the same `keccak256` commitment system as bonus words
+- Stored in the `round_burn_words` table with encrypted words and per-word salts
+- Implementation: `src/lib/burn-words.ts`
+
+#### Wordmarks (Collectible Badges)
+Wordmarks are permanent, collectible badges awarded for in-game achievements. They're stored in the `user_badges` table and displayed on profile and archive pages.
+
+**Available Wordmarks:**
+| Wordmark | Display Name | Trigger |
+|----------|-------------|---------|
+| `OG_HUNTER` | OG Hunter | Completed OG Hunter prelaunch campaign |
+| `BONUS_WORD_FINDER` | Side Quest | Found a bonus word |
+| `BURN_WORD_FINDER` | Arsonist | Found a burn word |
+| `JACKPOT_WINNER` | Jackpot Winner | Won a round's jackpot |
+| `DOUBLE_W` | Double W | Won two rounds |
+| `PATRON` | Patron | Purchased guess packs |
+| `QUICKDRAW` | Quickdraw | Among the first guessers in a round |
+| `ENCYCLOPEDIC` | Encyclopedic | Made a large number of total guesses |
+| `BAKERS_DOZEN` | Baker's Dozen | 13+ guesses in a single round |
+
+**Implementation:**
+- Definitions: `src/lib/wordmarks.ts`
+- Display component: `components/WordmarkStack.tsx`
+- Profile integration: `components/StatsSheet.tsx`
+
+#### Onchain Commitment (WordManagerV2)
+A new standalone (non-proxy) contract on Base handles all $WORD token game mechanics: commitments, bonus claims, burn execution, and top-10 reward distribution.
+
+**Contract:** `0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c` on Base
+
+**Owner/Operator Pattern:**
+- **Owner** (deployer wallet): Admin functions — pause, upgrade parameters, withdraw
+- **Operator** (server wallet): Game operations — commit rounds, distribute rewards, execute burns
+
+**Key Functions:**
+```solidity
+// Commit 16 keccak256 hashes before round starts (1 secret + 10 bonus + 5 burn)
+function commitRound(
+    uint256 roundId,
+    bytes32 secretHash,
+    bytes32[10] calldata bonusWordHashes,
+    bytes32[5] calldata burnWordHashes
+) external onlyOperator;
+
+// Verified bonus word claim — checks hash, transfers $WORD to player
+function claimBonusReward(
+    uint256 roundId,
+    uint256 wordIndex,
+    string calldata word,
+    string calldata salt,
+    address player,
+    uint256 amount
+) external onlyOperator;
+
+// Verified burn word destruction — checks hash, sends $WORD to 0xdead
+function claimBurnWord(
+    uint256 roundId,
+    uint256 wordIndex,
+    string calldata word,
+    string calldata salt,
+    uint256 amount
+) external onlyOperator;
+```
+
+**Legacy Compatibility:**
+- `distributeBonusReward` — Direct bonus distribution (pre-commitment rounds)
+- `burnWord` — Direct burn execution (pre-commitment rounds)
+- `distributeTop10Rewards` — Batch top-10 $WORD reward distribution
+
+**Staking:**
+- `stake(uint256 amount)` — Stake $WORD tokens
+- `withdraw(uint256 amount)` — Withdraw staked tokens
+- `claimRewards()` — Claim accumulated staking rewards
+
+**Implementation:**
+- Contract integration: `src/lib/word-manager.ts`
+- Commitment logic: `src/lib/commit-reveal.ts`
+- Contract source: `contracts/src/WordManagerV2.sol`
+- Deploy script: `contracts/scripts/deploy-word-manager.ts`
+
+#### Top-10 $WORD Rewards
+The top 10 guessers in each round receive $WORD token rewards in addition to their ETH share. Reward amounts scale dynamically with $WORD market cap tiers to maintain meaningful incentives at any token price.
+
+- Batch distributed in a single transaction via `distributeTop10Rewards`
+- Implementation: `src/lib/economics.ts`
+
+#### Verify Page Updates
+The `/verify` page now shows commitments from both onchain systems:
+- **JackpotManager**: SHA-256 commitment for the secret word (ETH prize pool)
+- **WordManagerV2**: keccak256 commitments for all 16 words (bonus + burn + secret)
+- Links to both contracts on BaseScan
+- Manual verification instructions for both hash types
+
+#### Files Added/Modified
+| File | Purpose |
+|------|---------|
+| `contracts/src/WordManagerV2.sol` | Solidity contract for $WORD token game mechanics |
+| `contracts/scripts/deploy-word-manager.ts` | Deployment script |
+| `src/lib/word-manager.ts` | Contract integration (commit, claim, burn, distribute) |
+| `src/lib/commit-reveal.ts` | keccak256 commitment functions |
+| `src/lib/burn-words.ts` | Burn word system |
+| `src/lib/wordmarks.ts` | Wordmark definitions and award logic |
+| `src/lib/format.ts` | Shared token formatting utility |
+| `src/lib/guesses.ts` | Bonus word detection + verified claims |
+| `src/lib/rounds.ts` | Round creation with 16-word commitment |
+| `src/lib/economics.ts` | Top-10 $WORD rewards |
+| `src/db/schema.ts` | New tables (`round_bonus_words`, `round_burn_words`, `word_rewards`) and columns |
+| `components/WordmarkStack.tsx` | Wordmark badge display component |
+| `components/BurnWordModal.tsx` | Burn word discovery modal |
+| `components/RoundArchiveModal.tsx` | Burn word finders display in archive |
+| `pages/verify.tsx` | Dual-contract verification UI |
+| `pages/api/verify/round.ts` | WordManager data in verify API |
+| `pages/api/round/burn-word-finders.ts` | Burn word finder API endpoint |
+| `pages/archive/[roundNumber].tsx` | Burn word finders in round archive |
+
+#### Environment Variables
+- `WORD_MANAGER_ADDRESS` — WordManagerV2 contract address on Base
+
 ### Planned / Future Enhancements
 - **Status**: Wishlist
 - Domain acquisition (http://letshaveaword.fun)
@@ -3675,6 +3868,7 @@ The XP system tracks player engagement and progression using an **event-sourced 
 | `CLANKTON_BONUS_DAY` | +10 | $WORD holder (100M+) daily participation | <!-- event type stored in DB, do not rename -->
 | `SHARE_CAST` | +15 | Sharing to Farcaster (once per day) |
 | `PACK_PURCHASE` | +20 | Each guess pack purchased |
+| `BURN_WORD` | +100 | Found a burn word during a round |
 | `NEAR_MISS` | 0 | Tracked for future use (Hamming distance 1-2) |
 
 ### Database Schema

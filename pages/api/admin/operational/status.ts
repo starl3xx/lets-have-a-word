@@ -22,6 +22,7 @@ import {
   getRefundCronTiming,
 } from '../../../../src/lib/operational';
 import { getRefundSummary } from '../../../../src/lib/refunds';
+import { getWordManagerAddress } from '../../../../src/lib/word-manager';
 import { db } from '../../../../src/db';
 import { rounds } from '../../../../src/db/schema';
 import { eq, isNull, and, desc } from 'drizzle-orm';
@@ -90,6 +91,7 @@ export default async function handler(
       deadDay: deadDayState,
       cancelledRounds: refundSummaries,
       refundCron: refundCronTiming,
+      wordManagerConfigured: getWordManagerAddress() !== null,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

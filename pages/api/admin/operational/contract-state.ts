@@ -25,6 +25,12 @@ import {
   getJackpotManagerReadOnly,
   getSepoliaJackpotManagerReadOnly,
 } from '../../../../src/lib/jackpot-contract';
+import {
+  getWordManagerAddress,
+  getWordManagerReadOnly,
+  getTotalStaked,
+  getTotalBurned,
+} from '../../../../src/lib/word-manager';
 
 interface ContractState {
   network: 'mainnet' | 'sepolia';
@@ -45,6 +51,108 @@ interface ContractState {
   ourSigningWallet: string;
   operatorAuthorized: boolean;
   error?: string;
+}
+
+interface WordManagerState {
+  configured: boolean;
+  contractAddress: string | null;
+  totalStaked: string;
+  totalBurned: string;
+  totalDistributed: string;
+  operatorAuthorized: boolean;
+  ourSigningWallet: string;
+  error?: string;
+}
+
+function formatTokenAmount(raw: bigint): string {
+  const whole = raw / BigInt(1e18);
+  if (whole >= 1_000_000_000n) {
+    const billions = Number(whole) / 1e9;
+    return `${billions.toFixed(1)}B`;
+  }
+  if (whole >= 1_000_000n) {
+    const millions = Number(whole) / 1e6;
+    return `${millions.toFixed(1)}M`;
+  }
+  if (whole >= 1_000n) {
+    const thousands = Number(whole) / 1e3;
+    return `${thousands.toFixed(1)}K`;
+  }
+  return whole.toString();
+}
+
+async function getWordManagerState(): Promise<WordManagerState> {
+  const address = getWordManagerAddress();
+
+  if (!address) {
+    return {
+      configured: false,
+      contractAddress: null,
+      totalStaked: '0',
+      totalBurned: '0',
+      totalDistributed: '0',
+      operatorAuthorized: false,
+      ourSigningWallet: 'NOT_CONFIGURED',
+    };
+  }
+
+  let ourSigningWallet = 'NOT_CONFIGURED';
+  try {
+    const operatorKey = process.env.OPERATOR_PRIVATE_KEY;
+    if (operatorKey) {
+      const wallet = new ethers.Wallet(operatorKey);
+      ourSigningWallet = wallet.address;
+    }
+  } catch {
+    ourSigningWallet = 'INVALID_KEY';
+  }
+
+  try {
+    const contract = getWordManagerReadOnly();
+    if (!contract) {
+      return {
+        configured: true,
+        contractAddress: address,
+        totalStaked: '0',
+        totalBurned: '0',
+        totalDistributed: '0',
+        operatorAuthorized: false,
+        ourSigningWallet,
+        error: 'Failed to create contract instance',
+      };
+    }
+
+    const [totalStaked, totalBurned, totalDistributed] = await Promise.all([
+      getTotalStaked(),
+      getTotalBurned(),
+      contract.totalDistributed() as Promise<bigint>,
+    ]);
+
+    // WordManager uses the same operator wallet — if our wallet can sign, it's authorized
+    const operatorAuthorized = ourSigningWallet !== 'NOT_CONFIGURED' && ourSigningWallet !== 'INVALID_KEY';
+
+    return {
+      configured: true,
+      contractAddress: address,
+      totalStaked: formatTokenAmount(totalStaked ?? 0n),
+      totalBurned: formatTokenAmount(totalBurned ?? 0n),
+      totalDistributed: formatTokenAmount(totalDistributed ?? 0n),
+      operatorAuthorized,
+      ourSigningWallet,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      configured: true,
+      contractAddress: address,
+      totalStaked: '0',
+      totalBurned: '0',
+      totalDistributed: '0',
+      operatorAuthorized: false,
+      ourSigningWallet,
+      error: message,
+    };
+  }
 }
 
 async function getMainnetState(): Promise<ContractState> {
@@ -217,16 +325,18 @@ export default async function handler(
     }
 
     if (req.method === 'GET') {
-      // Fetch state for both networks in parallel
-      const [mainnet, sepolia] = await Promise.all([
+      // Fetch state for all contracts in parallel
+      const [mainnet, sepolia, wordManager] = await Promise.all([
         getMainnetState(),
         getSepoliaState(),
+        getWordManagerState(),
       ]);
 
       return res.status(200).json({
         ok: true,
         mainnet,
         sepolia,
+        wordManager,
         timestamp: new Date().toISOString(),
         recommendations: {
           mainnet: !mainnet.operatorAuthorized
@@ -243,6 +353,13 @@ export default async function handler(
               : sepolia.isActive
                 ? '✅ Contract state is healthy. Simulation should work.'
                 : 'ℹ️ No active round. Start a simulation to create one.',
+          wordManager: !wordManager.configured
+            ? 'ℹ️ WordManager not configured. Set WORD_MANAGER_ADDRESS to enable $WORD contract monitoring.'
+            : wordManager.error
+              ? `⚠️ WordManager RPC error: ${wordManager.error}`
+              : !wordManager.operatorAuthorized
+                ? '🚫 Operator wallet not configured. $WORD contract writes will fail.'
+                : '✅ WordManager is healthy.',
         },
       });
     }

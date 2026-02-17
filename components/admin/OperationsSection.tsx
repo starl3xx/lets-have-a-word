@@ -74,13 +74,26 @@ interface ContractNetworkState {
   error?: string
 }
 
+interface WordManagerState {
+  configured: boolean
+  contractAddress: string | null
+  totalStaked: string
+  totalBurned: string
+  totalDistributed: string
+  operatorAuthorized: boolean
+  ourSigningWallet: string
+  error?: string
+}
+
 interface ContractStateResponse {
   ok: boolean
   mainnet: ContractNetworkState
   sepolia: ContractNetworkState
+  wordManager: WordManagerState
   recommendations: {
     mainnet: string
     sepolia: string
+    wordManager: string
   }
   timestamp: string
 }
@@ -2005,7 +2018,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           {/* Contract State Diagnostics Card */}
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>
-              Contract State Diagnostics
+              Contract Diagnostics
               <span style={{
                 marginLeft: '12px',
                 fontSize: '11px',
@@ -2019,8 +2032,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             </h2>
 
             <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-              Monitor contract balance vs internal jackpot to diagnose resolution issues.
-              A mismatch means the contract cannot pay out the expected amounts.
+              Monitor contract health, balances, and operator authorization for both onchain contracts.
             </p>
 
             {contractStateLoading && !contractState ? (
@@ -2028,8 +2040,8 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 Loading contract state...
               </div>
             ) : contractState ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                {/* Mainnet State */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                {/* JackpotManager — Mainnet */}
                 <div style={{
                   padding: '16px',
                   background: contractState.mainnet.hasMismatch ? '#fef2f2' : '#f0fdf4',
@@ -2043,7 +2055,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     marginBottom: '12px',
                   }}>
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>
-                      Base Mainnet
+                      JackpotManager — Mainnet
                     </span>
                     <span style={{
                       fontSize: '20px',
@@ -2100,7 +2112,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   )}
                 </div>
 
-                {/* Sepolia State */}
+                {/* JackpotManager — Sepolia */}
                 <div style={{
                   padding: '16px',
                   background: contractState.sepolia.hasMismatch ? '#fef2f2' : '#f0fdf4',
@@ -2114,7 +2126,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     marginBottom: '12px',
                   }}>
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>
-                      Base Sepolia (Testnet)
+                      JackpotManager — Sepolia
                     </span>
                     <span style={{
                       fontSize: '20px',
@@ -2184,6 +2196,82 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     </>
                   )}
                 </div>
+
+                {/* WordManager — Mainnet */}
+                <div style={{
+                  padding: '16px',
+                  background: !contractState.wordManager.configured ? '#f9fafb'
+                    : contractState.wordManager.error ? '#fef2f2'
+                    : '#f0fdf4',
+                  border: `1px solid ${
+                    !contractState.wordManager.configured ? '#e5e7eb'
+                    : contractState.wordManager.error ? '#fecaca'
+                    : '#bbf7d0'
+                  }`,
+                  borderRadius: '8px',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                      WordManager — Mainnet
+                    </span>
+                    <span style={{ fontSize: '20px' }}>
+                      {!contractState.wordManager.configured ? '⚪' : contractState.wordManager.error ? '⚠️' : '✅'}
+                    </span>
+                  </div>
+                  {!contractState.wordManager.configured ? (
+                    <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                      <div style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        background: '#f3f4f6',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#6b7280',
+                        marginBottom: '8px',
+                      }}>
+                        NOT CONFIGURED
+                      </div>
+                      <div>Set <code style={{ background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '11px' }}>WORD_MANAGER_ADDRESS</code> to enable.</div>
+                    </div>
+                  ) : contractState.wordManager.error ? (
+                    <div style={{ color: '#dc2626', fontSize: '13px' }}>
+                      Error: {contractState.wordManager.error}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Contract</span>
+                        <span style={{ ...styles.infoValue, fontSize: '10px', fontFamily: 'monospace' }}>
+                          {contractState.wordManager.contractAddress?.slice(0, 10)}...{contractState.wordManager.contractAddress?.slice(-8)}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Total Staked</span>
+                        <span style={styles.infoValue}>{contractState.wordManager.totalStaked} $WORD</span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Total Burned</span>
+                        <span style={styles.infoValue}>{contractState.wordManager.totalBurned} $WORD</span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Total Distributed</span>
+                        <span style={styles.infoValue}>{contractState.wordManager.totalDistributed} $WORD</span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Operator</span>
+                        <span style={{ ...styles.infoValue, color: contractState.wordManager.operatorAuthorized ? '#166534' : '#dc2626' }}>
+                          {contractState.wordManager.operatorAuthorized ? '✅ Authorized' : '❌ Not authorized'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             ) : null}
 
@@ -2222,8 +2310,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 <div style={{ marginBottom: '4px' }}>
                   <strong>Mainnet:</strong> {contractState.recommendations.mainnet}
                 </div>
-                <div>
+                <div style={{ marginBottom: '4px' }}>
                   <strong>Sepolia:</strong> {contractState.recommendations.sepolia}
+                </div>
+                <div>
+                  <strong>WordManager:</strong> {contractState.recommendations.wordManager}
                 </div>
               </div>
             )}
