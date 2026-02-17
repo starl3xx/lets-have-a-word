@@ -13,24 +13,55 @@ The **prize pool** is the total ETH collected during a round as players purchase
 You can view all past winning words, round details, and payouts in the Round Archive:
 https://letshaveaword.fun/archive
 
-You can also independently verify each round's cryptographic commitment and reveal at:
+You can also independently verify each round's cryptographic commitments and reveals at:
 https://letshaveaword.fun/verify
 
 ## What does "provably fair" mean?
 
-Before each round begins, Let's Have A Word **commits onchain** to the secret word using a cryptographic hash and hidden salt.
+Before each round begins, Let's Have A Word **commits onchain** to all **16 words** — the secret word, 10 bonus words, and 5 burn words — using cryptographic hashes.
 
-This commitment guarantees that the **word cannot be changed mid-round** — not by the game, not by the creator, not by anyone. Importantly, **the creator does not know the secret word while the round is live**. The word is only revealed after someone finds it.
+The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManagerV2 contract. These commitments guarantee that **no words can be changed mid-round** — not by the game, not by the creator, not by anyone. Importantly, **the creator does not know the secret word while the round is live**. Words are only revealed after they're found or the round ends.
 
 When a round ends:
 - The secret word and salt are revealed by @letshaveaword
-- Anyone can recompute the hash
-- Anyone can verify the answer was fixed from the very start
+- Bonus and burn word hashes are verified against the committed values
+- Anyone can recompute the hashes
+- Anyone can verify all 16 words were fixed from the very start
 
 You don't have to trust this; you can verify every round yourself at:
 https://letshaveaword.fun/verify
 
 This commit–reveal process makes every round transparent, verifiable, and fair.
+
+---
+
+## What are bonus words?
+
+Each round has **10 hidden bonus words**. When you guess one, you automatically receive **5M $WORD tokens**. You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet.
+
+Bonus words are committed onchain as keccak256 hashes before the round starts, so no one (including the game's creator) can change them mid-round. When you find one, the contract verifies your word against the committed hash before releasing tokens. You'll also earn the **Side Quest** wordmark.
+
+## What are burn words?
+
+Each round has **5 hidden burn words**. When you guess one, **5M $WORD tokens are permanently destroyed** — burned from the supply forever. You don't receive any $WORD for finding a burn word, but you do earn **XP** and the **Arsonist** wordmark.
+
+Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word against its committed hash before executing the burn.
+
+## What are wordmarks?
+
+Wordmarks are **collectible badges** displayed on your profile. You earn them by hitting specific milestones or achievements during gameplay. Once earned, they're yours permanently.
+
+Here's the full list:
+
+- **OG Hunter** — Participated during the prelaunch campaign
+- **Side Quest** — Found a bonus word
+- **Arsonist** — Found a burn word
+- **Jackpot** — Won a jackpot
+- **Patron** — Purchased guess packs
+- **Quickdraw** — Submitted guesses early in a round
+- **Encyclopedic** — Used a wide variety of unique words across rounds
+- **Double Dub** — Won two rounds
+- **Baker's Dozen** — Submitted 13 or more guesses in a single round
 
 ---
 
@@ -56,6 +87,16 @@ If you hold 100M [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e6
 - **+3 guesses/day** when market cap is above $250K
 
 This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.
+
+## How does the $WORD token work in-game?
+
+$WORD is the game's token on Base. It ties into gameplay in a few ways:
+
+- **Bonus guesses**: Hold 100M+ $WORD to earn extra free guesses daily
+- **Bonus word rewards**: Find a bonus word and receive 5M $WORD
+- **Burn word deflation**: Burn words permanently destroy 5M $WORD from the supply
+- **Top 10 $WORD rewards**: The top 10 guessers in each round earn $WORD payouts in addition to ETH
+- **Staking**: Coming soon
 
 ## How does the share bonus work?
 
@@ -139,6 +180,18 @@ This distribution is fixed and always applies when a round is resolved, scaling 
 Share your unique referral link with friends or on the timeline. If anyone who joins using your link **ever wins a jackpot**, you'll automatically receive **5% of that round's prize pool**.
 
 You can track your referrals and earnings in the Refer sheet.
+
+---
+
+## What is the WordManager contract?
+
+Let's Have A Word uses **two smart contracts on Base** to handle different parts of the game's onchain mechanics:
+
+- **JackpotManager** (`0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`) — Manages ETH prize pools, payouts, and the secret word's SHA-256 commitment. When a round is won, this contract distributes the jackpot, Top 10 rewards, referrer share, and next round seed in a single atomic transaction.
+
+- **WordManagerV2** (`0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c`) — Manages $WORD token mechanics including bonus word rewards, burn word destruction, and keccak256 word commitments. All 15 bonus and burn words are committed to this contract before a round starts. When a player finds one, the contract verifies the guess against the committed hash before releasing or burning tokens.
+
+Together, these contracts ensure that both ETH prizes and $WORD token mechanics are handled transparently onchain.
 
 ---
 
