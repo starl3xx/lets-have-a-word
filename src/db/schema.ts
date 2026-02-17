@@ -717,3 +717,45 @@ export const wordRewards = pgTable('word_rewards', {
 
 export type WordRewardRow = typeof wordRewards.$inferSelect;
 export type WordRewardInsert = typeof wordRewards.$inferInsert;
+
+/**
+ * Airdrop Wallets Table
+ * Tracks CLANKTON→$WORD migration: imported holder data + cached balance lookups
+ */
+export const airdropWallets = pgTable('airdrop_wallets', {
+  id: serial('id').primaryKey(),
+  walletAddress: varchar('wallet_address', { length: 42 }).notNull().unique(),
+  snapshotToken: varchar('snapshot_token', { length: 20 }).notNull().default('CLANKTON'),
+  snapshotBalance: numeric('snapshot_balance', { precision: 30, scale: 0 }).notNull(),
+  snapshotDate: varchar('snapshot_date', { length: 20 }),
+  currentWordBalance: numeric('current_word_balance', { precision: 30, scale: 2 }),
+  airdropNeeded: numeric('airdrop_needed', { precision: 30, scale: 2 }),
+  balanceLastCheckedAt: timestamp('balance_last_checked_at'),
+  balanceCheckError: varchar('balance_check_error', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  walletIdx: index('airdrop_wallets_wallet_idx').on(table.walletAddress),
+}));
+
+export type AirdropWalletRow = typeof airdropWallets.$inferSelect;
+export type AirdropWalletInsert = typeof airdropWallets.$inferInsert;
+
+/**
+ * Airdrop Distributions Table
+ * Audit trail for "mark as sent" — records when airdrop was distributed
+ */
+export const airdropDistributions = pgTable('airdrop_distributions', {
+  id: serial('id').primaryKey(),
+  airdropWalletId: integer('airdrop_wallet_id').notNull().references(() => airdropWallets.id),
+  amountSent: numeric('amount_sent', { precision: 30, scale: 2 }).notNull(),
+  markedByFid: integer('marked_by_fid').notNull(),
+  txHash: varchar('tx_hash', { length: 66 }),
+  note: varchar('note', { length: 500 }),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (table) => ({
+  walletIdx: index('airdrop_distributions_wallet_idx').on(table.airdropWalletId),
+}));
+
+export type AirdropDistributionRow = typeof airdropDistributions.$inferSelect;
+export type AirdropDistributionInsert = typeof airdropDistributions.$inferInsert;

@@ -1,0 +1,994 @@
+/**
+ * Airdrop Manager Section
+ * CLANKTON to $WORD migration: CSV import, balance checking, export for Disperse.app
+ */
+
+import React, { useState, useEffect, useCallback } from "react"
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface AirdropWallet {
+  id: number
+  walletAddress: string
+  snapshotToken: string
+  snapshotBalance: string
+  snapshotDate: string | null
+  currentWordBalance: string | null
+  airdropNeeded: string | null
+  balanceLastCheckedAt: string | null
+  balanceCheckError: string | null
+  createdAt: string
+  updatedAt: string
+  distributions: AirdropDistribution[]
+}
+
+interface AirdropDistribution {
+  id: number
+  airdropWalletId: number
+  amountSent: string
+  markedByFid: number
+  txHash: string | null
+  note: string | null
+  sentAt: string
+}
+
+interface Summary {
+  totalWallets: number
+  totalWordNeeded: number
+  aboveFloor: number
+  needingAirdrop: number
+  alreadySent: number
+}
+
+type SortKey = 'walletAddress' | 'snapshotBalance' | 'currentWordBalance' | 'airdropNeeded' | 'balanceLastCheckedAt' | 'status'
+type SortDir = 'asc' | 'desc'
+
+interface Props {
+  user?: {
+    fid: number
+    username: string
+  }
+}
+
+// =============================================================================
+// Styles
+// =============================================================================
+
+const styles = {
+  card: {
+    background: "white",
+    borderRadius: "12px",
+    border: "1px solid #e5e7eb",
+    padding: "24px",
+    marginBottom: "24px",
+  } as React.CSSProperties,
+  cardTitle: {
+    fontSize: "16px",
+    fontWeight: 600,
+    color: "#111827",
+    margin: "0 0 16px 0",
+  } as React.CSSProperties,
+  statGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "16px",
+    marginBottom: "24px",
+  } as React.CSSProperties,
+  statCard: {
+    background: "#f9fafb",
+    borderRadius: "8px",
+    padding: "16px",
+    textAlign: "center" as const,
+  } as React.CSSProperties,
+  statLabel: {
+    fontSize: "12px",
+    fontWeight: 500,
+    color: "#6b7280",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.05em",
+    marginBottom: "4px",
+  } as React.CSSProperties,
+  statValue: {
+    fontSize: "22px",
+    fontWeight: 700,
+    color: "#111827",
+  } as React.CSSProperties,
+  btnPrimary: {
+    padding: "10px 20px",
+    background: "#2563eb",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: 500,
+    cursor: "pointer",
+  } as React.CSSProperties,
+  btnSecondary: {
+    padding: "10px 20px",
+    background: "#f3f4f6",
+    color: "#374151",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: 500,
+    cursor: "pointer",
+  } as React.CSSProperties,
+  btnDanger: {
+    padding: "6px 14px",
+    background: "#fef2f2",
+    color: "#dc2626",
+    border: "1px solid #fecaca",
+    borderRadius: "6px",
+    fontSize: "13px",
+    fontWeight: 500,
+    cursor: "pointer",
+  } as React.CSSProperties,
+  btnSmall: {
+    padding: "4px 10px",
+    fontSize: "12px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    border: "1px solid #d1d5db",
+    background: "#f3f4f6",
+    color: "#374151",
+  } as React.CSSProperties,
+  alert: (type: 'error' | 'success' | 'warning') => ({
+    padding: "12px 16px",
+    borderRadius: "8px",
+    marginBottom: "16px",
+    fontSize: "14px",
+    background: type === 'error' ? "#fef2f2" :
+                type === 'success' ? "#f0fdf4" :
+                "#fffbeb",
+    color: type === 'error' ? "#dc2626" :
+           type === 'success' ? "#16a34a" :
+           "#d97706",
+    border: `1px solid ${type === 'error' ? "#fecaca" :
+                         type === 'success' ? "#bbf7d0" :
+                         "#fde68a"}`,
+  } as React.CSSProperties),
+  input: {
+    padding: "8px 12px",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    fontSize: "14px",
+    outline: "none",
+  } as React.CSSProperties,
+  textarea: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontFamily: "monospace",
+    outline: "none",
+    resize: "vertical" as const,
+    minHeight: "120px",
+  } as React.CSSProperties,
+  th: {
+    padding: "10px 12px",
+    textAlign: "left" as const,
+    fontSize: "12px",
+    fontWeight: 600,
+    color: "#6b7280",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.05em",
+    borderBottom: "2px solid #e5e7eb",
+    cursor: "pointer",
+    userSelect: "none" as const,
+    whiteSpace: "nowrap" as const,
+  } as React.CSSProperties,
+  td: {
+    padding: "10px 12px",
+    fontSize: "13px",
+    borderBottom: "1px solid #f3f4f6",
+    color: "#374151",
+  } as React.CSSProperties,
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function formatNumber(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return formatNumber(n)
+}
+
+function truncateAddress(addr: string): string {
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`
+}
+
+function relativeTime(dateStr: string | null): string {
+  if (!dateStr) return '-'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+function getWalletStatus(w: AirdropWallet): 'sent' | 'error' | 'pending' {
+  if (w.distributions.length > 0) return 'sent'
+  if (w.balanceCheckError) return 'error'
+  return 'pending'
+}
+
+// =============================================================================
+// Component
+// =============================================================================
+
+export default function AirdropManagerSection({ user }: Props) {
+  const [wallets, setWallets] = useState<AirdropWallet[]>([])
+  const [summary, setSummary] = useState<Summary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  // CSV upload
+  const [showUpload, setShowUpload] = useState(false)
+  const [csvText, setCsvText] = useState("")
+  const [importing, setImporting] = useState(false)
+
+  // Sort
+  const [sortKey, setSortKey] = useState<SortKey>('airdropNeeded')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  // Filter
+  const [showOnlyNeeding, setShowOnlyNeeding] = useState(false)
+
+  // Mark sent inline
+  const [markSentWalletId, setMarkSentWalletId] = useState<number | null>(null)
+  const [markSentTxHash, setMarkSentTxHash] = useState("")
+  const [markSentNote, setMarkSentNote] = useState("")
+
+  // Mark all sent
+  const [showMarkAll, setShowMarkAll] = useState(false)
+  const [markAllTxHash, setMarkAllTxHash] = useState("")
+  const [markAllNote, setMarkAllNote] = useState("")
+
+  // Copy feedback
+  const [copiedAddr, setCopiedAddr] = useState<string | null>(null)
+
+  const devFid = user?.fid
+
+  // ============================================================================
+  // Data fetching
+  // ============================================================================
+
+  const fetchData = useCallback(async () => {
+    if (!devFid) return
+    try {
+      setLoading(true)
+      const [listRes, summaryRes] = await Promise.all([
+        fetch(`/api/admin/airdrop/manage?action=list&devFid=${devFid}`),
+        fetch(`/api/admin/airdrop/manage?action=summary&devFid=${devFid}`),
+      ])
+
+      const listData = await listRes.json()
+      const summaryData = await summaryRes.json()
+
+      if (!listRes.ok) throw new Error(listData.error)
+      if (!summaryRes.ok) throw new Error(summaryData.error)
+
+      setWallets(listData.wallets)
+      setSummary(summaryData.summary)
+      setError(null)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [devFid])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  // ============================================================================
+  // Actions
+  // ============================================================================
+
+  const handleImportCsv = async () => {
+    if (!csvText.trim() || !devFid) return
+    try {
+      setImporting(true)
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'import-csv', csvData: csvText, devFid }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      setSuccess(`Imported ${data.imported} wallets${data.skipped ? `, ${data.skipped} skipped` : ''}`)
+      setCsvText("")
+      setShowUpload(false)
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleRefreshAll = async () => {
+    if (!devFid) return
+    try {
+      setRefreshing(true)
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh-balances', devFid }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      setSuccess(`Refreshed ${data.updated} wallets${data.failed ? `, ${data.failed} failed` : ''}`)
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleRefreshSingle = async (walletId: number) => {
+    if (!devFid) return
+    try {
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh-single', walletId, devFid }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleMarkSent = async (walletId: number) => {
+    if (!devFid) return
+    try {
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'mark-sent',
+          walletId,
+          txHash: markSentTxHash || undefined,
+          note: markSentNote || undefined,
+          devFid,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      setMarkSentWalletId(null)
+      setMarkSentTxHash("")
+      setMarkSentNote("")
+      setSuccess(`Marked wallet as sent`)
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleMarkAllSent = async () => {
+    if (!devFid) return
+    try {
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'mark-all-sent',
+          txHash: markAllTxHash || undefined,
+          note: markAllNote || undefined,
+          devFid,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      setShowMarkAll(false)
+      setMarkAllTxHash("")
+      setMarkAllNote("")
+      setSuccess(`Marked ${data.marked} wallets as sent`)
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleUnmarkSent = async (distributionId: number) => {
+    if (!devFid) return
+    try {
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unmark-sent', distributionId, devFid }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      setSuccess('Distribution record removed')
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeleteWallet = async (walletId: number) => {
+    if (!devFid) return
+    if (!confirm('Remove this wallet from tracking?')) return
+    try {
+      setError(null)
+      const res = await fetch('/api/admin/airdrop/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-wallet', walletId, devFid }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      setSuccess('Wallet removed')
+      await fetchData()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleExportCsv = () => {
+    const rows = wallets.filter(w => {
+      const needed = parseFloat(w.airdropNeeded || '0')
+      return needed > 0 && w.distributions.length === 0
+    })
+
+    const csv = rows
+      .map(w => `${w.walletAddress},${Math.round(parseFloat(w.airdropNeeded || '0'))}`)
+      .join('\n')
+
+    const blob = new Blob([`wallet_address,airdrop_amount\n${csv}`], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const date = new Date().toISOString().split('T')[0]
+    a.download = `word-airdrop-${date}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setCsvText(ev.target?.result as string || '')
+    }
+    reader.readAsText(file)
+  }
+
+  const copyAddress = async (addr: string) => {
+    try {
+      await navigator.clipboard.writeText(addr)
+      setCopiedAddr(addr)
+      setTimeout(() => setCopiedAddr(null), 1500)
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea')
+      ta.value = addr
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopiedAddr(addr)
+      setTimeout(() => setCopiedAddr(null), 1500)
+    }
+  }
+
+  // ============================================================================
+  // Sorting
+  // ============================================================================
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  const sortArrow = (key: SortKey) => {
+    if (sortKey !== key) return ''
+    return sortDir === 'asc' ? ' \u25B2' : ' \u25BC'
+  }
+
+  const sortedWallets = [...wallets]
+    .filter(w => {
+      if (!showOnlyNeeding) return true
+      const needed = parseFloat(w.airdropNeeded || '0')
+      return needed > 0 && w.distributions.length === 0
+    })
+    .sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'walletAddress':
+          cmp = a.walletAddress.localeCompare(b.walletAddress)
+          break
+        case 'snapshotBalance':
+          cmp = parseFloat(a.snapshotBalance || '0') - parseFloat(b.snapshotBalance || '0')
+          break
+        case 'currentWordBalance':
+          cmp = parseFloat(a.currentWordBalance || '0') - parseFloat(b.currentWordBalance || '0')
+          break
+        case 'airdropNeeded':
+          cmp = parseFloat(a.airdropNeeded || '0') - parseFloat(b.airdropNeeded || '0')
+          break
+        case 'balanceLastCheckedAt': {
+          const aTime = a.balanceLastCheckedAt ? new Date(a.balanceLastCheckedAt).getTime() : 0
+          const bTime = b.balanceLastCheckedAt ? new Date(b.balanceLastCheckedAt).getTime() : 0
+          cmp = aTime - bTime
+          break
+        }
+        case 'status': {
+          const order = { sent: 0, pending: 1, error: 2 }
+          cmp = order[getWalletStatus(a)] - order[getWalletStatus(b)]
+          break
+        }
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+  // ============================================================================
+  // Render
+  // ============================================================================
+
+  if (loading && wallets.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px', color: '#6b7280' }}>
+        Loading airdrop data...
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Alerts */}
+      {error && (
+        <div style={styles.alert('error')}>
+          {error}
+          <button
+            onClick={() => setError(null)}
+            style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+      {success && (
+        <div style={styles.alert('success')}>
+          {success}
+          <button
+            onClick={() => setSuccess(null)}
+            style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a' }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* A. Summary Stats */}
+      {summary && (
+        <div style={styles.statGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total Wallets</div>
+            <div style={styles.statValue}>{summary.totalWallets}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total $WORD Needed</div>
+            <div style={{ ...styles.statValue, color: '#d97706' }}>
+              {formatCompact(summary.totalWordNeeded)}
+            </div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Already Above 200M</div>
+            <div style={{ ...styles.statValue, color: '#16a34a' }}>
+              {summary.aboveFloor}
+            </div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Needing Airdrop</div>
+            <div style={{ ...styles.statValue, color: '#dc2626' }}>
+              {summary.needingAirdrop}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* B. Action Bar */}
+      <div style={{
+        ...styles.card,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        flexWrap: 'wrap',
+        padding: '16px 24px',
+      }}>
+        <button
+          style={{
+            ...styles.btnSecondary,
+            background: showUpload ? '#dbeafe' : '#f3f4f6',
+            borderColor: showUpload ? '#93c5fd' : '#d1d5db',
+          }}
+          onClick={() => setShowUpload(!showUpload)}
+        >
+          {showUpload ? 'Hide Upload' : 'Upload CSV'}
+        </button>
+
+        <button
+          style={{
+            ...styles.btnPrimary,
+            opacity: refreshing ? 0.7 : 1,
+          }}
+          onClick={handleRefreshAll}
+          disabled={refreshing}
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh All Balances'}
+        </button>
+
+        <button
+          style={styles.btnSecondary}
+          onClick={handleExportCsv}
+          disabled={wallets.length === 0}
+        >
+          Export CSV
+        </button>
+
+        <button
+          style={{
+            ...styles.btnSecondary,
+            background: showMarkAll ? '#dbeafe' : '#f3f4f6',
+            borderColor: showMarkAll ? '#93c5fd' : '#d1d5db',
+          }}
+          onClick={() => setShowMarkAll(!showMarkAll)}
+        >
+          Mark All as Sent
+        </button>
+
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '13px',
+          color: '#374151',
+          marginLeft: 'auto',
+          cursor: 'pointer',
+        }}>
+          <input
+            type="checkbox"
+            checked={showOnlyNeeding}
+            onChange={e => setShowOnlyNeeding(e.target.checked)}
+          />
+          Show Only Needing
+        </label>
+      </div>
+
+      {/* Mark All as Sent Dialog */}
+      {showMarkAll && (
+        <div style={{
+          ...styles.card,
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+        }}>
+          <h3 style={{ ...styles.cardTitle, fontSize: '14px' }}>Mark All Pending as Sent</h3>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+            <input
+              type="text"
+              style={{ ...styles.input, flex: 1 }}
+              placeholder="Tx hash (optional)"
+              value={markAllTxHash}
+              onChange={e => setMarkAllTxHash(e.target.value)}
+            />
+            <input
+              type="text"
+              style={{ ...styles.input, flex: 1 }}
+              placeholder="Note (optional)"
+              value={markAllNote}
+              onChange={e => setMarkAllNote(e.target.value)}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button style={styles.btnPrimary} onClick={handleMarkAllSent}>
+              Confirm Mark All
+            </button>
+            <button style={styles.btnSecondary} onClick={() => setShowMarkAll(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* C. CSV Upload Area */}
+      {showUpload && (
+        <div style={styles.card}>
+          <h3 style={styles.cardTitle}>Import CSV</h3>
+          <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
+            Format: <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>wallet_address,balance</code> (one per line)
+          </p>
+
+          <div style={{ marginBottom: '12px' }}>
+            <input
+              type="file"
+              accept=".csv,.txt"
+              onChange={handleFileUpload}
+              style={{ fontSize: '13px', marginBottom: '8px' }}
+            />
+          </div>
+
+          <textarea
+            style={styles.textarea}
+            placeholder={`0x1234...abcd,150000000\n0x5678...efgh,120000000`}
+            value={csvText}
+            onChange={e => setCsvText(e.target.value)}
+          />
+
+          {csvText && (
+            <div style={{ fontSize: '13px', color: '#6b7280', margin: '8px 0' }}>
+              {csvText.split('\n').filter(l => l.trim()).length} lines detected
+            </div>
+          )}
+
+          <button
+            style={{
+              ...styles.btnPrimary,
+              marginTop: '8px',
+              opacity: importing || !csvText.trim() ? 0.6 : 1,
+            }}
+            onClick={handleImportCsv}
+            disabled={importing || !csvText.trim()}
+          >
+            {importing ? 'Importing...' : 'Import'}
+          </button>
+        </div>
+      )}
+
+      {/* D. Data Table */}
+      <div style={{ ...styles.card, padding: '0', overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={styles.th} onClick={() => handleSort('walletAddress')}>
+                Wallet{sortArrow('walletAddress')}
+              </th>
+              <th style={{ ...styles.th, textAlign: 'right' }} onClick={() => handleSort('snapshotBalance')}>
+                CLANKTON Snapshot{sortArrow('snapshotBalance')}
+              </th>
+              <th style={{ ...styles.th, textAlign: 'right' }} onClick={() => handleSort('currentWordBalance')}>
+                Current $WORD{sortArrow('currentWordBalance')}
+              </th>
+              <th style={{ ...styles.th, textAlign: 'right' }} onClick={() => handleSort('airdropNeeded')}>
+                Airdrop Needed{sortArrow('airdropNeeded')}
+              </th>
+              <th style={styles.th} onClick={() => handleSort('balanceLastCheckedAt')}>
+                Last Checked{sortArrow('balanceLastCheckedAt')}
+              </th>
+              <th style={styles.th} onClick={() => handleSort('status')}>
+                Status{sortArrow('status')}
+              </th>
+              <th style={{ ...styles.th, cursor: 'default' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedWallets.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ ...styles.td, textAlign: 'center', padding: '32px', color: '#9ca3af' }}>
+                  {wallets.length === 0 ? 'No wallets imported yet. Upload a CSV to get started.' : 'No wallets match the current filter.'}
+                </td>
+              </tr>
+            ) : (
+              sortedWallets.map(w => {
+                const needed = parseFloat(w.airdropNeeded || '0')
+                const currentBal = w.currentWordBalance ? parseFloat(w.currentWordBalance) : null
+                const status = getWalletStatus(w)
+                const isMarkSentOpen = markSentWalletId === w.id
+
+                return (
+                  <React.Fragment key={w.id}>
+                    <tr style={{ background: isMarkSentOpen ? '#f0f9ff' : undefined }}>
+                      {/* Wallet Address */}
+                      <td style={{ ...styles.td, fontFamily: 'monospace', fontSize: '12px' }}>
+                        <span
+                          style={{ cursor: 'pointer', borderBottom: '1px dashed #9ca3af' }}
+                          onClick={() => copyAddress(w.walletAddress)}
+                          title={w.walletAddress}
+                        >
+                          {copiedAddr === w.walletAddress ? 'Copied!' : truncateAddress(w.walletAddress)}
+                        </span>
+                      </td>
+
+                      {/* CLANKTON Snapshot */}
+                      <td style={{ ...styles.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatNumber(parseFloat(w.snapshotBalance || '0'))}
+                      </td>
+
+                      {/* Current $WORD */}
+                      <td style={{ ...styles.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {currentBal !== null ? formatNumber(Math.round(currentBal)) : '-'}
+                      </td>
+
+                      {/* Airdrop Needed */}
+                      <td style={{
+                        ...styles.td,
+                        textAlign: 'right',
+                        fontWeight: needed > 0 ? 700 : 400,
+                        color: needed > 0 ? '#d97706' : '#16a34a',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>
+                        {w.airdropNeeded !== null ? formatNumber(Math.round(needed)) : '-'}
+                      </td>
+
+                      {/* Last Checked */}
+                      <td style={{ ...styles.td, fontSize: '12px', color: '#6b7280' }}>
+                        {relativeTime(w.balanceLastCheckedAt)}
+                      </td>
+
+                      {/* Status */}
+                      <td style={styles.td}>
+                        {status === 'sent' && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 10px',
+                            borderRadius: '9999px',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            background: '#dcfce7',
+                            color: '#166534',
+                          }}>
+                            Sent
+                          </span>
+                        )}
+                        {status === 'pending' && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 10px',
+                            borderRadius: '9999px',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            background: '#fef9c3',
+                            color: '#854d0e',
+                          }}>
+                            Pending
+                          </span>
+                        )}
+                        {status === 'error' && (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '2px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                            }}
+                            title={w.balanceCheckError || ''}
+                          >
+                            Error
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {status !== 'sent' && needed > 0 && (
+                            <button
+                              style={{ ...styles.btnSmall, background: '#dbeafe', color: '#1d4ed8', borderColor: '#93c5fd' }}
+                              onClick={() => {
+                                setMarkSentWalletId(isMarkSentOpen ? null : w.id)
+                                setMarkSentTxHash("")
+                                setMarkSentNote("")
+                              }}
+                            >
+                              {isMarkSentOpen ? 'Cancel' : 'Mark Sent'}
+                            </button>
+                          )}
+                          {status === 'sent' && w.distributions.length > 0 && (
+                            <button
+                              style={{ ...styles.btnSmall, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                              onClick={() => handleUnmarkSent(w.distributions[w.distributions.length - 1].id)}
+                            >
+                              Undo
+                            </button>
+                          )}
+                          <button
+                            style={styles.btnSmall}
+                            onClick={() => handleRefreshSingle(w.id)}
+                          >
+                            Refresh
+                          </button>
+                          <button
+                            style={{ ...styles.btnSmall, color: '#dc2626', borderColor: '#fecaca' }}
+                            onClick={() => handleDeleteWallet(w.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* F. Inline Mark Sent Dialog */}
+                    {isMarkSentOpen && (
+                      <tr>
+                        <td colSpan={7} style={{
+                          padding: '12px 16px',
+                          background: '#f0f9ff',
+                          borderBottom: '1px solid #bae6fd',
+                        }}>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              style={{ ...styles.input, flex: 1, fontSize: '13px' }}
+                              placeholder="Tx hash (optional)"
+                              value={markSentTxHash}
+                              onChange={e => setMarkSentTxHash(e.target.value)}
+                            />
+                            <input
+                              type="text"
+                              style={{ ...styles.input, flex: 1, fontSize: '13px' }}
+                              placeholder="Note (optional)"
+                              value={markSentNote}
+                              onChange={e => setMarkSentNote(e.target.value)}
+                            />
+                            <button
+                              style={{ ...styles.btnPrimary, padding: '8px 16px', fontSize: '13px' }}
+                              onClick={() => handleMarkSent(w.id)}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              style={{ ...styles.btnSecondary, padding: '8px 16px', fontSize: '13px' }}
+                              onClick={() => setMarkSentWalletId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Table footer info */}
+      <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'right', marginTop: '8px' }}>
+        Showing {sortedWallets.length} of {wallets.length} wallets
+      </div>
+    </div>
+  )
+}
