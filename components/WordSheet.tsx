@@ -171,6 +171,9 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
           stakingAvailable={balanceData.stakingAvailable}
           walletAddress={walletAddress as `0x${string}` | null}
           walletBalance={balanceData.wallet}
+          rewardRate={balanceData.rewardRate}
+          periodFinish={balanceData.periodFinish}
+          rewardsDuration={balanceData.rewardsDuration}
           xpStakingTier={balanceData.xpStakingTier}
           xpStakingMultiplier={balanceData.xpStakingMultiplier}
           xpStakingTierName={balanceData.xpStakingTierName}

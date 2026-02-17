@@ -192,6 +192,13 @@ export function getTop10WordAmounts(marketCapUsd: number = WORD_MARKET_CAP_USD):
 }
 
 // =============================================================================
+// Staking Reward Period Configuration
+// =============================================================================
+
+/** Duration of staking reward periods in seconds (30 days) */
+export const REWARDS_DURATION = 30 * 24 * 60 * 60; // 2592000
+
+// =============================================================================
 // XP-Boosted Staking Tiers
 // =============================================================================
 

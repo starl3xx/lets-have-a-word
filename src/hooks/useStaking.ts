@@ -49,7 +49,14 @@ const WORD_MANAGER_ABI = [
     name: 'withdraw',
     type: 'function',
     stateMutability: 'nonpayable',
-    inputs: [{ name: 'depositId', type: 'uint256' }],
+    inputs: [{ name: 'amount', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    name: 'getReward',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
     outputs: [],
   },
   {

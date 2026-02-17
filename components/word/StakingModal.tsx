@@ -26,6 +26,11 @@ interface StakingModalProps {
   stakingAvailable: boolean;
   walletAddress: `0x${string}` | null;
   walletBalance: string;
+  // V3: Reward period info
+  rewardRate: string;       // $WORD per second (wei string)
+  periodFinish: number;     // Unix timestamp
+  rewardsDuration: number;  // seconds
+  // XP tier fields
   xpStakingTier: number;
   xpStakingMultiplier: number;
   xpStakingTierName: string;
@@ -70,6 +75,9 @@ export default function StakingModal({
   stakingAvailable,
   walletAddress,
   walletBalance,
+  rewardRate,
+  periodFinish,
+  rewardsDuration,
   xpStakingTier,
   xpStakingMultiplier,
   xpStakingTierName,
@@ -107,26 +115,29 @@ export default function StakingModal({
     previousTierRef.current = xpStakingTier;
   }, [xpStakingTier]);
 
-  // Ticking reward counter
+  // Ticking reward counter — uses real rewardRate from contract
   useEffect(() => {
     const stakedNum = parseFloat(stakedBalance) || 0;
     if (stakedNum === 0) return;
 
-    // Estimate daily rate: rough heuristic based on pool share
+    // rewardRate is in wei/second; convert to whole tokens/second
+    const ratePerSecond = parseFloat(rewardRate) / 1e18;
     const poolShareNum = parseFloat(stakingPoolShare) || 0;
-    // Assume ~1% APR of total pool distributed daily as a rough estimate
-    const estimatedDailyReward = stakedNum * poolShareNum * 0.01;
+    // User's share of rewards per second
+    const userRewardPerSecond = ratePerSecond * poolShareNum;
+
+    if (userRewardPerSecond <= 0) return;
 
     tickIntervalRef.current = setInterval(() => {
       const elapsed = (Date.now() - rewardBaselineRef.current.time) / 1000;
-      const increment = (elapsed / 86400) * estimatedDailyReward;
+      const increment = elapsed * userRewardPerSecond;
       setDisplayedRewards(rewardBaselineRef.current.amount + increment);
     }, 200);
 
     return () => {
       if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
     };
-  }, [stakedBalance, stakingPoolShare]);
+  }, [stakedBalance, stakingPoolShare, rewardRate]);
 
   // Resync baseline from prop every 60 seconds
   useEffect(() => {
@@ -446,10 +457,39 @@ export default function StakingModal({
                     </div>
                     {xpStakingMultiplier > 1 && meetsMinStake && (
                       <div className="text-xs text-green-600 mt-1">
-                        {xpStakingMultiplier}x XP boost active
+                        Your {xpStakingMultiplier}x {xpStakingTierName} boost is applied to future distributions
                       </div>
                     )}
                   </div>
+                  {/* Reward period info */}
+                  {periodFinish > 0 && (
+                    <div className="flex gap-2 text-xs">
+                      <div className="flex-1 bg-gray-50 rounded-lg p-2">
+                        <div className="text-gray-500">Period ends</div>
+                        <div className="font-semibold">
+                          {(() => {
+                            const remaining = periodFinish - Math.floor(Date.now() / 1000);
+                            if (remaining <= 0) return 'Ended';
+                            const days = Math.floor(remaining / 86400);
+                            return days > 0 ? `${days}d remaining` : `${Math.floor(remaining / 3600)}h remaining`;
+                          })()}
+                        </div>
+                      </div>
+                      <div className="flex-1 bg-gray-50 rounded-lg p-2">
+                        <div className="text-gray-500">Est. APR</div>
+                        <div className="font-semibold">
+                          {(() => {
+                            const totalStakedNum = parseFloat(stakedBalance) / (parseFloat(stakingPoolShare) || 1);
+                            if (totalStakedNum <= 0) return '—';
+                            const ratePerSecond = parseFloat(rewardRate) / 1e18;
+                            const yearlyRewards = ratePerSecond * 365 * 86400;
+                            const apr = (yearlyRewards / totalStakedNum) * 100;
+                            return apr >= 1000 ? `${(apr / 1000).toFixed(1)}K%` : `${apr.toFixed(1)}%`;
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={handleClaim}
                     disabled={!walletAddress || displayedRewards <= 0 || isPhaseBusy(phase)}
