@@ -52,11 +52,6 @@ contract WordManagerV3 is
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
 
-    // Same-token accounting: tracks total rewards paid out so we can compute
-    // how much is "spoken for" (allocated but unclaimed) in the safety check.
-    uint256 public totalRewardsAllocated;   // Sum of all notified reward amounts
-    uint256 public totalRewardsClaimed;     // Sum of all rewards actually transferred to users
-
     // =========================================================================
     // State — Game Mechanics (from V2)
     // =========================================================================
@@ -231,7 +226,6 @@ contract WordManagerV3 is
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
-            totalRewardsClaimed += reward;
             require(wordToken.transfer(msg.sender, reward), "Transfer failed");
             emit RewardPaid(msg.sender, reward);
         }
@@ -259,7 +253,6 @@ contract WordManagerV3 is
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
-            totalRewardsClaimed += reward;
             require(wordToken.transfer(msg.sender, reward), "Transfer failed");
             emit RewardPaid(msg.sender, reward);
         }
@@ -282,7 +275,6 @@ contract WordManagerV3 is
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
-            totalRewardsClaimed += reward;
             require(wordToken.transfer(msg.sender, reward), "Transfer failed");
             emit RewardPaid(msg.sender, reward);
         }
@@ -320,18 +312,16 @@ contract WordManagerV3 is
             rewardRate = (reward + remaining) / rewardsDuration;
         }
 
-        // Safety: ensure we have enough non-staked, non-owed balance to cover the full period.
-        // Since $WORD is both staking and reward token, we must exclude:
-        //   1. _totalSupply (staked tokens belonging to users)
-        //   2. unclaimed rewards (allocated but not yet transferred out)
+        // Safety: standard Synthetix check adapted for same-token staking.
+        // Ensures rewardRate won't promise more than non-staked balance per second.
+        // Unclaimed rewards from previous periods are still held in the balance,
+        // so they're implicitly accounted for. The operator MUST transfer `reward`
+        // tokens to this contract before calling notifyRewardAmount.
         uint256 balance = wordToken.balanceOf(address(this));
-        uint256 unclaimed = totalRewardsAllocated - totalRewardsClaimed;
-        uint256 available = balance - _totalSupply - unclaimed;
-        if (rewardRate > available / rewardsDuration) {
+        if (rewardRate > (balance - _totalSupply) / rewardsDuration) {
             revert RewardTooHigh();
         }
 
-        totalRewardsAllocated += reward;
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp + rewardsDuration;
 

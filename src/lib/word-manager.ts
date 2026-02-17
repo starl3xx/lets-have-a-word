@@ -156,21 +156,6 @@ export async function getTotalBurned(): Promise<bigint | null> {
 }
 
 /**
- * Get streaming earned rewards for an address (V3: Synthetix earned())
- */
-export async function getEarned(address: string): Promise<bigint | null> {
-  const contract = getWordManagerReadOnly();
-  if (!contract) return null;
-
-  try {
-    return await contract.earned(address);
-  } catch (error) {
-    console.error('[word-manager] getEarned failed:', error);
-    return null;
-  }
-}
-
-/**
  * Get staking info for an address (batched reads)
  * V3: Uses earned() for live streaming reward value
  */
