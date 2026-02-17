@@ -262,6 +262,11 @@ export default function AirdropManagerSection({ user }: Props) {
   // Copy feedback
   const [copiedAddr, setCopiedAddr] = useState<string | null>(null)
 
+  // Migration setup
+  const [needsMigration, setNeedsMigration] = useState(false)
+  const [migrationRunning, setMigrationRunning] = useState<string | null>(null)
+  const [schemaApplied, setSchemaApplied] = useState(false)
+
   const devFid = user?.fid
 
   // ============================================================================
@@ -287,6 +292,9 @@ export default function AirdropManagerSection({ user }: Props) {
       setSummary(summaryData.summary)
       setError(null)
     } catch (err: any) {
+      if (err.message?.includes('does not exist')) {
+        setNeedsMigration(true)
+      }
       setError(err.message)
     } finally {
       setLoading(false)
@@ -300,6 +308,35 @@ export default function AirdropManagerSection({ user }: Props) {
   // ============================================================================
   // Actions
   // ============================================================================
+
+  const handleRunMigration = async (migrationName: string) => {
+    if (!devFid) return
+    try {
+      setMigrationRunning(migrationName)
+      setError(null)
+      const res = await fetch(`/api/admin/operational/apply-migration?devFid=${devFid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ migration: migrationName }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || data.details || 'Migration failed')
+
+      if (migrationName === '0006_airdrop_manager') {
+        setSchemaApplied(true)
+        setSuccess('Schema migration applied — tables created')
+      } else if (migrationName === '0007_seed_airdrop_holders') {
+        setSuccess('Seed data applied — 38 wallets imported')
+        setNeedsMigration(false)
+        setSchemaApplied(false)
+        await fetchData()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setMigrationRunning(null)
+    }
+  }
 
   const handleImportCsv = async () => {
     if (!csvText.trim() || !devFid) return
@@ -564,10 +601,105 @@ export default function AirdropManagerSection({ user }: Props) {
   // Render
   // ============================================================================
 
-  if (loading && wallets.length === 0) {
+  if (loading && wallets.length === 0 && !needsMigration) {
     return (
       <div style={{ textAlign: 'center', padding: '48px', color: '#6b7280' }}>
         Loading airdrop data...
+      </div>
+    )
+  }
+
+  // ---------- Migration setup panel ----------
+  if (needsMigration) {
+    return (
+      <div>
+        {error && (
+          <div style={styles.alert('error')}>
+            {error}
+            <button
+              onClick={() => setError(null)}
+              style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
+        {success && (
+          <div style={styles.alert('success')}>
+            {success}
+            <button
+              onClick={() => setSuccess(null)}
+              style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a' }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
+        <div style={{
+          ...styles.card,
+          textAlign: 'center' as const,
+          padding: '48px 24px',
+        }}>
+          <div style={{ fontSize: '40px', marginBottom: '16px' }}>🪂</div>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111827', margin: '0 0 8px 0' }}>
+            Airdrop Manager Setup
+          </h2>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 32px 0' }}>
+            The airdrop tables need to be created in the database. Run the migrations below in order.
+          </p>
+
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {/* Step 1: Schema */}
+            <button
+              onClick={() => handleRunMigration('0006_airdrop_manager')}
+              disabled={migrationRunning !== null || schemaApplied}
+              style={{
+                padding: '14px 28px',
+                background: schemaApplied ? '#dcfce7' : '#2563eb',
+                color: schemaApplied ? '#166534' : 'white',
+                border: schemaApplied ? '1px solid #bbf7d0' : 'none',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: migrationRunning !== null || schemaApplied ? 'default' : 'pointer',
+                opacity: migrationRunning === '0006_airdrop_manager' ? 0.7 : 1,
+                minWidth: '220px',
+              }}
+            >
+              {migrationRunning === '0006_airdrop_manager'
+                ? 'Creating tables...'
+                : schemaApplied
+                ? 'Step 1: Tables Created'
+                : 'Step 1: Create Tables'}
+            </button>
+
+            {/* Step 2: Seed data */}
+            <button
+              onClick={() => handleRunMigration('0007_seed_airdrop_holders')}
+              disabled={migrationRunning !== null || !schemaApplied}
+              style={{
+                padding: '14px 28px',
+                background: !schemaApplied ? '#f3f4f6' : '#f59e0b',
+                color: !schemaApplied ? '#9ca3af' : 'white',
+                border: !schemaApplied ? '1px solid #e5e7eb' : 'none',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: migrationRunning !== null || !schemaApplied ? 'default' : 'pointer',
+                opacity: migrationRunning === '0007_seed_airdrop_holders' ? 0.7 : 1,
+                minWidth: '220px',
+              }}
+            >
+              {migrationRunning === '0007_seed_airdrop_holders'
+                ? 'Seeding wallets...'
+                : 'Step 2: Seed 38 Wallets'}
+            </button>
+          </div>
+
+          <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '24px' }}>
+            Both operations are idempotent and safe to re-run.
+          </p>
+        </div>
       </div>
     )
   }
