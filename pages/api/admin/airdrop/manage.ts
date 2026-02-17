@@ -26,29 +26,13 @@ const AIRDROP_FLOOR = 200_000_000; // 200M $WORD
 const ERC20_BALANCE_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
 /**
- * Get $WORD balance for airdrop tracking — throws on error instead of
- * silently returning 0 (unlike getEffectiveBalance which swallows errors).
+ * Get raw $WORD token balance for airdrop tracking.
+ * Uses direct ERC-20 balanceOf — NOT the WordManager, which returns 0 for
+ * wallets that have never interacted with the game contract.
+ * Throws on error (no silent 0s).
  */
 async function getAirdropBalance(walletAddress: string): Promise<number> {
   const provider = getBaseProvider();
-
-  // Try WordManager first (wallet + staked)
-  const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS;
-  if (wordManagerAddress && wordManagerAddress !== '') {
-    try {
-      const wm = new ethers.Contract(
-        wordManagerAddress,
-        ['function getEffectiveBalance(address user) view returns (uint256)'],
-        provider
-      );
-      const balance = await wm.getEffectiveBalance(walletAddress);
-      return parseFloat(ethers.formatUnits(balance, 18));
-    } catch (err) {
-      // WordManager failed — fall through to raw balanceOf
-    }
-  }
-
-  // Raw ERC-20 balanceOf — errors propagate to caller
   const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_BALANCE_ABI, provider);
   const balance = await contract.balanceOf(walletAddress);
   return parseFloat(ethers.formatUnits(balance, 18));
