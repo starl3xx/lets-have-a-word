@@ -58,7 +58,7 @@ const WORD_MANAGER_ABI = [
  * Get the WordManager address from environment
  * Returns null if not configured (contract not yet deployed)
  */
-function getWordManagerAddress(): string | null {
+export function getWordManagerAddress(): string | null {
   const addr = process.env.WORD_MANAGER_ADDRESS;
   if (!addr || addr === '' || addr === '0x') return null;
   return addr;
@@ -68,7 +68,7 @@ function getWordManagerAddress(): string | null {
  * Get a read-only WordManager contract instance
  * Returns null if address not configured
  */
-function getWordManagerReadOnly(): ethers.Contract | null {
+export function getWordManagerReadOnly(): ethers.Contract | null {
   const address = getWordManagerAddress();
   if (!address) return null;
 
