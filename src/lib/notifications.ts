@@ -92,22 +92,20 @@ export async function sendNotification(
 
   try {
     const payload: Record<string, unknown> = {
-      uuid: NEYNAR_APP_UUID,
-      title,
-      body,
-      target_url: targetUrl || GAME_URL,
+      notification: {
+        title,
+        body,
+        target_url: targetUrl || GAME_URL,
+      },
+      // Empty array = all users with notifications enabled
+      target_fids: targetFids && targetFids.length > 0 ? targetFids : [],
     };
-
-    // Add target FIDs if specified (otherwise sends to all users)
-    if (targetFids && targetFids.length > 0) {
-      payload.target_fids = targetFids;
-    }
 
     const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'api_key': NEYNAR_API_KEY,
+        'x-api-key': NEYNAR_API_KEY,
       },
       body: JSON.stringify(payload),
     });
