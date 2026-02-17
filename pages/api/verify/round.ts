@@ -2,33 +2,22 @@
  * Verification Data API
  * Milestone 10: Provably Fair Verification
  * Milestone 10.1: Onchain commitment verification
+ * Milestone 14: WordManagerV2 keccak256 commitment verification
  *
  * Returns the data needed to verify a round's commit-reveal fairness.
  *
  * GET /api/verify/round
  * Query params:
  *   - round: (optional) Round number to verify. If omitted, returns latest completed round.
- *
- * Response:
- * {
- *   roundNumber: number,
- *   status: 'resolved' | 'active' | 'cancelled',
- *   commitHash: string,
- *   onChainCommitHash?: string, // Onchain commitment hash (if available)
- *   hasOnChainCommitment: boolean,
- *   revealedWord?: string,      // Only if revealed
- *   revealedSalt?: string,      // Only if revealed
- *   roundStartedAt: string,
- *   roundEndedAt?: string,      // Only if resolved
- * }
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { rounds, roundArchive } from '../../../src/db/schema';
-import { eq, desc, isNotNull, and, sql } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { getPlaintextAnswer } from '../../../src/lib/encryption';
-import { getCommitHashOnChain, hasOnChainCommitment as checkOnChainCommitment, isContractDeployed } from '../../../src/lib/jackpot-contract';
+import { getCommitHashOnChain, isContractDeployed } from '../../../src/lib/jackpot-contract';
+import { isRoundCommittedOnChain } from '../../../src/lib/word-manager';
 
 export interface VerifyRoundResponse {
   roundNumber: number;
@@ -36,7 +25,7 @@ export interface VerifyRoundResponse {
   commitHash: string;
   onChainCommitHash?: string; // Onchain commitment hash (null if no onchain commitment)
   hasOnChainCommitment: boolean;
-  startTxHash?: string; // Transaction hash for startRoundWithCommitment
+  startTxHash?: string; // Transaction hash for startRoundWithCommitment (JackpotManager)
   revealedWord?: string;
   revealedSalt?: string;
   roundStartedAt: string;
@@ -44,6 +33,10 @@ export interface VerifyRoundResponse {
   // Bonus Words Feature: Bonus words commitment (if enabled for this round)
   bonusWordsCommitHash?: string;
   hasBonusWords?: boolean;
+  // Milestone 14: WordManagerV2 commitment (keccak256 hashes for all 16 words)
+  roundCommitTxHash?: string; // WordManager commitRound() tx hash
+  wordManagerCommitted?: boolean; // Whether round has been committed on WordManagerV2
+  wordManagerAddress?: string; // WordManagerV2 contract address
 }
 
 export interface VerifyRoundErrorResponse {
@@ -137,6 +130,23 @@ export default async function handler(
       // Column doesn't exist yet - migration 0015 not applied
     }
 
+    // Milestone 14: WordManagerV2 commitment data
+    const roundCommitTxHash = roundData.roundCommitTxHash || undefined;
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS || undefined;
+
+    let wordManagerCommitted = false;
+    try {
+      if (roundCommitTxHash) {
+        // If we have a stored tx hash, the round was committed
+        wordManagerCommitted = true;
+      } else if (wordManagerAddress) {
+        // Fallback: check onchain directly
+        wordManagerCommitted = await isRoundCommittedOnChain(roundNumber);
+      }
+    } catch (error) {
+      console.error('[api/verify/round] Failed to check WordManager commitment:', error);
+    }
+
     // Also check archive for additional data (timestamps may differ)
     const [archivedRound] = await db
       .select()
@@ -161,6 +171,10 @@ export default async function handler(
         // Bonus Words Feature
         bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
         hasBonusWords: !!roundData.bonusWordsCommitHash,
+        // Milestone 14: WordManagerV2
+        roundCommitTxHash,
+        wordManagerCommitted,
+        wordManagerAddress,
       });
     }
 
@@ -190,6 +204,10 @@ export default async function handler(
         // Bonus Words Feature
         bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
         hasBonusWords: !!roundData.bonusWordsCommitHash,
+        // Milestone 14: WordManagerV2
+        roundCommitTxHash,
+        wordManagerCommitted,
+        wordManagerAddress,
       });
     }
 
@@ -206,6 +224,10 @@ export default async function handler(
       // Bonus Words Feature
       bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
       hasBonusWords: !!roundData.bonusWordsCommitHash,
+      // Milestone 14: WordManagerV2
+      roundCommitTxHash,
+      wordManagerCommitted,
+      wordManagerAddress,
     });
   } catch (error) {
     console.error('[api/verify/round] Error:', error);
