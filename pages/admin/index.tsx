@@ -49,11 +49,16 @@ const SocialSection = dynamic(
   { ssr: false, loading: () => <SectionLoader name="Social" /> }
 )
 
+const AirdropSection = dynamic(
+  () => import("../../components/admin/AirdropManagerSection"),
+  { ssr: false, loading: () => <SectionLoader name="Airdrop" /> }
+)
+
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet' | 'social'
+type TabId = 'operations' | 'analytics' | 'archive' | 'economics' | 'wallet' | 'social' | 'airdrop'
 
 interface DashboardContentProps {
   user?: {
@@ -253,6 +258,7 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '💼', shortcut: '4' },
   { id: 'social', label: 'Social', color: '#1DA1F2', icon: '📣', shortcut: '5' },
   { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '6' },
+  { id: 'airdrop', label: 'Airdrop', color: '#f59e0b', icon: '🪂', shortcut: '7' },
 ]
 
 // =============================================================================
@@ -502,6 +508,9 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         case '6':
           handleTabChange('operations')
           break
+        case '7':
+          handleTabChange('airdrop')
+          break
       }
     }
 
@@ -586,6 +595,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         {activeTab === 'economics' && <EconomicsSection user={user} />}
         {activeTab === 'wallet' && <WalletSection user={user} />}
         {activeTab === 'social' && <SocialSection user={user} />}
+        {activeTab === 'airdrop' && <AirdropSection user={user} />}
       </div>
     </div>
   )

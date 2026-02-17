@@ -1963,14 +1963,16 @@ function GameContent() {
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
 
-              {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav) */}
-              <div className="mt-4 mb-4 grid grid-cols-4 gap-2">
+          </div>
+
+          {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav) */}
+          <div className="mt-4 mb-4 px-2 grid grid-cols-4 gap-1.5" style={{ position: 'relative', zIndex: 5 }}>
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                  className="py-2 px-2 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   📊 Stats
                 </button>
@@ -1979,7 +1981,7 @@ function GameContent() {
                     setShowReferralSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                  className="py-2 px-2 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   🤝 Refer
                 </button>
@@ -1988,7 +1990,7 @@ function GameContent() {
                     setShowWordSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-purple-200 rounded-lg text-xs font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
+                  className="py-2 px-2 bg-white border-2 border-purple-200 rounded-lg text-xs font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   💰 $WORD
                 </button>
@@ -1997,11 +1999,10 @@ function GameContent() {
                     setShowFAQSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                  className="py-2 px-2 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   🤔 FAQ
                 </button>
-              </div>
           </div>
         </div>
         </div>

@@ -13,10 +13,10 @@
  */
 
 import { db } from '../db';
-import { roundBurnWords, wordRewards, guesses, users, userBadges } from '../db/schema';
+import { roundBurnWords, roundBonusWords, wordRewards, guesses, users, userBadges } from '../db/schema';
 import type { RoundBurnWordRow } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
-import { eq, and, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, count, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
 import { hasWordTokenBonus } from './word-token';
 import { selectBonusWords } from './word-lists';
@@ -215,6 +215,41 @@ export async function handleBurnWordWin(
     roundId,
     metadata: { word, burnAmount: burnWord.burnAmount },
   });
+
+  // Check for DOUBLE_W: count bonus + burn words found by this user in this round
+  setTimeout(async () => {
+    try {
+      const [bonusClaims, burnFinds] = await Promise.all([
+        db
+          .select({ count: count() })
+          .from(roundBonusWords)
+          .where(
+            and(
+              eq(roundBonusWords.roundId, roundId),
+              eq(roundBonusWords.claimedByFid, fid)
+            )
+          ),
+        db
+          .select({ count: count() })
+          .from(roundBurnWords)
+          .where(
+            and(
+              eq(roundBurnWords.roundId, roundId),
+              eq(roundBurnWords.finderFid, fid)
+            )
+          ),
+      ]);
+      const bonusWordsFound = bonusClaims[0]?.count ?? 0;
+      const burnWordsFound = burnFinds[0]?.count ?? 0;
+      if (bonusWordsFound + burnWordsFound >= 2) {
+        const { checkAndAwardDoubleW } = await import('./wordmarks');
+        await checkAndAwardDoubleW(fid, roundId, bonusWordsFound, burnWordsFound, false);
+        console.log(`✌️ Checked DOUBLE_W for FID ${fid}: ${bonusWordsFound} bonus + ${burnWordsFound} burn words in round ${roundId}`);
+      }
+    } catch (error) {
+      console.error(`[Wordmark] Failed to check DOUBLE_W from burn word:`, error);
+    }
+  }, 0);
 
   return {
     status: 'burn_word',

@@ -317,7 +317,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>🎣 Side Quest</strong> — Found a bonus word during a round</li>
             <li><strong>🔥 Arsonist</strong> — Found a burn word during a round</li>
             <li><strong>🏆 Jackpot Winner</strong> — Won a round jackpot</li>
-            <li><strong>✌️ Double Dub</strong> — Found two bonus words OR bonus word + secret word in the same round</li>
+            <li><strong>✌️ Double Dub</strong> — Found two or more special words (bonus, burn, or secret) in the same round</li>
             <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>
             <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
             <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>
@@ -331,8 +331,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What are bonus words?",
       answer: (
         <>
-          Each round has <strong>10 hidden bonus words</strong>. If your guess matches a bonus word, you receive a <WordTokenLink>$WORD</WordTokenLink> token reward sent directly to your wallet.
-          <p className="mt-2">Bonus words are committed onchain alongside the secret word, so they can't be changed mid-round. You'll see a celebration modal when you find one!</p>
+          Each round has <strong>10 hidden bonus words</strong>, randomly selected from the full word list. If your guess matches one, you receive <strong>5M <WordTokenLink>$WORD</WordTokenLink> tokens</strong> (or 2.5M when market cap is above $150K) sent directly to your wallet, plus <strong>+250 XP</strong> and the <strong>Side Quest</strong> wordmark.
+          <p className="mt-2">Bonus words are committed onchain as keccak256 hashes before the round starts, so they can't be changed mid-round. The contract verifies your guess against the committed hash before releasing tokens.</p>
         </>
       ),
     },
@@ -340,8 +340,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What are burn words?",
       answer: (
         <>
-          Each round has <strong>5 hidden burn words</strong>. When you guess a burn word, <strong>5M $WORD tokens are permanently destroyed</strong> (burned), reducing the total supply forever.
-          <p className="mt-2">Burn words are fire-themed (FLAME, BLAZE, EMBER, etc.) and finding one earns you <strong>+100 XP</strong> and a 🔥 badge. The burn transaction happens onchain and is verifiable.</p>
+          Each round has <strong>5 hidden burn words</strong>, randomly selected from the full word list. When you guess a burn word, <strong>5M $WORD tokens are permanently destroyed</strong> (burned), reducing the total supply forever. You don't receive any $WORD for finding one, but you earn <strong>+100 XP</strong> and the <strong>Arsonist</strong> wordmark.
+          <p className="mt-2">Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word before executing the burn.</p>
         </>
       ),
     },

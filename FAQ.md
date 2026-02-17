@@ -37,13 +37,13 @@ This commit–reveal process makes every round transparent, verifiable, and fair
 
 ## What are bonus words?
 
-Each round has **10 hidden bonus words**. When you guess one, you automatically receive **5M $WORD tokens**. You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet.
+Each round has **10 hidden bonus words**, randomly selected from the full word list. When you guess one, you automatically receive **5M $WORD tokens** (or **2.5M** when market cap is above $150K). You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet. You also earn **+250 XP** and the **Side Quest** wordmark.
 
-Bonus words are committed onchain as keccak256 hashes before the round starts, so no one (including the game's creator) can change them mid-round. When you find one, the contract verifies your word against the committed hash before releasing tokens. You'll also earn the **Side Quest** wordmark.
+Bonus words are committed onchain as keccak256 hashes before the round starts, so no one (including the game's creator) can change them mid-round. When you find one, the contract verifies your word against the committed hash before releasing tokens.
 
 ## What are burn words?
 
-Each round has **5 hidden burn words**. When you guess one, **5M $WORD tokens are permanently destroyed** — burned from the supply forever. You don't receive any $WORD for finding a burn word, but you do earn **XP** and the **Arsonist** wordmark.
+Each round has **5 hidden burn words**, randomly selected from the full word list. When you guess one, **5M $WORD tokens are permanently destroyed** — burned from the supply forever. You don't receive any $WORD for finding a burn word, but you do earn **+100 XP** and the **Arsonist** wordmark.
 
 Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word against its committed hash before executing the burn.
 
@@ -53,15 +53,15 @@ Wordmarks are **collectible badges** displayed on your profile. You earn them by
 
 Here's the full list:
 
-- **OG Hunter** — Participated during the prelaunch campaign
-- **Side Quest** — Found a bonus word
-- **Arsonist** — Found a burn word
-- **Jackpot** — Won a jackpot
-- **Patron** — Purchased guess packs
-- **Quickdraw** — Submitted guesses early in a round
-- **Encyclopedic** — Used a wide variety of unique words across rounds
-- **Double Dub** — Won two rounds
-- **Baker's Dozen** — Submitted 13 or more guesses in a single round
+- **OG Hunter** — Participated in the OG Hunter prelaunch campaign
+- **Side Quest** — Found a bonus word during a round
+- **Arsonist** — Found a burn word during a round
+- **Jackpot Winner** — Won a round jackpot
+- **Double Dub** — Found two or more special words (bonus, burn, or secret) in the same round
+- **Patron** — Someone you referred won a jackpot (you received the referrer payout)
+- **Quickdraw** — Placed in the Top 10 Early Guessers
+- **Encyclopedic** — Guessed words starting with every letter A–Z
+- **Baker's Dozen** — Guessed words starting with 13 different letters, on 13 different days (only the first guess of each day counts)
 
 ---
 
@@ -75,18 +75,26 @@ Free guesses reset daily at **11:00 UTC**.
 
 You can earn bonus free guesses by:
 1. Sharing your daily guess on Farcaster (+1 guess/day)
-2. Holding 100M $WORD tokens (+2–3 guesses/day depending on market cap)
+2. Holding [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b) tokens (+1 to +3 guesses/day depending on balance and market cap tier)
 
 You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).
 
 ## What's the $WORD bonus?
 
-If you hold 100M [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b) in your connected wallet, you receive extra free guesses:
+Holding [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b) tokens gives you bonus free guesses every day. The number of bonus guesses depends on your balance and the current market cap:
 
-- **+2 guesses/day** when $WORD market cap is below $250K
-- **+3 guesses/day** when market cap is above $250K
+**When market cap is below $150K:**
+- 100M tokens → **+1 guess/day** (Tier 1)
+- 200M tokens → **+2 guesses/day** (Tier 2)
+- 300M tokens → **+3 guesses/day** (Tier 3)
 
-This is detected automatically when you connect. Market cap is updated every 15 minutes via a live onchain oracle.
+**When market cap is $150K–$300K:**
+- 50M → +1, 100M → +2, 150M → +3
+
+**When market cap is above $300K:**
+- 25M → +1, 50M → +2, 75M → +3
+
+Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.
 
 ## How does the $WORD token work in-game?
 

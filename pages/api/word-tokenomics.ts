@@ -11,6 +11,7 @@ import { WORD_TOKEN_ADDRESS, getBaseProvider } from '../../src/lib/word-token';
 import { getTotalBurned, getTotalStaked } from '../../src/lib/word-manager';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD } from '../../config/economy';
+import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
 import { db } from '../../src/db';
 import { wordRewards } from '../../src/db/schema';
 import { eq, sql } from 'drizzle-orm';
@@ -73,16 +74,20 @@ export default async function handler(
       provider
     );
 
-    const [totalSupplyWei, totalBurnedWei, totalStakedWei] = await Promise.all([
+    const [totalSupplyWei, totalBurnedWei, totalStakedWei, liveMarketData] = await Promise.all([
       tokenContract.totalSupply().catch(() => 100_000_000_000n * 10n ** 18n), // fallback: 100B
       getTotalBurned().then(v => v ?? 0n),
       getTotalStaked().then(v => v ?? 0n),
+      fetchWordTokenMarketCap().catch(() => null),
     ]);
 
     const totalSupply = parseFloat(ethers.formatUnits(totalSupplyWei, 18));
     const totalBurned = parseFloat(ethers.formatUnits(totalBurnedWei, 18));
     const totalStaked = parseFloat(ethers.formatUnits(totalStakedWei, 18));
-    const price = totalSupply > 0 ? WORD_MARKET_CAP_USD / totalSupply : 0;
+
+    // Use live DexScreener data, fall back to env var
+    const marketCapUsd = liveMarketData?.marketCapUsd ?? WORD_MARKET_CAP_USD;
+    const price = liveMarketData?.priceUsd ?? (totalSupply > 0 ? marketCapUsd / totalSupply : 0);
 
     // DB aggregates for burn/bonus stats
     const [burnStats, bonusStats] = await Promise.all([
@@ -113,7 +118,7 @@ export default async function handler(
       totalSupply: Math.floor(totalSupply).toString(),
       totalBurned: Math.floor(totalBurned).toString(),
       totalStaked: Math.floor(totalStaked).toString(),
-      marketCap: WORD_MARKET_CAP_USD.toString(),
+      marketCap: marketCapUsd.toString(),
       price: price.toFixed(12),
       feeDistribution: {
         gameTreasury: '50%',

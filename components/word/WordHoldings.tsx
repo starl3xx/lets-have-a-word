@@ -4,6 +4,7 @@
  */
 
 import { formatTokenAmount } from '../../src/lib/format';
+import BuyButton from './BuyButton';
 
 interface WordHoldingsProps {
   wallet: string;
@@ -12,7 +13,6 @@ interface WordHoldingsProps {
   valueUsd: string;
   holderTier: number;
   stakingAvailable: boolean;
-  onBuyClick: () => void;
 }
 
 const TIER_LABELS: Record<number, string> = {
@@ -37,7 +37,6 @@ export default function WordHoldings({
   valueUsd,
   holderTier,
   stakingAvailable,
-  onBuyClick,
 }: WordHoldingsProps) {
   const tierLabel = TIER_LABELS[holderTier] || 'No Tier';
   const tierColor = TIER_COLORS[holderTier] || '#9ca3af';
@@ -76,12 +75,7 @@ export default function WordHoldings({
       </div>
 
       {/* Buy button */}
-      <button
-        onClick={onBuyClick}
-        className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-xl font-semibold transition-all text-sm"
-      >
-        Buy $WORD
-      </button>
+      <BuyButton className="w-full" />
     </div>
   );
 }
