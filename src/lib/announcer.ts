@@ -601,7 +601,7 @@ const WORDMARK_ANNOUNCEMENT_INFO: Record<string, { emoji: string; name: string; 
   DOUBLE_W: {
     emoji: '✌️',
     name: 'Double Dub',
-    description: 'hit two bonus words (or bonus word + secret word) in a single round',
+    description: 'found two or more special words (bonus, burn, or secret) in a single round',
   },
   BAKERS_DOZEN: {
     emoji: '🍩',

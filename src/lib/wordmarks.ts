@@ -48,7 +48,7 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
   DOUBLE_W: {
     id: 'DOUBLE_W',
     name: 'Double Dub',
-    description: 'Hit two bonus words OR bonus word + secret word in one round',
+    description: 'Found two or more special words (bonus, burn, or secret) in one round',
     emoji: '✌️',
     color: 'indigo',
   },
@@ -206,16 +206,17 @@ export async function checkAndAwardPatron(
 
 /**
  * Check and award DOUBLE_W wordmark
- * Awarded when user hits two bonus words OR bonus word + secret word in same round
+ * Awarded when user finds 2+ special words (bonus, burn, or secret) in same round
  */
 export async function checkAndAwardDoubleW(
   fid: number,
   roundId: number,
   bonusWordsFound: number,
+  burnWordsFound: number,
   foundSecretWord: boolean
 ): Promise<boolean> {
-  // Double W: 2+ bonus words OR (1+ bonus word AND secret word)
-  const qualifies = bonusWordsFound >= 2 || (bonusWordsFound >= 1 && foundSecretWord);
+  const specialFinds = bonusWordsFound + burnWordsFound + (foundSecretWord ? 1 : 0);
+  const qualifies = specialFinds >= 2;
 
   if (!qualifies) return false;
 
@@ -225,6 +226,7 @@ export async function checkAndAwardDoubleW(
   const awarded = await awardWordmark(fid, 'DOUBLE_W', {
     roundId,
     bonusWordsFound,
+    burnWordsFound,
     foundSecretWord,
   });
 

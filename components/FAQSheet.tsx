@@ -317,7 +317,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>🎣 Side Quest</strong> — Found a bonus word during a round</li>
             <li><strong>🔥 Arsonist</strong> — Found a burn word during a round</li>
             <li><strong>🏆 Jackpot Winner</strong> — Won a round jackpot</li>
-            <li><strong>✌️ Double Dub</strong> — Found two bonus words OR bonus word + secret word in the same round</li>
+            <li><strong>✌️ Double Dub</strong> — Found two or more special words (bonus, burn, or secret) in the same round</li>
             <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>
             <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
             <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>

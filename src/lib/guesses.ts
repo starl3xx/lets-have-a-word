@@ -1,4 +1,4 @@
-import { db, guesses, users, rounds, roundBonusWords, bonusWordClaims, userBadges, xpEvents } from '../db';
+import { db, guesses, users, rounds, roundBonusWords, roundBurnWords, bonusWordClaims, userBadges, xpEvents } from '../db';
 import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
@@ -301,27 +301,39 @@ async function handleBonusWordWin(
       })
       .onConflictDoNothing(); // User already has badge
 
-    // 3b. Check for DOUBLE_W: count bonus words already claimed by this user in this round
-    const previousClaimsCount = await tx
-      .select({ count: count() })
-      .from(roundBonusWords)
-      .where(
-        and(
-          eq(roundBonusWords.roundId, roundId),
-          eq(roundBonusWords.claimedByFid, fid),
-          // Exclude the current bonus word (already marked claimed above)
-          sql`${roundBonusWords.id} != ${bonusWord.id}`
-        )
-      );
+    // 3b. Check for DOUBLE_W: count bonus + burn words found by this user in this round
+    const [previousBonusClaims, burnWordFinds] = await Promise.all([
+      tx
+        .select({ count: count() })
+        .from(roundBonusWords)
+        .where(
+          and(
+            eq(roundBonusWords.roundId, roundId),
+            eq(roundBonusWords.claimedByFid, fid),
+            // Exclude the current bonus word (already marked claimed above)
+            sql`${roundBonusWords.id} != ${bonusWord.id}`
+          )
+        ),
+      tx
+        .select({ count: count() })
+        .from(roundBurnWords)
+        .where(
+          and(
+            eq(roundBurnWords.roundId, roundId),
+            eq(roundBurnWords.finderFid, fid)
+          )
+        ),
+    ]);
 
-    const bonusWordsFoundThisRound = (previousClaimsCount[0]?.count ?? 0) + 1; // +1 for current
-    if (bonusWordsFoundThisRound >= 2) {
+    const bonusWordsFoundThisRound = (previousBonusClaims[0]?.count ?? 0) + 1; // +1 for current
+    const burnWordsFoundThisRound = burnWordFinds[0]?.count ?? 0;
+    if (bonusWordsFoundThisRound + burnWordsFoundThisRound >= 2) {
       // Award DOUBLE_W wordmark (fire-and-forget outside transaction)
       setTimeout(async () => {
         try {
           const { checkAndAwardDoubleW } = await import('./wordmarks');
-          await checkAndAwardDoubleW(fid, roundId, bonusWordsFoundThisRound, false);
-          console.log(`✌️ Checked DOUBLE_W for FID ${fid}: ${bonusWordsFoundThisRound} bonus words in round ${roundId}`);
+          await checkAndAwardDoubleW(fid, roundId, bonusWordsFoundThisRound, burnWordsFoundThisRound, false);
+          console.log(`✌️ Checked DOUBLE_W for FID ${fid}: ${bonusWordsFoundThisRound} bonus + ${burnWordsFoundThisRound} burn words in round ${roundId}`);
         } catch (error) {
           console.error(`[Wordmark] Failed to check DOUBLE_W:`, error);
         }
@@ -632,20 +644,32 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
             await checkAndAwardPatron(referrerFid, fid, round.id);
           }
 
-          // Check for DOUBLE_W: did this winner also find any bonus words in this round?
-          const bonusWordsClaimed = await db
-            .select({ count: count() })
-            .from(roundBonusWords)
-            .where(
-              and(
-                eq(roundBonusWords.roundId, round.id),
-                eq(roundBonusWords.claimedByFid, fid)
-              )
-            );
+          // Check for DOUBLE_W: did this winner also find any bonus/burn words in this round?
+          const [bonusWordsClaimed, burnWordsFoundByWinner] = await Promise.all([
+            db
+              .select({ count: count() })
+              .from(roundBonusWords)
+              .where(
+                and(
+                  eq(roundBonusWords.roundId, round.id),
+                  eq(roundBonusWords.claimedByFid, fid)
+                )
+              ),
+            db
+              .select({ count: count() })
+              .from(roundBurnWords)
+              .where(
+                and(
+                  eq(roundBurnWords.roundId, round.id),
+                  eq(roundBurnWords.finderFid, fid)
+                )
+              ),
+          ]);
           const bonusWordsFound = bonusWordsClaimed[0]?.count ?? 0;
-          if (bonusWordsFound > 0) {
-            await checkAndAwardDoubleW(fid, round.id, bonusWordsFound, true);
-            console.log(`✌️ Checked DOUBLE_W for winner FID ${fid}: ${bonusWordsFound} bonus words + win in round ${round.id}`);
+          const burnWordsFound = burnWordsFoundByWinner[0]?.count ?? 0;
+          if (bonusWordsFound + burnWordsFound > 0) {
+            await checkAndAwardDoubleW(fid, round.id, bonusWordsFound, burnWordsFound, true);
+            console.log(`✌️ Checked DOUBLE_W for winner FID ${fid}: ${bonusWordsFound} bonus + ${burnWordsFound} burn words + win in round ${round.id}`);
           }
 
           // Check for ENCYCLOPEDIC: has user guessed words with all 26 letters?

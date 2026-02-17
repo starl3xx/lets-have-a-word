@@ -57,7 +57,7 @@ Here's the full list:
 - **Side Quest** — Found a bonus word during a round
 - **Arsonist** — Found a burn word during a round
 - **Jackpot Winner** — Won a round jackpot
-- **Double Dub** — Found two bonus words OR a bonus word + the secret word in the same round
+- **Double Dub** — Found two or more special words (bonus, burn, or secret) in the same round
 - **Patron** — Someone you referred won a jackpot (you received the referrer payout)
 - **Quickdraw** — Placed in the Top 10 Early Guessers
 - **Encyclopedic** — Guessed words starting with every letter A–Z
