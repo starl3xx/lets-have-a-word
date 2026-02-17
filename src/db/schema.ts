@@ -732,6 +732,7 @@ export const airdropWallets = pgTable('airdrop_wallets', {
   airdropNeeded: numeric('airdrop_needed', { precision: 30, scale: 2 }),
   balanceLastCheckedAt: timestamp('balance_last_checked_at'),
   balanceCheckError: varchar('balance_check_error', { length: 500 }),
+  farcasterHandle: varchar('farcaster_handle', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({

@@ -19,6 +19,7 @@ interface AirdropWallet {
   airdropNeeded: string | null
   balanceLastCheckedAt: string | null
   balanceCheckError: string | null
+  farcasterHandle: string | null
   createdAt: string
   updatedAt: string
   distributions: AirdropDistribution[]
@@ -1289,14 +1290,21 @@ export default function AirdropManagerSection({ user }: Props) {
                         )}
                       </td>
                       {/* Wallet Address */}
-                      <td style={{ ...styles.td, fontFamily: 'monospace', fontSize: '12px' }}>
-                        <span
-                          style={{ cursor: 'pointer', borderBottom: '1px dashed #9ca3af' }}
-                          onClick={() => copyAddress(w.walletAddress)}
-                          title={w.walletAddress}
-                        >
-                          {copiedAddr === w.walletAddress ? 'Copied!' : truncateAddress(w.walletAddress)}
-                        </span>
+                      <td style={{ ...styles.td, fontSize: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {w.farcasterHandle && (
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#7c3aed' }}>
+                              @{w.farcasterHandle}
+                            </span>
+                          )}
+                          <span
+                            style={{ cursor: 'pointer', borderBottom: '1px dashed #9ca3af', fontFamily: 'monospace' }}
+                            onClick={() => copyAddress(w.walletAddress)}
+                            title={w.walletAddress}
+                          >
+                            {copiedAddr === w.walletAddress ? 'Copied!' : truncateAddress(w.walletAddress)}
+                          </span>
+                        </div>
                       </td>
 
                       {/* CLANKTON Snapshot */}
