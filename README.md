@@ -15,6 +15,11 @@
 
 ## Changelog
 
+### 2026-02-16 (after Round 13)
+
+- **Admin Contract Diagnostics**: Added WordManager contract visibility to admin panel alongside JackpotManager. Contract diagnostics card now shows 3 columns (JackpotManager Mainnet, JackpotManager Sepolia, WordManager Mainnet) with staking, burn, and distribution stats. Added $WORD status badge to persistent status strip.
+- **Milestone 14 Documentation**: Updated FAQ and game documentation for $WORD token game mechanics — bonus words, burn words, wordmarks, WordManager contract, dual-contract verification.
+
 ### 2026-02-06 (after Round 13)
 
 - **Round 13 Recovery**: Built `recover-stuck-round` admin endpoint to fix "zombie rounds" where Phase 1 (DB winner lock) succeeded but Phase 2 (onchain resolution + payouts) failed. Bypasses `getActiveRound()` filter that can't find zombie rounds. Auto-enables dead day after recovery.
@@ -42,11 +47,68 @@
 
 ---
 
-## 🎯 Current Status: Milestone 13 Complete
+## 🎯 Current Status: Milestone 14 Complete
 
-All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, $WORD oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, OG Hunter prelaunch campaign, **and secure Quick Auth authentication to prevent FID spoofing** are fully implemented and production-ready:
+All core game mechanics, onchain integration, social features, automated Farcaster announcements, analytics system, admin dashboard, fairness monitoring, anti-abuse systems, round archive, smart contract, $WORD oracle integration, UX/growth features, UI polish, push notifications, XP tracking, fully onchain prize distribution with tiered Top-10 payouts, rotating share templates, operational controls, economics dashboard, provably fair onchain commitment with public verification, production-hardened onchain pack purchases, OG Hunter prelaunch campaign, secure Quick Auth authentication, **and $WORD token game mechanics with onchain commitment** are fully implemented and production-ready:
 
-### ✅ Milestone 13 - Security: Quick Auth Authentication (Latest)
+### ✅ Milestone 14 - $WORD Token Game Mechanics (Latest)
+
+Integrated $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via a new WordManagerV2 contract on Base:
+
+- **Bonus Words** (`src/lib/guesses.ts`, `src/lib/word-lists.ts`)
+  - Each round includes 10 hidden bonus words drawn from the full dictionary
+  - Finding one awards 5M $WORD tokens directly to the player's wallet
+  - Detected automatically during guess submission — no special action required
+  - Committed onchain before round starts via `keccak256(abi.encodePacked(word, salt))`
+
+- **Burn Words** (`src/lib/burn-words.ts`)
+  - Each round includes 5 hidden burn words that destroy $WORD tokens permanently
+  - Finding one sends 5M $WORD to `0xdead` (permanent burn)
+  - Finder receives +100 XP and the "Arsonist" wordmark — bragging rights, no token reward
+  - Same keccak256 commitment system as bonus words
+
+- **Wordmarks** (`src/lib/wordmarks.ts`, `components/WordmarkStack.tsx`)
+  - Permanent collectible badges awarded for in-game achievements
+  - 9 wordmarks: OG Hunter, Side Quest, Arsonist, Jackpot Winner, Double W, Patron, Quickdraw, Encyclopedic, Baker's Dozen
+  - Displayed on profile and archive pages
+
+- **WordManagerV2 Contract** (`src/lib/word-manager.ts`)
+  - Standalone contract on Base: `0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c`
+  - Owner/Operator pattern: deployer wallet for admin, server wallet for game operations
+  - `commitRound()` — commits 16 keccak256 hashes (1 secret + 10 bonus + 5 burn) before round starts
+  - `claimBonusReward()` / `claimBurnWord()` — verified claims that check hash before execution
+  - `distributeTop10Rewards()` — batch top-10 $WORD distribution in one transaction
+
+- **$WORD Staking** (WordManager contract)
+  - Users stake $WORD tokens to earn more $WORD staking rewards over time
+  - Staked tokens count toward effective balance for holder tier calculations
+  - No ETH involved — purely $WORD in, $WORD out
+  - Functions: `stake()`, `withdraw()`, `claimRewards()`
+
+- **Top-10 $WORD Rewards** (`src/lib/economics.ts`)
+  - Top 10 guessers receive $WORD rewards in addition to ETH payouts
+  - Reward amounts scale dynamically with $WORD market cap tiers
+  - Same ranking percentages as ETH (19% for #1, 16% for #2, etc.)
+
+- **Dual-Contract Verification** (`pages/verify.tsx`)
+  - `/verify` page shows commitments from both JackpotManager (SHA-256) and WordManagerV2 (keccak256)
+  - Links to both contracts on BaseScan
+  - Manual verification instructions for both hash types
+
+- **Admin Contract Diagnostics** (`components/admin/OperationsSection.tsx`)
+  - 3-column diagnostics: JackpotManager Mainnet, JackpotManager Sepolia, WordManager Mainnet
+  - WordManager column shows total staked, burned, distributed, and operator status
+  - $WORD status badge in persistent status strip across all admin tabs
+
+- **Database Tables**
+  - `round_bonus_words` — per-round bonus word storage with encrypted words and salts
+  - `round_burn_words` — per-round burn word storage with encrypted words and salts
+  - `word_rewards` — audit trail for all $WORD token distributions
+
+- **Environment Variables**
+  - `WORD_MANAGER_ADDRESS` — WordManagerV2 contract address on Base
+
+### ✅ Milestone 13 - Security: Quick Auth Authentication
 
 Secure authentication using Farcaster Quick Auth to prevent FID spoofing attacks:
 
