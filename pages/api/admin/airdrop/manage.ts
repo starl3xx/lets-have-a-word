@@ -19,9 +19,40 @@ import { db } from '../../../../src/db';
 import { airdropWallets, airdropDistributions } from '../../../../src/db/schema';
 import { eq, sql, gt, and, isNull } from 'drizzle-orm';
 import { ethers } from 'ethers';
-import { getEffectiveBalance } from '../../../../src/lib/word-token';
+import { WORD_TOKEN_ADDRESS, getBaseProvider } from '../../../../src/lib/word-token';
 
 const AIRDROP_FLOOR = 200_000_000; // 200M $WORD
+
+const ERC20_BALANCE_ABI = ['function balanceOf(address owner) view returns (uint256)'];
+
+/**
+ * Get $WORD balance for airdrop tracking — throws on error instead of
+ * silently returning 0 (unlike getEffectiveBalance which swallows errors).
+ */
+async function getAirdropBalance(walletAddress: string): Promise<number> {
+  const provider = getBaseProvider();
+
+  // Try WordManager first (wallet + staked)
+  const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS;
+  if (wordManagerAddress && wordManagerAddress !== '') {
+    try {
+      const wm = new ethers.Contract(
+        wordManagerAddress,
+        ['function getEffectiveBalance(address user) view returns (uint256)'],
+        provider
+      );
+      const balance = await wm.getEffectiveBalance(walletAddress);
+      return parseFloat(ethers.formatUnits(balance, 18));
+    } catch (err) {
+      // WordManager failed — fall through to raw balanceOf
+    }
+  }
+
+  // Raw ERC-20 balanceOf — errors propagate to caller
+  const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_BALANCE_ABI, provider);
+  const balance = await contract.balanceOf(walletAddress);
+  return parseFloat(ethers.formatUnits(balance, 18));
+}
 
 /**
  * Extract admin FID from request (query for GET, body for POST, cookies as fallback)
@@ -212,8 +243,8 @@ export default async function handler(
       // ======================================================================
       if (action === 'refresh-balances') {
         const wallets = await db.select().from(airdropWallets);
-        const BATCH_SIZE = 15;
-        const BATCH_DELAY_MS = 500;
+        const BATCH_SIZE = 5;
+        const BATCH_DELAY_MS = 1000;
 
         let updated = 0;
         let failed = 0;
@@ -223,7 +254,7 @@ export default async function handler(
 
           const results = await Promise.allSettled(
             batch.map(async (wallet) => {
-              const balance = await getEffectiveBalance(wallet.walletAddress);
+              const balance = await getAirdropBalance(wallet.walletAddress);
               const needed = Math.max(0, AIRDROP_FLOOR - balance);
 
               await db
@@ -289,7 +320,7 @@ export default async function handler(
         }
 
         try {
-          const balance = await getEffectiveBalance(wallet.walletAddress);
+          const balance = await getAirdropBalance(wallet.walletAddress);
           const needed = Math.max(0, AIRDROP_FLOOR - balance);
 
           await db
