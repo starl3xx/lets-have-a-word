@@ -116,6 +116,7 @@ export default function StakingModal({
   }, [xpStakingTier]);
 
   // Ticking reward counter — uses real rewardRate from contract
+  // Stops ticking once periodFinish is reached (mirrors on-chain lastTimeRewardApplicable)
   useEffect(() => {
     const stakedNum = parseFloat(stakedBalance) || 0;
     if (stakedNum === 0) return;
@@ -128,16 +129,33 @@ export default function StakingModal({
 
     if (userRewardPerSecond <= 0) return;
 
+    // Don't start ticking if period already ended
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (periodFinish > 0 && nowSec >= periodFinish) return;
+
     tickIntervalRef.current = setInterval(() => {
-      const elapsed = (Date.now() - rewardBaselineRef.current.time) / 1000;
+      const now = Date.now();
+      const nowSeconds = Math.floor(now / 1000);
+
+      // Cap elapsed at periodFinish (on-chain stops accruing after period ends)
+      const baselineTimeSec = Math.floor(rewardBaselineRef.current.time / 1000);
+      const effectiveEnd = periodFinish > 0 ? Math.min(nowSeconds, periodFinish) : nowSeconds;
+      const elapsed = Math.max(0, effectiveEnd - baselineTimeSec);
+
       const increment = elapsed * userRewardPerSecond;
       setDisplayedRewards(rewardBaselineRef.current.amount + increment);
+
+      // Stop ticking once period ends
+      if (periodFinish > 0 && nowSeconds >= periodFinish && tickIntervalRef.current) {
+        clearInterval(tickIntervalRef.current);
+        tickIntervalRef.current = null;
+      }
     }, 200);
 
     return () => {
       if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
     };
-  }, [stakedBalance, stakingPoolShare, rewardRate]);
+  }, [stakedBalance, stakingPoolShare, rewardRate, periodFinish]);
 
   // Resync baseline from prop every 60 seconds
   useEffect(() => {
