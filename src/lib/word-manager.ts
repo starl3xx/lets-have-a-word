@@ -22,14 +22,26 @@ import { isDevModeEnabled } from './devGameState';
  * WordManager ABI (ethers.js human-readable format)
  */
 const WORD_MANAGER_ABI = [
-  // Staking
+  // Staking (V3: single-balance model)
   'function stake(uint256 amount)',
-  'function withdraw(uint256 depositId)',
+  'function withdraw(uint256 amount)',
+  'function getReward()',
+  'function exit()',
   'function claimRewards()',
-  'function depositRewards(uint256 amount)',
   'function stakedBalance(address) view returns (uint256)',
   'function totalStaked() view returns (uint256)',
   'function getEffectiveBalance(address user) view returns (uint256)',
+  // V3: Synthetix streaming rewards
+  'function earned(address account) view returns (uint256)',
+  'function rewardPerToken() view returns (uint256)',
+  'function rewardRate() view returns (uint256)',
+  'function periodFinish() view returns (uint256)',
+  'function rewardsDuration() view returns (uint256)',
+  'function getRewardForDuration() view returns (uint256)',
+  'function notifyRewardAmount(uint256 reward)',
+  'function setRewardsDuration(uint256 _duration)',
+  // Backward compat alias
+  'function unclaimedRewards(address) view returns (uint256)',
   // Legacy bonus word rewards (pre-commitment rounds)
   'function distributeBonusReward(address player, uint256 amount)',
   // Top-10 rewards
@@ -37,8 +49,6 @@ const WORD_MANAGER_ABI = [
   // Legacy burn words (pre-commitment rounds)
   'function burnWord(uint256 roundId, address discoverer, uint256 amount)',
   'function totalBurned() view returns (uint256)',
-  // Rewards
-  'function unclaimedRewards(address) view returns (uint256)',
   // V2: Round commitment
   'function commitRound(uint256 roundId, bytes32 secretHash, bytes32[10] bonusWordHashes, bytes32[5] burnWordHashes)',
   'function isRoundCommitted(uint256 roundId) view returns (bool)',
@@ -146,22 +156,8 @@ export async function getTotalBurned(): Promise<bigint | null> {
 }
 
 /**
- * Get unclaimed staking rewards for an address
- */
-export async function getUnclaimedRewards(address: string): Promise<bigint | null> {
-  const contract = getWordManagerReadOnly();
-  if (!contract) return null;
-
-  try {
-    return await contract.unclaimedRewards(address);
-  } catch (error) {
-    console.error('[word-manager] getUnclaimedRewards failed:', error);
-    return null;
-  }
-}
-
-/**
  * Get staking info for an address (batched reads)
+ * V3: Uses earned() for live streaming reward value
  */
 export async function getStakingInfo(address: string): Promise<{
   staked: bigint;
@@ -174,12 +170,38 @@ export async function getStakingInfo(address: string): Promise<{
   try {
     const [staked, unclaimed, totalStakedVal] = await Promise.all([
       contract.stakedBalance(address),
-      contract.unclaimedRewards(address),
+      contract.earned(address),
       contract.totalStaked(),
     ]);
     return { staked, unclaimed, totalStaked: totalStakedVal };
   } catch (error) {
     console.error('[word-manager] getStakingInfo failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Get reward period info (V3: for frontend APR calculation and period display)
+ */
+export async function getRewardInfo(): Promise<{
+  rewardRate: bigint;
+  periodFinish: bigint;
+  rewardsDuration: bigint;
+  totalStaked: bigint;
+} | null> {
+  const contract = getWordManagerReadOnly();
+  if (!contract) return null;
+
+  try {
+    const [rewardRate, periodFinish, rewardsDuration, totalStaked] = await Promise.all([
+      contract.rewardRate(),
+      contract.periodFinish(),
+      contract.rewardsDuration(),
+      contract.totalStaked(),
+    ]);
+    return { rewardRate, periodFinish, rewardsDuration, totalStaked };
+  } catch (error) {
+    console.error('[word-manager] getRewardInfo failed:', error);
     return null;
   }
 }
@@ -219,30 +241,31 @@ export async function distributeBonusRewardOnChain(
 }
 
 /**
- * Deposit $WORD tokens into the staking reward pool (operator-signed).
- * Used by admin endpoint to fund the staking pool.
+ * Start or extend a reward period (V3: Synthetix notifyRewardAmount).
+ * Tokens must already be in the contract before calling this.
+ * If a period is active, rolls remaining undistributed into the new period.
  * @param amountWei - Amount in wei (18-decimal string)
  * @returns Transaction hash or null if skipped
  */
-export async function depositRewardsOnChain(amountWei: string): Promise<string | null> {
+export async function notifyRewardAmountOnChain(amountWei: string): Promise<string | null> {
   if (isDevModeEnabled()) {
-    console.log(`🎮 [DEV MODE] Would deposit ${amountWei} into staking pool`);
+    console.log(`🎮 [DEV MODE] Would notify reward amount ${amountWei}`);
     return null;
   }
 
   const contract = getWordManagerWithOperator();
   if (!contract) {
-    console.warn('[word-manager] Skipping reward deposit (no WordManager)');
+    console.warn('[word-manager] Skipping notifyRewardAmount (no WordManager)');
     return null;
   }
 
   try {
-    const tx = await contract.depositRewards(amountWei);
+    const tx = await contract.notifyRewardAmount(amountWei);
     const receipt = await tx.wait();
-    console.log(`[word-manager] ✅ Rewards deposited: ${receipt.hash}`);
+    console.log(`[word-manager] ✅ Reward period started: ${receipt.hash}`);
     return receipt.hash;
   } catch (error) {
-    console.error('[word-manager] depositRewards failed:', error);
+    console.error('[word-manager] notifyRewardAmount failed:', error);
     throw error;
   }
 }

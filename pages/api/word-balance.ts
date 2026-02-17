@@ -9,7 +9,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers } from 'ethers';
 import { getWordBonusTier, getWalletBalance, formatWordTokenBalance } from '../../src/lib/word-token';
-import { getStakingInfo } from '../../src/lib/word-manager';
+import { getStakingInfo, getRewardInfo } from '../../src/lib/word-manager';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD, getXpStakingTier, getMinStakeForBoost, XP_STAKING_TIERS } from '../../config/economy';
 import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
@@ -24,6 +24,10 @@ export interface WordBalanceResponse {
   unclaimedRewards: string;
   stakingPoolShare: string; // 0-1 decimal
   stakingAvailable: boolean; // Whether WordManager is deployed
+  // V3: Reward period info for frontend APR/timer
+  rewardRate: string;       // $WORD per second (wei string)
+  periodFinish: number;     // Unix timestamp when period ends
+  rewardsDuration: number;  // Duration in seconds
   // XP staking tier fields
   xpStakingTier: number;        // 0-3
   xpStakingMultiplier: number;  // 1.0 / 1.15 / 1.35 / 1.60
@@ -62,6 +66,9 @@ export default async function handler(
       unclaimedRewards: '12500000',
       stakingPoolShare: '0.024',
       stakingAvailable: false,
+      rewardRate: '38580246913580246',
+      periodFinish: Math.floor(Date.now() / 1000) + 86400 * 20,
+      rewardsDuration: 2592000,
       xpStakingTier: 2,
       xpStakingMultiplier: 1.35,
       xpStakingTierName: 'Silver',
@@ -75,10 +82,11 @@ export default async function handler(
   }
 
   try {
-    // Get wallet balance, staking info, holder tier, live price, and XP data in parallel
-    const [walletBalanceWei, stakingInfo, holderTier, liveMarketData, totalXp, xpRate] = await Promise.all([
+    // Get wallet balance, staking info, reward info, holder tier, live price, and XP data in parallel
+    const [walletBalanceWei, stakingInfo, rewardInfo, holderTier, liveMarketData, totalXp, xpRate] = await Promise.all([
       getWalletBalance(walletAddress),
       getStakingInfo(walletAddress),
+      getRewardInfo(),
       getWordBonusTier(walletAddress),
       fetchWordTokenMarketCap().catch(() => null),
       fid ? getTotalXpForFid(fid) : Promise.resolve(0),
@@ -113,6 +121,9 @@ export default async function handler(
       unclaimedRewards: Math.floor(unclaimedRewards).toString(),
       stakingPoolShare: poolShare.toFixed(4),
       stakingAvailable: !!process.env.WORD_MANAGER_ADDRESS,
+      rewardRate: rewardInfo?.rewardRate?.toString() ?? '0',
+      periodFinish: rewardInfo ? Number(rewardInfo.periodFinish) : 0,
+      rewardsDuration: rewardInfo ? Number(rewardInfo.rewardsDuration) : 0,
       xpStakingTier: xpTier.tier,
       xpStakingMultiplier: xpTier.multiplier,
       xpStakingTierName: xpTier.name,

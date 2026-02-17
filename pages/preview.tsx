@@ -215,6 +215,21 @@ export default function PreviewPage() {
           unclaimedRewards="12500000"
           stakingPoolShare="0.024"
           stakingAvailable={false}
+          walletAddress={null}
+          walletBalance="950000000"
+          rewardRate="38580246913580246"
+          periodFinish={Math.floor(Date.now() / 1000) + 86400 * 20}
+          rewardsDuration={2592000}
+          xpStakingTier={2}
+          xpStakingMultiplier={1.35}
+          xpStakingTierName="Silver"
+          xpTotal={7200}
+          xpToNextTier={7800}
+          nextTierName="Gold"
+          xpDailyRate={58}
+          minStakeForBoost={100000000}
+          meetsMinStake={true}
+          onStakingAction={() => {}}
           onClose={() => setShowStakingModal(false)}
         />
       )}

@@ -20,7 +20,7 @@ https://letshaveaword.fun/verify
 
 Before each round begins, Let's Have A Word **commits onchain** to all **16 words** — the secret word, 10 bonus words, and 5 burn words — using cryptographic hashes.
 
-The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManagerV2 contract. These commitments guarantee that **no words can be changed mid-round** — not by the game, not by the creator, not by anyone. Importantly, **the creator does not know the secret word while the round is live**. Words are only revealed after they're found or the round ends.
+The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManager contract. These commitments guarantee that **no words can be changed mid-round** — not by the game, not by the creator, not by anyone. Importantly, **the creator does not know the secret word while the round is live**. Words are only revealed after they're found or the round ends.
 
 When a round ends:
 - The secret word and salt are revealed by @letshaveaword
@@ -197,7 +197,7 @@ Let's Have A Word uses **two smart contracts on Base** to handle different parts
 
 - **JackpotManager** (`0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`) — Manages ETH prize pools, payouts, and the secret word's SHA-256 commitment. When a round is won, this contract distributes the jackpot, Top 10 rewards, referrer share, and next round seed in a single atomic transaction.
 
-- **WordManagerV2** (`0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c`) — Manages $WORD token mechanics including bonus word rewards, burn word destruction, and keccak256 word commitments. All 15 bonus and burn words are committed to this contract before a round starts. When a player finds one, the contract verifies the guess against the committed hash before releasing or burning tokens.
+- **WordManager** — Manages $WORD token mechanics including bonus word rewards, burn word destruction, keccak256 word commitments, and Synthetix-style streaming staking rewards. All 15 bonus and burn words are committed to this contract before a round starts. When a player finds one, the contract verifies the guess against the committed hash before releasing or burning tokens.
 
 Together, these contracts ensure that both ETH prizes and $WORD token mechanics are handled transparently onchain.
 

@@ -2,7 +2,7 @@
  * Verification Data API
  * Milestone 10: Provably Fair Verification
  * Milestone 10.1: Onchain commitment verification
- * Milestone 14: WordManagerV2 keccak256 commitment verification
+ * Milestone 14: WordManager keccak256 commitment verification
  *
  * Returns the data needed to verify a round's commit-reveal fairness.
  *
@@ -33,10 +33,10 @@ export interface VerifyRoundResponse {
   // Bonus Words Feature: Bonus words commitment (if enabled for this round)
   bonusWordsCommitHash?: string;
   hasBonusWords?: boolean;
-  // Milestone 14: WordManagerV2 commitment (keccak256 hashes for all 16 words)
+  // Milestone 14: WordManager commitment (keccak256 hashes for all 16 words)
   roundCommitTxHash?: string; // WordManager commitRound() tx hash
-  wordManagerCommitted?: boolean; // Whether round has been committed on WordManagerV2
-  wordManagerAddress?: string; // WordManagerV2 contract address
+  wordManagerCommitted?: boolean; // Whether round has been committed on WordManager
+  wordManagerAddress?: string; // WordManager contract address
 }
 
 export interface VerifyRoundErrorResponse {
@@ -130,7 +130,7 @@ export default async function handler(
       // Column doesn't exist yet - migration 0015 not applied
     }
 
-    // Milestone 14: WordManagerV2 commitment data
+    // Milestone 14: WordManager commitment data
     const roundCommitTxHash = roundData.roundCommitTxHash || undefined;
     const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS || undefined;
 
@@ -171,7 +171,7 @@ export default async function handler(
         // Bonus Words Feature
         bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
         hasBonusWords: !!roundData.bonusWordsCommitHash,
-        // Milestone 14: WordManagerV2
+        // Milestone 14: WordManager
         roundCommitTxHash,
         wordManagerCommitted,
         wordManagerAddress,
@@ -204,7 +204,7 @@ export default async function handler(
         // Bonus Words Feature
         bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
         hasBonusWords: !!roundData.bonusWordsCommitHash,
-        // Milestone 14: WordManagerV2
+        // Milestone 14: WordManager
         roundCommitTxHash,
         wordManagerCommitted,
         wordManagerAddress,
@@ -224,7 +224,7 @@ export default async function handler(
       // Bonus Words Feature
       bonusWordsCommitHash: roundData.bonusWordsCommitHash || undefined,
       hasBonusWords: !!roundData.bonusWordsCommitHash,
-      // Milestone 14: WordManagerV2
+      // Milestone 14: WordManager
       roundCommitTxHash,
       wordManagerCommitted,
       wordManagerAddress,

@@ -69,11 +69,11 @@ Each player gets a daily allocation of guesses:
 - Referrer's 5% is split: 2.5% → Top 10 pool (12.5% total), 2.5% → Seed (7.5% total)
 
 ### Round Lifecycle
-1. **Round Creation**: Answer selected (cryptographically random). 16 words committed onchain — 1 secret word + 10 bonus words + 5 burn words — via `WordManagerV2.commitRound()` (keccak256). Secret word also committed to JackpotManager (SHA-256) for the ETH prize pool.
+1. **Round Creation**: Answer selected (cryptographically random). 16 words committed onchain — 1 secret word + 10 bonus words + 5 burn words — via `WordManager.commitRound()` (keccak256). Secret word also committed to JackpotManager (SHA-256) for the ETH prize pool.
 2. **Guessing Phase**: Players submit guesses (valid 5-letter words only). Each guess is checked against bonus and burn word lists — bonus words trigger a $WORD token transfer, burn words trigger a token burn.
 3. **Wrong Guesses**: Added to public wheel, visible to all players
 4. **Correct Guess**: Round ends, winner determined, ETH payouts processed onchain. Top-10 $WORD rewards distributed via `distributeTop10Rewards`.
-5. **Resolution**: Answer + salt revealed, verifiable at `/verify?round=N`. Both JackpotManager (SHA-256) and WordManagerV2 (keccak256) commitments can be independently verified.
+5. **Resolution**: Answer + salt revealed, verifiable at `/verify?round=N`. Both JackpotManager (SHA-256) and WordManager (keccak256) commitments can be independently verified.
 
 ### Word Validation
 - Must be exactly **5 letters**
@@ -2220,7 +2220,7 @@ const fid = verifyResult.sub; // Verified FID from JWT
 
 ### Milestone 14: $WORD Token Game Mechanics
 - **Status**: ✅ Complete
-- **Goal**: Integrate $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via a new WordManagerV2 contract
+- **Goal**: Integrate $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via the WordManager contract (upgraded to V3 with Synthetix streaming staking)
 
 #### Bonus Words
 Each round includes **10 hidden bonus words** drawn from the full 4,438-word dictionary. These aren't the secret answer — they're side-quest discoveries that reward explorers.
@@ -2261,60 +2261,46 @@ Wordmarks are permanent, collectible badges awarded for in-game achievements. Th
 - Display component: `components/WordmarkStack.tsx`
 - Profile integration: `components/StatsSheet.tsx`
 
-#### Onchain Commitment (WordManagerV2)
-A new standalone (non-proxy) contract on Base handles all $WORD token game mechanics: commitments, bonus claims, burn execution, and top-10 reward distribution.
-
-**Contract:** `0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c` on Base
+#### Onchain Commitment & Staking (WordManager V3)
+A UUPS upgradeable proxy contract on Base handles all $WORD token game mechanics: commitments, bonus claims, burn execution, top-10 reward distribution, and Synthetix-style streaming staking rewards.
 
 **Owner/Operator Pattern:**
-- **Owner** (deployer wallet): Admin functions — pause, upgrade parameters, withdraw
-- **Operator** (server wallet): Game operations — commit rounds, distribute rewards, execute burns
+- **Owner** (deployer wallet): Admin functions — pause, upgrade parameters, set rewards duration
+- **Operator** (server wallet): Game operations — commit rounds, distribute rewards, notify reward amounts
 
-**Key Functions:**
+**Game Functions:**
 ```solidity
 // Commit 16 keccak256 hashes before round starts (1 secret + 10 bonus + 5 burn)
-function commitRound(
-    uint256 roundId,
-    bytes32 secretHash,
-    bytes32[10] calldata bonusWordHashes,
-    bytes32[5] calldata burnWordHashes
-) external onlyOperator;
+function commitRound(uint256 roundId, bytes32 secretHash, bytes32[10] bonusWordHashes, bytes32[5] burnWordHashes) external onlyOperator;
 
 // Verified bonus word claim — checks hash, transfers $WORD to player
-function claimBonusReward(
-    uint256 roundId,
-    uint256 wordIndex,
-    string calldata word,
-    string calldata salt,
-    address player,
-    uint256 amount
-) external onlyOperator;
+function claimBonusReward(uint256 roundId, uint256 wordIndex, string word, bytes32 salt, address player, uint256 amount) external onlyOperator;
 
 // Verified burn word destruction — checks hash, sends $WORD to 0xdead
-function claimBurnWord(
-    uint256 roundId,
-    uint256 wordIndex,
-    string calldata word,
-    string calldata salt,
-    uint256 amount
-) external onlyOperator;
+function claimBurnWord(uint256 roundId, uint256 wordIndex, string word, bytes32 salt, uint256 amount) external onlyOperator;
 ```
+
+**Synthetix Streaming Staking (V3):**
+- `stake(uint256 amount)` — Stake $WORD tokens (requires ERC-20 approve first)
+- `withdraw(uint256 amount)` — Withdraw staked tokens
+- `getReward()` — Claim accrued streaming rewards
+- `exit()` — Withdraw all + claim rewards in one call
+- `earned(address)` — View accrued rewards (increases every second)
+- `notifyRewardAmount(uint256 reward)` — Operator starts/extends 30-day reward period
+- Global accumulator (`rewardPerTokenStored`) tracks cumulative reward per staked token — O(1) gas per interaction
 
 **Legacy Compatibility:**
 - `distributeBonusReward` — Direct bonus distribution (pre-commitment rounds)
 - `burnWord` — Direct burn execution (pre-commitment rounds)
 - `distributeTop10Rewards` — Batch top-10 $WORD reward distribution
-
-**Staking:**
-- `stake(uint256 amount)` — Stake $WORD tokens
-- `withdraw(uint256 amount)` — Withdraw staked tokens
-- `claimRewards()` — Claim accumulated staking rewards
+- `claimRewards()` — Alias for `getReward()`
+- `unclaimedRewards(address)` — Alias for `earned(address)`
 
 **Implementation:**
 - Contract integration: `src/lib/word-manager.ts`
 - Commitment logic: `src/lib/commit-reveal.ts`
-- Contract source: `contracts/src/WordManagerV2.sol`
-- Deploy script: `contracts/scripts/deploy-word-manager.ts`
+- Contract source: `contracts/src/WordManagerV3.sol`
+- Deploy script: `contracts/scripts/deploy-word-manager-v3.ts`
 
 #### Top-10 $WORD Rewards
 The top 10 guessers in each round receive $WORD token rewards in addition to their ETH share. Reward amounts scale dynamically with $WORD market cap tiers to maintain meaningful incentives at any token price.
@@ -2325,15 +2311,15 @@ The top 10 guessers in each round receive $WORD token rewards in addition to the
 #### Verify Page Updates
 The `/verify` page now shows commitments from both onchain systems:
 - **JackpotManager**: SHA-256 commitment for the secret word (ETH prize pool)
-- **WordManagerV2**: keccak256 commitments for all 16 words (bonus + burn + secret)
+- **WordManager**: keccak256 commitments for all 16 words (bonus + burn + secret)
 - Links to both contracts on BaseScan
 - Manual verification instructions for both hash types
 
 #### Files Added/Modified
 | File | Purpose |
 |------|---------|
-| `contracts/src/WordManagerV2.sol` | Solidity contract for $WORD token game mechanics |
-| `contracts/scripts/deploy-word-manager.ts` | Deployment script |
+| `contracts/src/WordManagerV3.sol` | Solidity contract for $WORD token game mechanics + streaming staking |
+| `contracts/scripts/deploy-word-manager-v3.ts` | UUPS proxy deployment script |
 | `src/lib/word-manager.ts` | Contract integration (commit, claim, burn, distribute) |
 | `src/lib/commit-reveal.ts` | keccak256 commitment functions |
 | `src/lib/burn-words.ts` | Burn word system |
@@ -2352,7 +2338,7 @@ The `/verify` page now shows commitments from both onchain systems:
 | `pages/archive/[roundNumber].tsx` | Burn word finders in round archive |
 
 #### Environment Variables
-- `WORD_MANAGER_ADDRESS` — WordManagerV2 contract address on Base
+- `WORD_MANAGER_ADDRESS` — WordManager (V3 proxy) contract address on Base
 
 ### Planned / Future Enhancements
 - **Status**: Wishlist

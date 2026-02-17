@@ -1,17 +1,21 @@
 /**
  * Admin: Fund Staking Pool
- * XP-Boosted Staking: Deposits $WORD tokens into the staking reward pool
+ * V3: Calls notifyRewardAmount() to start/extend a Synthetix-style reward period.
+ * Tokens must already be in the contract (transferred separately).
  *
  * POST /api/admin/operational/fund-staking-pool
  * Body: { amountTokens: number, fid: number }
  *
- * Requires admin FID auth. Calls depositRewards() on WordManager contract.
+ * Flow:
+ * 1. Transfer $WORD to the WordManagerV3 proxy address (manual or separate endpoint)
+ * 2. Call this endpoint → notifyRewardAmount(amount) starts the 30-day drip
+ * 3. If a period is already active, remaining undistributed rolls into new period
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
-import { depositRewardsOnChain } from '../../../../src/lib/word-manager';
+import { notifyRewardAmountOnChain } from '../../../../src/lib/word-manager';
 
 interface FundRequest {
   amountTokens: number;
@@ -47,11 +51,11 @@ export default async function handler(
     // Convert whole tokens to wei (18 decimals)
     const amountWei = ethers.parseUnits(String(amountTokens), 18).toString();
 
-    console.log(`[fund-staking-pool] Admin FID ${fid} depositing ${amountTokens} $WORD (${amountWei} wei)`);
+    console.log(`[fund-staking-pool] Admin FID ${fid} starting reward period: ${amountTokens} $WORD (${amountWei} wei)`);
 
-    const txHash = await depositRewardsOnChain(amountWei);
+    const txHash = await notifyRewardAmountOnChain(amountWei);
 
-    console.log(`[fund-staking-pool] Deposit complete: txHash=${txHash}`);
+    console.log(`[fund-staking-pool] Reward period started: txHash=${txHash}`);
 
     return res.status(200).json({
       success: true,
@@ -61,7 +65,7 @@ export default async function handler(
   } catch (error) {
     console.error('[fund-staking-pool] Error:', error);
     return res.status(500).json({
-      error: `Failed to fund staking pool: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to start reward period: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
 }

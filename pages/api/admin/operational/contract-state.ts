@@ -30,6 +30,7 @@ import {
   getWordManagerReadOnly,
   getTotalStaked,
   getTotalBurned,
+  getRewardInfo,
 } from '../../../../src/lib/word-manager';
 
 interface ContractState {
@@ -61,6 +62,11 @@ interface WordManagerState {
   totalDistributed: string;
   operatorAuthorized: boolean;
   ourSigningWallet: string;
+  // V3: Synthetix streaming reward fields
+  rewardRate: string;
+  periodFinish: number;
+  rewardsDuration: number;
+  rewardPeriodActive: boolean;
   error?: string;
 }
 
@@ -93,6 +99,10 @@ async function getWordManagerState(): Promise<WordManagerState> {
       totalDistributed: '0',
       operatorAuthorized: false,
       ourSigningWallet: 'NOT_CONFIGURED',
+      rewardRate: '0',
+      periodFinish: 0,
+      rewardsDuration: 0,
+      rewardPeriodActive: false,
     };
   }
 
@@ -118,18 +128,26 @@ async function getWordManagerState(): Promise<WordManagerState> {
         totalDistributed: '0',
         operatorAuthorized: false,
         ourSigningWallet,
+        rewardRate: '0',
+        periodFinish: 0,
+        rewardsDuration: 0,
+        rewardPeriodActive: false,
         error: 'Failed to create contract instance',
       };
     }
 
-    const [totalStaked, totalBurned, totalDistributed] = await Promise.all([
+    const [totalStaked, totalBurned, totalDistributed, rewardInfo] = await Promise.all([
       getTotalStaked(),
       getTotalBurned(),
       contract.totalDistributed() as Promise<bigint>,
+      getRewardInfo(),
     ]);
 
     // WordManager uses the same operator wallet — if our wallet can sign, it's authorized
     const operatorAuthorized = ourSigningWallet !== 'NOT_CONFIGURED' && ourSigningWallet !== 'INVALID_KEY';
+
+    const periodFinish = rewardInfo ? Number(rewardInfo.periodFinish) : 0;
+    const rewardPeriodActive = periodFinish > Math.floor(Date.now() / 1000);
 
     return {
       configured: true,
@@ -139,6 +157,10 @@ async function getWordManagerState(): Promise<WordManagerState> {
       totalDistributed: formatTokenAmount(totalDistributed ?? 0n),
       operatorAuthorized,
       ourSigningWallet,
+      rewardRate: rewardInfo?.rewardRate?.toString() ?? '0',
+      periodFinish,
+      rewardsDuration: rewardInfo ? Number(rewardInfo.rewardsDuration) : 0,
+      rewardPeriodActive,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -150,6 +172,10 @@ async function getWordManagerState(): Promise<WordManagerState> {
       totalDistributed: '0',
       operatorAuthorized: false,
       ourSigningWallet,
+      rewardRate: '0',
+      periodFinish: 0,
+      rewardsDuration: 0,
+      rewardPeriodActive: false,
       error: message,
     };
   }
