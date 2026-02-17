@@ -1963,8 +1963,10 @@ function GameContent() {
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
 
-              {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav) */}
-              <div className="-mx-4 mt-4 mb-4 grid grid-cols-4 gap-2">
+          </div>
+
+          {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav) */}
+          <div className="mt-4 mb-4 px-4 grid grid-cols-4 gap-2" style={{ position: 'relative', zIndex: 5 }}>
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -2001,7 +2003,6 @@ function GameContent() {
                 >
                   🤔 FAQ
                 </button>
-              </div>
           </div>
         </div>
         </div>
