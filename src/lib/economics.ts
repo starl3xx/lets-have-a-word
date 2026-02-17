@@ -767,14 +767,19 @@ export async function resolveRoundAndCreatePayouts(
           })
         );
 
-        const validPlayers = walletResults.filter(p => p.wallet !== null);
+        // Pair each player with their rank-correct amount before filtering
+        const playersWithAmounts = walletResults.map((p, i) => ({
+          ...p,
+          amount: playerAmounts[i],
+        }));
+        const validPlayers = playersWithAmounts.filter(p => p.wallet !== null);
 
         if (validPlayers.length > 0) {
           // Onchain distribution (single batch tx)
           const txHash = await distributeTop10RewardsOnChain(
             roundId,
             validPlayers.map(p => p.wallet!),
-            playerAmounts.slice(0, validPlayers.length)
+            validPlayers.map(p => p.amount)
           );
 
           // Record each payout in word_rewards audit trail
@@ -783,7 +788,7 @@ export async function resolveRoundAndCreatePayouts(
               roundId,
               fid: validPlayers[i].fid,
               rewardType: 'top10',
-              amount: playerAmounts[i],
+              amount: validPlayers[i].amount,
               txHash,
             });
           }

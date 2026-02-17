@@ -20,7 +20,7 @@ import { eq, and, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
 import { hasWordTokenBonus } from './word-token';
 import { selectBonusWords } from './word-lists';
-import { BURN_WORD_AMOUNT, BURN_WORDS_PER_ROUND } from '../../config/economy';
+import { BURN_WORD_AMOUNT, BURN_WORD_AMOUNT_DISPLAY, BURN_WORDS_PER_ROUND } from '../../config/economy';
 import { logXpEvent } from './xp';
 import { isDevModeEnabled } from './devGameState';
 
@@ -219,7 +219,7 @@ export async function handleBurnWordWin(
   return {
     status: 'burn_word',
     word,
-    burnAmount: burnWord.burnAmount,
+    burnAmount: String(BURN_WORD_AMOUNT_DISPLAY),
     txHash: txHash ?? undefined,
     message: `You discovered a burn word! 5M $WORD has been permanently destroyed.`,
   };
