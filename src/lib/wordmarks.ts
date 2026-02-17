@@ -80,6 +80,13 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
     emoji: '🍩',
     color: 'orange',
   },
+  BURN_WORD_FINDER: {
+    id: 'BURN_WORD_FINDER',
+    name: 'Arsonist',
+    description: 'Found a burn word during a round',
+    emoji: '🔥',
+    color: 'red',
+  },
 };
 
 /**

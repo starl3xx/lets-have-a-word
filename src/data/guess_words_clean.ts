@@ -4478,6 +4478,7 @@ export const SLANG_ALLOWLIST: string[] = [
   "KINDA",
   "LASSO",
   "LEGIT",
+  "MYDOT",
   "PENGU",
   "PROBS",
   "SHOOK",

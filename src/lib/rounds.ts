@@ -1,9 +1,10 @@
 import { db, rounds, roundBonusWords } from '../db';
-import { selectBurnWordsForRound } from './burn-words';
+import { selectBurnWords, storeBurnWords } from './burn-words';
 import { eq, isNull, desc, and } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer, selectBonusWords } from './word-lists';
-import { createCommitment, createBonusWordsCommitment, verifyCommit } from './commit-reveal';
+import { createCommitment, createBonusWordsCommitment, createRoundCommitment, verifyCommit } from './commit-reveal';
+import type { RoundCommitmentData } from './commit-reveal';
 import { resolveRoundAndCreatePayouts, syncPrizePoolFromContract } from './economics';
 import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
@@ -16,6 +17,7 @@ import {
   isContractDeployed,
   isBonusWordsEnabledOnChain,
 } from './jackpot-contract';
+import { commitRoundOnChain } from './word-manager';
 
 /**
  * Options for creating a new round
@@ -69,11 +71,13 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   // Check if bonus words feature is enabled on contract
   let bonusWordsEnabled = false;
   let bonusWords: string[] = [];
+  let burnWords: string[] = [];
   let bonusWordsCommitment: {
     masterSalt: string;
     individualSalts: string[];
     commitHash: string;
   } | null = null;
+  let roundCommitment: RoundCommitmentData | null = null;
 
   if (!skipOnChainCommitment) {
     bonusWordsEnabled = await isBonusWordsEnabledOnChain();
@@ -84,9 +88,17 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       bonusWords = selectBonusWords(BONUS_WORDS_COUNT, [selectedAnswer]);
       console.log(`[rounds] Selected ${bonusWords.length} bonus words`);
 
-      // Create commitment for bonus words
+      // Select 5 burn words from full list (excluding secret + bonus words)
+      burnWords = selectBurnWords([selectedAnswer, ...bonusWords]);
+      console.log(`[rounds] Selected ${burnWords.length} burn words from full word list`);
+
+      // Create legacy SHA-256 commitment for bonus words (backwards compat with JackpotManager)
       bonusWordsCommitment = createBonusWordsCommitment(bonusWords);
       console.log(`[rounds] Bonus words commit hash: ${bonusWordsCommitment.commitHash}`);
+
+      // Create unified keccak256 commitments for all 16 words (for WordManager V2)
+      roundCommitment = createRoundCommitment(selectedAnswer, bonusWords, burnWords);
+      console.log(`[rounds] Round commitment: 1 secret + ${bonusWords.length} bonus + ${burnWords.length} burn word hashes`);
     }
   }
 
@@ -94,6 +106,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   // This MUST succeed before we insert into the database, ensuring the
   // commitment is immutably recorded onchain before the round can accept guesses
   let onChainCommitmentTxHash: string | null = null;
+  let roundCommitTxHash: string | null = null;
 
   if (!skipOnChainCommitment) {
     // Check if contract is deployed and accessible
@@ -107,13 +120,26 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     }
 
     if (bonusWordsEnabled && bonusWordsCommitment) {
-      // Use new function with both commitments
-      console.log(`[rounds] Committing both secret word and bonus words onchain...`);
+      // Use new function with both commitments on JackpotManager
+      console.log(`[rounds] Committing both secret word and bonus words onchain (JackpotManager)...`);
       onChainCommitmentTxHash = await startRoundWithBothCommitmentsOnChain(
         commitHash,
         bonusWordsCommitment.commitHash
       );
-      console.log(`[rounds] ✅ Onchain commitment (with bonus words) successful: ${onChainCommitmentTxHash}`);
+      console.log(`[rounds] ✅ JackpotManager commitment successful: ${onChainCommitmentTxHash}`);
+
+      // Commit all 16 word hashes to WordManager V2
+      if (roundCommitment) {
+        try {
+          // We use a temporary roundId — will be the next serial ID
+          // Actually, we need the round ID first. We'll commit after DB insert.
+          // For now, store the commitment data and commit after insert.
+          console.log(`[rounds] WordManager round commitment will be submitted after round insert...`);
+        } catch (error) {
+          console.error('[rounds] WordManager commitment prep failed:', error);
+          // Continue — WordManager commitment is additive, not blocking
+        }
+      }
     } else {
       // Legacy: only secret word commitment
       console.log(`[rounds] Committing answer hash onchain...`);
@@ -164,32 +190,57 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     console.log(`[rounds] ✅ Salt corruption fixed for round ${round.id}`);
   }
 
-  // Insert bonus words if enabled
-  if (bonusWordsEnabled && bonusWordsCommitment && bonusWords.length > 0) {
+  // Insert bonus words if enabled (use round commitment salts for onchain verification)
+  if (bonusWordsEnabled && bonusWords.length > 0) {
     console.log(`[rounds] Storing ${bonusWords.length} encrypted bonus words...`);
 
     for (let i = 0; i < bonusWords.length; i++) {
       await db.insert(roundBonusWords).values({
         roundId: round.id,
         wordIndex: i,
-        word: encryptAndPack(bonusWords[i]), // Encrypted same as secret word
-        salt: bonusWordsCommitment.individualSalts[i],
+        word: encryptAndPack(bonusWords[i]),
+        // Use keccak256-compatible bytes32 salt from round commitment if available,
+        // otherwise fall back to legacy SHA-256 individual salts.
+        // Strip 0x prefix for varchar(64) storage — re-add when calling contracts.
+        salt: roundCommitment
+          ? roundCommitment.bonusWordSalts[i].replace(/^0x/, '')
+          : bonusWordsCommitment!.individualSalts[i],
       });
     }
 
     console.log(`[rounds] ✅ Stored ${bonusWords.length} bonus words for round ${round.id}`);
   }
 
-  // Milestone 14: Select burn words (5 per round, no overlap with answer or bonus words)
-  try {
-    const excludeWords = [selectedAnswer, ...bonusWords];
-    const burnWords = await selectBurnWordsForRound(round.id, excludeWords);
-    if (burnWords.length > 0) {
-      console.log(`[rounds] ✅ Selected ${burnWords.length} burn words for round ${round.id}`);
+  // Store burn words (already selected before round insert)
+  if (burnWords.length > 0 && roundCommitment) {
+    try {
+      await storeBurnWords(round.id, burnWords, roundCommitment.burnWordSalts);
+      console.log(`[rounds] ✅ Stored ${burnWords.length} burn words for round ${round.id}`);
+    } catch (error) {
+      console.error(`[rounds] Failed to store burn words for round ${round.id}:`, error);
+      // Continue — burn word failure should never block round creation
     }
-  } catch (error) {
-    console.error(`[rounds] Failed to select burn words for round ${round.id}:`, error);
-    // Continue — burn word failure should never block round creation
+  }
+
+  // Commit all 16 word hashes to WordManager V2 (now that we have the round ID)
+  if (roundCommitment && !skipOnChainCommitment) {
+    try {
+      roundCommitTxHash = await commitRoundOnChain(
+        round.id,
+        roundCommitment.secretHash,
+        roundCommitment.bonusWordHashes,
+        roundCommitment.burnWordHashes
+      );
+      if (roundCommitTxHash) {
+        // Store the commitment tx hash
+        const { sql: rawSql } = await import('drizzle-orm');
+        await db.execute(rawSql`UPDATE rounds SET round_commit_tx_hash = ${roundCommitTxHash} WHERE id = ${round.id}`);
+        console.log(`[rounds] ✅ WordManager round commitment tx: ${roundCommitTxHash}`);
+      }
+    } catch (error) {
+      console.error(`[rounds] WordManager round commitment failed for round ${round.id}:`, error);
+      // Continue — WordManager commitment enhances fairness but shouldn't block the round
+    }
   }
 
   console.log(`✅ Created round ${round.id} with commit hash: ${round.commitHash}`);

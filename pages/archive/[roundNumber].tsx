@@ -29,6 +29,27 @@ interface TopGuesserWithUsername {
   hasBakersDozenBadge?: boolean;
 }
 
+// Burn Words Feature: Finder display in archive
+interface BurnWordFinder {
+  fid: number;
+  username: string;
+  pfpUrl: string | null;
+  word: string;
+  burnAmount: string;
+  txHash: string | null;
+  foundAt: string;
+  hasOgHunterBadge?: boolean;
+  hasWordTokenBadge?: boolean;
+  hasBonusWordBadge?: boolean;
+  hasBurnWordBadge?: boolean;
+  hasJackpotWinnerBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
+  hasBakersDozenBadge?: boolean;
+}
+
 // Bonus Words Feature: Winner display in archive
 interface BonusWordWinner {
   fid: number;
@@ -94,6 +115,8 @@ interface ArchivedRound {
   resolveTxHash?: string;
   // Bonus word winners from API (for rounds >= 3)
   bonusWordWinners?: BonusWordWinner[];
+  // Burn word finders from API (for rounds >= 10)
+  burnWordFinders?: BurnWordFinder[];
 }
 
 interface Distribution {
@@ -515,6 +538,73 @@ export default function RoundDetailPage() {
                         {winner.txHash && (
                           <button
                             onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${winner.txHash}`)}
+                            className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
+                          >
+                            tx ↗
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Burn Word Finders (for rounds with burn words) */}
+              {round.burnWordFinders && round.burnWordFinders.length > 0 && (
+                <Section title="Burn word finders">
+                  <p className="text-xs text-gray-500 mb-3">5M $WORD burned each</p>
+                  <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
+                    {[...round.burnWordFinders]
+                      .sort((a, b) => new Date(a.foundAt || 0).getTime() - new Date(b.foundAt || 0).getTime())
+                      .map((finder, index) => (
+                      <div
+                        key={`${finder.fid}-${finder.word}`}
+                        className={`px-3 py-2 flex items-center gap-2 ${
+                          index < round.burnWordFinders!.length - 1 ? 'border-b border-orange-100' : ''
+                        }`}
+                      >
+                        {/* Rank Number */}
+                        <div className="w-5 text-sm text-gray-400 font-medium flex-shrink-0">
+                          {index + 1}.
+                        </div>
+                        {/* PFP */}
+                        <img
+                          src={finder.pfpUrl || `https://avatar.vercel.sh/${finder.fid}`}
+                          alt={finder.username || 'User'}
+                          className="w-7 h-7 rounded-full object-cover border border-orange-200 flex-shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${finder.fid}`;
+                          }}
+                        />
+                        {/* Username + Badge */}
+                        <div className="flex-1 flex items-center gap-1 min-w-0">
+                          <button
+                            onClick={() => openProfile(finder.fid)}
+                            className="text-sm font-medium text-gray-900 truncate hover:text-blue-600 transition-colors"
+                          >
+                            {finder.username?.startsWith('fid:') ? finder.username : `@${finder.username || `fid:${finder.fid}`}`}
+                          </button>
+                          <BadgeStack
+                            hasOgHunterBadge={finder.hasOgHunterBadge}
+                            hasWordTokenBadge={finder.hasWordTokenBadge}
+                            hasBonusWordBadge={finder.hasBonusWordBadge}
+                            hasBurnWordBadge={finder.hasBurnWordBadge}
+                            hasDoubleWBadge={finder.hasDoubleWBadge}
+                            hasPatronBadge={finder.hasPatronBadge}
+                            hasQuickdrawBadge={finder.hasQuickdrawBadge}
+                            hasEncyclopedicBadge={finder.hasEncyclopedicBadge}
+                            hasBakersDozenBadge={finder.hasBakersDozenBadge}
+                            size="sm"
+                          />
+                        </div>
+                        {/* Word found */}
+                        <span className="text-xs text-orange-600 font-mono font-bold uppercase flex-shrink-0">
+                          {finder.word}
+                        </span>
+                        {/* Transaction Link */}
+                        {finder.txHash && (
+                          <button
+                            onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${finder.txHash}`)}
                             className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
                             tx ↗

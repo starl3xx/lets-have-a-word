@@ -315,6 +315,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li><strong>🕵️‍♂️ OG Hunter</strong> — Participated in the OG Hunter prelaunch campaign</li>
             <li><strong>🎣 Side Quest</strong> — Found a bonus word during a round</li>
+            <li><strong>🔥 Arsonist</strong> — Found a burn word during a round</li>
             <li><strong>🏆 Jackpot Winner</strong> — Won a round jackpot</li>
             <li><strong>✌️ Double Dub</strong> — Found two bonus words OR bonus word + secret word in the same round</li>
             <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>

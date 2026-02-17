@@ -30,15 +30,28 @@ const WORD_MANAGER_ABI = [
   'function stakedBalance(address) view returns (uint256)',
   'function totalStaked() view returns (uint256)',
   'function getEffectiveBalance(address user) view returns (uint256)',
-  // Bonus word rewards
+  // Legacy bonus word rewards (pre-commitment rounds)
   'function distributeBonusReward(address player, uint256 amount)',
   // Top-10 rewards
   'function distributeTop10Rewards(uint256 roundId, address[] players, uint256[] amounts)',
-  // Burn words
+  // Legacy burn words (pre-commitment rounds)
   'function burnWord(uint256 roundId, address discoverer, uint256 amount)',
   'function totalBurned() view returns (uint256)',
   // Rewards
   'function unclaimedRewards(address) view returns (uint256)',
+  // V2: Round commitment
+  'function commitRound(uint256 roundId, bytes32 secretHash, bytes32[10] bonusWordHashes, bytes32[5] burnWordHashes)',
+  'function isRoundCommitted(uint256 roundId) view returns (bool)',
+  'function getSecretHash(uint256 roundId) view returns (bytes32)',
+  'function getBonusWordHash(uint256 roundId, uint256 index) view returns (bytes32)',
+  'function getBurnWordHash(uint256 roundId, uint256 index) view returns (bytes32)',
+  // V2: Verified bonus word claims
+  'function claimBonusReward(uint256 roundId, uint256 wordIndex, string word, bytes32 salt, address player, uint256 amount)',
+  'function bonusWordClaimed(uint256 roundId, uint256 wordIndex) view returns (bool)',
+  // V2: Verified burn word claims
+  'function claimBurnWord(uint256 roundId, uint256 wordIndex, string word, bytes32 salt, uint256 amount)',
+  'function burnWordClaimed(uint256 roundId, uint256 wordIndex) view returns (bool)',
+  'function totalDistributed() view returns (uint256)',
 ];
 
 /**
@@ -265,5 +278,128 @@ export async function burnWordOnChain(
   } catch (error) {
     console.error(`[word-manager] burnWord failed for round ${roundId}:`, error);
     throw error;
+  }
+}
+
+// =============================================================================
+// V2: Commitment and Verified Claims
+// =============================================================================
+
+/**
+ * Commit all 16 word hashes for a round onchain
+ * @returns Transaction hash or null if skipped
+ */
+export async function commitRoundOnChain(
+  roundId: number,
+  secretHash: string,
+  bonusWordHashes: string[],
+  burnWordHashes: string[]
+): Promise<string | null> {
+  if (isDevModeEnabled()) {
+    console.log(`🎮 [DEV MODE] Would commit round ${roundId} with 16 word hashes`);
+    return null;
+  }
+
+  const contract = getWordManagerWithOperator();
+  if (!contract) {
+    console.warn('[word-manager] Skipping round commitment (no WordManager)');
+    return null;
+  }
+
+  try {
+    console.log(`[word-manager] Committing round ${roundId} with 16 word hashes...`);
+    const tx = await contract.commitRound(roundId, secretHash, bonusWordHashes, burnWordHashes);
+    const receipt = await tx.wait();
+    console.log(`[word-manager] ✅ Round ${roundId} committed: ${receipt.hash}`);
+    return receipt.hash;
+  } catch (error) {
+    console.error(`[word-manager] commitRound failed for round ${roundId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Claim a verified bonus word reward onchain
+ * Contract verifies keccak256(abi.encodePacked(word, salt)) matches stored hash
+ * @returns Transaction hash or null if skipped
+ */
+export async function claimBonusRewardOnChain(
+  roundId: number,
+  wordIndex: number,
+  word: string,
+  salt: string,
+  playerAddress: string,
+  amount: string
+): Promise<string | null> {
+  if (isDevModeEnabled()) {
+    console.log(`🎮 [DEV MODE] Would claim bonus reward for "${word}" index ${wordIndex}`);
+    return null;
+  }
+
+  const contract = getWordManagerWithOperator();
+  if (!contract) {
+    console.warn('[word-manager] Skipping verified bonus claim (no WordManager)');
+    return null;
+  }
+
+  try {
+    console.log(`[word-manager] Claiming verified bonus reward: round ${roundId}, index ${wordIndex}, word "${word}"`);
+    const tx = await contract.claimBonusReward(roundId, wordIndex, word.toUpperCase(), salt, playerAddress, amount);
+    const receipt = await tx.wait();
+    console.log(`[word-manager] ✅ Verified bonus reward claimed: ${receipt.hash}`);
+    return receipt.hash;
+  } catch (error) {
+    console.error(`[word-manager] claimBonusReward failed for round ${roundId}, index ${wordIndex}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Claim a verified burn word onchain
+ * Contract verifies keccak256(abi.encodePacked(word, salt)) matches stored hash
+ * @returns Transaction hash or null if skipped
+ */
+export async function claimBurnWordOnChain(
+  roundId: number,
+  wordIndex: number,
+  word: string,
+  salt: string,
+  amount: string
+): Promise<string | null> {
+  if (isDevModeEnabled()) {
+    console.log(`🎮 [DEV MODE] Would claim burn word for "${word}" index ${wordIndex}`);
+    return null;
+  }
+
+  const contract = getWordManagerWithOperator();
+  if (!contract) {
+    console.warn('[word-manager] Skipping verified burn claim (no WordManager)');
+    return null;
+  }
+
+  try {
+    console.log(`[word-manager] Claiming verified burn: round ${roundId}, index ${wordIndex}, word "${word}"`);
+    const tx = await contract.claimBurnWord(roundId, wordIndex, word.toUpperCase(), salt, amount);
+    const receipt = await tx.wait();
+    console.log(`[word-manager] ✅ Verified burn executed: ${receipt.hash}`);
+    return receipt.hash;
+  } catch (error) {
+    console.error(`[word-manager] claimBurnWord failed for round ${roundId}, index ${wordIndex}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Check if a round has been committed onchain
+ */
+export async function isRoundCommittedOnChain(roundId: number): Promise<boolean> {
+  const contract = getWordManagerReadOnly();
+  if (!contract) return false;
+
+  try {
+    return await contract.isRoundCommitted(roundId);
+  } catch (error) {
+    console.error('[word-manager] isRoundCommitted failed:', error);
+    return false;
   }
 }

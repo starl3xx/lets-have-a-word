@@ -62,6 +62,7 @@ export const rounds = pgTable('rounds', {
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
   txHash: varchar('tx_hash', { length: 66 }), // Resolve round transaction hash
   startTxHash: varchar('start_tx_hash', { length: 66 }), // Start round with commitment transaction hash
+  roundCommitTxHash: varchar('round_commit_tx_hash', { length: 66 }), // WordManager round commitment tx hash (all 16 word hashes)
   isDevTestRound: boolean('is_dev_test_round').default(false).notNull(), // Milestone 4.5: Mid-round test mode flag
   startedAt: timestamp('started_at').defaultNow().notNull(),
   resolvedAt: timestamp('resolved_at'), // null until someone wins
@@ -541,7 +542,7 @@ export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
  * Wordmarks are permanent achievements earned by playing
  * Note: Database column remains 'badge_type' for backwards compatibility
  */
-export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN';
+export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN' | 'BURN_WORD_FINDER';
 
 // Alias for backwards compatibility with existing code
 export type BadgeType = WordmarkType;

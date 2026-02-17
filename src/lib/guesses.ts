@@ -15,7 +15,7 @@ import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 import { invalidateRoundCaches, invalidateOnRoundTransition, invalidateUserCaches, invalidateTopGuessersCache } from './redis';
 import { getPlaintextAnswer } from './encryption';
-import { distributeBonusWordRewardOnChain, isBonusWordsEnabledOnChain } from './jackpot-contract';
+
 import { logXpEvent } from './xp';
 import { getUserByFid as getNeynarUserByFid } from './farcaster';
 
@@ -341,13 +341,25 @@ async function handleBonusWordWin(
     });
   });
 
-  // 5. Distribute $WORD tokens (outside transaction - can retry if fails)
+  // 5. Distribute $WORD tokens via verified claim (commit-reveal pattern)
+  // Contract verifies keccak256(abi.encodePacked(word, salt)) matches stored hash
   let txHash: string | undefined;
   if (walletAddress) {
     try {
-      console.log(`[guesses] Distributing 5M $WORD to ${walletAddress}...`);
-      txHash = await distributeBonusWordRewardOnChain(walletAddress, bonusWord.wordIndex);
-      console.log(`[guesses] ✅ $WORD distributed: ${txHash}`);
+      console.log(`[guesses] Claiming verified bonus reward for "${word}" to ${walletAddress}...`);
+      const { claimBonusRewardOnChain } = await import('./word-manager');
+      // Re-add 0x prefix stripped during storage for contract call
+      const contractSalt = bonusWord.salt.startsWith('0x') ? bonusWord.salt : '0x' + bonusWord.salt;
+      const claimResult = await claimBonusRewardOnChain(
+        roundId,
+        bonusWord.wordIndex,
+        word,
+        contractSalt,
+        walletAddress,
+        BONUS_WORD_TOKEN_AMOUNT
+      );
+      txHash = claimResult ?? undefined;
+      console.log(`[guesses] ✅ Verified bonus reward claimed: ${txHash}`);
 
       // Update bonus word record with tx hash
       await db
