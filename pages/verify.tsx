@@ -14,15 +14,12 @@ import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
 import type { VerifyRoundResponse, VerifyRoundErrorResponse } from './api/verify/round';
 
-// Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
-const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
-
 // Söhne font family (registered as 'Soehne' in globals.css)
 const FONT_FAMILY = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
 // Smart contract addresses on Base
-const CONTRACT_ADDRESS = '0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5';
-const BASESCAN_URL = `https://basescan.org/address/${CONTRACT_ADDRESS}`;
+const JACKPOT_CONTRACT_ADDRESS = '0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5';
+const WORD_MANAGER_ADDRESS = '0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c';
 
 type VerificationStatus = 'idle' | 'loading' | 'verified' | 'mismatch' | 'pending' | 'error';
 
@@ -43,6 +40,10 @@ interface VerificationResult {
   // Bonus Words Feature
   bonusWordsCommitHash?: string;
   hasBonusWords?: boolean;
+  // Milestone 14: WordManagerV2 commitment
+  roundCommitTxHash?: string;
+  wordManagerCommitted?: boolean;
+  wordManagerAddress?: string;
 }
 
 export default function VerifyPage() {
@@ -115,6 +116,9 @@ export default function VerifyPage() {
           roundStartedAt: roundData.roundStartedAt,
           bonusWordsCommitHash: roundData.bonusWordsCommitHash,
           hasBonusWords: roundData.hasBonusWords,
+          roundCommitTxHash: roundData.roundCommitTxHash,
+          wordManagerCommitted: roundData.wordManagerCommitted,
+          wordManagerAddress: roundData.wordManagerAddress,
         });
         return;
       }
@@ -134,6 +138,9 @@ export default function VerifyPage() {
           errorMessage: 'Round was cancelled before reveal.',
           bonusWordsCommitHash: roundData.bonusWordsCommitHash,
           hasBonusWords: roundData.hasBonusWords,
+          roundCommitTxHash: roundData.roundCommitTxHash,
+          wordManagerCommitted: roundData.wordManagerCommitted,
+          wordManagerAddress: roundData.wordManagerAddress,
         });
         return;
       }
@@ -162,6 +169,9 @@ export default function VerifyPage() {
           roundEndedAt: roundData.roundEndedAt,
           bonusWordsCommitHash: roundData.bonusWordsCommitHash,
           hasBonusWords: roundData.hasBonusWords,
+          roundCommitTxHash: roundData.roundCommitTxHash,
+          wordManagerCommitted: roundData.wordManagerCommitted,
+          wordManagerAddress: roundData.wordManagerAddress,
         });
       } else {
         setResult({
@@ -252,10 +262,10 @@ export default function VerifyPage() {
               Verify fairness
             </h1>
             <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
-              Before each round starts, the game locks in the secret word by publishing a cryptographic commitment.
+              Before each round starts, the game locks in all words onchain — the secret word, 10 bonus words, and 5 burn words — using cryptographic commitments.
             </p>
             <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
-              When the round ends, the word and salt are revealed so anyone can verify the game was fair.
+              When the round ends, the secret word and salt are revealed so anyone can verify the game was fair.
             </p>
           </div>
         </div>
@@ -379,23 +389,12 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
-                    {/* Bonus Words Feature: Bonus words commitment (only if UI enabled) */}
-                    {BONUS_WORDS_UI_ENABLED && result.hasBonusWords && result.bonusWordsCommitHash && (
-                      <div className="bg-cyan-50 rounded-xl px-4 py-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-cyan-600">🎣</span>
-                          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
-                            Bonus words commitment
-                          </div>
-                        </div>
-                        <div className="font-mono text-sm break-all text-gray-900">
-                          {result.bonusWordsCommitHash}
-                        </div>
-                        <div className="text-xs text-cyan-600 mt-1">
-                          10 bonus words committed — 5M $WORD each
-                        </div>
-                      </div>
-                    )}
+                    {/* WordManagerV2 commitment (keccak256 hashes for 16 words) */}
+                    <WordManagerCommitmentStatus
+                      wordManagerCommitted={result.wordManagerCommitted}
+                      roundCommitTxHash={result.roundCommitTxHash}
+                      wordManagerAddress={result.wordManagerAddress}
+                    />
 
                     {result.roundStartedAt && (
                       <DataRow
@@ -427,23 +426,12 @@ export default function VerifyPage() {
                       copied={copied === 'onChainHash'}
                     />
 
-                    {/* Bonus Words Feature: Bonus words commitment (only if UI enabled) */}
-                    {BONUS_WORDS_UI_ENABLED && result.hasBonusWords && result.bonusWordsCommitHash && (
-                      <div className="bg-cyan-50 rounded-xl px-4 py-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-cyan-600">🎣</span>
-                          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
-                            Bonus words commitment
-                          </div>
-                        </div>
-                        <div className="font-mono text-sm break-all text-gray-900">
-                          {result.bonusWordsCommitHash}
-                        </div>
-                        <div className="text-xs text-cyan-600 mt-1">
-                          10 bonus words committed — 5M $WORD each
-                        </div>
-                      </div>
-                    )}
+                    {/* WordManagerV2 commitment (keccak256 hashes for 16 words) */}
+                    <WordManagerCommitmentStatus
+                      wordManagerCommitted={result.wordManagerCommitted}
+                      roundCommitTxHash={result.roundCommitTxHash}
+                      wordManagerAddress={result.wordManagerAddress}
+                    />
 
                     <DataRow
                       label="Revealed word"
@@ -504,21 +492,46 @@ export default function VerifyPage() {
                 Onchain record
               </h3>
               <p className="text-sm text-gray-500 mb-3">
-                The game's smart contract lives on Base and is publicly verified on BaseScan.
-                All commitments are written onchain and cannot be altered after the round begins.
+                The game uses two smart contracts on Base. Both are publicly verified and all commitments are immutable once written.
               </p>
-              <button
-                onClick={() => sdk.actions.openUrl(BASESCAN_URL)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
-              >
-                <span>View on BaseScan</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </button>
-              <p className="text-xs text-gray-400 mt-2 font-mono break-all">
-                {CONTRACT_ADDRESS}
-              </p>
+
+              {/* JackpotManager */}
+              <div className="mb-4">
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1.5">
+                  JackpotManager (ETH prizes + secret word)
+                </div>
+                <button
+                  onClick={() => sdk.actions.openUrl(`https://basescan.org/address/${JACKPOT_CONTRACT_ADDRESS}`)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <span>View on BaseScan</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
+                <p className="text-xs text-gray-400 mt-1.5 font-mono break-all">
+                  {JACKPOT_CONTRACT_ADDRESS}
+                </p>
+              </div>
+
+              {/* WordManagerV2 */}
+              <div>
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1.5">
+                  WordManager ($WORD token + word commitments)
+                </div>
+                <button
+                  onClick={() => sdk.actions.openUrl(`https://basescan.org/address/${WORD_MANAGER_ADDRESS}`)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <span>View on BaseScan</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
+                <p className="text-xs text-gray-400 mt-1.5 font-mono break-all">
+                  {WORD_MANAGER_ADDRESS}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -529,11 +542,10 @@ export default function VerifyPage() {
                 Why this matters
               </h3>
               <p className="text-sm text-blue-700 leading-relaxed">
-                The commitment is published before any guesses are made.
-                The word and salt are revealed after the round ends.
+                Before any guesses are made, all 16 words are locked onchain: the secret word (SHA-256 on JackpotManager) and 10 bonus + 5 burn words (keccak256 on WordManager).
               </p>
               <p className="text-sm text-blue-700 mt-2 leading-relaxed">
-                This guarantees the word can't be changed mid-round and anyone can verify the result forever.
+                When a player finds a bonus or burn word, the contract verifies the word matches its committed hash before releasing tokens. This guarantees no word can be changed mid-round.
               </p>
             </div>
           </div>
@@ -545,66 +557,51 @@ export default function VerifyPage() {
                 Want to double-check it yourself?
               </h3>
               <p className="text-sm text-gray-500 mb-4">
-                If you'd like to independently confirm the result using your own tools, here's exactly how the commitment is computed.
+                If you'd like to independently confirm the result using your own tools, here's how each commitment is computed.
               </p>
 
-              {/* Commitment formula */}
-              <div className="mb-4">
-                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  Commitment formula
+              {/* Secret Word (SHA-256) */}
+              <div className="mb-5 pb-4 border-b border-gray-100">
+                <div className="text-xs text-blue-500 uppercase tracking-wider font-semibold mb-2">
+                  Secret word (JackpotManager)
                 </div>
                 <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700">
                   SHA256(salt + word)
                 </code>
-                <p className="text-xs text-gray-400 mt-2">
-                  The salt and word are combined into a single string, then hashed using SHA-256.
-                </p>
-              </div>
-
-              {/* Inputs */}
-              <div className="mb-4">
-                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  Inputs
-                </div>
-                <ul className="text-sm text-gray-500 space-y-1">
-                  <li>• <strong>Salt:</strong> A random 64-character hex string, generated before the round starts</li>
-                  <li>• <strong>Word:</strong> The 5-letter answer (UPPERCASE)</li>
+                <ul className="text-sm text-gray-500 space-y-1 mt-2">
+                  <li>• <strong>Salt:</strong> 64-character hex string</li>
+                  <li>• <strong>Word:</strong> 5-letter answer (UPPERCASE)</li>
+                  <li>• Concatenated directly, no separator</li>
                 </ul>
-              </div>
-
-              {/* How it's combined */}
-              <div className="mb-4">
-                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  How it's combined
+                <div className="mt-2">
+                  <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700">
+                    echo -n "{'<salt><word>'}" | sha256sum
+                  </code>
                 </div>
-                <ul className="text-sm text-gray-500 space-y-1">
-                  <li>• The salt comes first</li>
-                  <li>• The word comes immediately after</li>
-                  <li>• No separator or whitespace</li>
-                </ul>
               </div>
 
-              {/* Output */}
-              <div className="mb-4">
-                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  Output
-                </div>
-                <ul className="text-sm text-gray-500 space-y-1">
-                  <li>• A 64-character hex hash that was published before guessing began</li>
-                </ul>
-              </div>
-
-              {/* Terminal example */}
-              <div className="pt-3 border-t border-gray-100">
-                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  Example (terminal)
+              {/* Bonus/Burn Words (keccak256) */}
+              <div>
+                <div className="text-xs text-purple-500 uppercase tracking-wider font-semibold mb-2">
+                  Bonus + burn words (WordManager)
                 </div>
                 <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700">
-                  echo -n "{'<salt><word>'}" | sha256sum
+                  keccak256(abi.encodePacked(word, salt))
                 </code>
-                <p className="text-xs text-gray-400 mt-2">
-                  The output should exactly match the commitment hash published for that round.
-                </p>
+                <ul className="text-sm text-gray-500 space-y-1 mt-2">
+                  <li>• <strong>Word:</strong> 5-letter word (UPPERCASE, encoded as string)</li>
+                  <li>• <strong>Salt:</strong> 32-byte value (bytes32)</li>
+                  <li>• Uses Solidity's <code className="text-xs bg-gray-100 px-1 rounded">abi.encodePacked</code> — word first, then salt</li>
+                  <li>• 16 hashes per round: 1 secret + 10 bonus + 5 burn</li>
+                </ul>
+                <div className="mt-2">
+                  <code className="block bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700 whitespace-pre-wrap">
+                    {'cast keccak "$(cast --abi-encode-packed \'f(string,bytes32)\' \'<WORD>\' \'<0xSALT>\')"'}
+                  </code>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Using Foundry's <code className="text-xs bg-gray-100 px-1 rounded">cast</code>, or ethers.js <code className="text-xs bg-gray-100 px-1 rounded">solidityPackedKeccak256(['string','bytes32'], [word, salt])</code>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -789,6 +786,82 @@ function OnChainCommitmentStatus({
             className="flex-shrink-0 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
           >
             {copied ? 'Copied!' : 'Copy'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * WordManager Commitment Status Component
+ * Shows whether the round's 16 word hashes (1 secret + 10 bonus + 5 burn) were committed
+ * to the WordManagerV2 contract using keccak256(abi.encodePacked(word, salt))
+ */
+function WordManagerCommitmentStatus({
+  wordManagerCommitted,
+  roundCommitTxHash,
+  wordManagerAddress,
+}: {
+  wordManagerCommitted?: boolean;
+  roundCommitTxHash?: string;
+  wordManagerAddress?: string;
+}) {
+  // Not committed (legacy round or contract not deployed)
+  if (!wordManagerCommitted) {
+    return (
+      <div className="bg-gray-100 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-sm">🔐</span>
+          <div>
+            <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-0.5">
+              Word commitment (WordManager)
+            </div>
+            <div className="text-sm text-gray-500">
+              Not available for this round
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-purple-50 rounded-xl px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-purple-600">🔐 ✓</span>
+          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+            Word commitment (WordManager)
+          </div>
+        </div>
+        <div className="text-xs text-purple-700 mt-1 font-medium">
+          ✓ 16 word hashes committed onchain — 1 secret + 10 bonus + 5 burn
+        </div>
+        <div className="text-xs text-purple-600 mt-0.5">
+          Each word is locked with keccak256(word, salt) before the round starts.
+          Claims are verified against these hashes onchain.
+        </div>
+        {roundCommitTxHash && (
+          <button
+            onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${roundCommitTxHash}`)}
+            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-2 font-medium"
+          >
+            <span>View commitment tx on BaseScan</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </button>
+        )}
+        {wordManagerAddress && (
+          <button
+            onClick={() => sdk.actions.openUrl(`https://basescan.org/address/${wordManagerAddress}`)}
+            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 mt-1 font-medium"
+          >
+            <span>View contract</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
           </button>
         )}
       </div>

@@ -24,6 +24,9 @@ import WordBonusModal from '../components/WordBonusModal';
 // Bonus Words Feature (hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true)
 const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
 import BonusWordWinModal from '../components/BonusWordWinModal';
+// Milestone 14: Burn word celebration + $WORD sheet
+import BurnWordModal from '../components/BurnWordModal';
+import WordSheet from '../components/WordSheet';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
@@ -269,6 +272,11 @@ function GameContent() {
   // Bonus Words Feature: Modal for bonus word win celebration
   const [showBonusWordWinModal, setShowBonusWordWinModal] = useState(false);
   const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; tokenRewardAmount: string; txHash: string | null } | null>(null);
+  // Milestone 14: Burn word modal state
+  const [showBurnWordModal, setShowBurnWordModal] = useState(false);
+  const [burnWordData, setBurnWordData] = useState<{ word: string; burnAmount: string; txHash: string | null } | null>(null);
+  // Milestone 14: $WORD sheet state
+  const [showWordSheet, setShowWordSheet] = useState(false);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isWordTokenHolder, setIsWordTokenHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -757,7 +765,7 @@ function GameContent() {
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Don't process if loading or if any modal/sheet is open
-      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showShareModal || showFirstTimeOverlay || showTutorial) {
+      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showWordSheet || showShareModal || showFirstTimeOverlay || showTutorial) {
         return;
       }
 
@@ -794,7 +802,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showShareModal, showFirstTimeOverlay, showTutorial, hasActiveRound]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showWordSheet, showShareModal, showFirstTimeOverlay, showTutorial, hasActiveRound]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
@@ -1144,6 +1152,15 @@ function GameContent() {
           txHash: data.txHash || null,
         });
         setShowBonusWordWinModal(true);
+      } else if (data.status === 'burn_word') {
+        // Milestone 14: User found a burn word
+        setBoxResultState('correct'); // Show green success state
+        setBurnWordData({
+          word: data.word,
+          burnAmount: data.burnAmount || '5000000',
+          txHash: data.txHash || null,
+        });
+        setShowBurnWordModal(true);
       } else if (data.status === 'incorrect' || data.status === 'already_guessed_word' || (data.status === 'bonus_word' && !BONUS_WORDS_UI_ENABLED)) {
         // Note: When bonus words UI is disabled, bonus_word is treated as incorrect for UI purposes
         setBoxResultState('wrong');
@@ -1946,8 +1963,8 @@ function GameContent() {
                 {isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
 
-              {/* Navigation Buttons (Milestone 4.3) */}
-              <div className="mt-4 mb-4 grid grid-cols-3 gap-2">
+              {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav) */}
+              <div className="mt-4 mb-4 grid grid-cols-4 gap-2">
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
@@ -1965,6 +1982,15 @@ function GameContent() {
                   className="py-2 px-3 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
                 >
                   🤝 Refer
+                </button>
+                <button
+                  onClick={() => {
+                    setShowWordSheet(true);
+                    void haptics.buttonTapMinor();
+                  }}
+                  className="py-2 px-3 bg-white border-2 border-purple-200 rounded-lg text-xs font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
+                >
+                  💰 $WORD
                 </button>
                 <button
                   onClick={() => {
@@ -2083,6 +2109,27 @@ function GameContent() {
             setShowBonusWordWinModal(false);
             setBonusWordWinData(null);
           }}
+        />
+      )}
+
+      {/* Milestone 14: Burn word win celebration modal */}
+      {showBurnWordModal && burnWordData && (
+        <BurnWordModal
+          word={burnWordData.word}
+          burnAmount={burnWordData.burnAmount}
+          txHash={burnWordData.txHash}
+          onClose={() => {
+            setShowBurnWordModal(false);
+            setBurnWordData(null);
+          }}
+        />
+      )}
+
+      {/* Milestone 14: $WORD Sheet */}
+      {showWordSheet && (
+        <WordSheet
+          walletAddress={connectedWalletAddress || null}
+          onClose={() => setShowWordSheet(false)}
         />
       )}
 

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
+import { ethers } from 'ethers';
 
 /**
  * Generate a cryptographically secure random salt
@@ -154,4 +155,106 @@ export function verifyBonusWordsCommitment(
   const computed = hash.digest('hex');
 
   return computed === commitHash;
+}
+
+// =============================================================================
+// Onchain commitment functions (keccak256 for Solidity verification)
+// =============================================================================
+
+/**
+ * Generate a bytes32 salt for onchain commitment
+ * @returns 0x-prefixed hex string (32 bytes = 66 chars with 0x prefix)
+ */
+export function generateBytes32Salt(): string {
+  return '0x' + randomBytes(32).toString('hex');
+}
+
+/**
+ * Compute a word commitment hash using keccak256
+ * Matches Solidity: keccak256(abi.encodePacked(word, salt))
+ *
+ * @param word The word (will be uppercased)
+ * @param salt bytes32 salt (0x-prefixed hex)
+ * @returns bytes32 hash (0x-prefixed hex)
+ */
+export function computeWordCommitHash(word: string, salt: string): string {
+  return ethers.solidityPackedKeccak256(
+    ['string', 'bytes32'],
+    [word.toUpperCase(), salt]
+  );
+}
+
+/**
+ * Verify a word commitment hash
+ *
+ * @param word The claimed word
+ * @param salt The salt used
+ * @param expectedHash The stored hash to verify against
+ * @returns true if keccak256(abi.encodePacked(word, salt)) === expectedHash
+ */
+export function verifyWordCommitHash(word: string, salt: string, expectedHash: string): boolean {
+  const computed = computeWordCommitHash(word, salt);
+  return computed.toLowerCase() === expectedHash.toLowerCase();
+}
+
+/**
+ * Result of creating a round commitment for all 16 words
+ */
+export interface RoundCommitmentData {
+  /** Secret word keccak256 hash */
+  secretHash: string;
+  /** Secret word bytes32 salt */
+  secretSalt: string;
+  /** 10 bonus word keccak256 hashes */
+  bonusWordHashes: string[];
+  /** 10 bonus word bytes32 salts */
+  bonusWordSalts: string[];
+  /** 5 burn word keccak256 hashes */
+  burnWordHashes: string[];
+  /** 5 burn word bytes32 salts */
+  burnWordSalts: string[];
+}
+
+/**
+ * Create onchain commitments for all 16 words in a round
+ * Generates unique bytes32 salts and keccak256 hashes for each word
+ *
+ * @param secretWord The secret answer word
+ * @param bonusWords Array of 10 bonus words
+ * @param burnWords Array of 5 burn words
+ * @returns All salts and hashes needed for onchain commitment + later verification
+ */
+export function createRoundCommitment(
+  secretWord: string,
+  bonusWords: string[],
+  burnWords: string[]
+): RoundCommitmentData {
+  if (bonusWords.length !== 10) {
+    throw new Error(`Expected 10 bonus words, got ${bonusWords.length}`);
+  }
+  if (burnWords.length !== 5) {
+    throw new Error(`Expected 5 burn words, got ${burnWords.length}`);
+  }
+
+  const secretSalt = generateBytes32Salt();
+  const secretHash = computeWordCommitHash(secretWord, secretSalt);
+
+  const bonusWordSalts = bonusWords.map(() => generateBytes32Salt());
+  const bonusWordHashes = bonusWords.map((word, i) =>
+    computeWordCommitHash(word, bonusWordSalts[i])
+  );
+
+  const burnWordSalts = burnWords.map(() => generateBytes32Salt());
+  const burnWordHashes = burnWords.map((word, i) =>
+    computeWordCommitHash(word, burnWordSalts[i])
+  );
+
+  return {
+    secretHash,
+    secretSalt,
+    bonusWordHashes,
+    bonusWordSalts,
+    burnWordHashes,
+    burnWordSalts,
+  };
 }

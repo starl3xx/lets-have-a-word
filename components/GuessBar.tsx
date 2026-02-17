@@ -189,7 +189,7 @@ export default function GuessBar({ sourceState, onGetMore, onWordHintTap }: Gues
           />
 
           {/* $WORD bonus - always shown */}
-          {/* For holders: normal display with their bonus amount */}
+          {/* For holders: tier-specific display (+1/+2/+3 $WORD) */}
           {/* For non-holders: crossed-out hint that's tappable */}
           {wordToken.isHolder ? (
             <SourceSegment
@@ -211,7 +211,7 @@ export default function GuessBar({ sourceState, onGetMore, onWordHintTap }: Gues
               }}
             >
               <span className="line-through">
-                {' '}+2 $WORD
+                {' '}+1 $WORD
               </span>
             </span>
           )}

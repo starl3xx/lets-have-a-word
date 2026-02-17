@@ -1,32 +1,29 @@
 /**
- * BonusWordWinModal
+ * BurnWordModal
+ * Milestone 14: Celebration modal shown when a player finds a burn word.
  *
- * Celebration modal shown when a player finds a bonus word.
  * Features:
- * - Confetti celebration
- * - 🎣 badge animation
- * - 5M $WORD reward display
+ * - Fire-themed confetti celebration
+ * - 🔥 badge animation
+ * - Burn amount display (5M $WORD destroyed)
  * - Link to BaseScan transaction
- *
- * Bonus Words Feature
  */
 
 import { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { triggerHaptic } from '../src/lib/haptics';
 
-interface BonusWordWinModalProps {
+interface BurnWordModalProps {
   word: string;
-  tokenRewardAmount: string;
+  burnAmount: string;
   txHash: string | null;
   onClose: () => void;
 }
 
 /**
- * Fire a fish-themed confetti celebration 🎣
+ * Fire a fire-themed confetti celebration
  */
 function fireCelebration() {
-  // Multiple bursts for exciting effect
   const duration = 1500;
   const animationEnd = Date.now() + duration;
 
@@ -35,10 +32,9 @@ function fireCelebration() {
     spread: 360,
     ticks: 60,
     zIndex: 100,
-    colors: ['#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EC4899'],
+    colors: ['#f97316', '#ef4444', '#eab308', '#dc2626', '#f59e0b'],
   };
 
-  // Continuous smaller bursts
   const interval = setInterval(() => {
     const timeLeft = animationEnd - Date.now();
     if (timeLeft <= 0) {
@@ -47,14 +43,12 @@ function fireCelebration() {
 
     const particleCount = 50 * (timeLeft / duration);
 
-    // Left burst
     confetti({
       ...defaults,
       particleCount,
       origin: { x: 0.2, y: 0.5 },
     });
 
-    // Right burst
     confetti({
       ...defaults,
       particleCount,
@@ -62,37 +56,30 @@ function fireCelebration() {
     });
   }, 150);
 
-  // Big center burst
   confetti({
     particleCount: 100,
     spread: 100,
     origin: { y: 0.4 },
-    colors: ['#8B5CF6', '#A78BFA', '#C4B5FD'],
+    colors: ['#f97316', '#dc2626', '#eab308'],
   });
 }
 
-/**
- * Format token reward amount with commas
- */
 function formatTokenReward(amount: string): string {
   const num = parseInt(amount, 10);
   return num.toLocaleString('en-US');
 }
 
-export default function BonusWordWinModal({
+export default function BurnWordModal({
   word,
-  tokenRewardAmount,
+  burnAmount,
   txHash,
   onClose,
-}: BonusWordWinModalProps) {
+}: BurnWordModalProps) {
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
-    // Trigger celebration on mount
     fireCelebration();
     triggerHaptic('success');
-
-    // Stagger content appearance for animation
     setTimeout(() => setShowContent(true), 200);
   }, []);
 
@@ -114,42 +101,40 @@ export default function BonusWordWinModal({
       onClick={handleContinue}
     >
       <div
-        className={`bg-gradient-to-b from-purple-50 to-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 transform transition-all duration-500 ${
+        className={`bg-gradient-to-b from-orange-50 to-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 transform transition-all duration-500 ${
           showContent ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Badge */}
         <div className="text-center">
-          {/* Animated fishing hook badge */}
           <div className="relative inline-block">
-            <div className="w-24 h-24 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg animate-bounce-subtle">
-              <span className="text-5xl" role="img" aria-label="Side Quest">
-                🎣
+            <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg animate-bounce-subtle">
+              <span className="text-5xl" role="img" aria-label="Burn">
+                🔥
               </span>
             </div>
-            {/* Sparkles around badge */}
             <div className="absolute -top-1 -right-1 text-2xl animate-spin-slow">✨</div>
             <div className="absolute -bottom-1 -left-1 text-2xl animate-spin-slow" style={{ animationDelay: '0.5s' }}>✨</div>
           </div>
 
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-cyan-500 bg-clip-text text-transparent mb-2">
-            Bonus word found!
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-500 bg-clip-text text-transparent mb-2">
+            Burn word found!
           </h2>
           <p className="text-gray-600">
-            You found a secret bonus word
+            You found a secret burn word
           </p>
         </div>
 
         {/* Word Display */}
-        <div className="bg-white rounded-xl p-4 border-2 border-purple-200 shadow-inner text-center">
-          <div className="text-3xl font-mono font-bold tracking-widest text-purple-700">
+        <div className="bg-white rounded-xl p-4 border-2 border-orange-200 shadow-inner text-center">
+          <div className="text-3xl font-mono font-bold tracking-widest text-orange-700">
             {word}
           </div>
         </div>
 
-        {/* Reward Display */}
-        <div className="bg-gradient-to-r from-purple-100 to-cyan-100 rounded-xl p-5 text-center">
+        {/* Burn Display */}
+        <div className="bg-gradient-to-r from-orange-100 to-red-100 rounded-xl p-5 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
             <img
               src="/word-token-logo.png"
@@ -157,19 +142,19 @@ export default function BonusWordWinModal({
               className="w-10 h-10 rounded-full border-2 border-white shadow"
             />
             <div>
-              <div className="text-2xl font-bold text-purple-700">
-                +{formatTokenReward(tokenRewardAmount)} $WORD
+              <div className="text-2xl font-bold text-orange-700">
+                -{formatTokenReward(burnAmount)} $WORD
               </div>
-              <div className="text-sm text-purple-500">
-                Sent to your wallet
+              <div className="text-sm text-orange-500">
+                Permanently burned
               </div>
             </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className="text-xl">🏆</span>
-            <span className="text-sm font-medium text-purple-600">
-              +250 XP &amp; 🎣 badge earned!
+            <span className="text-sm font-medium text-orange-600">
+              +100 XP &amp; 🔥 badge earned!
             </span>
           </div>
         </div>
@@ -179,7 +164,7 @@ export default function BonusWordWinModal({
           {txHash && (
             <button
               onClick={handleViewTransaction}
-              className="w-full px-4 py-3 bg-white border-2 border-purple-200 hover:border-purple-400 text-purple-700 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+              className="w-full px-4 py-3 bg-white border-2 border-orange-200 hover:border-orange-400 text-orange-700 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
             >
               <span>View transaction</span>
               <span className="text-sm">↗</span>
@@ -188,19 +173,17 @@ export default function BonusWordWinModal({
 
           <button
             onClick={handleContinue}
-            className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-700 hover:to-cyan-600 text-white rounded-xl font-semibold transition-all shadow-lg"
+            className="w-full px-4 py-3 bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-700 hover:to-red-600 text-white rounded-xl font-semibold transition-all shadow-lg"
           >
             Keep playing!
           </button>
         </div>
 
-        {/* Hint about remaining words */}
         <p className="text-center text-xs text-gray-400">
-          Keep guessing - there may be more bonus words this round!
+          Keep guessing - there may be more burn words this round!
         </p>
       </div>
 
-      {/* CSS animations */}
       <style jsx>{`
         @keyframes bounce-subtle {
           0%, 100% {

@@ -9,6 +9,8 @@
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
     "deploy:base-sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
     "deploy:base": "hardhat run scripts/deploy.ts --network base",
+    "deploy:word-manager:base-sepolia": "hardhat run scripts/deploy-word-manager.ts --network baseSepolia",
+    "deploy:word-manager:base": "hardhat run scripts/deploy-word-manager.ts --network base",
     "verify:base-sepolia": "hardhat verify --network baseSepolia",
     "verify:base": "hardhat verify --network base",
     "node": "hardhat node",
@@ -16,6 +18,7 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
     "@openzeppelin/contracts-upgradeable": "^5.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.0.0",
     "dotenv": "^16.3.1",

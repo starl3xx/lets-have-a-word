@@ -4,6 +4,8 @@ import BadgeStack from './BadgeStack';
 
 // Bonus Words Feature: Hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true
 const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
+// Burn Words Feature: Always enabled (Milestone 14)
+const BURN_WORDS_UI_ENABLED = true;
 
 interface TopGuesser {
   fid: number;
@@ -38,6 +40,27 @@ interface BonusWordWinner {
   hasPatronBadge?: boolean;
   hasQuickdrawBadge?: boolean;
   hasEncyclopedicBadge?: boolean;
+}
+
+// Burn Words Feature: Finder display type
+interface BurnWordFinder {
+  fid: number;
+  username: string;
+  pfpUrl: string | null;
+  word: string;
+  burnAmount: string;
+  txHash: string | null;
+  foundAt: string;
+  hasOgHunterBadge?: boolean;
+  hasWordTokenBadge?: boolean;
+  hasBonusWordBadge?: boolean;
+  hasBurnWordBadge?: boolean;
+  hasJackpotWinnerBadge?: boolean;
+  hasDoubleWBadge?: boolean;
+  hasPatronBadge?: boolean;
+  hasQuickdrawBadge?: boolean;
+  hasEncyclopedicBadge?: boolean;
+  hasBakersDozenBadge?: boolean;
 }
 
 interface RoundState {
@@ -127,6 +150,8 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
   // Bonus Words Feature: Bonus word winners state
   const [bonusWordWinners, setBonusWordWinners] = useState<BonusWordWinner[]>([]);
   const [totalBonusWords, setTotalBonusWords] = useState<number>(10);
+  // Burn Words Feature: Burn word finders state
+  const [burnWordFinders, setBurnWordFinders] = useState<BurnWordFinder[]>([]);
 
   // Track if initial load is complete to avoid flickering on polls
   const hasLoadedRef = useRef(false);
@@ -149,9 +174,14 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
       if (BONUS_WORDS_UI_ENABLED) {
         fetchPromises.push(fetch('/api/round/bonus-word-winners'));
       }
+      if (BURN_WORDS_UI_ENABLED) {
+        fetchPromises.push(fetch('/api/round/burn-word-finders'));
+      }
       const responses = await Promise.all(fetchPromises);
       const [roundResponse, guessersResponse] = responses;
-      const bonusWordsResponse = BONUS_WORDS_UI_ENABLED ? responses[2] : null;
+      let nextIdx = 2;
+      const bonusWordsResponse = BONUS_WORDS_UI_ENABLED ? responses[nextIdx++] : null;
+      const burnWordsResponse = BURN_WORDS_UI_ENABLED ? responses[nextIdx++] : null;
 
       if (!roundResponse.ok) throw new Error('Failed to load round state');
       if (!guessersResponse.ok) throw new Error('Failed to load top guessers');
@@ -168,6 +198,16 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
         } else if (bonusWordsResponse.status === 204) {
           // No bonus words for this round (legacy)
           setBonusWordWinners([]);
+        }
+      }
+
+      // Burn Words Feature: Parse burn word finders if available
+      if (burnWordsResponse) {
+        if (burnWordsResponse.ok) {
+          const burnData = await burnWordsResponse.json();
+          setBurnWordFinders(burnData.finders || []);
+        } else if (burnWordsResponse.status === 204) {
+          setBurnWordFinders([]);
         }
       }
 
@@ -525,6 +565,67 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
 
                 <p className="text-xs text-gray-400 italic text-center mt-2">
                   {totalBonusWords - bonusWordWinners.length} bonus words remaining
+                </p>
+              </div>
+            )}
+
+            {/* Burn Words Feature: Burn Word Finders Section */}
+            {BURN_WORDS_UI_ENABLED && burnWordFinders.length > 0 && (
+              <div className="mt-4">
+                <div className="text-center mb-1.5">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                    Burn Word Finders
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">5M $WORD burned each</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  {[...burnWordFinders]
+                    .sort((a, b) => new Date(a.foundAt).getTime() - new Date(b.foundAt).getTime())
+                    .map((finder, index) => (
+                    <div key={`${finder.fid}-${finder.word}`} className="flex items-center gap-2">
+                      {/* Rank */}
+                      <div className="text-gray-500 text-sm font-medium w-5 text-right">
+                        {index + 1}.
+                      </div>
+                      {/* Avatar */}
+                      <img
+                        src={finder.pfpUrl || `https://avatar.vercel.sh/${finder.fid}`}
+                        alt={finder.username}
+                        className="w-7 h-7 rounded-full object-cover border border-orange-200"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${finder.fid}`;
+                        }}
+                      />
+                      {/* Username + Badges */}
+                      <div className="flex-1 flex items-center gap-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900 truncate">
+                          {finder.username?.startsWith('fid:') ? finder.username : `@${finder.username || `fid:${finder.fid}`}`}
+                        </span>
+                        <BadgeStack
+                          hasOgHunterBadge={finder.hasOgHunterBadge}
+                          hasWordTokenBadge={finder.hasWordTokenBadge}
+                          hasBonusWordBadge={finder.hasBonusWordBadge}
+                          hasBurnWordBadge={finder.hasBurnWordBadge}
+                          hasJackpotWinnerBadge={finder.hasJackpotWinnerBadge}
+                          hasDoubleWBadge={finder.hasDoubleWBadge}
+                          hasPatronBadge={finder.hasPatronBadge}
+                          hasQuickdrawBadge={finder.hasQuickdrawBadge}
+                          hasEncyclopedicBadge={finder.hasEncyclopedicBadge}
+                          hasBakersDozenBadge={finder.hasBakersDozenBadge}
+                          size="sm"
+                        />
+                      </div>
+                      {/* Word - right aligned */}
+                      <div className="text-sm text-orange-600 font-mono font-bold uppercase mr-1">
+                        {finder.word}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-gray-400 italic text-center mt-2">
+                  {5 - burnWordFinders.length} burn words remaining
                 </p>
               </div>
             )}

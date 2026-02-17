@@ -4,11 +4,18 @@
  *
  * Milestone 4.1 - Balance checking for $WORD token bonus
  * Milestone 6.2 - Market cap oracle integration for bonus tier
+ * Milestone 14  - Tiered holder bonuses (0/1/2/3) based on balance × market cap matrix
  *
  * Implements onchain balance checking for $WORD token bonus
  */
 
 import { ethers } from 'ethers';
+import {
+  WORD_MARKET_CAP_USD,
+  MCAP_TIER_1,
+  MCAP_TIER_2,
+  getHolderTierThresholds,
+} from '../../config/economy';
 
 /**
  * $WORD token contract address on Base
@@ -17,16 +24,17 @@ import { ethers } from 'ethers';
 export const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
 
 /**
- * $WORD threshold for bonus (100 million tokens with 18 decimals)
- */
-export const WORD_TOKEN_THRESHOLD = ethers.parseUnits('100000000', 18);
-
-/**
  * ERC-20 ABI (minimal - just balanceOf)
  */
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
 ];
+
+/**
+ * @deprecated Use getWordBonusTier() — kept for backward compat
+ * $WORD threshold for bonus (100 million tokens with 18 decimals)
+ */
+export const WORD_TOKEN_THRESHOLD = ethers.parseUnits('100000000', 18);
 
 /**
  * Get Base RPC provider
@@ -51,48 +59,93 @@ export function getSepoliaProvider(): ethers.Provider {
 }
 
 /**
- * Check if wallet has $WORD token bonus
- * Milestone 4.1: Onchain balance verification
+ * Get the effective $WORD balance for a wallet (wallet + staked)
+ * Milestone 14: Uses WordManager.getEffectiveBalance() when deployed,
+ * falls back to raw balanceOf() otherwise.
  *
- * Checks if the wallet holds >= 100,000,000 $WORD tokens.
- *
- * @param walletAddress - Ethereum wallet address to check
- * @returns true if wallet has >= 100M $WORD, false otherwise
+ * @param walletAddress - Ethereum wallet address
+ * @returns Balance in whole tokens (not wei)
  */
-export async function hasWordTokenBonus(walletAddress: string | null): Promise<boolean> {
-  // No wallet = no bonus
-  if (!walletAddress) {
-    console.log('[$WORD] No wallet address provided');
-    return false;
-  }
+export async function getEffectiveBalance(walletAddress: string): Promise<number> {
+  try {
+    // Try WordManager first (wallet + staked balance)
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS;
+    if (wordManagerAddress && wordManagerAddress !== '') {
+      try {
+        const provider = getBaseProvider();
+        const wordManagerABI = [
+          'function getEffectiveBalance(address user) view returns (uint256)',
+        ];
+        const wordManager = new ethers.Contract(wordManagerAddress, wordManagerABI, provider);
+        const balance = await wordManager.getEffectiveBalance(walletAddress);
+        const wholeTokens = parseFloat(ethers.formatUnits(balance, 18));
+        return wholeTokens;
+      } catch (err) {
+        console.warn('[$WORD] WordManager.getEffectiveBalance() failed, falling back to balanceOf():', err);
+      }
+    }
 
-  // Validate address format
+    // Fallback: raw ERC-20 balanceOf
+    const provider = getBaseProvider();
+    const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
+    const balance = await contract.balanceOf(walletAddress);
+    return parseFloat(ethers.formatUnits(balance, 18));
+  } catch (error) {
+    console.error(`[$WORD] Error getting effective balance for ${walletAddress}:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Get $WORD holder bonus tier (0-3) based on effective balance and market cap
+ * Milestone 14: Replaces binary hasWordTokenBonus()
+ *
+ * @param walletAddress - Ethereum wallet address
+ * @param marketCapUsd - Current market cap in USD (defaults to env var)
+ * @returns Tier level: 0 (none), 1, 2, or 3
+ */
+export async function getWordBonusTier(
+  walletAddress: string | null,
+  marketCapUsd: number = WORD_MARKET_CAP_USD
+): Promise<number> {
+  if (!walletAddress) return 0;
+
   if (!ethers.isAddress(walletAddress)) {
     console.warn(`[$WORD] Invalid wallet address: ${walletAddress}`);
-    return false;
+    return 0;
   }
 
   try {
-    const provider = getBaseProvider();
-    const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
+    const balanceWholeTokens = await getEffectiveBalance(walletAddress);
+    const thresholds = getHolderTierThresholds(marketCapUsd);
 
-    // Get balance
-    const balance = await contract.balanceOf(walletAddress);
-
-    // Check if balance >= threshold
-    const hasBonus = balance >= WORD_TOKEN_THRESHOLD;
+    let tier = 0;
+    if (balanceWholeTokens >= thresholds.bonus3) tier = 3;
+    else if (balanceWholeTokens >= thresholds.bonus2) tier = 2;
+    else if (balanceWholeTokens >= thresholds.bonus1) tier = 1;
 
     console.log(
       `[$WORD] Wallet ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}: ` +
-      `${ethers.formatUnits(balance, 18)} $WORD (bonus: ${hasBonus})`
+      `${balanceWholeTokens.toLocaleString()} $WORD, mcap $${marketCapUsd.toLocaleString()}, tier ${tier}`
     );
 
-    return hasBonus;
+    return tier;
   } catch (error) {
-    console.error(`[$WORD] Error checking balance for ${walletAddress}:`, error);
-    // On error, default to false (no bonus)
-    return false;
+    console.error(`[$WORD] Error checking tier for ${walletAddress}:`, error);
+    return 0;
   }
+}
+
+/**
+ * Check if wallet has $WORD token bonus (backward compat wrapper)
+ * @deprecated Use getWordBonusTier() for tier-specific logic
+ *
+ * @param walletAddress - Ethereum wallet address to check
+ * @returns true if wallet qualifies for any bonus tier (1+)
+ */
+export async function hasWordTokenBonus(walletAddress: string | null): Promise<boolean> {
+  const tier = await getWordBonusTier(walletAddress);
+  return tier > 0;
 }
 
 /**
@@ -115,13 +168,29 @@ export function formatWordTokenBalance(balance: bigint): string {
 }
 
 /**
+ * Get the raw $WORD balance for a wallet (just wallet, not staked)
+ *
+ * @param walletAddress - Ethereum wallet address
+ * @returns Balance in wei as bigint
+ */
+export async function getWalletBalance(walletAddress: string): Promise<bigint> {
+  try {
+    const provider = getBaseProvider();
+    const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
+    return await contract.balanceOf(walletAddress);
+  } catch (error) {
+    console.error(`[$WORD] Error getting wallet balance for ${walletAddress}:`, error);
+    return 0n;
+  }
+}
+
+/**
  * Get free guesses for $WORD token holders
  * Milestone 6.2: Now determined by market cap tier from contract
- *
- * Uses environment variable as fallback if contract call fails.
+ * Milestone 14: Returns tier value directly (0-3)
  *
  * @param useContract - Whether to query contract (default: true)
- * @returns Number of free guesses (2 for LOW tier, 3 for HIGH tier)
+ * @returns Number of free guesses (0, 1, 2, or 3)
  */
 export async function getWordTokenFreeGuesses(useContract: boolean = true): Promise<number> {
   if (useContract) {
