@@ -47,7 +47,7 @@ export default async function handler(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'api_key': NEYNAR_API_KEY,
+        'x-api-key': NEYNAR_API_KEY,
       },
       body: JSON.stringify({
         campaign_id,

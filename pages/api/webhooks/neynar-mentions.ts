@@ -103,7 +103,7 @@ async function likeCast(castHash: string): Promise<boolean> {
     const response = await fetch('https://api.neynar.com/v2/farcaster/reaction', {
       method: 'POST',
       headers: {
-        'api_key': NEYNAR_API_KEY,
+        'x-api-key': NEYNAR_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
