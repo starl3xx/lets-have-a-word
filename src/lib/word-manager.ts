@@ -219,6 +219,35 @@ export async function distributeBonusRewardOnChain(
 }
 
 /**
+ * Deposit $WORD tokens into the staking reward pool (operator-signed).
+ * Used by admin endpoint to fund the staking pool.
+ * @param amountWei - Amount in wei (18-decimal string)
+ * @returns Transaction hash or null if skipped
+ */
+export async function depositRewardsOnChain(amountWei: string): Promise<string | null> {
+  if (isDevModeEnabled()) {
+    console.log(`🎮 [DEV MODE] Would deposit ${amountWei} into staking pool`);
+    return null;
+  }
+
+  const contract = getWordManagerWithOperator();
+  if (!contract) {
+    console.warn('[word-manager] Skipping reward deposit (no WordManager)');
+    return null;
+  }
+
+  try {
+    const tx = await contract.depositRewards(amountWei);
+    const receipt = await tx.wait();
+    console.log(`[word-manager] ✅ Rewards deposited: ${receipt.hash}`);
+    return receipt.hash;
+  } catch (error) {
+    console.error('[word-manager] depositRewards failed:', error);
+    throw error;
+  }
+}
+
+/**
  * Distribute top-10 $WORD rewards in a single batch transaction
  * @returns Transaction hash or null if skipped
  */
