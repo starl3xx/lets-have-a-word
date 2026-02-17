@@ -64,11 +64,6 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
     fetchData();
   }, [walletAddress]);
 
-  const handleBuyClick = () => {
-    triggerHaptic('light');
-    // BuyButton handles the actual action
-  };
-
   return (
     <>
       <div className="modal-backdrop" onClick={onClose}>
@@ -108,7 +103,6 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
                   valueUsd={balanceData.valueUsd}
                   holderTier={balanceData.holderTier}
                   stakingAvailable={balanceData.stakingAvailable}
-                  onBuyClick={handleBuyClick}
                 />
 
                 {/* Staking button */}

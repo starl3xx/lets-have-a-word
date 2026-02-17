@@ -11,6 +11,7 @@ import { getWordBonusTier, getWalletBalance, formatWordTokenBalance } from '../.
 import { getStakingInfo } from '../../src/lib/word-manager';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD } from '../../config/economy';
+import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
 
 export interface WordBalanceResponse {
   wallet: string;     // Wallet balance in whole tokens
@@ -52,24 +53,23 @@ export default async function handler(
   }
 
   try {
-    // Get wallet balance
-    const walletBalanceWei = await getWalletBalance(walletAddress);
-    const walletBalance = parseFloat(ethers.formatUnits(walletBalanceWei, 18));
+    // Get wallet balance, staking info, holder tier, and live price in parallel
+    const [walletBalanceWei, stakingInfo, holderTier, liveMarketData] = await Promise.all([
+      getWalletBalance(walletAddress),
+      getStakingInfo(walletAddress),
+      getWordBonusTier(walletAddress),
+      fetchWordTokenMarketCap().catch(() => null),
+    ]);
 
-    // Get staking info (null if WordManager not deployed)
-    const stakingInfo = await getStakingInfo(walletAddress);
+    const walletBalance = parseFloat(ethers.formatUnits(walletBalanceWei, 18));
     const stakedBalance = stakingInfo ? parseFloat(ethers.formatUnits(stakingInfo.staked, 18)) : 0;
     const effectiveBalance = walletBalance + stakedBalance;
     const unclaimedRewards = stakingInfo ? parseFloat(ethers.formatUnits(stakingInfo.unclaimed, 18)) : 0;
     const totalStaked = stakingInfo ? parseFloat(ethers.formatUnits(stakingInfo.totalStaked, 18)) : 0;
     const poolShare = totalStaked > 0 ? stakedBalance / totalStaked : 0;
 
-    // Get holder tier
-    const holderTier = await getWordBonusTier(walletAddress);
-
-    // Estimate USD value (rough: balance * price)
-    // Price ≈ mcap / total supply (100B)
-    const tokenPrice = WORD_MARKET_CAP_USD / 100_000_000_000;
+    // Use live price from DexScreener, fall back to env var calculation
+    const tokenPrice = liveMarketData?.priceUsd ?? (WORD_MARKET_CAP_USD / 100_000_000_000);
     const valueUsd = effectiveBalance * tokenPrice;
 
     return res.status(200).json({
