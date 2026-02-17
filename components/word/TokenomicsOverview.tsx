@@ -4,20 +4,13 @@
  */
 
 import type { WordTokenomicsResponse } from '../../pages/api/word-tokenomics';
+import { formatTokenAmount } from '../../src/lib/format';
 
 interface TokenomicsOverviewProps {
   data: WordTokenomicsResponse | null;
   isLoading: boolean;
 }
 
-function formatLargeNumber(amount: string): string {
-  const num = parseInt(amount, 10);
-  if (isNaN(num) || num === 0) return '0';
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K`;
-  return num.toLocaleString('en-US');
-}
 
 export default function TokenomicsOverview({ data, isLoading }: TokenomicsOverviewProps) {
   if (isLoading) {
@@ -48,15 +41,15 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
         <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Supply</h4>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <div className="text-lg font-bold text-gray-900">{formatLargeNumber(data.totalSupply)}</div>
+            <div className="text-lg font-bold text-gray-900">{formatTokenAmount(data.totalSupply)}</div>
             <div className="text-xs text-gray-500">Total supply</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-red-600">{formatLargeNumber(data.totalBurned)}</div>
+            <div className="text-lg font-bold text-red-600">{formatTokenAmount(data.totalBurned)}</div>
             <div className="text-xs text-gray-500">Burned</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-purple-600">{formatLargeNumber(data.totalStaked)}</div>
+            <div className="text-lg font-bold text-purple-600">{formatTokenAmount(data.totalStaked)}</div>
             <div className="text-xs text-gray-500">Staked</div>
           </div>
         </div>
@@ -72,7 +65,7 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
               <span className="text-xs font-medium text-red-700">Burn words</span>
             </div>
             <div className="text-lg font-bold text-red-700">{data.burnStats.burnWordsFound}</div>
-            <div className="text-xs text-red-500">{formatLargeNumber(data.burnStats.totalBurned)} tokens burned</div>
+            <div className="text-xs text-red-500">{formatTokenAmount(data.burnStats.totalBurned)} tokens burned</div>
           </div>
           <div className="bg-purple-50 rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-1">
@@ -80,7 +73,7 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
               <span className="text-xs font-medium text-purple-700">Bonus words</span>
             </div>
             <div className="text-lg font-bold text-purple-700">{data.bonusStats.bonusWordsFound}</div>
-            <div className="text-xs text-purple-500">{formatLargeNumber(data.bonusStats.totalDistributed)} distributed</div>
+            <div className="text-xs text-purple-500">{formatTokenAmount(data.bonusStats.totalDistributed)} distributed</div>
           </div>
         </div>
       </div>

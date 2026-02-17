@@ -3,6 +3,8 @@
  * Milestone 14: Displays $WORD token balance, tier, and USD value
  */
 
+import { formatTokenAmount } from '../../src/lib/format';
+
 interface WordHoldingsProps {
   wallet: string;
   staked: string;
@@ -27,14 +29,6 @@ const TIER_COLORS: Record<number, string> = {
   3: '#7c3aed', // purple-600
 };
 
-function formatTokenAmount(amount: string): string {
-  const num = parseInt(amount, 10);
-  if (isNaN(num) || num === 0) return '0';
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K`;
-  return num.toLocaleString('en-US');
-}
 
 export default function WordHoldings({
   wallet,

@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react';
+import { formatTokenAmount } from '../../src/lib/format';
 
 interface StakingModalProps {
   stakedBalance: string;
@@ -17,14 +18,6 @@ interface StakingModalProps {
 }
 
 type StakingTab = 'stake' | 'unstake' | 'rewards';
-
-function formatTokenAmount(amount: string): string {
-  const num = parseInt(amount, 10);
-  if (isNaN(num) || num === 0) return '0';
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  return num.toLocaleString('en-US');
-}
 
 export default function StakingModal({
   stakedBalance,
