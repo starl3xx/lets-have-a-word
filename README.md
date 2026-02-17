@@ -15,6 +15,10 @@
 
 ## Changelog
 
+### 2026-02-17 (after Round 13)
+
+- **XP-Boosted Staking Rewards**: Connected XP system to staking yield. Four XP tiers (Passive/Bronze/Silver/Gold) with multipliers (1.0x/1.15x/1.35x/1.60x) based on lifetime XP. StakingModal fully wired with live stake/unstake/claim via Wagmi, ticking reward counter, XP tier progression card with roadmap, and tier-up celebration animation. XPSheet now shows live tier progression instead of "Coming Soon." Added 7-day rolling XP rate helper, enriched `/api/word-balance` with XP tier data, created `useStaking` hook, and admin `fund-staking-pool` endpoint.
+
 ### 2026-02-16 (after Round 13)
 
 - **Admin Contract Diagnostics**: Added WordManager contract visibility to admin panel alongside JackpotManager. Contract diagnostics card now shows 3 columns (JackpotManager Mainnet, JackpotManager Sepolia, WordManager Mainnet) with staking, burn, and distribution stats. Added $WORD status badge to persistent status strip.

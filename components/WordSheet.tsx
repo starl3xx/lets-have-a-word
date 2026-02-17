@@ -1,6 +1,7 @@
 /**
  * WordSheet Component
  * Milestone 14: Full-height bottom sheet for $WORD token info
+ * XP-Boosted Staking: Now passes fid for XP tier data + refetch callback
  *
  * Sections:
  * 1. Holdings header — balance, tier, USD value, Buy button
@@ -8,7 +9,7 @@
  * 3. Tokenomics — supply, burned, fee distribution, game stats
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { triggerHaptic } from '../src/lib/haptics';
 import WordHoldings from './word/WordHoldings';
 import StakingModal from './word/StakingModal';
@@ -19,15 +20,31 @@ import type { WordTokenomicsResponse } from '../pages/api/word-tokenomics';
 
 interface WordSheetProps {
   walletAddress: string | null;
+  fid: number | null;
   onClose: () => void;
 }
 
-export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
+export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProps) {
   const [balanceData, setBalanceData] = useState<WordBalanceResponse | null>(null);
   const [tokenomicsData, setTokenomicsData] = useState<WordTokenomicsResponse | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
   const [isLoadingTokenomics, setIsLoadingTokenomics] = useState(true);
   const [showStakingModal, setShowStakingModal] = useState(false);
+
+  const fetchBalance = useCallback(async () => {
+    if (!walletAddress) return;
+    try {
+      const params = new URLSearchParams({ walletAddress });
+      if (fid) params.set('fid', String(fid));
+      const res = await fetch(`/api/word-balance?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBalanceData(data);
+      }
+    } catch (err) {
+      console.error('[WordSheet] Balance fetch failed:', err);
+    }
+  }, [walletAddress, fid]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,16 +61,7 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
 
       // Fetch balance (only if wallet connected)
       if (walletAddress) {
-        const balancePromise = fetch(`/api/word-balance?walletAddress=${walletAddress}`)
-          .then(async (res) => {
-            if (res.ok) {
-              const data = await res.json();
-              setBalanceData(data);
-            }
-          })
-          .catch((err) => console.error('[WordSheet] Balance fetch failed:', err))
-          .finally(() => setIsLoadingBalance(false));
-
+        const balancePromise = fetchBalance().finally(() => setIsLoadingBalance(false));
         await Promise.all([tokenomicsPromise, balancePromise]);
       } else {
         setIsLoadingBalance(false);
@@ -62,7 +70,11 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
     };
 
     fetchData();
-  }, [walletAddress]);
+  }, [walletAddress, fetchBalance]);
+
+  const refetchBalance = useCallback(() => {
+    fetchBalance();
+  }, [fetchBalance]);
 
   return (
     <>
@@ -157,6 +169,18 @@ export default function WordSheet({ walletAddress, onClose }: WordSheetProps) {
           unclaimedRewards={balanceData.unclaimedRewards}
           stakingPoolShare={balanceData.stakingPoolShare}
           stakingAvailable={balanceData.stakingAvailable}
+          walletAddress={walletAddress as `0x${string}` | null}
+          walletBalance={balanceData.wallet}
+          xpStakingTier={balanceData.xpStakingTier}
+          xpStakingMultiplier={balanceData.xpStakingMultiplier}
+          xpStakingTierName={balanceData.xpStakingTierName}
+          xpTotal={balanceData.xpTotal}
+          xpToNextTier={balanceData.xpToNextTier}
+          nextTierName={balanceData.nextTierName}
+          xpDailyRate={balanceData.xpDailyRate}
+          minStakeForBoost={balanceData.minStakeForBoost}
+          meetsMinStake={balanceData.meetsMinStake}
+          onStakingAction={refetchBalance}
           onClose={() => setShowStakingModal(false)}
         />
       )}

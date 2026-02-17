@@ -1,8 +1,9 @@
 /**
  * Word Balance API
  * Milestone 14: Returns $WORD holdings, staking status, and tier info
+ * XP-Boosted Staking: Now includes XP tier data when fid is provided
  *
- * GET /api/word-balance?walletAddress=0x...
+ * GET /api/word-balance?walletAddress=0x...&fid=12345
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -10,8 +11,9 @@ import { ethers } from 'ethers';
 import { getWordBonusTier, getWalletBalance, formatWordTokenBalance } from '../../src/lib/word-token';
 import { getStakingInfo } from '../../src/lib/word-manager';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
-import { WORD_MARKET_CAP_USD } from '../../config/economy';
+import { WORD_MARKET_CAP_USD, getXpStakingTier, getMinStakeForBoost, XP_STAKING_TIERS } from '../../config/economy';
 import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
+import { getTotalXpForFid, getSevenDayXpRate } from '../../src/lib/xp';
 
 export interface WordBalanceResponse {
   wallet: string;     // Wallet balance in whole tokens
@@ -22,6 +24,16 @@ export interface WordBalanceResponse {
   unclaimedRewards: string;
   stakingPoolShare: string; // 0-1 decimal
   stakingAvailable: boolean; // Whether WordManager is deployed
+  // XP staking tier fields
+  xpStakingTier: number;        // 0-3
+  xpStakingMultiplier: number;  // 1.0 / 1.15 / 1.35 / 1.60
+  xpStakingTierName: string;    // "Passive" / "Bronze" / "Silver" / "Gold"
+  xpTotal: number;
+  xpToNextTier: number | null;  // null if max tier
+  nextTierName: string | null;
+  xpDailyRate: number;          // 7-day rolling avg
+  minStakeForBoost: number;     // whole tokens
+  meetsMinStake: boolean;
 }
 
 export default async function handler(
@@ -33,6 +45,7 @@ export default async function handler(
   }
 
   const walletAddress = req.query.walletAddress as string;
+  const fid = req.query.fid ? parseInt(req.query.fid as string, 10) : null;
 
   if (!walletAddress || !ethers.isAddress(walletAddress)) {
     return res.status(400).json({ error: 'Valid walletAddress required' });
@@ -49,16 +62,27 @@ export default async function handler(
       unclaimedRewards: '12500000',
       stakingPoolShare: '0.024',
       stakingAvailable: false,
+      xpStakingTier: 2,
+      xpStakingMultiplier: 1.35,
+      xpStakingTierName: 'Silver',
+      xpTotal: 7200,
+      xpToNextTier: 7800,
+      nextTierName: 'Gold',
+      xpDailyRate: 58,
+      minStakeForBoost: 100_000_000,
+      meetsMinStake: true,
     });
   }
 
   try {
-    // Get wallet balance, staking info, holder tier, and live price in parallel
-    const [walletBalanceWei, stakingInfo, holderTier, liveMarketData] = await Promise.all([
+    // Get wallet balance, staking info, holder tier, live price, and XP data in parallel
+    const [walletBalanceWei, stakingInfo, holderTier, liveMarketData, totalXp, xpRate] = await Promise.all([
       getWalletBalance(walletAddress),
       getStakingInfo(walletAddress),
       getWordBonusTier(walletAddress),
       fetchWordTokenMarketCap().catch(() => null),
+      fid ? getTotalXpForFid(fid) : Promise.resolve(0),
+      fid ? getSevenDayXpRate(fid) : Promise.resolve({ totalInPeriod: 0, dailyAverage: 0 }),
     ]);
 
     const walletBalance = parseFloat(ethers.formatUnits(walletBalanceWei, 18));
@@ -72,6 +96,14 @@ export default async function handler(
     const tokenPrice = liveMarketData?.priceUsd ?? (WORD_MARKET_CAP_USD / 100_000_000_000);
     const valueUsd = effectiveBalance * tokenPrice;
 
+    // XP staking tier
+    const currentMarketCap = liveMarketData?.marketCap ?? WORD_MARKET_CAP_USD;
+    const xpTier = getXpStakingTier(totalXp);
+    const nextTierIndex = xpTier.tier + 1;
+    const nextTier = nextTierIndex < XP_STAKING_TIERS.length ? XP_STAKING_TIERS[nextTierIndex] : null;
+    const xpToNextTier = nextTier ? nextTier.xpThreshold - totalXp : null;
+    const minStake = getMinStakeForBoost(currentMarketCap);
+
     return res.status(200).json({
       wallet: Math.floor(walletBalance).toString(),
       staked: Math.floor(stakedBalance).toString(),
@@ -81,6 +113,15 @@ export default async function handler(
       unclaimedRewards: Math.floor(unclaimedRewards).toString(),
       stakingPoolShare: poolShare.toFixed(4),
       stakingAvailable: !!process.env.WORD_MANAGER_ADDRESS,
+      xpStakingTier: xpTier.tier,
+      xpStakingMultiplier: xpTier.multiplier,
+      xpStakingTierName: xpTier.name,
+      xpTotal: totalXp,
+      xpToNextTier,
+      nextTierName: nextTier?.name ?? null,
+      xpDailyRate: Math.round(xpRate.dailyAverage),
+      minStakeForBoost: minStake,
+      meetsMinStake: effectiveBalance >= minStake,
     });
   } catch (error) {
     console.error('[word-balance] Error:', error);

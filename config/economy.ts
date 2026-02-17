@@ -192,6 +192,45 @@ export function getTop10WordAmounts(marketCapUsd: number = WORD_MARKET_CAP_USD):
 }
 
 // =============================================================================
+// XP-Boosted Staking Tiers
+// =============================================================================
+
+/**
+ * XP thresholds that determine staking reward multipliers.
+ * Players earn XP through gameplay; higher tiers boost staking yield.
+ */
+export const XP_STAKING_TIERS = [
+  { tier: 0, name: 'Passive',  xpThreshold: 0,      multiplier: 1.00 },
+  { tier: 1, name: 'Bronze',   xpThreshold: 1_000,  multiplier: 1.15 },
+  { tier: 2, name: 'Silver',   xpThreshold: 5_000,  multiplier: 1.35 },
+  { tier: 3, name: 'Gold',     xpThreshold: 15_000, multiplier: 1.60 },
+] as const;
+
+export type XpStakingTier = (typeof XP_STAKING_TIERS)[number];
+
+/**
+ * Get the XP staking tier for a given total XP amount.
+ * Iterates from highest tier down to find the best match.
+ */
+export function getXpStakingTier(totalXp: number): XpStakingTier {
+  for (let i = XP_STAKING_TIERS.length - 1; i >= 0; i--) {
+    if (totalXp >= XP_STAKING_TIERS[i].xpThreshold) {
+      return XP_STAKING_TIERS[i];
+    }
+  }
+  return XP_STAKING_TIERS[0];
+}
+
+/**
+ * Get the minimum stake (in whole tokens) required to unlock XP boost.
+ * Uses the bonus1 threshold from the holder tier matrix (i.e., the lowest
+ * holder tier at the current market cap).
+ */
+export function getMinStakeForBoost(marketCapUsd: number): number {
+  return getHolderTierThresholds(marketCapUsd).bonus1;
+}
+
+// =============================================================================
 // Milestone 6.3: Guess Pack Configuration
 // =============================================================================
 

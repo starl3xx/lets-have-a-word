@@ -162,6 +162,42 @@ export async function getXpBreakdownForFid(
   }
 }
 
+/**
+ * Get 7-day rolling XP rate for a user.
+ * Sums all XP earned in the last 7 calendar days and returns
+ * the total and daily average. Used by the UI for time-to-next-tier estimates.
+ *
+ * @param fid - Farcaster ID
+ * @returns { totalInPeriod, dailyAverage }
+ */
+export async function getSevenDayXpRate(fid: number): Promise<{ totalInPeriod: number; dailyAverage: number }> {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+
+    const result = await db
+      .select({
+        totalXp: sql<number>`COALESCE(SUM(${xpEvents.xpAmount}), 0)`.as('total_xp'),
+      })
+      .from(xpEvents)
+      .where(
+        and(
+          eq(xpEvents.fid, fid),
+          gte(xpEvents.createdAt, sevenDaysAgo)
+        )
+      );
+
+    const totalInPeriod = Number(result[0]?.totalXp ?? 0);
+    return {
+      totalInPeriod,
+      dailyAverage: totalInPeriod / 7,
+    };
+  } catch (error) {
+    console.error('[XP] Error getting 7-day XP rate:', error);
+    return { totalInPeriod: 0, dailyAverage: 0 };
+  }
+}
+
 // =============================================================================
 // XP Event Helpers for Specific Actions
 // =============================================================================

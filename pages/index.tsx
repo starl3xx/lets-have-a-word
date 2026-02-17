@@ -2130,6 +2130,7 @@ function GameContent() {
       {showWordSheet && (
         <WordSheet
           walletAddress={connectedWalletAddress || null}
+          fid={effectiveFid ?? null}
           onClose={() => setShowWordSheet(false)}
         />
       )}
