@@ -225,6 +225,15 @@ function getWalletStatus(w: AirdropWallet): 'sent' | 'error' | 'pending' {
   return 'pending'
 }
 
+// Disperse.app — batch ERC-20 transfers in a single tx
+const DISPERSE_ADDRESS = '0xD152f549545093347A162Dce210e7293f1452150'
+const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b'
+const BASE_CHAIN_ID = 8453n
+
+function isEligibleForAirdrop(w: AirdropWallet): boolean {
+  return parseFloat(w.airdropNeeded || '0') > 0 && w.distributions.length === 0
+}
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -266,6 +275,12 @@ export default function AirdropManagerSection({ user }: Props) {
   const [needsMigration, setNeedsMigration] = useState(false)
   const [migrationRunning, setMigrationRunning] = useState<string | null>(null)
   const [schemaApplied, setSchemaApplied] = useState(false)
+
+  // Selection + on-chain airdrop
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [airdropStep, setAirdropStep] = useState<'idle' | 'confirming' | 'approving' | 'sending' | 'done' | 'error'>('idle')
+  const [airdropTxHash, setAirdropTxHash] = useState<string | null>(null)
+  const [airdropError, setAirdropError] = useState<string | null>(null)
 
   const devFid = user?.fid
 
@@ -541,6 +556,139 @@ export default function AirdropManagerSection({ user }: Props) {
       setCopiedAddr(addr)
       setTimeout(() => setCopiedAddr(null), 1500)
     }
+  }
+
+  // ============================================================================
+  // Selection + on-chain airdrop
+  // ============================================================================
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const eligibleWallets = wallets.filter(isEligibleForAirdrop)
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size >= eligibleWallets.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(eligibleWallets.map(w => w.id)))
+    }
+  }
+
+  const selectedWallets = wallets.filter(w => selectedIds.has(w.id) && isEligibleForAirdrop(w))
+  const selectedTotal = selectedWallets.reduce((sum, w) => sum + Math.round(parseFloat(w.airdropNeeded || '0')), 0)
+
+  const handleExecuteAirdrop = async () => {
+    if (selectedWallets.length === 0 || !devFid) return
+    const ethereum = (window as any).ethereum
+    if (!ethereum) {
+      setError('No wallet detected. Connect MetaMask or a browser wallet.')
+      return
+    }
+
+    try {
+      const { ethers } = await import('ethers')
+      setAirdropStep('confirming')
+      setAirdropTxHash(null)
+      setAirdropError(null)
+
+      // Connect
+      await ethereum.request({ method: 'eth_requestAccounts' })
+      const provider = new ethers.BrowserProvider(ethereum)
+      const signer = await provider.getSigner()
+      const signerAddress = await signer.getAddress()
+
+      // Chain check
+      const network = await provider.getNetwork()
+      if (network.chainId !== BASE_CHAIN_ID) {
+        try {
+          await ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x2105' }],
+          })
+        } catch {
+          setAirdropStep('error')
+          setAirdropError('Please switch to Base network in your wallet')
+          return
+        }
+      }
+
+      const addresses = selectedWallets.map(w => w.walletAddress)
+      const amounts = selectedWallets.map(w =>
+        ethers.parseUnits(Math.round(parseFloat(w.airdropNeeded || '0')).toString(), 18)
+      )
+      const totalAmount = amounts.reduce((sum, a) => sum + a, 0n)
+
+      // Balance check
+      const wordToken = new ethers.Contract(WORD_TOKEN_ADDRESS, [
+        'function balanceOf(address) view returns (uint256)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ], signer)
+
+      const balance = await wordToken.balanceOf(signerAddress)
+      if (balance < totalAmount) {
+        const have = parseFloat(ethers.formatUnits(balance, 18))
+        setAirdropStep('error')
+        setAirdropError(`Insufficient $WORD. Need ${formatCompact(selectedTotal)}, have ${formatCompact(have)}`)
+        return
+      }
+
+      // Approve
+      setAirdropStep('approving')
+      const allowance = await wordToken.allowance(signerAddress, DISPERSE_ADDRESS)
+      if (allowance < totalAmount) {
+        const approveTx = await wordToken.approve(DISPERSE_ADDRESS, totalAmount)
+        await approveTx.wait()
+      }
+
+      // Disperse
+      setAirdropStep('sending')
+      const disperse = new ethers.Contract(DISPERSE_ADDRESS, [
+        'function disperseToken(address token, address[] recipients, uint256[] values)',
+      ], signer)
+      const tx = await disperse.disperseToken(WORD_TOKEN_ADDRESS, addresses, amounts)
+      setAirdropTxHash(tx.hash)
+      await tx.wait()
+
+      // Mark all as sent via API
+      for (const wallet of selectedWallets) {
+        await fetch('/api/admin/airdrop/manage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'mark-sent',
+            walletId: wallet.id,
+            txHash: tx.hash,
+            note: `Batch airdrop via Disperse (${selectedWallets.length} wallets)`,
+            devFid,
+          }),
+        })
+      }
+
+      setAirdropStep('done')
+      setSelectedIds(new Set())
+      setSuccess(`Airdrop sent to ${selectedWallets.length} wallets`)
+      await fetchData()
+    } catch (err: any) {
+      const msg = err.code === 'ACTION_REJECTED'
+        ? 'Transaction rejected'
+        : (err.shortMessage || err.message || 'Airdrop failed')
+      setAirdropStep('error')
+      setAirdropError(msg)
+    }
+  }
+
+  const dismissAirdropPanel = () => {
+    setAirdropStep('idle')
+    setAirdropTxHash(null)
+    setAirdropError(null)
   }
 
   // ============================================================================
@@ -861,6 +1009,176 @@ export default function AirdropManagerSection({ user }: Props) {
         </div>
       )}
 
+      {/* Selection Bar */}
+      {selectedIds.size > 0 && airdropStep === 'idle' && (
+        <div style={{
+          ...styles.card,
+          background: '#eef2ff',
+          border: '1px solid #c7d2fe',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          padding: '14px 24px',
+        }}>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: '#4338ca' }}>
+            {selectedWallets.length} wallet{selectedWallets.length !== 1 ? 's' : ''} selected
+          </span>
+          <span style={{ fontSize: '13px', color: '#6366f1' }}>
+            {formatCompact(selectedTotal)} $WORD total
+          </span>
+          <button
+            style={{
+              padding: '10px 24px',
+              background: '#4f46e5',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginLeft: 'auto',
+            }}
+            onClick={() => setAirdropStep('confirming')}
+          >
+            Send Airdrop
+          </button>
+          <button
+            style={{ ...styles.btnSecondary, padding: '10px 16px' }}
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Airdrop Execution Panel */}
+      {airdropStep !== 'idle' && (
+        <div style={{
+          ...styles.card,
+          background: airdropStep === 'error' ? '#fef2f2' : airdropStep === 'done' ? '#f0fdf4' : '#f5f3ff',
+          border: `1px solid ${airdropStep === 'error' ? '#fecaca' : airdropStep === 'done' ? '#bbf7d0' : '#c7d2fe'}`,
+          padding: '24px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <h3 style={{ ...styles.cardTitle, margin: 0, color: airdropStep === 'error' ? '#dc2626' : '#111827' }}>
+              {airdropStep === 'confirming' && 'Confirm Airdrop'}
+              {airdropStep === 'approving' && 'Approving $WORD...'}
+              {airdropStep === 'sending' && 'Sending Airdrop...'}
+              {airdropStep === 'done' && 'Airdrop Complete'}
+              {airdropStep === 'error' && 'Airdrop Failed'}
+            </h3>
+            {(airdropStep === 'done' || airdropStep === 'error' || airdropStep === 'confirming') && (
+              <button
+                onClick={dismissAirdropPanel}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#6b7280' }}
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {airdropStep === 'confirming' && (
+            <div>
+              <div style={{
+                background: 'white',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '16px',
+                border: '1px solid #e5e7eb',
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>RECIPIENTS</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700 }}>{selectedWallets.length} wallets</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>TOTAL $WORD</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#d97706' }}>{formatCompact(selectedTotal)}</div>
+                  </div>
+                </div>
+              </div>
+              <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>
+                This will approve and send $WORD via Disperse.app in one batch transaction on Base.
+                You will be prompted to confirm in your wallet.
+              </p>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  style={{
+                    padding: '12px 28px',
+                    background: '#4f46e5',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  onClick={handleExecuteAirdrop}
+                >
+                  Approve & Send
+                </button>
+                <button style={styles.btnSecondary} onClick={dismissAirdropPanel}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(airdropStep === 'approving' || airdropStep === 'sending') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '3px solid #c7d2fe',
+                borderTopColor: '#4f46e5',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }} />
+              <span style={{ fontSize: '14px', color: '#374151' }}>
+                {airdropStep === 'approving'
+                  ? 'Confirm the approval transaction in your wallet...'
+                  : airdropTxHash
+                    ? 'Transaction submitted, waiting for confirmation...'
+                    : 'Confirm the airdrop transaction in your wallet...'}
+              </span>
+              {airdropTxHash && (
+                <a
+                  href={`https://basescan.org/tx/${airdropTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '13px', color: '#4f46e5' }}
+                >
+                  View on Basescan
+                </a>
+              )}
+              <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+            </div>
+          )}
+
+          {airdropStep === 'done' && airdropTxHash && (
+            <div>
+              <p style={{ fontSize: '14px', color: '#166534', marginBottom: '8px' }}>
+                Successfully sent $WORD to {selectedWallets.length || 'all selected'} wallets.
+              </p>
+              <a
+                href={`https://basescan.org/tx/${airdropTxHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '13px', color: '#4f46e5' }}
+              >
+                View transaction on Basescan
+              </a>
+            </div>
+          )}
+
+          {airdropStep === 'error' && (
+            <div>
+              <p style={{ fontSize: '14px', color: '#dc2626' }}>{airdropError}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* C. CSV Upload Area */}
       {showUpload && (
         <div style={styles.card}>
@@ -910,6 +1228,15 @@ export default function AirdropManagerSection({ user }: Props) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...styles.th, cursor: 'default', width: '40px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={eligibleWallets.length > 0 && selectedIds.size >= eligibleWallets.length}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: 'pointer' }}
+                  title="Select all eligible wallets"
+                />
+              </th>
               <th style={styles.th} onClick={() => handleSort('walletAddress')}>
                 Wallet{sortArrow('walletAddress')}
               </th>
@@ -934,7 +1261,7 @@ export default function AirdropManagerSection({ user }: Props) {
           <tbody>
             {sortedWallets.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...styles.td, textAlign: 'center', padding: '32px', color: '#9ca3af' }}>
+                <td colSpan={8} style={{ ...styles.td, textAlign: 'center', padding: '32px', color: '#9ca3af' }}>
                   {wallets.length === 0 ? 'No wallets imported yet. Upload a CSV to get started.' : 'No wallets match the current filter.'}
                 </td>
               </tr>
@@ -947,7 +1274,20 @@ export default function AirdropManagerSection({ user }: Props) {
 
                 return (
                   <React.Fragment key={w.id}>
-                    <tr style={{ background: isMarkSentOpen ? '#f0f9ff' : undefined }}>
+                    <tr style={{ background: isMarkSentOpen ? '#f0f9ff' : selectedIds.has(w.id) ? '#eef2ff' : undefined }}>
+                      {/* Checkbox */}
+                      <td style={{ ...styles.td, textAlign: 'center', width: '40px' }}>
+                        {isEligibleForAirdrop(w) ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(w.id)}
+                            onChange={() => toggleSelect(w.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        ) : (
+                          <span style={{ color: '#d1d5db' }}>-</span>
+                        )}
+                      </td>
                       {/* Wallet Address */}
                       <td style={{ ...styles.td, fontFamily: 'monospace', fontSize: '12px' }}>
                         <span
@@ -1073,7 +1413,7 @@ export default function AirdropManagerSection({ user }: Props) {
                     {/* F. Inline Mark Sent Dialog */}
                     {isMarkSentOpen && (
                       <tr>
-                        <td colSpan={7} style={{
+                        <td colSpan={8} style={{
                           padding: '12px 16px',
                           background: '#f0f9ff',
                           borderBottom: '1px solid #bae6fd',
