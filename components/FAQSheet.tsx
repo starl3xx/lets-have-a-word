@@ -66,6 +66,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
   );
 
   const FAQ_DATA: FAQItem[] = [
+    // ── Core Gameplay ────────────────────────────────────────────────
     {
       question: "How does the game work?",
       answer: (
@@ -76,39 +77,16 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
-      question: "Can I see the word after someone wins?",
+      question: "How many possible words are there?",
       answer: (
         <>
-          <strong>Yes.</strong> When a round is won, the secret word is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>.
-          <p className="mt-2">
-            You can view all past winning words, round details, and payouts in the{" "}
-            <a href="https://letshaveaword.fun/archive" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">Round Archive</a>.
-          </p>
-          <p className="mt-2">
-            You can also independently verify each round's cryptographic commitment and reveal at{" "}
-            <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a>.
-          </p>
+          Let's Have A Word uses a custom list of <strong>4,438</strong> five-letter words.
+          <p className="mt-2">This list is curated by the game's creator and is not the same as Wordle's or any other off-the-shelf word list. Unlike Wordle, which uses separate lists for answers and valid guesses, Let's Have A Word uses a single canonical list.</p>
+          <p className="mt-2">While there are 12,000+ five-letter entries if you include every possible dictionary term, most of those are obscure or non-standard. The game's list is intentionally curated to keep gameplay fair, challenging, and fun (have you found any easter eggs?).</p>
         </>
       ),
     },
-    {
-      question: 'What does "provably fair" mean?',
-      answer: (
-        <>
-          Before each round begins, Let's Have A Word <strong>commits onchain</strong> to all <strong>16 words</strong> — the secret word, 10 bonus words, and 5 burn words — using cryptographic hashes.
-          <p className="mt-2">The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManager contract. These commitments guarantee that <strong>no words can be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. Words are only revealed after they're found or the round ends.</p>
-          <p className="mt-2">When a round ends:</p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>The secret word and salt are revealed by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink></li>
-            <li>Bonus and burn word hashes are verified against the committed values</li>
-            <li>Anyone can recompute the hashes</li>
-            <li>Anyone can verify all 16 words were fixed from the very start</li>
-          </ul>
-          <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
-          <p className="mt-2">This commit–reveal process makes every round transparent, verifiable, and fair.</p>
-        </>
-      ),
-    },
+    // ── Guesses & Pricing ────────────────────────────────────────────
     {
       question: "What are free guesses?",
       answer: (
@@ -128,38 +106,6 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li>Holding <WordTokenLink>$WORD</WordTokenLink> tokens (+1 to +3 guesses/day depending on balance and market cap tier)</li>
           </ol>
           <p className="mt-2">You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).</p>
-        </>
-      ),
-    },
-    {
-      question: "What is $WORD?",
-      answer: (
-        <>
-          <WordTokenLink>$WORD</WordTokenLink> is the native token of Let's Have A Word. It powers the game's economy through holder bonuses, burn mechanics, and staking rewards.
-          <p className="mt-2">Tap the <strong>$WORD</strong> button in the nav bar to view your balance, staking, and tokenomics.</p>
-        </>
-      ),
-    },
-    {
-      question: "How do $WORD holder tiers work?",
-      answer: (
-        <>
-          Holding <WordTokenLink>$WORD</WordTokenLink> tokens gives you bonus free guesses every day. The number of bonus guesses depends on your <strong>balance</strong> and the <strong>current market cap</strong>:
-          <p className="mt-2"><strong>When market cap is below $150K:</strong></p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>100M tokens → <strong>+1 guess/day</strong> (Tier 1)</li>
-            <li>200M tokens → <strong>+2 guesses/day</strong> (Tier 2)</li>
-            <li>300M tokens → <strong>+3 guesses/day</strong> (Tier 3)</li>
-          </ul>
-          <p className="mt-2"><strong>When market cap is $150K–$300K:</strong></p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>50M → +1, 100M → +2, 150M → +3</li>
-          </ul>
-          <p className="mt-2"><strong>When market cap is above $300K:</strong></p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>25M → +1, 50M → +2, 75M → +3</li>
-          </ul>
-          <p className="mt-2">Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.</p>
         </>
       ),
     },
@@ -211,6 +157,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </ul>
       ),
     },
+    // ── Winning & Rewards ────────────────────────────────────────────
     {
       question: "How is the prize pool split?",
       answer: (
@@ -266,6 +213,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
+      question: "Do top 10 players earn $WORD too?",
+      answer: (
+        <>
+          <strong>Yes!</strong> In addition to ETH payouts, the Top 10 Early Guessers receive <WordTokenLink>$WORD</WordTokenLink> token rewards distributed via the WordManager contract.
+          <p className="mt-2">The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.</p>
+        </>
+      ),
+    },
+    {
       question: "How do referrals work?",
       answer: (
         <>
@@ -274,35 +230,93 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </>
       ),
     },
+    // ── Special Words ────────────────────────────────────────────────
     {
-      question: "Why can't I play? / What are the eligibility requirements?",
+      question: "What are bonus words?",
       answer: (
         <>
-          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.55 or higher</strong>. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
-          <p className="mt-2">If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.</p>
-          <p className="mt-2">
-            <a
-              href="https://docs.neynar.com/docs/neynar-user-quality-score#faqs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent-600 hover:text-accent-800 underline"
-            >
-              Learn more about Neynar user scores and how to improve them →
-            </a>
-          </p>
+          Each round has <strong>10 hidden bonus words</strong>, randomly selected from the full word list. If your guess matches one, you receive <strong>5M <WordTokenLink>$WORD</WordTokenLink> tokens</strong> (or 2.5M when market cap is above $150K) sent directly to your wallet, plus <strong>+250 XP</strong> and the <strong>Side Quest</strong> wordmark.
+          <p className="mt-2">Bonus words are committed onchain as keccak256 hashes before the round starts, so they can't be changed mid-round. The contract verifies your guess against the committed hash before releasing tokens.</p>
         </>
       ),
     },
     {
-      question: "How many possible words are there?",
+      question: "What are burn words?",
       answer: (
         <>
-          Let's Have A Word uses a custom list of <strong>4,438</strong> five-letter words.
-          <p className="mt-2">This list is curated by the game's creator and is not the same as Wordle's or any other off-the-shelf word list. Unlike Wordle, which uses separate lists for answers and valid guesses, Let's Have A Word uses a single canonical list.</p>
-          <p className="mt-2">While there are 12,000+ five-letter entries if you include every possible dictionary term, most of those are obscure or non-standard. The game's list is intentionally curated to keep gameplay fair, challenging, and fun (have you found any easter eggs?).</p>
+          Each round has <strong>5 hidden burn words</strong>, randomly selected from the full word list. When you guess a burn word, <strong>5M $WORD tokens are permanently destroyed</strong> (burned), reducing the total supply forever. You don't receive any $WORD for finding one, but you earn <strong>+100 XP</strong> and the <strong>Arsonist</strong> wordmark.
+          <p className="mt-2">Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word before executing the burn.</p>
         </>
       ),
     },
+    // ── $WORD Token ──────────────────────────────────────────────────
+    {
+      question: "What is $WORD?",
+      answer: (
+        <>
+          <WordTokenLink>$WORD</WordTokenLink> is the native token of Let's Have A Word. It powers the game's economy through holder bonuses, burn mechanics, and staking rewards.
+          <p className="mt-2">Tap the <strong>$WORD</strong> button in the nav bar to view your balance, staking, and tokenomics.</p>
+        </>
+      ),
+    },
+    {
+      question: "How do $WORD holder tiers work?",
+      answer: (
+        <>
+          Holding <WordTokenLink>$WORD</WordTokenLink> tokens gives you bonus free guesses every day. The number of bonus guesses depends on your <strong>balance</strong> and the <strong>current market cap</strong>:
+          <p className="mt-2"><strong>When market cap is below $150K:</strong></p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>100M tokens → <strong>+1 guess/day</strong> (Tier 1)</li>
+            <li>200M tokens → <strong>+2 guesses/day</strong> (Tier 2)</li>
+            <li>300M tokens → <strong>+3 guesses/day</strong> (Tier 3)</li>
+          </ul>
+          <p className="mt-2"><strong>When market cap is $150K–$300K:</strong></p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>50M → +1, 100M → +2, 150M → +3</li>
+          </ul>
+          <p className="mt-2"><strong>When market cap is above $300K:</strong></p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>25M → +1, 50M → +2, 75M → +3</li>
+          </ul>
+          <p className="mt-2">Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.</p>
+        </>
+      ),
+    },
+    {
+      question: "What is $WORD staking?",
+      answer: (
+        <>
+          Staking lets you lock your <WordTokenLink>$WORD</WordTokenLink> tokens to earn streaming staking rewards. Rewards are distributed proportionally to all stakers every second during active reward periods.
+          <p className="mt-2">Staked tokens count toward your <strong>effective balance</strong> for holder tier calculations, so staking can help you reach a higher bonus tier without buying more tokens.</p>
+          <p className="mt-2">Manage staking from the $WORD sheet (tap 💰 $WORD in the nav).</p>
+        </>
+      ),
+    },
+    {
+      question: "How does the $WORD fee distribution work?",
+      answer: (
+        <>
+          The <WordTokenLink>$WORD</WordTokenLink> ecosystem has a built-in fee structure:
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>50%</strong> → Game Treasury (operations, development)</li>
+            <li><strong>25%</strong> → Buyback &amp; Stake (market support)</li>
+            <li><strong>15%</strong> → Player Rewards (bonus/burn/top 10)</li>
+            <li><strong>10%</strong> → Top 10 Referral rewards</li>
+          </ul>
+          <p className="mt-2">View the full tokenomics breakdown in the $WORD sheet.</p>
+        </>
+      ),
+    },
+    {
+      question: "How do I buy $WORD?",
+      answer: (
+        <>
+          Tap the <strong>Buy $WORD</strong> button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
+          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e...fb4b).</p>
+        </>
+      ),
+    },
+    // ── Progression & Achievements ───────────────────────────────────
     {
       question: "What is XP for?",
       answer: (
@@ -339,31 +353,38 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </>
       ),
     },
+    // ── Trust & Verification ─────────────────────────────────────────
     {
-      question: "What are bonus words?",
+      question: "Can I see the word after someone wins?",
       answer: (
         <>
-          Each round has <strong>10 hidden bonus words</strong>, randomly selected from the full word list. If your guess matches one, you receive <strong>5M <WordTokenLink>$WORD</WordTokenLink> tokens</strong> (or 2.5M when market cap is above $150K) sent directly to your wallet, plus <strong>+250 XP</strong> and the <strong>Side Quest</strong> wordmark.
-          <p className="mt-2">Bonus words are committed onchain as keccak256 hashes before the round starts, so they can't be changed mid-round. The contract verifies your guess against the committed hash before releasing tokens.</p>
+          <strong>Yes.</strong> When a round is won, the secret word is revealed publicly by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink>.
+          <p className="mt-2">
+            You can view all past winning words, round details, and payouts in the{" "}
+            <a href="https://letshaveaword.fun/archive" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">Round Archive</a>.
+          </p>
+          <p className="mt-2">
+            You can also independently verify each round's cryptographic commitment and reveal at{" "}
+            <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a>.
+          </p>
         </>
       ),
     },
     {
-      question: "What are burn words?",
+      question: 'What does "provably fair" mean?',
       answer: (
         <>
-          Each round has <strong>5 hidden burn words</strong>, randomly selected from the full word list. When you guess a burn word, <strong>5M $WORD tokens are permanently destroyed</strong> (burned), reducing the total supply forever. You don't receive any $WORD for finding one, but you earn <strong>+100 XP</strong> and the <strong>Arsonist</strong> wordmark.
-          <p className="mt-2">Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word before executing the burn.</p>
-        </>
-      ),
-    },
-    {
-      question: "What is $WORD staking?",
-      answer: (
-        <>
-          Staking lets you lock your <WordTokenLink>$WORD</WordTokenLink> tokens in the WordManager contract to earn streaming staking rewards. Rewards are distributed proportionally to all stakers every second during active reward periods.
-          <p className="mt-2">Staked tokens count toward your <strong>effective balance</strong> for holder tier calculations, so staking can help you reach a higher bonus tier without buying more tokens.</p>
-          <p className="mt-2">Manage staking from the $WORD sheet (tap 💰 $WORD in the nav).</p>
+          Before each round begins, Let's Have A Word <strong>commits onchain</strong> to all <strong>16 words</strong> — the secret word, 10 bonus words, and 5 burn words — using cryptographic hashes.
+          <p className="mt-2">The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManager contract. These commitments guarantee that <strong>no words can be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. Words are only revealed after they're found or the round ends.</p>
+          <p className="mt-2">When a round ends:</p>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>The secret word and salt are revealed by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink></li>
+            <li>Bonus and burn word hashes are verified against the committed values</li>
+            <li>Anyone can recompute the hashes</li>
+            <li>Anyone can verify all 16 words were fixed from the very start</li>
+          </ul>
+          <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
+          <p className="mt-2">This commit–reveal process makes every round transparent, verifiable, and fair.</p>
         </>
       ),
     },
@@ -380,36 +401,23 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </>
       ),
     },
+    // ── Access ────────────────────────────────────────────────────────
     {
-      question: "Do top 10 players earn $WORD too?",
+      question: "Why can't I play? / What are the eligibility requirements?",
       answer: (
         <>
-          <strong>Yes!</strong> In addition to ETH payouts, the Top 10 Early Guessers receive <WordTokenLink>$WORD</WordTokenLink> token rewards distributed via the WordManager contract.
-          <p className="mt-2">The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.</p>
-        </>
-      ),
-    },
-    {
-      question: "How does the $WORD fee distribution work?",
-      answer: (
-        <>
-          The <WordTokenLink>$WORD</WordTokenLink> ecosystem has a built-in fee structure:
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>50%</strong> → Game Treasury (operations, development)</li>
-            <li><strong>25%</strong> → Buyback &amp; Stake (market support)</li>
-            <li><strong>15%</strong> → Player Rewards (bonus/burn/top 10)</li>
-            <li><strong>10%</strong> → Top 10 Referral rewards</li>
-          </ul>
-          <p className="mt-2">View the full tokenomics breakdown in the $WORD sheet.</p>
-        </>
-      ),
-    },
-    {
-      question: "How do I buy $WORD?",
-      answer: (
-        <>
-          Tap the <strong>Buy $WORD</strong> button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
-          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e...fb4b).</p>
+          To prevent bot abuse, players must meet a minimum <strong>Neynar user score of 0.55 or higher</strong>. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+          <p className="mt-2">If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.</p>
+          <p className="mt-2">
+            <a
+              href="https://docs.neynar.com/docs/neynar-user-quality-score#faqs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-600 hover:text-accent-800 underline"
+            >
+              Learn more about Neynar user scores and how to improve them →
+            </a>
+          </p>
         </>
       ),
     },
