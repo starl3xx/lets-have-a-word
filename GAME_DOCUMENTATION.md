@@ -947,17 +947,14 @@ Notification tokens are managed via Neynar webhook:
 1. User adds mini app via `sdk.actions.addFrame()`
 2. Farcaster sends token events to Neynar webhook URL
 3. Neynar stores and manages notification tokens
-4. Use Neynar API to send notifications:
-```typescript
-client.publishFrameNotifications({
-  targetFids: [],  // empty = all users
-  notification: {
-    title: "New Round Started!",
-    body: "A new word is waiting...",
-    target_url: "https://lets-have-a-word.vercel.app",
-  }
-});
-```
+4. Use Neynar API to send notifications via `src/lib/notifications.ts`
+
+**Automated notification events:**
+- **Round start** (`notifyRoundStarted`) — Triggered by `announceRoundStarted()` when a new round begins. Uses 8 randomized templates interpolating round number and jackpot ETH.
+- **Daily reset** (`notifyDailyReset`) — Triggered by Vercel Cron at 11:00 UTC (`/api/cron/daily-notify`). Uses 8 randomized templates with active round context. Skips if no round is active.
+- **Round resolved** (`notifyRoundResolved`) — Triggered when a round is won.
+
+**Neynar API limits:** Title max 50 chars, body max 200 chars. All templates validated against these constraints.
 
 ### SDK Setup
 ```typescript
@@ -1240,12 +1237,16 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 - **Status**: ✅ Complete
 - Announcer bot account: @letshaveaword (FID 1477413)
 - Neynar signer integration
-- Automated announcements:
-  - announceRoundStarted() - New round with hash and verify link
-  - announceRoundResolved() - Winner with verify link and top 10 early guessers
-  - checkAndAnnounceJackpotMilestones() - Prize pool milestones (0.1, 0.25, 0.5, 1.0 ETH)
-  - checkAndAnnounceGuessMilestones() - Guess count milestones (1K, 2K, 3K, 4K)
-  - announceReferralWin() - Referral bonus highlights (threaded reply)
+- Automated announcements (cast + tweet via `recordAndCastAnnouncerEvent()`):
+  - `announceRoundStarted()` - New round with hash and verify link
+  - `announceRoundResolved()` - Winner with verify link and top 10 early guessers
+  - `checkAndAnnounceJackpotMilestones()` - Prize pool milestones (0.1, 0.25, 0.5, 1.0 ETH)
+  - `checkAndAnnounceGuessMilestones()` - Guess count milestones (1K, 2K, 3K, 4K)
+  - `announceReferralWin()` - Referral bonus highlights (threaded reply)
+  - `announceBonusWordFound()` - Bonus word discovery with finder, word, and remaining count
+  - `announceBurnWordFound()` - Burn word discovery with finder, word, and remaining count
+  - `announceWordmarkEarned()` - Wordmark achievement highlights
+- Cross-posting: All casts are also posted to Twitter/X via `src/lib/twitter.ts` (`postTweet()`)
 - Dev mode safety: announcements disabled when NODE_ENV !== 'production'
 - Idempotent via announcer_events table
 
