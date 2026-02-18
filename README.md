@@ -209,13 +209,20 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
-### 2026-02-18 (after Round 13)
+### 2026-02-18 (during Round 14)
 
 - **Automated Notification Templates**: Replaced single hardcoded push notification messages with 8 randomized templates each for round-start and daily-reset notifications. Templates interpolate live round data (round number, jackpot ETH). Added Vercel Cron job (`/api/cron/daily-notify`) running at 11:00 UTC for daily free guess reset notifications.
 - **Burn Word Announcement Automation**: Added cast + tweet announcements when a burn word is found, mirroring the existing bonus word announcement. Posts finder username, the word, and remaining burn words count.
 - **Archive Page Bug Fixes**: Fixed two crashes on `/archive` and `/archive/[roundNumber]` caused by field name mismatches between frontend interfaces and backend API responses (`totalWordTokenDistributed` → `totalWordTokenBonuses`, `wordTokenBonusCount` → `clanktonBonusCount`).
-- **Wordmark Stack Updates**: Reordered badge display (Baker's Dozen now behind Quickdraw). Changed $WORD Holder badge icon from coin image to app logo.
+- **$WORD Whale Badge**: Renamed "$WORD Holder" wordmark to "$WORD Whale". Fixed staked balance inclusion so stakers keep their badge. Fixed `WORD_MANAGER_ADDRESS` trailing newline that broke all WordManager RPC calls.
+- **Burn Word Finders in Round Modal**: Fixed crash in burn-word-finders API caused by referencing non-existent `users.pfpUrl` column in Drizzle query. Burn word finders now display correctly in the round modal.
+- **Game Activity Stats**: Fixed bonus word count showing 0 (was querying `wordRewards` table which was never populated for bonus words). Now queries `roundBonusWords` directly. Filtered to $WORD-era only (excludes legacy CLANKTON claims).
+- **XP Streak Fix**: Replaced raw `sql` template with Drizzle `lt()` operator in `checkAndAwardStreakXp()` — the Date object caused `ERR_INVALID_ARG_TYPE` on every streak check.
+- **User State Race Condition**: Added `onConflictDoNothing()` to user insert to handle concurrent requests for the same new user.
+- **Announcer Username Fix**: Fixed bonus/burn word casts showing `fid:249958` instead of username by using `getUsernameByFid()` with Neynar API fallback.
+- **Game Activity Auto-Refresh**: Added 30-second polling for tokenomics data in $WORD sheet.
 - **FAQ Improvements**: Reordered all 27 FAQ questions into logical grouped sections (Core Gameplay → Guesses & Pricing → Winning & Rewards → Special Words → $WORD Token → Progression & Achievements → Trust & Verification → Access). Removed contract name references (WordManager/JackpotManager) from all answers. Show full $WORD token address instead of truncated.
+- **Wordmark Stack Updates**: Reordered badge display (Baker's Dozen now behind Quickdraw). Changed $WORD Whale badge icon to app logo.
 
 ### 2026-02-17 (after Round 13)
 
