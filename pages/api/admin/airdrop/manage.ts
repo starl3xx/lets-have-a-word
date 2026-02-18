@@ -19,23 +19,17 @@ import { db } from '../../../../src/db';
 import { airdropWallets, airdropDistributions } from '../../../../src/db/schema';
 import { eq, sql, gt, and, isNull } from 'drizzle-orm';
 import { ethers } from 'ethers';
-import { WORD_TOKEN_ADDRESS, getBaseProvider } from '../../../../src/lib/word-token';
+import { WORD_TOKEN_ADDRESS, getBaseProvider, getEffectiveBalance } from '../../../../src/lib/word-token';
 
 const AIRDROP_FLOOR = 200_000_000; // 200M $WORD
 
-const ERC20_BALANCE_ABI = ['function balanceOf(address owner) view returns (uint256)'];
-
 /**
- * Get raw $WORD token balance for airdrop tracking.
- * Uses direct ERC-20 balanceOf — NOT the WordManager, which returns 0 for
- * wallets that have never interacted with the game contract.
- * Throws on error (no silent 0s).
+ * Get $WORD token balance for airdrop tracking (wallet + staked).
+ * Delegates to getEffectiveBalance() which tries WordManager first,
+ * then falls back to balanceOf() + stakedBalance().
  */
 async function getAirdropBalance(walletAddress: string): Promise<number> {
-  const provider = getBaseProvider();
-  const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_BALANCE_ABI, provider);
-  const balance = await contract.balanceOf(walletAddress);
-  return parseFloat(ethers.formatUnits(balance, 18));
+  return getEffectiveBalance(walletAddress);
 }
 
 /**
