@@ -60,10 +60,10 @@ export default function WordmarkStack({
   }
 
   // Helper to check if overlap should be applied (any previous wordmark is shown)
-  // Order: OG Hunter, Patron, Quickdraw, Encyclopedic, Baker's Dozen, Side Quest, Arsonist, Double Dub, $WORD, Jackpot Winner
+  // Order: OG Hunter, Patron, Baker's Dozen, Quickdraw, Encyclopedic, Side Quest, Arsonist, Double Dub, $WORD, Jackpot Winner
   // Jackpot Winner is rightmost/highest z-index as the most prestigious achievement
   const shouldOverlap = (position: number): boolean => {
-    const orderedChecks = [hasOgHunter, hasPatron, hasQuickdraw, hasEncyclopedic, hasBakersDozen, hasBonusWordFinder, hasBurnWordFinder, hasDoubleW, hasWordTokenHolder, hasJackpotWinner];
+    const orderedChecks = [hasOgHunter, hasPatron, hasBakersDozen, hasQuickdraw, hasEncyclopedic, hasBonusWordFinder, hasBurnWordFinder, hasDoubleW, hasWordTokenHolder, hasJackpotWinner];
     return orderedChecks.slice(0, position).some(Boolean);
   };
 
@@ -95,10 +95,22 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Quickdraw (position 3) */}
+      {/* Baker's Dozen (position 3) */}
+      {hasBakersDozen && (
+        <div
+          className={`${config.wordmark} bg-orange-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[30] ${shouldOverlap(2) ? config.overlap : ''}`}
+          style={{ boxShadow: '0 0 0 1px #fdba74' }}
+          onMouseEnter={() => setTooltipText('Baker\'s Dozen')}
+          onTouchStart={() => setTooltipText('Baker\'s Dozen')}
+        >
+          <span role="img" aria-label="Baker's Dozen">🍩</span>
+        </div>
+      )}
+
+      {/* Quickdraw (position 4) */}
       {hasQuickdraw && (
         <div
-          className={`${config.wordmark} bg-emerald-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[30] ${shouldOverlap(2) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-emerald-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[40] ${shouldOverlap(3) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #6ee7b7' }}
           onMouseEnter={() => setTooltipText('Quickdraw')}
           onTouchStart={() => setTooltipText('Quickdraw')}
@@ -107,27 +119,15 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* Encyclopedic (position 4) */}
+      {/* Encyclopedic (position 5) */}
       {hasEncyclopedic && (
         <div
-          className={`${config.wordmark} bg-sky-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[40] ${shouldOverlap(3) ? config.overlap : ''}`}
+          className={`${config.wordmark} bg-sky-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[45] ${shouldOverlap(4) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #7dd3fc' }}
           onMouseEnter={() => setTooltipText('Encyclopedic')}
           onTouchStart={() => setTooltipText('Encyclopedic')}
         >
           <span role="img" aria-label="Encyclopedic">📚</span>
-        </div>
-      )}
-
-      {/* Baker's Dozen (position 5) */}
-      {hasBakersDozen && (
-        <div
-          className={`${config.wordmark} bg-orange-100 rounded-full flex items-center justify-center ${config.fontSize} relative z-[45] ${shouldOverlap(4) ? config.overlap : ''}`}
-          style={{ boxShadow: '0 0 0 1px #fdba74' }}
-          onMouseEnter={() => setTooltipText('Baker\'s Dozen')}
-          onTouchStart={() => setTooltipText('Baker\'s Dozen')}
-        >
-          <span role="img" aria-label="Baker's Dozen">🍩</span>
         </div>
       )}
 
