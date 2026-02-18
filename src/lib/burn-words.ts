@@ -343,11 +343,11 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
   const finderFids = foundBurnWords.map(bw => bw.finderFid!);
 
   // Fetch user data for all finders
+  // Note: pfpUrl is NOT a DB column — use avatar fallback
   const userRecords = await db
     .select({
       fid: users.fid,
       username: users.username,
-      pfpUrl: users.pfpUrl,
       signerWalletAddress: users.signerWalletAddress,
     })
     .from(users)
@@ -406,7 +406,7 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     return {
       fid,
       username: user?.username || `fid:${fid}`,
-      pfpUrl: user?.pfpUrl || null,
+      pfpUrl: `https://avatar.vercel.sh/${fid}`,
       word: decryptedWord,
       burnAmount: bw.burnAmount,
       txHash: bw.txHash,
