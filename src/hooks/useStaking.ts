@@ -5,13 +5,14 @@
  * Follows the same useWriteContract + useWaitForTransactionReceipt pattern
  * as usePurchaseGuesses.ts.
  *
- * Stake flow is two-step: approve ERC-20 spend, then call stake().
+ * Stake flow: checks allowance first, skips approve if sufficient.
+ * Approve uses MAX_UINT256 so subsequent stakes never re-approve.
  * Withdraw and claimRewards are single-call operations.
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits, toHex } from 'viem';
+import { useWriteContract, useWaitForTransactionReceipt, useAccount, useReadContract } from 'wagmi';
+import { parseUnits, toHex, maxUint256 } from 'viem';
 import { base } from 'wagmi/chains';
 
 // Base Builder Code for attribution
@@ -34,6 +35,16 @@ const ERC20_ABI = [
       { name: 'amount', type: 'uint256' },
     ],
     outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
   },
 ] as const;
 
@@ -102,6 +113,17 @@ export function useStaking(): UseStakingReturn {
   // Track the final tx hash (stake/withdraw/claim, not approve)
   const [finalTxHash, setFinalTxHash] = useState<`0x${string}` | undefined>(undefined);
 
+  const { address: userAddress } = useAccount();
+
+  // Read current allowance to skip approve when sufficient
+  const { data: currentAllowance, refetch: refetchAllowance } = useReadContract({
+    address: WORD_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: userAddress && WORD_MANAGER_ADDRESS ? [userAddress, WORD_MANAGER_ADDRESS] : undefined,
+    query: { enabled: !!userAddress && !!WORD_MANAGER_ADDRESS },
+  });
+
   const {
     writeContract,
     data: txHash,
@@ -132,10 +154,11 @@ export function useStaking(): UseStakingReturn {
     prevReceiptSuccess.current = true;
 
     if (phase === 'approve-confirming' && pendingStakeAmount !== null) {
-      // Approve confirmed — now call stake()
+      // Approve confirmed — now call stake() after a delay for RPC propagation.
+      // Farcaster's wallet pre-simulates txs against its own RPC node; without
+      // this delay, the simulation may not see the new allowance yet.
       setPhase('staking');
       resetWrite();
-      // Small delay to let resetWrite propagate
       setTimeout(() => {
         writeContract({
           address: WORD_MANAGER_ADDRESS,
@@ -145,11 +168,13 @@ export function useStaking(): UseStakingReturn {
           chainId: base.id,
           dataSuffix: toHex(BASE_BUILDER_CODE),
         });
-      }, 100);
+      }, 3000);
     } else if (phase === 'stake-confirming' || phase === 'withdraw-confirming' || phase === 'claim-confirming') {
       // Final action confirmed
       setFinalTxHash(txHash);
       setPhase('success');
+      // Refresh allowance for next stake
+      refetchAllowance();
       // Fire audit trail (non-blocking)
       if (txHash && currentAction) {
         fetch('/api/word-staking', {
@@ -163,7 +188,7 @@ export function useStaking(): UseStakingReturn {
         }).catch(() => {}); // Fire-and-forget
       }
     }
-  }, [isReceiptSuccess, phase, pendingStakeAmount, txHash, currentAction, resetWrite, writeContract]);
+  }, [isReceiptSuccess, phase, pendingStakeAmount, txHash, currentAction, resetWrite, writeContract, refetchAllowance]);
 
   // Track write pending → confirming transitions
   useEffect(() => {
@@ -203,18 +228,32 @@ export function useStaking(): UseStakingReturn {
     const amountWei = parseUnits(amountWhole, 18);
     setPendingStakeAmount(amountWei);
     setCurrentAction('stake');
-    setPhase('approving');
     prevReceiptSuccess.current = false;
 
-    // Step 1: Approve WordManager to spend $WORD tokens
+    // Skip approve if allowance is already sufficient
+    if (currentAllowance !== undefined && currentAllowance >= amountWei) {
+      setPhase('staking');
+      writeContract({
+        address: WORD_MANAGER_ADDRESS,
+        abi: WORD_MANAGER_ABI,
+        functionName: 'stake',
+        args: [amountWei],
+        chainId: base.id,
+        dataSuffix: toHex(BASE_BUILDER_CODE),
+      });
+      return;
+    }
+
+    // Need to approve first — use MAX_UINT256 so future stakes skip approve
+    setPhase('approving');
     writeContract({
       address: WORD_TOKEN_ADDRESS,
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [WORD_MANAGER_ADDRESS, amountWei],
+      args: [WORD_MANAGER_ADDRESS, maxUint256],
       chainId: base.id,
     });
-  }, [writeContract]);
+  }, [writeContract, currentAllowance]);
 
   const withdraw = useCallback((amountWhole: string) => {
     setConfigError(null);
