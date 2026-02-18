@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveRound } from '../../../src/lib/rounds';
 import { getCurrentJackpotOnChain } from '../../../src/lib/jackpot-contract';
 import { notifyDailyReset } from '../../../src/lib/notifications';
+import { formatEth } from '../../../src/lib/announcer';
 
 /**
  * GET/POST /api/cron/daily-notify
@@ -55,11 +56,10 @@ export default async function handler(
     // Read jackpot from onchain contract
     let jackpotEth: string;
     try {
-      const raw = await getCurrentJackpotOnChain();
-      jackpotEth = parseFloat(raw).toFixed(4).replace(/\.?0+$/, '');
+      jackpotEth = formatEth(await getCurrentJackpotOnChain());
     } catch (err) {
       console.error('[CRON] Failed to read jackpot from contract, using DB value:', err);
-      jackpotEth = parseFloat(activeRound.prizePoolEth).toFixed(4).replace(/\.?0+$/, '');
+      jackpotEth = formatEth(activeRound.prizePoolEth);
     }
 
     const result = await notifyDailyReset(roundNumber, jackpotEth);

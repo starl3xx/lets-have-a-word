@@ -208,7 +208,7 @@ export async function recordAndCastAnnouncerEvent(params: AnnouncerEventParams) 
 /**
  * Format ETH amount for display (remove trailing zeros)
  */
-function formatEth(eth: string | number): string {
+export function formatEth(eth: string | number): string {
   const num = typeof eth === 'string' ? parseFloat(eth) : eth;
   return num.toFixed(4).replace(/\.?0+$/, '');
 }
