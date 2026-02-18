@@ -1,4 +1,4 @@
-import { db, guesses, users, rounds, roundBonusWords, roundBurnWords, bonusWordClaims, userBadges, xpEvents } from '../db';
+import { db, guesses, users, rounds, roundBonusWords, roundBurnWords, bonusWordClaims, userBadges, xpEvents, wordRewards } from '../db';
 import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
@@ -389,6 +389,16 @@ async function handleBonusWordWin(
         txHash,
         txStatus: 'confirmed',
         confirmedAt: new Date(),
+      });
+
+      // Record in word_rewards audit trail (for tokenomics stats)
+      await db.insert(wordRewards).values({
+        roundId,
+        fid,
+        rewardType: 'bonus_word',
+        amount: BONUS_WORD_TOKEN_AMOUNT,
+        word,
+        txHash,
       });
     } catch (error) {
       console.error('[guesses] ❌ Failed to distribute $WORD:', error);
