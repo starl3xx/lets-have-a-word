@@ -12,7 +12,7 @@
 
 import { neynarClient } from './farcaster';
 import { db } from '../db';
-import { announcerEvents, rounds, roundPayouts, users, roundBonusWords } from '../db/schema';
+import { announcerEvents, rounds, roundPayouts, users, roundBonusWords, roundBurnWords } from '../db/schema';
 import { eq, and, sql, count, isNull } from 'drizzle-orm';
 import type { RoundRow, RoundPayoutRow } from '../db/schema';
 import { getPlaintextAnswer } from './encryption';
@@ -719,6 +719,67 @@ Play now 👉 letshaveaword.fun`;
     eventType: 'bonus_word_found',
     roundId,
     milestoneKey: `bonus_${word.toUpperCase()}`,
+    text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}
+
+/**
+ * Announce a burn word discovery via cast + tweet
+ * @param roundId - The round ID
+ * @param finderFid - FID of the user who found the burn word
+ * @param word - The burn word that was found
+ */
+export async function announceBurnWordFound(
+  roundId: number,
+  finderFid: number,
+  word: string
+) {
+  // Get user info for the announcement
+  let username = `fid:${finderFid}`;
+  try {
+    const userResult = await db
+      .select({ username: users.username })
+      .from(users)
+      .where(eq(users.fid, finderFid))
+      .limit(1);
+
+    if (userResult[0]?.username) {
+      username = userResult[0].username;
+    }
+  } catch (error) {
+    console.error('[announcer] Error fetching user for burn word announcement:', error);
+  }
+
+  // Get count of remaining burn words
+  let remainingCount = 0;
+  try {
+    const unclaimedResult = await db
+      .select({ count: count() })
+      .from(roundBurnWords)
+      .where(
+        and(
+          eq(roundBurnWords.roundId, roundId),
+          isNull(roundBurnWords.finderFid)
+        )
+      );
+    remainingCount = unclaimedResult[0]?.count ?? 0;
+  } catch (error) {
+    console.error('[announcer] Error getting remaining burn words count:', error);
+  }
+
+  const text = `🔥 @${username} found a burn word — 5M $WORD permanently destroyed!
+
+The word was "${word.toUpperCase()}"
+
+${remainingCount} burn words remaining this round
+
+Play now 👉 letshaveaword.fun`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'burn_word_found',
+    roundId,
+    milestoneKey: `burn_${word.toUpperCase()}`,
     text,
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });

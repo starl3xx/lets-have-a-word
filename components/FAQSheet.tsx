@@ -216,7 +216,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Do top 10 players earn $WORD too?",
       answer: (
         <>
-          <strong>Yes!</strong> In addition to ETH payouts, the Top 10 Early Guessers receive <WordTokenLink>$WORD</WordTokenLink> token rewards distributed via the WordManager contract.
+          <strong>Yes!</strong> In addition to ETH payouts, the Top 10 Early Guessers receive <WordTokenLink>$WORD</WordTokenLink> token rewards distributed automatically.
           <p className="mt-2">The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.</p>
         </>
       ),
@@ -236,7 +236,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Each round has <strong>10 hidden bonus words</strong>, randomly selected from the full word list. If your guess matches one, you receive <strong>5M <WordTokenLink>$WORD</WordTokenLink> tokens</strong> (or 2.5M when market cap is above $150K) sent directly to your wallet, plus <strong>+250 XP</strong> and the <strong>Side Quest</strong> wordmark.
-          <p className="mt-2">Bonus words are committed onchain as keccak256 hashes before the round starts, so they can't be changed mid-round. The contract verifies your guess against the committed hash before releasing tokens.</p>
+          <p className="mt-2">Bonus words are committed onchain before the round starts, so they can't be changed mid-round. Your guess is verified against the committed hash before tokens are released.</p>
         </>
       ),
     },
@@ -245,7 +245,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Each round has <strong>5 hidden burn words</strong>, randomly selected from the full word list. When you guess a burn word, <strong>5M $WORD tokens are permanently destroyed</strong> (burned), reducing the total supply forever. You don't receive any $WORD for finding one, but you earn <strong>+100 XP</strong> and the <strong>Arsonist</strong> wordmark.
-          <p className="mt-2">Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word before executing the burn.</p>
+          <p className="mt-2">Like bonus words, burn words are committed onchain before the round starts. Your guess is verified against the committed hash before the burn executes.</p>
         </>
       ),
     },
@@ -312,7 +312,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Tap the <strong>Buy $WORD</strong> button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
-          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e...fb4b).</p>
+          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e649e69979298BD1AEE63e175ADf07885fb4b).</p>
         </>
       ),
     },
@@ -375,7 +375,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Before each round begins, Let's Have A Word <strong>commits onchain</strong> to all <strong>16 words</strong> — the secret word, 10 bonus words, and 5 burn words — using cryptographic hashes.
-          <p className="mt-2">The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManager contract. These commitments guarantee that <strong>no words can be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. Words are only revealed after they're found or the round ends.</p>
+          <p className="mt-2">The secret word is committed as a SHA-256 hash (with a hidden salt), and the 15 bonus and burn words are committed as keccak256 hashes. These onchain commitments guarantee that <strong>no words can be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. Words are only revealed after they're found or the round ends.</p>
           <p className="mt-2">When a round ends:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>The secret word and salt are revealed by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink></li>
@@ -389,15 +389,15 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
-      question: "What is the WordManager contract?",
+      question: "How does the game work onchain?",
       answer: (
         <>
-          Let's Have A Word uses <strong>two smart contracts on Base</strong> to handle different parts of the game's onchain mechanics:
+          Let's Have A Word uses <strong>smart contracts on Base</strong> to handle the game's core mechanics:
           <ul className="list-disc list-inside mt-2 space-y-2">
-            <li><strong>JackpotManager</strong> — Manages ETH prize pools, payouts, and the secret word's SHA-256 commitment. When a round is won, this contract distributes the jackpot, Top 10 rewards, referrer share, and next round seed in a single atomic transaction.</li>
-            <li><strong>WordManager</strong> — Manages $WORD token mechanics including bonus word rewards, burn word destruction, keccak256 word commitments, and Synthetix-style streaming staking rewards. All 15 bonus and burn words are committed to this contract before a round starts. When a player finds one, the contract verifies the guess against the committed hash before releasing or burning tokens.</li>
+            <li><strong>ETH prize pools</strong> — Jackpot payouts, Top 10 rewards, referrer shares, and next-round seeding are all handled in a single atomic transaction when a round is won.</li>
+            <li><strong>$WORD token mechanics</strong> — Bonus word rewards, burn word destruction, word commitments, and streaming staking rewards are all managed onchain. All 15 bonus and burn words are committed before a round starts, and each guess is verified against the committed hash before tokens are released or burned.</li>
           </ul>
-          <p className="mt-2">Together, these contracts ensure that both ETH prizes and $WORD token mechanics are handled transparently onchain.</p>
+          <p className="mt-2">This ensures that both ETH prizes and $WORD token mechanics are handled transparently onchain.</p>
         </>
       ),
     },
