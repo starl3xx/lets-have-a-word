@@ -2259,6 +2259,11 @@ Wordmarks are permanent, collectible badges awarded for in-game achievements. Th
 | `ENCYCLOPEDIC` | Encyclopedic | Guessed words starting with every letter A–Z |
 | `BAKERS_DOZEN` | Baker's Dozen | Guessed words starting with 13 different letters, on 13 different days (only the first guess of each day counts) |
 
+**Runtime badges** (not stored in `user_badges`, checked live):
+| Badge | Display Name | Trigger |
+|-------|-------------|---------|
+| (live) | $WORD Whale | Holds $WORD tokens at tier 1+ (wallet + staked balance) |
+
 **Implementation:**
 - Definitions: `src/lib/wordmarks.ts`
 - Display component: `components/WordmarkStack.tsx`
@@ -3670,77 +3675,41 @@ export default async function handler(req, res) {
 
 ### Overview
 
-$WORD token holders receive bonus daily guesses as a loyalty reward. The bonus amount scales with the token's market cap.
+$WORD token holders receive bonus daily guesses as a loyalty reward. The bonus tier (0–3) is determined by a matrix of token balance × market cap. Holders also display the "$WORD Whale" badge on leaderboards and profile pages (a runtime badge based on live balance, not stored in `user_badges`).
 
-### Market Cap Tiers
+**Token Contract:** `0x304e649e69979298BD1AEE63e175ADf07885fb4b` (Base)
 
-| Market Cap       | Bonus Guesses | Min Balance |
-|------------------|---------------|-------------|
-| < $250,000       | +2/day        | 100M tokens |
-| >= $250,000      | +3/day        | 100M tokens |
+### Tier Matrix (Milestone 14)
 
-**Token Contract:** `0x1D008f50FB828eF9DEBBBEaE1b71fFFE929bf317` (Base)
+Balance thresholds scale inversely with market cap — as the token grows in value, fewer tokens are needed to qualify:
 
-### Oracle Freshness Rules
+| Market Cap | Tier 1 (+1/day) | Tier 2 (+2/day) | Tier 3 (+3/day) |
+|------------|-----------------|-----------------|-----------------|
+| < $150K | 100M tokens | 200M tokens | 300M tokens |
+| $150K–$300K | 50M tokens | 100M tokens | 150M tokens |
+| >= $300K | 25M tokens | 50M tokens | 75M tokens |
 
-The $WORD oracle verifies holder status with specific freshness requirements:
+Configuration: `config/economy.ts` → `HOLDER_TIER_MATRIX`, `getHolderTierThresholds()`
 
-1. **Check Frequency**: Balance checked on first action of day
-2. **Cache Duration**: 24 hours (same as daily reset)
-3. **Fallback**: If oracle unavailable, use last known status
-4. **Refresh Trigger**: Wallet reconnection forces fresh check
+### Effective Balance
 
-### Implementation
+Balance includes both wallet and staked $WORD via `getEffectiveBalance()` in `src/lib/word-token.ts`:
 
-**Balance Check** (`src/lib/word-token.ts`):
-```typescript
-const WORD_MIN_BALANCE = 100_000_000n; // 100M tokens
+1. **Primary path**: `WordManager.getEffectiveBalance(address)` — returns wallet + staked in one call
+2. **Fallback**: `ERC20.balanceOf(address) + WordManager.stakedBalance(address)` — if the primary call fails
 
-export async function hasWordTokenBonus(walletAddress: string): Promise<boolean> {
-  try {
-    const balance = await publicClient.readContract({
-      address: WORD_TOKEN_ADDRESS,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [walletAddress],
-    });
+### $WORD Whale Badge
 
-    return balance >= WORD_MIN_BALANCE;
-  } catch (error) {
-    console.error('[word-token] Balance check failed:', error);
-    return false; // Conservative fallback
-  }
-}
-```
+The "$WORD Whale" badge is a **runtime badge** (not stored in `user_badges`). It appears on leaderboards and round modals when `hasWordTokenBonus(wallet)` returns true (tier >= 1). The check runs via `Promise.allSettled` in the top-guessers endpoint so RPC failures don't block the response.
 
-**Market Cap Check** (via CoinGecko or DEX):
-```typescript
-export async function getWordBonusTier(): Promise<number> {
-  const marketCap = await getWordMarketCap();
-  return marketCap >= 250_000 ? 3 : 2;
-}
-```
+Display: `components/WordmarkStack.tsx` (position 9, z-index 70)
 
 ### Fallback Behavior
 
-1. **Oracle Down**: Use database-cached `wordBonusActive` status
-2. **Wallet Not Connected**: No $WORD bonus (cannot verify)
-3. **API Error**: Log error, continue with conservative (no bonus) default
+1. **WordManager RPC failure**: Falls back to `balanceOf() + stakedBalance()`
+2. **All RPC failures**: Conservative default (no bonus, no badge)
+3. **Wallet Not Connected**: No $WORD bonus (cannot verify)
 4. **Dev Mode**: Uses real wallet check when wallet connected
-
-### User State Fields
-
-```json
-{
-  "wordBonusActive": true,
-  "isWordHolder": true,
-  "freeAllocations": {
-    "base": 1,
-    "wordToken": 2,  // or 3 at higher market cap
-    "shareBonus": 0
-  }
-}
-```
 
 ---
 
