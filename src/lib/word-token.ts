@@ -81,15 +81,28 @@ export async function getEffectiveBalance(walletAddress: string): Promise<number
         const wholeTokens = parseFloat(ethers.formatUnits(balance, 18));
         return wholeTokens;
       } catch (err) {
-        console.warn('[$WORD] WordManager.getEffectiveBalance() failed, falling back to balanceOf():', err);
+        console.warn('[$WORD] WordManager.getEffectiveBalance() failed, falling back to balanceOf + stakedBalance:', err);
       }
     }
 
-    // Fallback: raw ERC-20 balanceOf
+    // Fallback: raw ERC-20 balanceOf + staked balance from WordManager
     const provider = getBaseProvider();
     const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
-    const balance = await contract.balanceOf(walletAddress);
-    return parseFloat(ethers.formatUnits(balance, 18));
+    const walletBalance = await contract.balanceOf(walletAddress);
+    let stakedBalance = 0n;
+    if (wordManagerAddress && wordManagerAddress !== '') {
+      try {
+        const wordManager = new ethers.Contract(
+          wordManagerAddress,
+          ['function stakedBalance(address) view returns (uint256)'],
+          provider
+        );
+        stakedBalance = await wordManager.stakedBalance(walletAddress);
+      } catch {
+        // stakedBalance unavailable — use wallet balance only
+      }
+    }
+    return parseFloat(ethers.formatUnits(walletBalance + stakedBalance, 18));
   } catch (error) {
     console.error(`[$WORD] Error getting effective balance for ${walletAddress}:`, error);
     return 0;
