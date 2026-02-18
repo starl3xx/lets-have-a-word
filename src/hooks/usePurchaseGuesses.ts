@@ -7,12 +7,13 @@
 
 import { useState, useCallback } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther, toHex } from 'viem';
+import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
 
-// Base Builder Code for attribution
-// This gets appended to transaction data so Base can attribute activity to this app
-const BASE_BUILDER_CODE = 'bc_lul4sldw';
+// ERC-8021 attribution suffix for Base Builder Code "bc_lul4sldw"
+// Format: [codesLength(1)] [codes(N)] [schemaId(1)] [marker(16)]
+// See https://docs.base.org/base-chain/quickstart/builder-codes
+const ERC_8021_SUFFIX = '0x0b62635f6c756c34736c64770080218021802180218021802180218021' as `0x${string}`;
 
 // JackpotManager contract ABI (minimal - just purchaseGuesses)
 const JACKPOT_MANAGER_ABI = [
@@ -119,7 +120,7 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
       value: parseEther(params.totalPriceEth),
       chainId: base.id,
       // Append Base Builder Code for attribution tracking
-      dataSuffix: toHex(BASE_BUILDER_CODE),
+      dataSuffix: ERC_8021_SUFFIX,
     });
   }, [writeContract]);
 
