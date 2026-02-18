@@ -85,7 +85,7 @@ One secret word. One winner. Provably fair.
                   │(UUPS)    │
                   ├──────────┤
                   │Word      │
-                  │ManagerV2 │
+                  │ManagerV3 │
                   └──────────┘
 ```
 

@@ -96,6 +96,12 @@ Holding [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e699792
 
 Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.
 
+## What is $WORD?
+
+$WORD is the native token of Let's Have A Word. It powers the game's economy through holder bonuses, burn mechanics, and staking rewards.
+
+Tap the **$WORD** button in the nav bar to view your balance, staking, and tokenomics.
+
 ## How does the $WORD token work in-game?
 
 $WORD is the game's token on Base. It ties into gameplay in a few ways:
@@ -104,7 +110,7 @@ $WORD is the game's token on Base. It ties into gameplay in a few ways:
 - **Bonus word rewards**: Find a bonus word and receive 5M $WORD
 - **Burn word deflation**: Burn words permanently destroy 5M $WORD from the supply
 - **Top 10 $WORD rewards**: The top 10 guessers in each round earn $WORD payouts in addition to ETH
-- **Staking**: Coming soon
+- **Staking**: Lock your $WORD in the WordManager contract to earn streaming staking rewards
 
 ## How does the share bonus work?
 
@@ -222,7 +228,45 @@ While there are 12,000+ five-letter entries if you include every possible dictio
 
 ## What is XP for?
 
-XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don't really know yet, tbh.
+XP boosts your staking rewards. Your lifetime XP determines your **staking tier**, which multiplies the $WORD you earn from staking:
+
+- **Passive** (0 XP) — 1.00x multiplier
+- **Bronze** (1,000 XP) — 1.15x multiplier
+- **Silver** (5,000 XP) — 1.35x multiplier
+- **Gold** (15,000 XP) — 1.60x multiplier
+
+XP may unlock additional perks in the future.
+
+## What is $WORD staking?
+
+Staking lets you lock your $WORD tokens in the WordManager contract to earn streaming staking rewards. Rewards are distributed proportionally to all stakers every second during active reward periods.
+
+Staked tokens count toward your **effective balance** for holder tier calculations, so staking can help you reach a higher bonus tier without buying more tokens.
+
+Manage staking from the $WORD sheet (tap $WORD in the nav).
+
+## Do top 10 players earn $WORD too?
+
+**Yes!** In addition to ETH payouts, the Top 10 Early Guessers receive $WORD token rewards distributed via the WordManager contract.
+
+The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.
+
+## How does the $WORD fee distribution work?
+
+The $WORD ecosystem has a built-in fee structure:
+
+- **50%** → Game Treasury (operations, development)
+- **25%** → Buyback & Stake (market support)
+- **15%** → Player Rewards (bonus/burn/top 10)
+- **10%** → Top 10 Referral rewards
+
+View the full tokenomics breakdown in the $WORD sheet.
+
+## How do I buy $WORD?
+
+Tap the **Buy $WORD** button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
+
+$WORD is an ERC-20 token on Base (address: 0x304e649e69979298BD1AEE63e175ADf07885fb4b).
 
 ## Can I play outside of Farcaster?
 
