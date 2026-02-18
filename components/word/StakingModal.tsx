@@ -119,7 +119,12 @@ export default function StakingModal({
   // Stops ticking once periodFinish is reached (mirrors on-chain lastTimeRewardApplicable)
   useEffect(() => {
     const stakedNum = parseFloat(stakedBalance) || 0;
-    if (stakedNum === 0) return;
+    if (stakedNum === 0) {
+      // Not staking — show static prop value, stop ticking
+      setDisplayedRewards(parseFloat(unclaimedRewards) || 0);
+      rewardBaselineRef.current = { amount: parseFloat(unclaimedRewards) || 0, time: Date.now() };
+      return;
+    }
 
     // rewardRate is in wei/second; convert to whole tokens/second
     const ratePerSecond = parseFloat(rewardRate) / 1e18;
