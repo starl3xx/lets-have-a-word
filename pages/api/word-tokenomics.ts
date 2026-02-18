@@ -13,7 +13,7 @@ import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD } from '../../config/economy';
 import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
 import { db } from '../../src/db';
-import { wordRewards } from '../../src/db/schema';
+import { wordRewards, bonusWordClaims } from '../../src/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
 export interface WordTokenomicsResponse {
@@ -97,8 +97,8 @@ export default async function handler(
       }).from(wordRewards).where(eq(wordRewards.rewardType, 'burn')),
       db.select({
         count: sql<number>`count(*)`,
-        total: sql<string>`coalesce(sum(cast(amount as numeric)), 0)`,
-      }).from(wordRewards).where(eq(wordRewards.rewardType, 'bonus_word')),
+        total: sql<string>`coalesce(sum(cast(clankton_amount as numeric)), 0)`,
+      }).from(bonusWordClaims).where(eq(bonusWordClaims.txStatus, 'confirmed')),
     ]);
 
     const burnCount = Number(burnStats[0]?.count ?? 0);

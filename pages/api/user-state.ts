@@ -177,7 +177,7 @@ export default async function handler(
           custodyAddress: farcasterUser?.custodyAddress || null,
           spamScore: farcasterUser?.spamScore || 0,
           referrerFid: validReferrerFid,
-        });
+        }).onConflictDoNothing();
         if (validReferrerFid) {
           console.log(`[Referral] ✅ Created new user FID ${fid} with referrer FID ${validReferrerFid}`);
         } else {

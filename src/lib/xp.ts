@@ -8,7 +8,7 @@
 
 import { db } from '../db';
 import { xpEvents, users, dailyGuessState } from '../db/schema';
-import { eq, and, sql, desc, gte } from 'drizzle-orm';
+import { eq, and, sql, desc, gte, lt } from 'drizzle-orm';
 import type { XpEventType, XpEvent } from '../types';
 import { XP_VALUES } from '../types';
 import type { XpEventInsert } from '../db/schema';
@@ -344,7 +344,7 @@ export async function checkAndAwardStreakXp(
           eq(xpEvents.fid, fid),
           eq(xpEvents.eventType, 'DAILY_PARTICIPATION'),
           gte(xpEvents.createdAt, yesterdayStart),
-          sql`${xpEvents.createdAt} < ${todayStart}`
+          lt(xpEvents.createdAt, todayStart)
         )
       )
       .limit(1);

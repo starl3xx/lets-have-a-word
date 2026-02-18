@@ -342,6 +342,8 @@ export default async function handler(
         for (const result of wordTokenResults) {
           if (result.status === 'fulfilled' && result.value.hasWordToken) {
             wordTokenHolders.add(result.value.fid);
+          } else if (result.status === 'rejected') {
+            console.warn('[top-guessers] $WORD balance check failed:', result.reason);
           }
         }
 
