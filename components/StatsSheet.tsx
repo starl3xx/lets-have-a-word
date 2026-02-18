@@ -95,12 +95,16 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
     if (!stats) return;
 
     try {
-      const castText = `My Let's Have A Word! stats:\n\n` +
+      const totalWordEarned = Number(stats.totalWordEarned || '0').toLocaleString();
+    const castText = `My Let's Have A Word! stats:\n\n` +
         `🎯 ${stats.guessesAllTime} total guesses (${stats.paidGuessesAllTime} paid)\n` +
         `🏆 ${stats.jackpotsWon} jackpots won\n` +
+        `🎣 ${stats.bonusWordsFound || 0} Bonus words found\n` +
+        `🔥 ${stats.burnWordsFound || 0} Burn words found\n` +
         `🔝 ${stats.topGuesserPlacements} Top 10 early guessers\n` +
         `🤝 ${stats.referralWins} referral wins\n` +
         `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH earned\n` +
+        `🪙 ${totalWordEarned} $WORD earned\n` +
         `⚡ ${xp.toLocaleString()} XP\n\n` +
         `@letshaveaword`;
 
@@ -362,25 +366,24 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
               <p className="text-5xl font-extrabold text-accent-900 tabular-nums">{xp.toLocaleString()}</p>
             </div>
 
-            {/* Coming Soon Message */}
+            {/* XP Utility: Staking Boost */}
             <div className="section-card bg-brand-50 border-2 border-brand-200">
               <h3 className="text-base font-semibold text-brand-900 text-center">
-                Coming soon?
+                XP boosts staking rewards
               </h3>
               <div className="text-sm text-brand-700 space-y-2">
                 <p>
-                  XP is currently being tracked but doesn't unlock any features yet.
+                  XP determines your staking reward multiplier. Stake $WORD tokens to earn streaming rewards, and your XP tier boosts your yield:
                 </p>
-                <p className="font-medium">
-                  Future updates may include:
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-xs text-brand-600">
-                  <li>XP-based progression system</li>
-                  <li>Leaderboards and rankings</li>
-                  <li>Unlockable rewards and bonuses</li>
-                  <li>Achievement badges</li>
-                  <li>Special perks for high-XP players</li>
+                <ul className="list-none space-y-1 text-xs text-brand-600">
+                  <li><strong>Passive</strong> (0 XP) — 1.0x base rate</li>
+                  <li><strong>Bronze</strong> (1,000 XP) — 1.15x rewards</li>
+                  <li><strong>Silver</strong> (5,000 XP) — 1.35x rewards</li>
+                  <li><strong>Gold</strong> (15,000 XP) — 1.6x rewards</li>
                 </ul>
+                <p className="text-xs text-brand-500 mt-1">
+                  More XP utility may be added in future updates.
+                </p>
               </div>
             </div>
 
@@ -395,6 +398,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 <li><strong>+15 XP</strong> — Sharing to Farcaster/Base</li>
                 <li><strong>+20 XP</strong> — Referred user makes first guess</li>
                 <li><strong>+20 XP</strong> — Buying a guess pack</li>
+                <li><strong>+50 XP</strong> — Finding a Bonus word</li>
                 <li><strong>+50 XP</strong> — Top 10 guesser placement</li>
                 <li><strong>+2,500 XP</strong> — Winning the jackpot</li>
               </ul>

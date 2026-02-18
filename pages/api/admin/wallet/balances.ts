@@ -13,6 +13,8 @@ import { refunds, rounds } from '../../../../src/db/schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { SEED_CAP_ETH } from '../../../../src/lib/economics';
 import { FEE_RECIPIENTS, WETH_ADDRESS_BASE, USDC_ADDRESS_BASE, WORD_ADDRESS_BASE } from '../../../../src/lib/fee-recipients';
+import { getWordManagerAddress, getRewardInfo } from '../../../../src/lib/word-manager';
+import { getTop10WordAmounts, BONUS_WORDS_PER_ROUND, BURN_WORDS_PER_ROUND, getBonusWordRewardAmount, BURN_WORD_AMOUNT } from '../../../../config/economy';
 
 // Minimum seed target for next round
 // Treasury funds below this threshold prioritize seeding rounds
@@ -68,6 +70,16 @@ export interface WalletBalancesResponse {
       usdc: string;
       word: string;
     };
+  };
+  wordManager?: {
+    address: string;
+    totalBalance: string;
+    stakedByUsers: string;
+    reservedForStaking: string;
+    availableForGames: string;
+    roundsAvailable: number;
+    stakingPeriodActive: boolean;
+    stakingPeriodEnds: string | null;
   };
   pendingRefunds: {
     count: number;
@@ -189,6 +201,64 @@ export default async function handler(
       console.warn('[admin/wallet/balances] Fee recipient balance fetch failed:', err);
     }
 
+    // Fetch WordManager contract data
+    let wordManagerData: WalletBalancesResponse['wordManager'] = undefined;
+    const wordManagerAddress = getWordManagerAddress();
+    if (wordManagerAddress) {
+      try {
+        const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
+        const wordTokenForWM = new ethers.Contract(WORD_ADDRESS_BASE, erc20Abi, provider);
+
+        const [wmBalance, rewardInfo] = await Promise.all([
+          wordTokenForWM.balanceOf(wordManagerAddress),
+          getRewardInfo(),
+        ]);
+
+        const totalBalanceBig = wmBalance as bigint;
+        const totalStaked = rewardInfo?.totalStaked ?? 0n;
+        const rewardRate = rewardInfo?.rewardRate ?? 0n;
+        const periodFinish = rewardInfo?.periodFinish ?? 0n;
+
+        const nowSec = BigInt(Math.floor(Date.now() / 1000));
+        const remaining = periodFinish > nowSec ? periodFinish - nowSec : 0n;
+        const reservedForStaking = rewardRate * remaining;
+        const stakingPeriodActive = periodFinish > nowSec;
+
+        // Available = total - staked - reserved streaming rewards
+        const unavailable = totalStaked + reservedForStaking;
+        const availableForGames = totalBalanceBig > unavailable ? totalBalanceBig - unavailable : 0n;
+
+        // Compute per-round cost: sum of top-10 amounts + bonus words + burn words
+        const top10Amounts = getTop10WordAmounts();
+        const top10Total = top10Amounts.reduce((sum, a) => sum + BigInt(a), 0n);
+        const bonusRewardWei = BigInt(getBonusWordRewardAmount());
+        const bonusTotal = bonusRewardWei * BigInt(BONUS_WORDS_PER_ROUND);
+        const burnTotal = BigInt(BURN_WORD_AMOUNT) * BigInt(BURN_WORDS_PER_ROUND);
+        const perRoundCost = top10Total + bonusTotal + burnTotal;
+
+        const roundsAvailable = perRoundCost > 0n
+          ? Number(availableForGames / perRoundCost)
+          : 0;
+
+        const formatWhole = (val: bigint) => Math.floor(parseFloat(ethers.formatEther(val))).toLocaleString();
+
+        wordManagerData = {
+          address: wordManagerAddress,
+          totalBalance: formatWhole(totalBalanceBig),
+          stakedByUsers: formatWhole(totalStaked),
+          reservedForStaking: formatWhole(reservedForStaking),
+          availableForGames: formatWhole(availableForGames),
+          roundsAvailable,
+          stakingPeriodActive,
+          stakingPeriodEnds: stakingPeriodActive
+            ? new Date(Number(periodFinish) * 1000).toISOString()
+            : null,
+        };
+      } catch (err) {
+        console.warn('[admin/wallet/balances] WordManager data fetch failed:', err);
+      }
+    }
+
     // Database query for pending refunds
     let pendingRefunds = { count: 0, totalEth: '0' };
     try {
@@ -271,6 +341,7 @@ export default async function handler(
         balanceRaw: wordTokenBalance.toString(),
       },
       ...(feeRecipientsData && { feeRecipients: feeRecipientsData }),
+      ...(wordManagerData && { wordManager: wordManagerData }),
       pendingRefunds: {
         count: pendingRefunds.count,
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),

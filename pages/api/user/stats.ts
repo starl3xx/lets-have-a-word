@@ -8,8 +8,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { db } from '../../../src/db';
-import { guesses, rounds, roundPayouts, users, dailyGuessState } from '../../../src/db/schema';
-import { eq, and, sql, count, isNull } from 'drizzle-orm';
+import { guesses, rounds, roundPayouts, users, dailyGuessState, roundBonusWords, roundBurnWords, wordRewards } from '../../../src/db/schema';
+import { eq, and, sql, count, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 
 export interface UserStatsResponse {
@@ -29,6 +29,10 @@ export interface UserStatsResponse {
   guessesPerRoundHistogram: { round: number; guesses: number }[];
   medianGuessesToSolve: number | null;
   referralsGeneratedThisRound: number;
+  // Milestone 14: $WORD stats
+  bonusWordsFound: number;
+  burnWordsFound: number;
+  totalWordEarned: string; // Whole tokens (e.g., "15000000" for 15M)
 }
 
 export default async function handler(
@@ -82,6 +86,9 @@ export default async function handler(
           guessHistogramResult,
           roundGuessesResult,
           referralsResult,
+          bonusWordsResult,
+          burnWordsResult,
+          wordEarnedResult,
         ] = await Promise.all([
           // All-time guesses
           db
@@ -164,6 +171,29 @@ export default async function handler(
             .select({ count: count() })
             .from(users)
             .where(eq(users.referrerFid, fid)),
+
+          // Bonus words found
+          db
+            .select({ count: count() })
+            .from(roundBonusWords)
+            .where(eq(roundBonusWords.claimedByFid, fid)),
+
+          // Burn words found
+          db
+            .select({ count: count() })
+            .from(roundBurnWords)
+            .where(eq(roundBurnWords.finderFid, fid)),
+
+          // Total $WORD earned (top10 + bonus_word + staking; excludes burn which destroys tokens)
+          db
+            .select({
+              total: sql<string>`coalesce(sum(cast(${wordRewards.amount} as numeric)), 0)::text`,
+            })
+            .from(wordRewards)
+            .where(and(
+              eq(wordRewards.fid, fid),
+              inArray(wordRewards.rewardType, ['bonus_word', 'top10', 'staking']),
+            )),
         ]);
 
         // Extract results
@@ -178,6 +208,11 @@ export default async function handler(
         const guessesThisRound = Number(roundGuessesResult[0]?.total || 0);
         const paidGuessesThisRound = Number(roundGuessesResult[0]?.paid || 0);
         const referralsGeneratedThisRound = Number(referralsResult[0]?.count || 0);
+        const bonusWordsFound = Number(bonusWordsResult[0]?.count || 0);
+        const burnWordsFound = Number(burnWordsResult[0]?.count || 0);
+        // Convert wei to whole tokens: divide by 10^18
+        const wordEarnedWei = BigInt(wordEarnedResult[0]?.total || '0');
+        const totalWordEarned = (wordEarnedWei / 10n ** 18n).toString();
 
         // Calculate free vs bonus guesses
         const nonPaidGuesses = guessesAllTime - paidGuessesAllTime;
@@ -239,6 +274,9 @@ export default async function handler(
           guessesPerRoundHistogram,
           medianGuessesToSolve,
           referralsGeneratedThisRound,
+          bonusWordsFound,
+          burnWordsFound,
+          totalWordEarned,
         };
       }
     );

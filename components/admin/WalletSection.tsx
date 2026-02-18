@@ -74,6 +74,16 @@ interface WalletBalances {
       word: string;
     };
   };
+  wordManager?: {
+    address: string;
+    totalBalance: string;
+    stakedByUsers: string;
+    reservedForStaking: string;
+    availableForGames: string;
+    roundsAvailable: number;
+    stakingPeriodActive: boolean;
+    stakingPeriodEnds: string | null;
+  };
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -1975,6 +1985,85 @@ export default function WalletSection({ user }: WalletSectionProps) {
               >
                 {wordTokenWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WordManager Funding */}
+      {balances?.wordManager && (
+        <div style={styles.card}>
+          <h3 style={styles.cardTitle}>📊 WordManager funding</h3>
+          <p style={styles.cardSubtitle}>
+            Live V3 contract balance breakdown — staked, streaming rewards, and available for game rewards
+          </p>
+
+          <div style={styles.grid4}>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Total $WORD</div>
+              <div style={styles.statValueSmall}>{balances.wordManager.totalBalance}</div>
+              <div style={styles.statSubtext}>In contract</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Staked by Users</div>
+              <div style={styles.statValueSmall}>{balances.wordManager.stakedByUsers}</div>
+              <div style={styles.statSubtext}>Locked by stakers</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Streaming Rewards</div>
+              <div style={styles.statValueSmall}>{balances.wordManager.reservedForStaking}</div>
+              <div style={styles.statSubtext}>Reserved for staking period</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Available for Games</div>
+              <div style={styles.statValueSmall}>{balances.wordManager.availableForGames}</div>
+              <div style={styles.statSubtext}>Top-10 / bonus / burn</div>
+            </div>
+          </div>
+
+          {/* Rounds available alert */}
+          <div style={{
+            ...styles.alert(
+              balances.wordManager.roundsAvailable >= 5 ? 'success' :
+              balances.wordManager.roundsAvailable >= 1 ? 'warning' : 'error'
+            ),
+            marginTop: '16px',
+          }}>
+            <span>{balances.wordManager.roundsAvailable >= 5 ? '✅' : balances.wordManager.roundsAvailable >= 1 ? '⚠️' : '🚨'}</span>
+            <div>
+              <strong>{balances.wordManager.roundsAvailable} rounds</strong> of game rewards available at current economy settings
+              {balances.wordManager.roundsAvailable < 5 && (
+                <div style={{ marginTop: '4px', fontSize: '12px', opacity: 0.8 }}>
+                  Consider transferring more $WORD to the WordManager contract
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Contract address and staking period */}
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#6b7280', fontFamily }}>Contract</span>
+              <a
+                href={`https://basescan.org/address/${balances.wordManager.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...styles.link, fontSize: '12px', fontFamily: 'monospace' }}
+              >
+                {balances.wordManager.address.slice(0, 6)}...{balances.wordManager.address.slice(-4)}
+              </a>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#6b7280', fontFamily }}>Staking period</span>
+              <span style={{ fontSize: '12px', fontFamily }}>
+                {balances.wordManager.stakingPeriodActive ? (
+                  <span style={{ color: '#16a34a' }}>
+                    Active until {new Date(balances.wordManager.stakingPeriodEnds!).toLocaleDateString()}
+                  </span>
+                ) : (
+                  <span style={{ color: '#dc2626' }}>Inactive</span>
+                )}
+              </span>
             </div>
           </div>
         </div>
