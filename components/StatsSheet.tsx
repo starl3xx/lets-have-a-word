@@ -400,6 +400,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 <li><strong>+20 XP</strong> — Buying a guess pack</li>
                 <li><strong>+50 XP</strong> — Finding a Bonus word</li>
                 <li><strong>+50 XP</strong> — Top 10 guesser placement</li>
+                <li><strong>+100 XP</strong> — Finding a Burn word</li>
                 <li><strong>+2,500 XP</strong> — Winning the jackpot</li>
               </ul>
             </div>
