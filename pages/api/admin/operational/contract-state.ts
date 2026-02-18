@@ -32,6 +32,7 @@ import {
   getTotalBurned,
   getRewardInfo,
 } from '../../../../src/lib/word-manager';
+import { WORD_TOKEN_ADDRESS } from '../../../../src/lib/word-token';
 
 interface ContractState {
   network: 'mainnet' | 'sepolia';
@@ -57,6 +58,7 @@ interface ContractState {
 interface WordManagerState {
   configured: boolean;
   contractAddress: string | null;
+  tokenBalance: string;
   totalStaked: string;
   totalBurned: string;
   totalDistributed: string;
@@ -94,6 +96,7 @@ async function getWordManagerState(): Promise<WordManagerState> {
     return {
       configured: false,
       contractAddress: null,
+      tokenBalance: '0',
       totalStaked: '0',
       totalBurned: '0',
       totalDistributed: '0',
@@ -123,6 +126,7 @@ async function getWordManagerState(): Promise<WordManagerState> {
       return {
         configured: true,
         contractAddress: address,
+        tokenBalance: '0',
         totalStaked: '0',
         totalBurned: '0',
         totalDistributed: '0',
@@ -136,11 +140,18 @@ async function getWordManagerState(): Promise<WordManagerState> {
       };
     }
 
-    const [totalStaked, totalBurned, totalDistributed, rewardInfo] = await Promise.all([
+    // Query $WORD token balance of the WordManager contract
+    const provider = contract.runner?.provider;
+    const tokenContract = provider
+      ? new ethers.Contract(WORD_TOKEN_ADDRESS, ['function balanceOf(address) view returns (uint256)'], provider)
+      : null;
+
+    const [totalStaked, totalBurned, totalDistributed, rewardInfo, tokenBalance] = await Promise.all([
       getTotalStaked(),
       getTotalBurned(),
       contract.totalDistributed() as Promise<bigint>,
       getRewardInfo(),
+      tokenContract ? (tokenContract.balanceOf(address) as Promise<bigint>) : Promise.resolve(0n),
     ]);
 
     // WordManager uses the same operator wallet — if our wallet can sign, it's authorized
@@ -152,6 +163,7 @@ async function getWordManagerState(): Promise<WordManagerState> {
     return {
       configured: true,
       contractAddress: address,
+      tokenBalance: formatTokenAmount(tokenBalance ?? 0n),
       totalStaked: formatTokenAmount(totalStaked ?? 0n),
       totalBurned: formatTokenAmount(totalBurned ?? 0n),
       totalDistributed: formatTokenAmount(totalDistributed ?? 0n),
@@ -167,6 +179,7 @@ async function getWordManagerState(): Promise<WordManagerState> {
     return {
       configured: true,
       contractAddress: address,
+      tokenBalance: '0',
       totalStaked: '0',
       totalBurned: '0',
       totalDistributed: '0',
