@@ -98,7 +98,7 @@ const ECONOMIC_RULES = {
   WINNER_SHARE: 0.8,            // 80% of jackpot to winner
   REFERRER_SHARE: 0.1,          // 10% to referrer
   TOP_GUESSERS_SHARE: 0.1,      // 10% to top guessers
-  SEED_CAP_ETH: 0.03,           // 0.03 ETH seed cap
+  SEED_CAP_ETH: 0.02,           // 0.02 ETH seed cap
 };
 ```
 

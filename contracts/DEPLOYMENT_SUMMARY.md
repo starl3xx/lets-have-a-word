@@ -106,7 +106,7 @@ JACKPOT_MANAGER_ADDRESS=0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5
 
 ### 3. Seed Initial Jackpot
 From the operator wallet (`0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38`):
-- Call `seedJackpot()` with at least 0.03 ETH
+- Call `seedJackpot()` with at least 0.02 ETH
 - This will automatically start Round 1
 
 ## Contract Functions
@@ -186,7 +186,7 @@ OPERATOR_PRIVATE_KEY=<operator-wallet-private-key>
 
 1. ✅ **Deploy Contract**: Base Mainnet deployed
 2. ✅ **Verify Contract**: Verified on Sourcify
-3. ⏳ **Seed Jackpot**: Initial 0.03 ETH seed from operator wallet
+3. ⏳ **Seed Jackpot**: Initial 0.02 ETH seed from operator wallet
 4. ⏳ **Update Backend**: Set `JACKPOT_MANAGER_ADDRESS` in production
 5. ⏳ **Base Sepolia**: Deploy testnet version when RPC issues resolved
 6. ⏳ **Upgrade to 6.2**: Deploy oracle upgrade (see below)

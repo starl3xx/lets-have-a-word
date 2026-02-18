@@ -16,7 +16,7 @@ import { FEE_RECIPIENTS, WETH_ADDRESS_BASE, USDC_ADDRESS_BASE, WORD_ADDRESS_BASE
 
 // Minimum seed target for next round
 // Treasury funds below this threshold prioritize seeding rounds
-export const SEED_TARGET_ETH = SEED_CAP_ETH; // 0.03 ETH
+export const SEED_TARGET_ETH = SEED_CAP_ETH; // 0.02 ETH
 
 export interface WalletBalancesResponse {
   operatorWallet: {
@@ -32,10 +32,10 @@ export interface WalletBalancesResponse {
   };
   nextRoundSeed: {
     fivePercentEth: string; // 5% of current jackpot
-    fromTreasuryEth: string; // Amount Treasury contributes to reach 0.03
-    totalEth: string; // min(0.03, 5% + treasury)
-    targetEth: string; // 0.03 ETH target
-    shortfallEth: string; // How much below 0.03 (0 if at or above target)
+    fromTreasuryEth: string; // Amount Treasury contributes to reach 0.02
+    totalEth: string; // min(0.02, 5% + treasury)
+    targetEth: string; // 0.02 ETH target
+    shortfallEth: string; // How much below 0.02 (0 if at or above target)
   };
   treasury: {
     address: string;

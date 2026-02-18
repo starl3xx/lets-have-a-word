@@ -211,6 +211,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-02-17 (after Round 13)
 
+- **Lower Seed Cap to 0.02 ETH**: Reduced the jackpot seed requirement from 0.03 ETH to 0.02 ETH across the smart contract (JackpotManagerV2 UUPS upgrade), backend economics, admin UI, and all documentation. Includes Hardhat upgrade script for deploying the new implementation.
 - **WordManagerV3 — Synthetix Streaming Staking**: Upgraded staking contract from bare vault to Synthetix `StakingRewards` pattern. Global accumulator (`rewardPerTokenStored`) distributes rewards proportionally to all stakers in O(1) gas. 30-day reward periods started by operator via `notifyRewardAmount()`. UUPS upgradeable proxy. Same-token safety check accounts for staked balance + accrued unclaimed rewards. All V2 game functions preserved (commitRound, bonus/burn claims, top-10 distribution). Frontend StakingModal now shows real streaming reward counter capped at period end, estimated APR, and period countdown. Admin contract diagnostics card shows reward period status and rate.
 - **XP-Boosted Staking Rewards**: Connected XP system to staking yield. Four XP tiers (Passive/Bronze/Silver/Gold) with multipliers (1.0x/1.15x/1.35x/1.60x) based on lifetime XP. StakingModal fully wired with live stake/unstake/claim via Wagmi, ticking reward counter, XP tier progression card with roadmap, and tier-up celebration animation. XPSheet now shows live tier progression instead of "Coming Soon." Added 7-day rolling XP rate helper, enriched `/api/word-balance` with XP tier data, created `useStaking` hook, and admin `fund-staking-pool` endpoint.
 
@@ -667,7 +668,7 @@ Upgraded smart contract to distribute all prizes atomically in a single transact
 - **Prize Distribution Logic**
   - Winner always receives 80%
   - Top-10 always receives 10% (weighted by rank)
-  - With referrer: 5% referrer, 5% seed (capped at 0.03 ETH, overflow to creator)
+  - With referrer: 5% referrer, 5% seed (capped at 0.02 ETH, overflow to creator)
   - Without referrer: 12.5% Top-10 guessers, 7.5% seed
   - Self-referral blocked at signup
 
@@ -1055,7 +1056,7 @@ Comprehensive game integrity protections, adversarial simulations, and provable-
 - **Transaction-Level Prize Audit**
   - Cross-checks prize amounts vs expected economic rules (80/10/10 split)
   - Detects underpayment, overpayment, or anomalies
-  - Tracks seed cap compliance (0.03 ETH max)
+  - Tracks seed cap compliance (0.02 ETH max)
   - Module: `src/services/fairness-monitor/prize-audit.ts`
 
 - **User Quality Gating (Anti-Bot)**
@@ -1333,7 +1334,7 @@ Updated jackpot settlement to prevent players from gaming the referral system:
 - **Non-Referral Prize Logic**
   - When a winner has no referrer, the 5% referrer share is split:
     - 2.5% to Top-10 pool (bringing total to 12.5%)
-    - 2.5% to Seed (bringing total to 7.5%, still capped at 0.03 ETH)
+    - 2.5% to Seed (bringing total to 7.5%, still capped at 0.02 ETH)
   - Seed overflow goes to creator wallet
   - Prevents incentive to avoid using referral links
 
