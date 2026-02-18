@@ -30,7 +30,7 @@ interface WalletBalances {
   nextRoundSeed?: {
     fivePercentEth?: string; // 5% of current jackpot
     fromTreasuryEth?: string; // Amount Treasury contributes
-    totalEth?: string; // min(0.03, 5% + treasury)
+    totalEth?: string; // min(0.02, 5% + treasury)
     targetEth?: string; // 0.02 ETH target
     shortfallEth?: string; // How much below target
     // Legacy fields
