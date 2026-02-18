@@ -247,20 +247,13 @@ export async function announceRoundStarted(round: RoundRow) {
     jackpotEth = formatEth(round.prizePoolEth);
   }
 
-  const commitHash = round.commitHash;
-  // Shorten hash for display: first 10 chars + last 4 chars
-  const shortHash = commitHash.length > 16
-    ? `${commitHash.slice(0, 10)}...${commitHash.slice(-4)}`
-    : commitHash;
-
   const text = `🔵 Round #${roundNumber} is live in @letshaveaword
 
 Starting prize pool: ${jackpotEth} ETH 🎯
 
-The secret word is locked onchain 🔒
+The secret word, bonus words, and burn words are locked onchain 🔒
 
-→ Hash: ${shortHash}
-→ Verify anytime: https://letshaveaword.fun/verify?round=${roundNumber}
+→ Verify fairness: letshaveaword.fun/verify?round=${roundNumber}
 
 Happy hunting 🕵️‍♂️
 letshaveaword.fun`;
