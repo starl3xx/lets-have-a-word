@@ -19,44 +19,17 @@ import { db } from '../../../../src/db';
 import { airdropWallets, airdropDistributions } from '../../../../src/db/schema';
 import { eq, sql, gt, and, isNull } from 'drizzle-orm';
 import { ethers } from 'ethers';
-import { WORD_TOKEN_ADDRESS, getBaseProvider } from '../../../../src/lib/word-token';
+import { WORD_TOKEN_ADDRESS, getBaseProvider, getEffectiveBalance } from '../../../../src/lib/word-token';
 
 const AIRDROP_FLOOR = 200_000_000; // 200M $WORD
 
-const ERC20_BALANCE_ABI = ['function balanceOf(address owner) view returns (uint256)'];
-
 /**
  * Get $WORD token balance for airdrop tracking (wallet + staked).
- * Tries WordManager.getEffectiveBalance() first for wallet+staked total.
- * If it returns 0, falls back to raw balanceOf() (covers wallets that
- * never interacted with WordManager).
- * Throws on error (no silent 0s).
+ * Delegates to getEffectiveBalance() which tries WordManager first,
+ * then falls back to balanceOf() + stakedBalance().
  */
 async function getAirdropBalance(walletAddress: string): Promise<number> {
-  const provider = getBaseProvider();
-  const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
-
-  // Try effective balance (wallet + staked) first
-  if (wordManagerAddress) {
-    try {
-      const wordManager = new ethers.Contract(
-        wordManagerAddress,
-        ['function getEffectiveBalance(address user) view returns (uint256)'],
-        provider
-      );
-      const effective = await wordManager.getEffectiveBalance(walletAddress);
-      const effectiveTokens = parseFloat(ethers.formatUnits(effective, 18));
-      // If non-zero, trust it — includes wallet + staked
-      if (effectiveTokens > 0) return effectiveTokens;
-    } catch {
-      // WordManager call failed — fall through to balanceOf
-    }
-  }
-
-  // Fallback: raw ERC-20 balanceOf (covers non-game wallets)
-  const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_BALANCE_ABI, provider);
-  const balance = await contract.balanceOf(walletAddress);
-  return parseFloat(ethers.formatUnits(balance, 18));
+  return getEffectiveBalance(walletAddress);
 }
 
 /**
