@@ -46,6 +46,25 @@ interface StakingModalProps {
 
 type StakingTab = 'stake' | 'unstake' | 'rewards';
 
+/** Map raw viem/wallet errors to friendly one-liners */
+function getFriendlyError(error: Error | null): string {
+  if (!error) return 'Something went wrong. Please try again.';
+  const msg = error.message.toLowerCase();
+  if (msg.includes('user rejected') || msg.includes('user denied') || msg.includes('rejected the request'))
+    return 'Transaction cancelled.';
+  if (msg.includes('insufficient funds') || msg.includes('exceeds the balance'))
+    return 'Insufficient funds for gas.';
+  if (msg.includes('reverted') || msg.includes('transaction failure'))
+    return 'Transaction failed. Please try again.';
+  if (msg.includes('transfer failed') || msg.includes('insufficient'))
+    return 'Insufficient $WORD balance.';
+  if (msg.includes('network') || msg.includes('timeout') || msg.includes('disconnected'))
+    return 'Network error. Check your connection and try again.';
+  if (msg.includes('not configured') || msg.includes('not available'))
+    return 'Staking is not available right now.';
+  return 'Something went wrong. Please try again.';
+}
+
 /** Phase-aware button label */
 function getPhaseLabel(phase: StakingPhase, action: StakingTab): string {
   const labels: Record<string, string> = {
@@ -428,7 +447,7 @@ export default function StakingModal({
                     {phase === 'success' ? '✓ Staked!' : getPhaseLabel(phase, 'stake')}
                   </button>
                   {phase === 'error' && error && (
-                    <p className="text-xs text-red-500 text-center">{error.message}</p>
+                    <p className="text-xs text-red-500 text-center">{getFriendlyError(error)}</p>
                   )}
                 </div>
               )}
@@ -470,7 +489,7 @@ export default function StakingModal({
                     {phase === 'success' ? '✓ Unstaked!' : getPhaseLabel(phase, 'unstake')}
                   </button>
                   {phase === 'error' && error && (
-                    <p className="text-xs text-red-500 text-center">{error.message}</p>
+                    <p className="text-xs text-red-500 text-center">{getFriendlyError(error)}</p>
                   )}
                 </div>
               )}
@@ -538,7 +557,7 @@ export default function StakingModal({
                     {phase === 'success' ? '✓ Claimed!' : getPhaseLabel(phase, 'rewards')}
                   </button>
                   {phase === 'error' && error && (
-                    <p className="text-xs text-red-500 text-center">{error.message}</p>
+                    <p className="text-xs text-red-500 text-center">{getFriendlyError(error)}</p>
                   )}
                 </div>
               )}
