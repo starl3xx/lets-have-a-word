@@ -24,8 +24,10 @@ export interface ArchiveListResponse {
   stats?: {
     totalRounds: number;
     totalGuessesAllTime: number;
+    totalPlayers: number;
     uniqueWinners: number;
     totalJackpotDistributed: string;
+    totalWordTokenBonuses: number;
     avgGuessesPerRound: number;
     avgPlayersPerRound: number;
     avgRoundLengthMinutes: number;
