@@ -95,7 +95,7 @@ export default function WordHoldings({
 
       {/* Upgrader notice */}
       <p className="text-xs text-gray-400 text-center">
-        Upgraded from $CLANKTON but haven\u2019t received $WORD?{' '}
+        Upgraded from $CLANKTON but haven{'\u2019'}t received $WORD?{' '}
         <button
           onClick={() => sdk.actions.openUrl('https://upgrader.co/2')}
           className="text-accent-600 hover:text-accent-800 underline"

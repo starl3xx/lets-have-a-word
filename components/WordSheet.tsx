@@ -46,18 +46,21 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
     }
   }, [walletAddress, fid]);
 
+  const fetchTokenomics = useCallback(async () => {
+    try {
+      const res = await fetch('/api/word-tokenomics');
+      if (res.ok) {
+        const data = await res.json();
+        setTokenomicsData(data);
+      }
+    } catch (err) {
+      console.error('[WordSheet] Tokenomics fetch failed:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch tokenomics (always available, no wallet needed)
-      const tokenomicsPromise = fetch('/api/word-tokenomics')
-        .then(async (res) => {
-          if (res.ok) {
-            const data = await res.json();
-            setTokenomicsData(data);
-          }
-        })
-        .catch((err) => console.error('[WordSheet] Tokenomics fetch failed:', err))
-        .finally(() => setIsLoadingTokenomics(false));
+      const tokenomicsPromise = fetchTokenomics().finally(() => setIsLoadingTokenomics(false));
 
       // Fetch balance (only if wallet connected)
       if (walletAddress) {
@@ -70,7 +73,11 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
     };
 
     fetchData();
-  }, [walletAddress, fetchBalance]);
+
+    // Poll tokenomics every 30 seconds while sheet is open
+    const interval = setInterval(fetchTokenomics, 30_000);
+    return () => clearInterval(interval);
+  }, [walletAddress, fetchBalance, fetchTokenomics]);
 
   const refetchBalance = useCallback(() => {
     fetchBalance();
