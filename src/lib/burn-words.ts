@@ -216,6 +216,15 @@ export async function handleBurnWordWin(
     metadata: { word, burnAmount: burnWord.burnAmount },
   });
 
+  // Announce the burn (non-blocking)
+  try {
+    const { announceBurnWordFound } = await import('./announcer');
+    await announceBurnWordFound(roundId, fid, word);
+  } catch (error) {
+    console.error('[burn-words] Failed to announce burn word found:', error);
+    // Continue - announcer failures should never break the game
+  }
+
   // Check for DOUBLE_W: count bonus + burn words found by this user in this round
   setTimeout(async () => {
     try {
