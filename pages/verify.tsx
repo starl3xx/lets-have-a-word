@@ -19,7 +19,7 @@ const FONT_FAMILY = "'Soehne', 'SF Pro Display', system-ui, -apple-system, sans-
 
 // Smart contract addresses on Base
 const JACKPOT_CONTRACT_ADDRESS = '0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5';
-const WORD_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS || '0xD967c5F57dde0A08B3C4daF709bc2f0aaDF9805c';
+const WORD_MANAGER_ADDRESS = (process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS || '').trim();
 
 type VerificationStatus = 'idle' | 'loading' | 'verified' | 'mismatch' | 'pending' | 'error';
 

@@ -21,7 +21,7 @@ const BASE_BUILDER_CODE = 'bc_lul4sldw';
 const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b' as `0x${string}`;
 
 // WordManager address (client-side)
-const WORD_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS as `0x${string}`;
+const WORD_MANAGER_ADDRESS = (process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS || '').trim() as `0x${string}`;
 
 // Minimal ABI fragments (viem format)
 const ERC20_ABI = [
