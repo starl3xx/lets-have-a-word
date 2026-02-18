@@ -208,6 +208,8 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
           setBurnWordFinders(burnData.finders || []);
         } else if (burnWordsResponse.status === 204) {
           setBurnWordFinders([]);
+        } else {
+          console.warn('[RoundArchiveModal] Burn word finders API returned', burnWordsResponse.status);
         }
       }
 
