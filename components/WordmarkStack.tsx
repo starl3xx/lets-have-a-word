@@ -176,7 +176,7 @@ export default function WordmarkStack({
           onTouchStart={() => setTooltipText('$WORD Holder')}
         >
           <img
-            src="/word-token-logo-light.png"
+            src="/LHAW-icon.png"
             alt="$WORD Holder"
             className="w-full h-full object-cover"
           />
