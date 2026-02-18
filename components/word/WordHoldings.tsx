@@ -3,6 +3,7 @@
  * Milestone 14: Displays $WORD token balance, tier, and USD value
  */
 
+import sdk from '@farcaster/miniapp-sdk';
 import { formatTokenAmount } from '../../src/lib/format';
 import BuyButton from './BuyButton';
 
@@ -91,6 +92,17 @@ export default function WordHoldings({
           </button>
         )}
       </div>
+
+      {/* Upgrader notice */}
+      <p className="text-xs text-gray-400 text-center">
+        Upgraded from $CLANKTON but haven\u2019t received $WORD?{' '}
+        <button
+          onClick={() => sdk.actions.openUrl('https://upgrader.co/2')}
+          className="text-accent-600 hover:text-accent-800 underline"
+        >
+          Claim here
+        </button>
+      </p>
     </div>
   );
 }
