@@ -13,8 +13,8 @@ import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD } from '../../config/economy';
 import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
 import { db } from '../../src/db';
-import { wordRewards, bonusWordClaims } from '../../src/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { wordRewards, roundBonusWords, roundBurnWords } from '../../src/db/schema';
+import { eq, and, isNotNull, sql } from 'drizzle-orm';
 
 export interface WordTokenomicsResponse {
   totalSupply: string;
@@ -90,6 +90,7 @@ export default async function handler(
     const price = liveMarketData?.priceUsd ?? (totalSupply > 0 ? marketCapUsd / totalSupply : 0);
 
     // DB aggregates for burn/bonus stats
+    // Bonus: count claimed bonus words only in $WORD-era rounds (those with burn words = Milestone 14+)
     const [burnStats, bonusStats] = await Promise.all([
       db.select({
         count: sql<number>`count(*)`,
@@ -97,22 +98,25 @@ export default async function handler(
       }).from(wordRewards).where(eq(wordRewards.rewardType, 'burn')),
       db.select({
         count: sql<number>`count(*)`,
-        total: sql<string>`coalesce(sum(cast(clankton_amount as numeric)), 0)`,
-      }).from(bonusWordClaims).where(eq(bonusWordClaims.txStatus, 'confirmed')),
+      }).from(roundBonusWords).where(
+        and(
+          isNotNull(roundBonusWords.claimedByFid),
+          sql`${roundBonusWords.roundId} IN (SELECT DISTINCT round_id FROM round_burn_words)`
+        )
+      ),
     ]);
 
     const burnCount = Number(burnStats[0]?.count ?? 0);
     const burnTotal = burnStats[0]?.total ?? '0';
     const bonusCount = Number(bonusStats[0]?.count ?? 0);
-    const bonusTotal = bonusStats[0]?.total ?? '0';
+    // 5M $WORD per bonus word (constant)
+    const BONUS_TOKENS_PER_WORD = 5_000_000;
 
     // Convert wei totals to whole tokens for display
     const burnTotalTokens = burnTotal !== '0'
       ? Math.floor(parseFloat(ethers.formatUnits(BigInt(burnTotal), 18))).toString()
       : '0';
-    const bonusTotalTokens = bonusTotal !== '0'
-      ? Math.floor(parseFloat(ethers.formatUnits(BigInt(bonusTotal), 18))).toString()
-      : '0';
+    const bonusTotalTokens = (bonusCount * BONUS_TOKENS_PER_WORD).toString();
 
     return res.status(200).json({
       totalSupply: Math.floor(totalSupply).toString(),
