@@ -18,7 +18,7 @@ async function main() {
   console.log("Minimum seed met:", isMinMet);
 
   if (!isMinMet) {
-    console.log("ERROR: Minimum seed not met. Need 0.03 ETH.");
+    console.log("ERROR: Minimum seed not met. Need 0.02 ETH.");
     return;
   }
 

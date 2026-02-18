@@ -29,8 +29,8 @@ contract JackpotManagerV2 is
 {
     // ============ Constants ============
 
-    /// @notice Minimum seed requirement for new rounds (0.03 ETH)
-    uint256 public constant MINIMUM_SEED = 0.03 ether;
+    /// @notice Minimum seed requirement for new rounds (0.02 ETH)
+    uint256 public constant MINIMUM_SEED = 0.02 ether;
 
     /// @notice Percentage of guess purchase going to jackpot (80%)
     uint256 public constant JACKPOT_SHARE_BPS = 8000;

@@ -62,7 +62,7 @@ Each player gets a daily allocation of guesses:
 **Jackpot Distribution** (when round is won):
 - **80%**: Winner (jackpot)
 - **10%**: Top 10 Early Guessers (guesses 1-850 only, weighted by rank)
-- **5%**: Next Round Seed (capped at 0.03 ETH, overflow → creator)
+- **5%**: Next Round Seed (capped at 0.02 ETH, overflow → creator)
 - **5%**: Referrer (if winner has one)
 
 **When no referrer exists**:
@@ -1142,7 +1142,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 - Top 10 payout distribution logic
 - Creator balance tracking
 - round_payouts table for payout records
-- 0.03 ETH seed cap logic
+- 0.02 ETH seed cap logic
 - Comprehensive economic functions
 
 ### Milestone 3.2: Top Ticker Polish
@@ -3009,7 +3009,7 @@ const ECONOMIC_RULES = {
   TOP_GUESSERS_SHARE: 0.1,      // 10% to top 10 early guessers
   SEED_SHARE: 0.05,             // 5% to next round seed
   REFERRER_SHARE: 0.05,         // 5% to referrer (if exists)
-  SEED_CAP_ETH: 0.03,           // 0.03 ETH seed cap (overflow → creator)
+  SEED_CAP_ETH: 0.02,           // 0.02 ETH seed cap (overflow → creator)
 };
 ```
 
@@ -3752,13 +3752,13 @@ Players earn 10% of their referrals' jackpot winnings. This creates viral growth
 When a referred player wins the jackpot:
 - **80%** goes to the winner
 - **10%** goes to top 10 early guessers (weighted by rank)
-- **5%** goes to next round seed (capped at 0.03 ETH)
+- **5%** goes to next round seed (capped at 0.02 ETH)
 - **5%** goes to the referrer
 
 **Example (1.0 ETH jackpot with referrer):**
 - Winner receives: 0.80 ETH
 - Top 10 share: 0.10 ETH (weighted distribution)
-- Next round seed: 0.03 ETH (capped), 0.02 ETH overflow → creator
+- Next round seed: 0.02 ETH (capped), 0.03 ETH overflow → creator
 - Referrer receives: 0.05 ETH
 
 ### Tracking

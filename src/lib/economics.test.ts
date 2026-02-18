@@ -29,7 +29,7 @@ describe('Economics Module - Milestone 3.1', () => {
           salt: 'test-salt',
           commitHash: 'test-hash',
           prizePoolEth: '0.1',
-          seedNextRoundEth: '0.02', // Below 0.03 cap
+          seedNextRoundEth: '0.01', // Below 0.02 cap
         })
         .returning();
 
@@ -46,13 +46,13 @@ describe('Economics Module - Milestone 3.1', () => {
       expect(parseFloat(updated.prizePoolEth)).toBeCloseTo(0.1 + 0.0008, 6);
 
       // Seed should increase by 20% of 0.001 = 0.0002
-      expect(parseFloat(updated.seedNextRoundEth)).toBeCloseTo(0.02 + 0.0002, 6);
+      expect(parseFloat(updated.seedNextRoundEth)).toBeCloseTo(0.01 + 0.0002, 6);
 
       // Clean up
       await db.delete(rounds).where(eq(rounds.id, round.id));
     });
 
-    it('should cap seed at 0.03 ETH and overflow to creator balance', async () => {
+    it('should cap seed at 0.02 ETH and overflow to creator balance', async () => {
       // Create a test round with seed near cap
       const [round] = await db
         .insert(rounds)
@@ -62,7 +62,7 @@ describe('Economics Module - Milestone 3.1', () => {
           salt: 'test-salt',
           commitHash: 'test-hash',
           prizePoolEth: '0.1',
-          seedNextRoundEth: '0.025', // Close to 0.03 cap
+          seedNextRoundEth: '0.015', // Close to 0.02 cap
         })
         .returning();
 
@@ -79,7 +79,7 @@ describe('Economics Module - Milestone 3.1', () => {
 
       // Apply economics for a 0.05 ETH guess
       // 20% = 0.01 ETH should go to seed/creator
-      // Only 0.005 can fit in seed (0.03 - 0.025 = 0.005)
+      // Only 0.005 can fit in seed (0.02 - 0.015 = 0.005)
       // Remaining 0.005 should go to creator balance
       await applyPaidGuessEconomicEffects(round.id, '0.05');
 
@@ -92,8 +92,8 @@ describe('Economics Module - Milestone 3.1', () => {
       // Prize pool should increase by 80% of 0.05 = 0.04
       expect(parseFloat(updatedRound.prizePoolEth)).toBeCloseTo(0.1 + 0.04, 6);
 
-      // Seed should be capped at 0.03
-      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.03, 6);
+      // Seed should be capped at 0.02
+      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.02, 6);
 
       // Check creator balance increased by overflow (0.005 ETH)
       const [updatedState] = await db.select().from(systemState).limit(1);
@@ -116,7 +116,7 @@ describe('Economics Module - Milestone 3.1', () => {
           salt: 'test-salt',
           commitHash: 'test-hash',
           prizePoolEth: '0.5',
-          seedNextRoundEth: '0.03', // At cap
+          seedNextRoundEth: '0.02', // At cap
         })
         .returning();
 
@@ -145,7 +145,7 @@ describe('Economics Module - Milestone 3.1', () => {
       expect(parseFloat(updatedRound.prizePoolEth)).toBeCloseTo(0.5 + 0.008, 6);
 
       // Seed should remain at cap
-      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.03, 6);
+      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.02, 6);
 
       // Creator balance should increase by full 20%
       const [updatedState] = await db.select().from(systemState).limit(1);
@@ -266,7 +266,7 @@ describe('Economics Module - Milestone 3.1', () => {
           salt: 'test-salt',
           commitHash: 'test-hash',
           prizePoolEth: '1.0',
-          seedNextRoundEth: '0.02', // Below 0.03 cap
+          seedNextRoundEth: '0.01', // Below 0.02 cap
         })
         .returning();
 
@@ -298,7 +298,7 @@ describe('Economics Module - Milestone 3.1', () => {
       const creatorPayout = payouts.find((p) => p.role === 'creator');
 
       // 10% = 0.1 ETH referrer share
-      // Seed can take 0.01 (to reach 0.03 cap from 0.02)
+      // Seed can take 0.01 (to reach 0.02 cap from 0.01)
       // Creator gets remaining 0.09
       expect(seedPayout).toBeDefined();
       expect(seedPayout!.fid).toBeNull();
@@ -313,7 +313,7 @@ describe('Economics Module - Milestone 3.1', () => {
         .select()
         .from(rounds)
         .where(eq(rounds.id, round.id));
-      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.03, 6); // At cap
+      expect(parseFloat(updatedRound.seedNextRoundEth)).toBeCloseTo(0.02, 6); // At cap
 
       // Check creator balance was updated
       const [updatedState] = await db.select().from(systemState).limit(1);

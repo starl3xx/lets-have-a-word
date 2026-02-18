@@ -8,7 +8,7 @@ import { expect } from "chai";
 import hre from "hardhat";
 
 describe("JackpotManager", function () {
-  const MINIMUM_SEED = hre.ethers.parseEther("0.03");
+  const MINIMUM_SEED = hre.ethers.parseEther("0.02");
   const GUESS_PRICE = hre.ethers.parseEther("0.0003"); // 3 guesses at 0.0001 ETH each
 
   async function deployJackpotManagerFixture() {

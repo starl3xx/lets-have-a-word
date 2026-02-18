@@ -391,7 +391,7 @@ export async function ensureDevRound(): Promise<number> {
   // Use 10-minute bucket seeded random for consistent prize pool
   const serverStartSeed = Math.floor(Date.now() / (10 * 60 * 1000));
   const prizePoolRng = seededRandom(serverStartSeed * 9973); // Prime multiplier for variety
-  const initialPrizePool = (0.03 + prizePoolRng() * 0.37).toFixed(4);
+  const initialPrizePool = (0.02 + prizePoolRng() * 0.38).toFixed(4);
 
   const [newRound] = await db
     .insert(rounds)
@@ -475,7 +475,7 @@ export async function getDevRoundStatus(): Promise<{
 
   // Generate deterministic "random" display values
   const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
-  const displayPrizePool = (0.03 + rng() * 0.37).toFixed(4); // 0.03-0.40 ETH
+  const displayPrizePool = (0.02 + rng() * 0.38).toFixed(4); // 0.02-0.40 ETH
   const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
 
   // Random round start time: 0-6 days ago

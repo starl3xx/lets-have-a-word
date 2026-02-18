@@ -64,16 +64,16 @@ export function isSkipOnchainResolution(): boolean {
  * If no referrer:
  * - 2.5% of the 5% referrer allocation → Top 10 pool (total 12.5%)
  * - 2.5% of the 5% referrer allocation → seed (total 7.5%)
- * - Apply 0.03 ETH cap to seed
+ * - Apply 0.02 ETH cap to seed
  * - Overflow beyond cap → creator
  */
 
 // Seed cap: Maximum ETH that can accumulate as seed for next round
 // This also serves as the creator pool withdrawal threshold
 // Below this, funds prioritize seeding future rounds
-export const SEED_CAP_ETH = 0.03; // 0.03 ETH
-export const SEED_CAP_ETH_STRING = '0.03';
-export const SEED_CAP_WEI = 30000000000000000n; // 0.03 ETH in wei
+export const SEED_CAP_ETH = 0.02; // 0.02 ETH
+export const SEED_CAP_ETH_STRING = '0.02';
+export const SEED_CAP_WEI = 20000000000000000n; // 0.02 ETH in wei
 
 /**
  * Validate that payout amounts sum correctly before calling contract
@@ -155,7 +155,7 @@ export async function syncPrizePoolFromContract(roundId: number): Promise<string
  *
  * DB-only logic (seed accumulation):
  * - We track seed for next round in DB
- * - If seed S < 0.03 ETH, portion of 20% goes to S
+ * - If seed S < 0.02 ETH, portion of 20% goes to S
  *
  * @param roundId - The round ID
  * @param guessPriceEth - Price of the guess in ETH (as string)
@@ -356,7 +356,7 @@ async function allocateToSeedAndCreator(
  * If winner has NO referrer:
  * - 5% referrer allocation redirects to next round seed
  * - Total seed = 10% (5% base + 5% from referrer fallback)
- * - Seed cap: 0.03 ETH
+ * - Seed cap: 0.02 ETH
  * - Any overflow beyond cap routes to creator
  *
  * Top 10 ranking:
@@ -488,7 +488,7 @@ export async function resolveRoundAndCreatePayouts(
   // - 2.5% → added to seed (total 7.5%, with cap)
   //
   // Seed cap logic:
-  // - Seed is capped at 0.03 ETH
+  // - Seed is capped at 0.02 ETH
   // - Any overflow beyond cap routes to creator
   // ============================================================================
 
@@ -516,7 +516,7 @@ export async function resolveRoundAndCreatePayouts(
     // Add 2.5% to seed (total 7.5%), with cap
     const totalSeedWei = baseSeedWei + halfReferrerShareWei;
 
-    // Apply seed cap (0.03 ETH)
+    // Apply seed cap (0.02 ETH)
     if (totalSeedWei > SEED_CAP_WEI) {
       seedForNextRoundWei = SEED_CAP_WEI;
       toCreatorOverflowWei = totalSeedWei - SEED_CAP_WEI;
@@ -621,7 +621,7 @@ export async function resolveRoundAndCreatePayouts(
     onChainPayouts[0].amountWei += toTopGuessersWei;
   }
 
-  // 4. Add seed record (always 5% base, up to 10% if no referrer, capped at 0.03 ETH)
+  // 4. Add seed record (always 5% base, up to 10% if no referrer, capped at 0.02 ETH)
   if (seedForNextRoundWei > 0n) {
     dbPayouts.push({
       roundId,

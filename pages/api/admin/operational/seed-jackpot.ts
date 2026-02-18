@@ -1,7 +1,7 @@
 /**
  * Admin endpoint to seed the jackpot on mainnet
  *
- * Used when the contract's currentJackpot is below the 0.03 ETH minimum
+ * Used when the contract's currentJackpot is below the 0.02 ETH minimum
  * required to start a new round.
  */
 
@@ -11,7 +11,7 @@ import { seedJackpotOnChain, getContractRoundInfo } from '../../../../src/lib/ja
 import { ethers } from 'ethers';
 
 // Minimum seed required (same as contract constant)
-const MINIMUM_SEED_ETH = 0.03;
+const MINIMUM_SEED_ETH = 0.02;
 
 export default async function handler(
   req: NextApiRequest,

@@ -31,7 +31,7 @@ interface WalletBalances {
     fivePercentEth?: string; // 5% of current jackpot
     fromTreasuryEth?: string; // Amount Treasury contributes
     totalEth?: string; // min(0.03, 5% + treasury)
-    targetEth?: string; // 0.03 ETH target
+    targetEth?: string; // 0.02 ETH target
     shortfallEth?: string; // How much below target
     // Legacy fields
     projectedEth?: string;
@@ -1436,7 +1436,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                         Next Round Seed Breakdown
                       </span>
                       <span style={{ fontSize: '12px', color: hasShortfall ? '#92400e' : '#047857' }}>
-                        {parseFloat(seedTotal).toFixed(4)} / 0.03 ETH
+                        {parseFloat(seedTotal).toFixed(4)} / 0.02 ETH
                       </span>
                     </div>
                     <div style={{ background: hasShortfall ? '#fde68a' : '#6ee7b7', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
@@ -1444,7 +1444,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                         style={{
                           background: hasShortfall ? '#f59e0b' : '#10b981',
                           height: '100%',
-                          width: `${Math.min(100, (parseFloat(seedTotal) / 0.03) * 100)}%`,
+                          width: `${Math.min(100, (parseFloat(seedTotal) / 0.02) * 100)}%`,
                           transition: 'width 0.3s ease',
                         }}
                       />
@@ -1455,7 +1455,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                     </div>
                     {hasShortfall && (
                       <div style={{ fontSize: '11px', color: '#b45309', marginTop: '4px', fontStyle: 'italic' }}>
-                        Next round will start with {parseFloat(seedTotal).toFixed(4)} ETH (below 0.03 target)
+                        Next round will start with {parseFloat(seedTotal).toFixed(4)} ETH (below 0.02 target)
                       </div>
                     )}
                   </div>
@@ -2334,7 +2334,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         <div style={styles.alert('info')}>
           <span>ℹ️</span>
           <span>
-            Treasury funds first cover the seed shortfall (difference between 5% of jackpot and 0.03 ETH target).
+            Treasury funds first cover the seed shortfall (difference between 5% of jackpot and 0.02 ETH target).
             Only funds above what's needed for seeding can be withdrawn.
           </span>
         </div>
