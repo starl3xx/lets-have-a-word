@@ -121,7 +121,6 @@ export default function StakingModal({
   const [displayedRewards, setDisplayedRewards] = useState(parseFloat(unclaimedRewards) || 0);
   const rewardBaselineRef = useRef({ amount: parseFloat(unclaimedRewards) || 0, time: Date.now() });
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const resyncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Tier-up celebration detection
   useEffect(() => {
@@ -184,20 +183,6 @@ export default function StakingModal({
       if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
     };
   }, [stakedBalance, stakingPoolShare, rewardRate, periodFinish, unclaimedRewards]);
-
-  // Resync baseline from prop every 60 seconds
-  useEffect(() => {
-    resyncIntervalRef.current = setInterval(() => {
-      rewardBaselineRef.current = {
-        amount: parseFloat(unclaimedRewards) || 0,
-        time: Date.now(),
-      };
-    }, 60_000);
-
-    return () => {
-      if (resyncIntervalRef.current) clearInterval(resyncIntervalRef.current);
-    };
-  }, [unclaimedRewards]);
 
   // On success: refetch parent data with delay for RPC indexing, then reset
   useEffect(() => {
