@@ -126,6 +126,10 @@ export default function StakingModal({
       return;
     }
 
+    // Anchor baseline to current prop value each time the effect restarts
+    rewardBaselineRef.current = { amount: parseFloat(unclaimedRewards) || 0, time: Date.now() };
+    setDisplayedRewards(parseFloat(unclaimedRewards) || 0);
+
     // rewardRate is in wei/second; convert to whole tokens/second
     const ratePerSecond = parseFloat(rewardRate) / 1e18;
     const poolShareNum = parseFloat(stakingPoolShare) || 0;
@@ -160,7 +164,7 @@ export default function StakingModal({
     return () => {
       if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
     };
-  }, [stakedBalance, stakingPoolShare, rewardRate, periodFinish]);
+  }, [stakedBalance, stakingPoolShare, rewardRate, periodFinish, unclaimedRewards]);
 
   // Resync baseline from prop every 60 seconds
   useEffect(() => {
@@ -176,16 +180,23 @@ export default function StakingModal({
     };
   }, [unclaimedRewards]);
 
-  // On success: refetch parent data and reset
+  // On success: refetch parent data with delay for RPC indexing, then reset
   useEffect(() => {
     if (phase === 'success') {
-      onStakingAction();
-      const timer = setTimeout(() => {
+      // Delay refetch to let RPC node index the new block
+      const refetchTimer = setTimeout(() => onStakingAction(), 2000);
+      // Retry in case first refetch was too early
+      const retryTimer = setTimeout(() => onStakingAction(), 5000);
+      const resetTimer = setTimeout(() => {
         reset();
         setStakeAmount('');
         setUnstakeAmount('');
-      }, 2000);
-      return () => clearTimeout(timer);
+      }, 2500);
+      return () => {
+        clearTimeout(refetchTimer);
+        clearTimeout(retryTimer);
+        clearTimeout(resetTimer);
+      };
     }
   }, [phase, onStakingAction, reset]);
 
