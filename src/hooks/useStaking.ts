@@ -14,11 +14,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useReadContract } from 'wagmi';
 import { parseUnits, maxUint256 } from 'viem';
 import { base } from 'wagmi/chains';
-
-// ERC-8021 attribution suffix for Base Builder Code "bc_lul4sldw"
-// Format: [codesLength(1)] [codes(N)] [schemaId(1)] [marker(16)]
-// See https://docs.base.org/base-chain/quickstart/builder-codes
-const ERC_8021_SUFFIX = '0x0b62635f6c756c34736c64770080218021802180218021802180218021' as `0x${string}`;
+import { ERC_8021_SUFFIX } from '../config/wagmi';
 
 // $WORD token address (ERC-20 for approve)
 const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b' as `0x${string}`;

@@ -9,11 +9,7 @@ import { useState, useCallback } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
-
-// ERC-8021 attribution suffix for Base Builder Code "bc_lul4sldw"
-// Format: [codesLength(1)] [codes(N)] [schemaId(1)] [marker(16)]
-// See https://docs.base.org/base-chain/quickstart/builder-codes
-const ERC_8021_SUFFIX = '0x0b62635f6c756c34736c64770080218021802180218021802180218021' as `0x${string}`;
+import { ERC_8021_SUFFIX } from '../config/wagmi';
 
 // JackpotManager contract ABI (minimal - just purchaseGuesses)
 const JACKPOT_MANAGER_ABI = [
