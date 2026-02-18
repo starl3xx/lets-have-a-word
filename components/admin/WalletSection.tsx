@@ -1553,443 +1553,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
         </div>
       )}
 
-      {/* Bonus Word Distributions */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🎣 Bonus word distributions</h3>
-            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Legacy JackpotManager — retry failed $WORD distributions for bonus word winners
-            </p>
-          </div>
-          <button
-            onClick={() => fetchBonusDistStatus()}
-            disabled={bonusDistLoading}
-            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
-          >
-            {bonusDistLoading ? 'Loading...' : 'Refresh'}
-          </button>
-        </div>
-
-        {bonusDistError ? (
-          <div style={styles.alert('error')}>{bonusDistError}</div>
-        ) : bonusDistLoading && !bonusDistStatus ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
-        ) : bonusDistStatus ? (
-          <>
-            {/* Summary Stats */}
-            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Contract $WORD</div>
-                <div style={styles.statValueSmall}>{formatTokenBalance(bonusDistStatus.contractWordTokenBalance)}</div>
-                <div style={styles.statSubtext}>Available for rewards</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Failed/Pending</div>
-                <div style={styles.statValueSmall}>
-                  {bonusDistStatus.failedClaims.length + bonusDistStatus.claimedWithoutTx.length}
-                </div>
-                <div style={styles.statSubtext}>Need attention</div>
-              </div>
-            </div>
-
-            {/* Retry All Result */}
-            {retryAllResult && (
-              <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
-                <span>✅</span>
-                <span>Retry complete: {retryAllResult.successful} successful, {retryAllResult.failed} failed</span>
-                <button
-                  onClick={() => setRetryAllResult(null)}
-                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            {/* Recent Success Messages */}
-            {retrySuccesses.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                {retrySuccesses.slice(-5).map((success) => (
-                  <div key={success.id} style={{ ...styles.alert('success'), marginBottom: '8px' }}>
-                    <span>✅</span>
-                    <span>
-                      Sent!{' '}
-                      <a
-                        href={`https://basescan.org/tx/${success.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={styles.link}
-                      >
-                        View on BaseScan →
-                      </a>
-                    </span>
-                    <button
-                      onClick={() => setRetrySuccesses((prev) => prev.filter((s) => s.id !== success.id))}
-                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Failed Claims Table */}
-            {bonusDistStatus.failedClaims.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#374151' }}>
-                    Failed Claims ({bonusDistStatus.failedClaims.length})
-                  </h4>
-                  <button
-                    onClick={retryAllFailed}
-                    disabled={retryingAll}
-                    style={{
-                      ...styles.btnSuccess,
-                      ...styles.btnSmall,
-                      ...(retryingAll ? styles.btnDisabled : {}),
-                    }}
-                  >
-                    {retryingAll ? 'Retrying...' : 'Retry All Failed'}
-                  </button>
-                </div>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Round</th>
-                      <th style={styles.th}>User</th>
-                      <th style={styles.th}>Wallet</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}>Retries</th>
-                      <th style={styles.th}>Error</th>
-                      <th style={styles.th}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bonusDistStatus.failedClaims.map((claim) => (
-                      <tr key={claim.claimId}>
-                        <td style={styles.td}>R{claim.roundId} #{claim.wordIndex + 1}</td>
-                        <td style={styles.td}>
-                          {claim.username ? `@${claim.username}` : `FID ${claim.fid}`}
-                        </td>
-                        <td style={styles.td}>
-                          <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
-                            {shortenAddress(claim.walletAddress)}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <span style={styles.badge(claim.txStatus === 'failed' ? 'red' : 'yellow')}>
-                            {claim.txStatus}
-                          </span>
-                        </td>
-                        <td style={styles.td}>{claim.retryCount}</td>
-                        <td style={{ ...styles.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span title={claim.errorMessage || undefined} style={{ fontSize: '11px', color: '#6b7280' }}>
-                            {claim.errorMessage || '-'}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <button
-                            onClick={() => retryBonusClaim(claim.claimId)}
-                            disabled={retryingClaimId === claim.claimId}
-                            style={{
-                              ...styles.btnPrimary,
-                              ...styles.btnSmall,
-                              ...(retryingClaimId === claim.claimId ? styles.btnDisabled : {}),
-                            }}
-                          >
-                            {retryingClaimId === claim.claimId ? 'Retrying...' : 'Retry'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Claimed Without TX Table */}
-            {bonusDistStatus.claimedWithoutTx.length > 0 && (
-              <div>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 600, color: '#374151' }}>
-                  Claimed Without TX ({bonusDistStatus.claimedWithoutTx.length})
-                </h4>
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 8px 0' }}>
-                  Bonus words marked as claimed but no on-chain transaction recorded
-                </p>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Round</th>
-                      <th style={styles.th}>Word #</th>
-                      <th style={styles.th}>User</th>
-                      <th style={styles.th}>Claimed At</th>
-                      <th style={styles.th}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bonusDistStatus.claimedWithoutTx.map((bw) => (
-                      <tr key={bw.bonusWordId}>
-                        <td style={styles.td}>R{bw.roundId}</td>
-                        <td style={styles.td}>#{bw.wordIndex + 1}</td>
-                        <td style={styles.td}>
-                          {bw.username ? `@${bw.username}` : `FID ${bw.claimedByFid}`}
-                        </td>
-                        <td style={styles.td}>{new Date(bw.claimedAt).toLocaleString()}</td>
-                        <td style={styles.td}>
-                          <button
-                            onClick={() => retryBonusWordWithoutTx(bw.bonusWordId)}
-                            disabled={retryingBonusWordId === bw.bonusWordId}
-                            style={{
-                              ...styles.btnPrimary,
-                              ...styles.btnSmall,
-                              ...(retryingBonusWordId === bw.bonusWordId ? styles.btnDisabled : {}),
-                            }}
-                          >
-                            {retryingBonusWordId === bw.bonusWordId ? 'Sending...' : 'Send $WORD'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* All Clear Message */}
-            {bonusDistStatus.failedClaims.length === 0 && bonusDistStatus.claimedWithoutTx.length === 0 && (
-              <div style={styles.alert('success')}>
-                <span>✅</span>
-                <span>All bonus word distributions are confirmed on-chain!</span>
-              </div>
-            )}
-          </>
-        ) : null}
-      </div>
-
-      {/* $WORD Withdrawal */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>💬 $WORD management (legacy)</h3>
-            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Legacy JackpotManager balance — see WordManager funding section for current data
-            </p>
-          </div>
-          <button
-            onClick={() => fetchWordTokenStatus()}
-            disabled={wordTokenLoading}
-            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
-          >
-            {wordTokenLoading ? 'Loading...' : 'Refresh'}
-          </button>
-        </div>
-
-        {wordTokenError && (
-          <div style={styles.alert('error')}>{wordTokenError}</div>
-        )}
-
-        {wordTokenWithdrawResult && (
-          <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
-            <span>✅</span>
-            <span>
-              Withdrew {parseFloat(wordTokenWithdrawResult.amount).toLocaleString()} $WORD!{' '}
-              <a
-                href={`https://basescan.org/tx/${wordTokenWithdrawResult.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={styles.link}
-              >
-                View on BaseScan →
-              </a>
-            </span>
-            <button
-              onClick={() => setWordTokenWithdrawResult(null)}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {wordTokenLoading && !wordTokenStatus ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
-        ) : wordTokenStatus ? (
-          <>
-            {/* Status Cards */}
-            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Contract $WORD</div>
-                <div style={styles.statValueSmall}>{wordTokenStatus.balanceInMillions}</div>
-                <div style={styles.statSubtext}>{wordTokenStatus.roundsAvailable} rounds available</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Bonus Words</div>
-                <div style={styles.statValueSmall}>
-                  <span style={{
-                    color: wordTokenStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af',
-                    fontWeight: 600,
-                  }}>
-                    {wordTokenStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
-                  </span>
-                </div>
-                <div style={styles.statSubtext}>
-                  <button
-                    onClick={() => handleBonusWordsToggle(!wordTokenStatus.bonusWordsEnabled)}
-                    disabled={bonusWordsToggleLoading}
-                    style={{
-                      ...styles.btnSmall,
-                      background: 'none',
-                      border: 'none',
-                      color: '#2563eb',
-                      cursor: 'pointer',
-                      padding: '0',
-                      textDecoration: 'underline',
-                      fontSize: '11px',
-                    }}
-                  >
-                    {bonusWordsToggleLoading ? 'Toggling...' : wordTokenStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Contract Info */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: '#f9fafb', borderRadius: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: '#6b7280' }}>Contract:</span>
-                <a
-                  href={`https://basescan.org/address/${wordTokenStatus.contractAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
-                >
-                  {wordTokenStatus.contractAddress.slice(0, 10)}...{wordTokenStatus.contractAddress.slice(-8)}
-                </a>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: '#6b7280' }}>$WORD Token:</span>
-                <a
-                  href={`https://basescan.org/token/${wordTokenStatus.wordTokenAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
-                >
-                  {wordTokenStatus.wordTokenAddress.slice(0, 10)}...{wordTokenStatus.wordTokenAddress.slice(-8)}
-                </a>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#6b7280' }}>Exact Balance:</span>
-                <span style={{ fontFamily: 'monospace' }}>
-                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
-                </span>
-              </div>
-            </div>
-
-            {/* Withdrawal Note */}
-            <div style={{
-              ...styles.alert(wordTokenStatus.canWithdraw ? 'info' : 'warning'),
-              marginBottom: '16px',
-            }}>
-              <span>{wordTokenStatus.canWithdraw ? 'ℹ️' : '⚠️'}</span>
-              <span>{wordTokenStatus.withdrawalNote}</span>
-            </div>
-
-            {/* Withdrawal Form */}
-            {wordTokenStatus.canWithdraw && (
-              <div>
-                <label style={styles.label}>Withdraw To Address:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <input
-                    type="text"
-                    placeholder="0x..."
-                    value={wordTokenWithdrawAddress}
-                    onChange={(e) => setWordTokenWithdrawAddress(e.target.value)}
-                    style={{ ...styles.input, flex: 1, fontFamily: 'monospace' }}
-                  />
-                  <button
-                    onClick={() => setShowWordTokenWithdrawConfirm(true)}
-                    disabled={!wordTokenWithdrawAddress || wordTokenWithdrawLoading}
-                    style={{
-                      ...styles.btnDanger,
-                      ...((!wordTokenWithdrawAddress || wordTokenWithdrawLoading) ? styles.btnDisabled : {}),
-                    }}
-                  >
-                    Withdraw All
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        ) : null}
-      </div>
-
-      {/* $WORD Withdrawal Confirmation Modal */}
-      {showWordTokenWithdrawConfirm && wordTokenStatus && (
-        <div style={styles.modal}>
-          <div style={styles.modalContent}>
-            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm $WORD Withdrawal</h3>
-
-            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
-              This action is <strong>irreversible</strong>. All {wordTokenStatus.balanceInMillions} $WORD will be withdrawn.
-            </div>
-
-            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>Amount:</span>
-                <div style={{ fontWeight: 600, fontSize: '18px' }}>
-                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
-                </div>
-              </div>
-              <div>
-                <span style={{ color: '#6b7280' }}>To Address:</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
-                  {wordTokenWithdrawAddress}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={styles.label}>Type "WITHDRAW WORD" to confirm:</label>
-              <input
-                type="text"
-                value={wordTokenWithdrawConfirmText}
-                onChange={(e) => setWordTokenWithdrawConfirmText(e.target.value.toUpperCase())}
-                placeholder="WITHDRAW WORD"
-                style={{
-                  ...styles.input,
-                  ...(wordTokenWithdrawConfirmText && wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.inputError : {}),
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => {
-                  setShowWordTokenWithdrawConfirm(false);
-                  setWordTokenWithdrawConfirmText('');
-                }}
-                style={{ ...styles.btnSecondary, flex: 1 }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleWordTokenWithdraw}
-                disabled={wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD'}
-                style={{
-                  ...styles.btnDanger,
-                  flex: 1,
-                  ...(wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.btnDisabled : {}),
-                }}
-              >
-                {wordTokenWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* WordManager Funding */}
       {balances?.wordManager && (
         <div style={styles.card}>
@@ -2529,6 +2092,443 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </table>
         )}
       </div>
+
+      {/* Bonus Word Distributions */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🎣 Bonus word distributions</h3>
+            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
+              Legacy JackpotManager — retry failed $WORD distributions for bonus word winners
+            </p>
+          </div>
+          <button
+            onClick={() => fetchBonusDistStatus()}
+            disabled={bonusDistLoading}
+            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
+          >
+            {bonusDistLoading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+
+        {bonusDistError ? (
+          <div style={styles.alert('error')}>{bonusDistError}</div>
+        ) : bonusDistLoading && !bonusDistStatus ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
+        ) : bonusDistStatus ? (
+          <>
+            {/* Summary Stats */}
+            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Contract $WORD</div>
+                <div style={styles.statValueSmall}>{formatTokenBalance(bonusDistStatus.contractWordTokenBalance)}</div>
+                <div style={styles.statSubtext}>Available for rewards</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Failed/Pending</div>
+                <div style={styles.statValueSmall}>
+                  {bonusDistStatus.failedClaims.length + bonusDistStatus.claimedWithoutTx.length}
+                </div>
+                <div style={styles.statSubtext}>Need attention</div>
+              </div>
+            </div>
+
+            {/* Retry All Result */}
+            {retryAllResult && (
+              <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
+                <span>✅</span>
+                <span>Retry complete: {retryAllResult.successful} successful, {retryAllResult.failed} failed</span>
+                <button
+                  onClick={() => setRetryAllResult(null)}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* Recent Success Messages */}
+            {retrySuccesses.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                {retrySuccesses.slice(-5).map((success) => (
+                  <div key={success.id} style={{ ...styles.alert('success'), marginBottom: '8px' }}>
+                    <span>✅</span>
+                    <span>
+                      Sent!{' '}
+                      <a
+                        href={`https://basescan.org/tx/${success.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        View on BaseScan →
+                      </a>
+                    </span>
+                    <button
+                      onClick={() => setRetrySuccesses((prev) => prev.filter((s) => s.id !== success.id))}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Failed Claims Table */}
+            {bonusDistStatus.failedClaims.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#374151' }}>
+                    Failed Claims ({bonusDistStatus.failedClaims.length})
+                  </h4>
+                  <button
+                    onClick={retryAllFailed}
+                    disabled={retryingAll}
+                    style={{
+                      ...styles.btnSuccess,
+                      ...styles.btnSmall,
+                      ...(retryingAll ? styles.btnDisabled : {}),
+                    }}
+                  >
+                    {retryingAll ? 'Retrying...' : 'Retry All Failed'}
+                  </button>
+                </div>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Round</th>
+                      <th style={styles.th}>User</th>
+                      <th style={styles.th}>Wallet</th>
+                      <th style={styles.th}>Status</th>
+                      <th style={styles.th}>Retries</th>
+                      <th style={styles.th}>Error</th>
+                      <th style={styles.th}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bonusDistStatus.failedClaims.map((claim) => (
+                      <tr key={claim.claimId}>
+                        <td style={styles.td}>R{claim.roundId} #{claim.wordIndex + 1}</td>
+                        <td style={styles.td}>
+                          {claim.username ? `@${claim.username}` : `FID ${claim.fid}`}
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                            {shortenAddress(claim.walletAddress)}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={styles.badge(claim.txStatus === 'failed' ? 'red' : 'yellow')}>
+                            {claim.txStatus}
+                          </span>
+                        </td>
+                        <td style={styles.td}>{claim.retryCount}</td>
+                        <td style={{ ...styles.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span title={claim.errorMessage || undefined} style={{ fontSize: '11px', color: '#6b7280' }}>
+                            {claim.errorMessage || '-'}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <button
+                            onClick={() => retryBonusClaim(claim.claimId)}
+                            disabled={retryingClaimId === claim.claimId}
+                            style={{
+                              ...styles.btnPrimary,
+                              ...styles.btnSmall,
+                              ...(retryingClaimId === claim.claimId ? styles.btnDisabled : {}),
+                            }}
+                          >
+                            {retryingClaimId === claim.claimId ? 'Retrying...' : 'Retry'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Claimed Without TX Table */}
+            {bonusDistStatus.claimedWithoutTx.length > 0 && (
+              <div>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 600, color: '#374151' }}>
+                  Claimed Without TX ({bonusDistStatus.claimedWithoutTx.length})
+                </h4>
+                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 8px 0' }}>
+                  Bonus words marked as claimed but no on-chain transaction recorded
+                </p>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Round</th>
+                      <th style={styles.th}>Word #</th>
+                      <th style={styles.th}>User</th>
+                      <th style={styles.th}>Claimed At</th>
+                      <th style={styles.th}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bonusDistStatus.claimedWithoutTx.map((bw) => (
+                      <tr key={bw.bonusWordId}>
+                        <td style={styles.td}>R{bw.roundId}</td>
+                        <td style={styles.td}>#{bw.wordIndex + 1}</td>
+                        <td style={styles.td}>
+                          {bw.username ? `@${bw.username}` : `FID ${bw.claimedByFid}`}
+                        </td>
+                        <td style={styles.td}>{new Date(bw.claimedAt).toLocaleString()}</td>
+                        <td style={styles.td}>
+                          <button
+                            onClick={() => retryBonusWordWithoutTx(bw.bonusWordId)}
+                            disabled={retryingBonusWordId === bw.bonusWordId}
+                            style={{
+                              ...styles.btnPrimary,
+                              ...styles.btnSmall,
+                              ...(retryingBonusWordId === bw.bonusWordId ? styles.btnDisabled : {}),
+                            }}
+                          >
+                            {retryingBonusWordId === bw.bonusWordId ? 'Sending...' : 'Send $WORD'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* All Clear Message */}
+            {bonusDistStatus.failedClaims.length === 0 && bonusDistStatus.claimedWithoutTx.length === 0 && (
+              <div style={styles.alert('success')}>
+                <span>✅</span>
+                <span>All bonus word distributions are confirmed on-chain!</span>
+              </div>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {/* $WORD Withdrawal */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>💬 $WORD management (legacy)</h3>
+            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
+              Legacy JackpotManager balance — see WordManager funding section for current data
+            </p>
+          </div>
+          <button
+            onClick={() => fetchWordTokenStatus()}
+            disabled={wordTokenLoading}
+            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
+          >
+            {wordTokenLoading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+
+        {wordTokenError && (
+          <div style={styles.alert('error')}>{wordTokenError}</div>
+        )}
+
+        {wordTokenWithdrawResult && (
+          <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
+            <span>✅</span>
+            <span>
+              Withdrew {parseFloat(wordTokenWithdrawResult.amount).toLocaleString()} $WORD!{' '}
+              <a
+                href={`https://basescan.org/tx/${wordTokenWithdrawResult.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.link}
+              >
+                View on BaseScan →
+              </a>
+            </span>
+            <button
+              onClick={() => setWordTokenWithdrawResult(null)}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {wordTokenLoading && !wordTokenStatus ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
+        ) : wordTokenStatus ? (
+          <>
+            {/* Status Cards */}
+            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Contract $WORD</div>
+                <div style={styles.statValueSmall}>{wordTokenStatus.balanceInMillions}</div>
+                <div style={styles.statSubtext}>{wordTokenStatus.roundsAvailable} rounds available</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Bonus Words</div>
+                <div style={styles.statValueSmall}>
+                  <span style={{
+                    color: wordTokenStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af',
+                    fontWeight: 600,
+                  }}>
+                    {wordTokenStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+                <div style={styles.statSubtext}>
+                  <button
+                    onClick={() => handleBonusWordsToggle(!wordTokenStatus.bonusWordsEnabled)}
+                    disabled={bonusWordsToggleLoading}
+                    style={{
+                      ...styles.btnSmall,
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      padding: '0',
+                      textDecoration: 'underline',
+                      fontSize: '11px',
+                    }}
+                  >
+                    {bonusWordsToggleLoading ? 'Toggling...' : wordTokenStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Contract Info */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#f9fafb', borderRadius: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#6b7280' }}>Contract:</span>
+                <a
+                  href={`https://basescan.org/address/${wordTokenStatus.contractAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
+                >
+                  {wordTokenStatus.contractAddress.slice(0, 10)}...{wordTokenStatus.contractAddress.slice(-8)}
+                </a>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#6b7280' }}>$WORD Token:</span>
+                <a
+                  href={`https://basescan.org/token/${wordTokenStatus.wordTokenAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
+                >
+                  {wordTokenStatus.wordTokenAddress.slice(0, 10)}...{wordTokenStatus.wordTokenAddress.slice(-8)}
+                </a>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#6b7280' }}>Exact Balance:</span>
+                <span style={{ fontFamily: 'monospace' }}>
+                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
+                </span>
+              </div>
+            </div>
+
+            {/* Withdrawal Note */}
+            <div style={{
+              ...styles.alert(wordTokenStatus.canWithdraw ? 'info' : 'warning'),
+              marginBottom: '16px',
+            }}>
+              <span>{wordTokenStatus.canWithdraw ? 'ℹ️' : '⚠️'}</span>
+              <span>{wordTokenStatus.withdrawalNote}</span>
+            </div>
+
+            {/* Withdrawal Form */}
+            {wordTokenStatus.canWithdraw && (
+              <div>
+                <label style={styles.label}>Withdraw To Address:</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={wordTokenWithdrawAddress}
+                    onChange={(e) => setWordTokenWithdrawAddress(e.target.value)}
+                    style={{ ...styles.input, flex: 1, fontFamily: 'monospace' }}
+                  />
+                  <button
+                    onClick={() => setShowWordTokenWithdrawConfirm(true)}
+                    disabled={!wordTokenWithdrawAddress || wordTokenWithdrawLoading}
+                    style={{
+                      ...styles.btnDanger,
+                      ...((!wordTokenWithdrawAddress || wordTokenWithdrawLoading) ? styles.btnDisabled : {}),
+                    }}
+                  >
+                    Withdraw All
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {/* $WORD Withdrawal Confirmation Modal */}
+      {showWordTokenWithdrawConfirm && wordTokenStatus && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm $WORD Withdrawal</h3>
+
+            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
+              This action is <strong>irreversible</strong>. All {wordTokenStatus.balanceInMillions} $WORD will be withdrawn.
+            </div>
+
+            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>Amount:</span>
+                <div style={{ fontWeight: 600, fontSize: '18px' }}>
+                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
+                </div>
+              </div>
+              <div>
+                <span style={{ color: '#6b7280' }}>To Address:</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                  {wordTokenWithdrawAddress}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Type "WITHDRAW WORD" to confirm:</label>
+              <input
+                type="text"
+                value={wordTokenWithdrawConfirmText}
+                onChange={(e) => setWordTokenWithdrawConfirmText(e.target.value.toUpperCase())}
+                placeholder="WITHDRAW WORD"
+                style={{
+                  ...styles.input,
+                  ...(wordTokenWithdrawConfirmText && wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.inputError : {}),
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowWordTokenWithdrawConfirm(false);
+                  setWordTokenWithdrawConfirmText('');
+                }}
+                style={{ ...styles.btnSecondary, flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWordTokenWithdraw}
+                disabled={wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD'}
+                style={{
+                  ...styles.btnDanger,
+                  flex: 1,
+                  ...(wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.btnDisabled : {}),
+                }}
+              >
+                {wordTokenWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Withdraw Confirmation Modal */}
       {showWithdrawConfirm && balances && connectedWallet && (() => {
