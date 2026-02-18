@@ -667,21 +667,8 @@ export async function announceBonusWordFound(
   finderFid: number,
   word: string
 ) {
-  // Get user info for the announcement
-  let username = `fid:${finderFid}`;
-  try {
-    const userResult = await db
-      .select({ username: users.username })
-      .from(users)
-      .where(eq(users.fid, finderFid))
-      .limit(1);
-
-    if (userResult[0]?.username) {
-      username = userResult[0].username;
-    }
-  } catch (error) {
-    console.error('[announcer] Error fetching user for bonus word announcement:', error);
-  }
+  // Get user info for the announcement (DB first, Neynar fallback)
+  const username = (await getUsernameByFid(finderFid))?.replace(/^@/, '') ?? `fid:${finderFid}`;
 
   // Get count of remaining bonus words
   let remainingCount = 0;
@@ -728,21 +715,8 @@ export async function announceBurnWordFound(
   finderFid: number,
   word: string
 ) {
-  // Get user info for the announcement
-  let username = `fid:${finderFid}`;
-  try {
-    const userResult = await db
-      .select({ username: users.username })
-      .from(users)
-      .where(eq(users.fid, finderFid))
-      .limit(1);
-
-    if (userResult[0]?.username) {
-      username = userResult[0].username;
-    }
-  } catch (error) {
-    console.error('[announcer] Error fetching user for burn word announcement:', error);
-  }
+  // Get user info for the announcement (DB first, Neynar fallback)
+  const username = (await getUsernameByFid(finderFid))?.replace(/^@/, '') ?? `fid:${finderFid}`;
 
   // Get count of remaining burn words
   let remainingCount = 0;
