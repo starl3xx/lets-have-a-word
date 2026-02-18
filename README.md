@@ -209,6 +209,14 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-02-18 (after Round 13)
+
+- **Automated Notification Templates**: Replaced single hardcoded push notification messages with 8 randomized templates each for round-start and daily-reset notifications. Templates interpolate live round data (round number, jackpot ETH). Added Vercel Cron job (`/api/cron/daily-notify`) running at 11:00 UTC for daily free guess reset notifications.
+- **Burn Word Announcement Automation**: Added cast + tweet announcements when a burn word is found, mirroring the existing bonus word announcement. Posts finder username, the word, and remaining burn words count.
+- **Archive Page Bug Fixes**: Fixed two crashes on `/archive` and `/archive/[roundNumber]` caused by field name mismatches between frontend interfaces and backend API responses (`totalWordTokenDistributed` → `totalWordTokenBonuses`, `wordTokenBonusCount` → `clanktonBonusCount`).
+- **Wordmark Stack Updates**: Reordered badge display (Baker's Dozen now behind Quickdraw). Changed $WORD Holder badge icon from coin image to app logo.
+- **FAQ Improvements**: Reordered all 27 FAQ questions into logical grouped sections (Core Gameplay → Guesses & Pricing → Winning & Rewards → Special Words → $WORD Token → Progression & Achievements → Trust & Verification → Access). Removed contract name references (WordManager/JackpotManager) from all answers. Show full $WORD token address instead of truncated.
+
 ### 2026-02-17 (after Round 13)
 
 - **Lower Seed Cap to 0.02 ETH**: Reduced the jackpot seed requirement from 0.03 ETH to 0.02 ETH across the smart contract (JackpotManagerV2 UUPS upgrade), backend economics, admin UI, and all documentation. Includes Hardhat upgrade script for deploying the new implementation.
