@@ -106,7 +106,7 @@ interface ArchivedRound {
     bonusWordWinners?: BonusWordWinner[];
   };
   salt: string;
-  wordTokenBonusCount: number;
+  clanktonBonusCount: number;
   referralBonusCount: number;
   commitHash?: string;
   hasOnChainCommitment?: boolean;
@@ -654,8 +654,8 @@ export default function RoundDetailPage() {
                   <InfoRow label="Started" value={formatDate(round.startTime)} />
                   <InfoRow label="Ended" value={formatDate(round.endTime)} />
                   <InfoRow label="Seed ETH" value={`${formatEth(round.seedEth)} ETH`} />
-                  <InfoRow label="$WORD bonuses" value={round.wordTokenBonusCount.toString()} />
-                  <InfoRow label="Referral signups" value={round.referralBonusCount.toString()} />
+                  <InfoRow label="$WORD bonuses" value={(round.clanktonBonusCount ?? 0).toString()} />
+                  <InfoRow label="Referral signups" value={(round.referralBonusCount ?? 0).toString()} />
 
                   {/* Onchain secret word commitment */}
                   <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
