@@ -69,7 +69,7 @@ const WORD_MANAGER_ABI = [
  * Returns null if not configured (contract not yet deployed)
  */
 export function getWordManagerAddress(): string | null {
-  const addr = process.env.WORD_MANAGER_ADDRESS;
+  const addr = process.env.WORD_MANAGER_ADDRESS?.trim();
   if (!addr || addr === '' || addr === '0x') return null;
   return addr;
 }
