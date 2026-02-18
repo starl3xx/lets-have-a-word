@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/process-refunds",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-notify",
+      "schedule": "0 11 * * *"
     }
   ]
 }
