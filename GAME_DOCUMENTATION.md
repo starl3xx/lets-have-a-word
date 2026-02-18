@@ -49,13 +49,15 @@
 ### Daily Guess Allocation
 Each player gets a daily allocation of guesses:
 - **Base Free Guesses**: 1 per day
-- **$WORD Bonus**: +2-3 if holding 100M+ $WORD tokens (tiered by market cap)
-  - +2 guesses/day when market cap < $250k
-  - +3 guesses/day when market cap >= $250k
+- **$WORD Bonus**: +1 to +3 guesses/day depending on balance and market cap tier
+  - Below $150K mcap: 100M → +1, 200M → +2, 300M → +3
+  - $150K–$300K mcap: 50M → +1, 100M → +2, 150M → +3
+  - Above $300K mcap: 25M → +1, 50M → +2, 75M → +3
+  - Staked tokens count toward effective balance
 - **Share Bonus**: +1 for sharing to Farcaster (once per day)
 - **Paid Guess Packs**: Buy 3 guesses per pack (unlimited packs, volume pricing applies)
 
-**Total Possible Daily Guesses**: Unlimited (1 base + 2-3 $WORD + 1 share + unlimited paid)
+**Total Possible Daily Guesses**: Unlimited (1 base + up to 3 $WORD + 1 share + unlimited paid)
 
 ### Prize Pool Economics (Updated January 2026)
 
@@ -2250,11 +2252,11 @@ Wordmarks are permanent, collectible badges awarded for in-game achievements. Th
 | `BONUS_WORD_FINDER` | Side Quest | Found a bonus word |
 | `BURN_WORD_FINDER` | Arsonist | Found a burn word |
 | `JACKPOT_WINNER` | Jackpot Winner | Won a round's jackpot |
-| `DOUBLE_W` | Double W | Won two rounds |
-| `PATRON` | Patron | Purchased guess packs |
-| `QUICKDRAW` | Quickdraw | Among the first guessers in a round |
-| `ENCYCLOPEDIC` | Encyclopedic | Made a large number of total guesses |
-| `BAKERS_DOZEN` | Baker's Dozen | 13+ guesses in a single round |
+| `DOUBLE_W` | Double Dub | Found two or more special words (bonus, burn, or secret) in the same round |
+| `PATRON` | Patron | Someone you referred won a jackpot (you received the referrer payout) |
+| `QUICKDRAW` | Quickdraw | Placed in the Top 10 Early Guessers |
+| `ENCYCLOPEDIC` | Encyclopedic | Guessed words starting with every letter A–Z |
+| `BAKERS_DOZEN` | Baker's Dozen | Guessed words starting with 13 different letters, on 13 different days (only the first guess of each day counts) |
 
 **Implementation:**
 - Definitions: `src/lib/wordmarks.ts`
@@ -3836,10 +3838,11 @@ Get referral statistics.
 
 The XP system tracks player engagement and progression using an **event-sourced model**. Each XP-earning action creates a row in the `xp_events` table, allowing for flexible future features like breakdowns, streaks, and leaderboards.
 
-**v1 Scope:**
+**Current scope:**
 - Backend tracks all XP events
-- UI shows **Total XP only** in the Stats sheet
-- Future milestones will add detailed XP views
+- UI shows Total XP, tier progression, and staking multiplier in the Stats and XP sheets
+- XP determines staking tier: Passive (0 XP, 1.0x) → Bronze (1K, 1.15x) → Silver (5K, 1.35x) → Gold (15K, 1.60x)
+- Staking multiplier boosts streaming $WORD rewards from the WordManager contract
 
 ### XP Event Types & Values
 
@@ -3854,6 +3857,7 @@ The XP system tracks player engagement and progression using an **event-sourced 
 | `CLANKTON_BONUS_DAY` | +10 | $WORD holder (100M+) daily participation | <!-- event type stored in DB, do not rename -->
 | `SHARE_CAST` | +15 | Sharing to Farcaster (once per day) |
 | `PACK_PURCHASE` | +20 | Each guess pack purchased |
+| `BONUS_WORD` | +250 | Found a bonus word during a round |
 | `BURN_WORD` | +100 | Found a burn word during a round |
 | `NEAR_MISS` | 0 | Tracked for future use (Hamming distance 1-2) |
 

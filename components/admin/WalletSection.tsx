@@ -1557,9 +1557,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🎣 Bonus Word Distributions</h3>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🎣 Bonus word distributions</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Retry failed $WORD distributions for bonus word winners
+              Legacy JackpotManager — retry failed $WORD distributions for bonus word winners
             </p>
           </div>
           <button
@@ -1772,9 +1772,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>💬 $WORD Management</h3>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>💬 $WORD management (legacy)</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Withdraw $WORD from the contract (for token migration)
+              Legacy JackpotManager balance — see WordManager funding section for current data
             </p>
           </div>
           <button

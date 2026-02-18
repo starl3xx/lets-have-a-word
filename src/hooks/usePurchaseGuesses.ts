@@ -7,12 +7,9 @@
 
 import { useState, useCallback } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther, toHex } from 'viem';
+import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
-
-// Base Builder Code for attribution
-// This gets appended to transaction data so Base can attribute activity to this app
-const BASE_BUILDER_CODE = 'bc_lul4sldw';
+import { ERC_8021_SUFFIX } from '../config/wagmi';
 
 // JackpotManager contract ABI (minimal - just purchaseGuesses)
 const JACKPOT_MANAGER_ABI = [
@@ -119,7 +116,7 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
       value: parseEther(params.totalPriceEth),
       chainId: base.id,
       // Append Base Builder Code for attribution tracking
-      dataSuffix: toHex(BASE_BUILDER_CODE),
+      dataSuffix: ERC_8021_SUFFIX,
     });
   }, [writeContract]);
 

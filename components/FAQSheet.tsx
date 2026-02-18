@@ -95,13 +95,14 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: 'What does "provably fair" mean?',
       answer: (
         <>
-          Before each round begins, Let's Have A Word <strong>commits onchain</strong> to the secret word using a cryptographic hash and hidden salt.
-          <p className="mt-2">This commitment guarantees that the <strong>word cannot be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. The word is only revealed after someone finds it.</p>
+          Before each round begins, Let's Have A Word <strong>commits onchain</strong> to all <strong>16 words</strong> — the secret word, 10 bonus words, and 5 burn words — using cryptographic hashes.
+          <p className="mt-2">The secret word is committed as a SHA-256 hash (with a hidden salt) to the JackpotManager contract. The 15 bonus and burn words are committed as keccak256 hashes to the WordManager contract. These commitments guarantee that <strong>no words can be changed mid-round</strong> — not by the game, not by the creator, not by anyone. Importantly, <strong>the creator does not know the secret word while the round is live</strong>. Words are only revealed after they're found or the round ends.</p>
           <p className="mt-2">When a round ends:</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li>The secret word and salt are revealed by <ProfileLink fid={1477413}>@letshaveaword</ProfileLink></li>
-            <li>Anyone can recompute the hash</li>
-            <li>Anyone can verify the answer was fixed from the very start</li>
+            <li>Bonus and burn word hashes are verified against the committed values</li>
+            <li>Anyone can recompute the hashes</li>
+            <li>Anyone can verify all 16 words were fixed from the very start</li>
           </ul>
           <p className="mt-2">You don't have to trust this; you can verify every round yourself at <a href="https://letshaveaword.fun/verify" target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:text-accent-800 underline">letshaveaword.fun/verify</a></p>
           <p className="mt-2">This commit–reveal process makes every round transparent, verifiable, and fair.</p>
@@ -304,7 +305,18 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     },
     {
       question: "What is XP for?",
-      answer: "XP is tracked but currently has no gameplay effect. Future updates may introduce leaderboards, progression, or XP-based rewards. I don't really know yet, tbh.",
+      answer: (
+        <>
+          XP boosts your staking rewards. Your lifetime XP determines your <strong>staking tier</strong>, which multiplies the $WORD you earn from staking:
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>Passive</strong> (0 XP) — 1.00x multiplier</li>
+            <li><strong>Bronze</strong> (1,000 XP) — 1.15x multiplier</li>
+            <li><strong>Silver</strong> (5,000 XP) — 1.35x multiplier</li>
+            <li><strong>Gold</strong> (15,000 XP) — 1.60x multiplier</li>
+          </ul>
+          <p className="mt-2">XP may unlock additional perks in the future.</p>
+        </>
+      ),
     },
     {
       question: "What are Wordmarks?",
@@ -352,6 +364,19 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           Staking lets you lock your <WordTokenLink>$WORD</WordTokenLink> tokens in the WordManager contract to earn streaming staking rewards. Rewards are distributed proportionally to all stakers every second during active reward periods.
           <p className="mt-2">Staked tokens count toward your <strong>effective balance</strong> for holder tier calculations, so staking can help you reach a higher bonus tier without buying more tokens.</p>
           <p className="mt-2">Manage staking from the $WORD sheet (tap 💰 $WORD in the nav).</p>
+        </>
+      ),
+    },
+    {
+      question: "What is the WordManager contract?",
+      answer: (
+        <>
+          Let's Have A Word uses <strong>two smart contracts on Base</strong> to handle different parts of the game's onchain mechanics:
+          <ul className="list-disc list-inside mt-2 space-y-2">
+            <li><strong>JackpotManager</strong> — Manages ETH prize pools, payouts, and the secret word's SHA-256 commitment. When a round is won, this contract distributes the jackpot, Top 10 rewards, referrer share, and next round seed in a single atomic transaction.</li>
+            <li><strong>WordManager</strong> — Manages $WORD token mechanics including bonus word rewards, burn word destruction, keccak256 word commitments, and Synthetix-style streaming staking rewards. All 15 bonus and burn words are committed to this contract before a round starts. When a player finds one, the contract verifies the guess against the committed hash before releasing or burning tokens.</li>
+          </ul>
+          <p className="mt-2">Together, these contracts ensure that both ETH prizes and $WORD token mechanics are handled transparently onchain.</p>
         </>
       ),
     },

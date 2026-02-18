@@ -9,6 +9,11 @@ import { createConfig, http } from 'wagmi';
 import { base, mainnet } from 'wagmi/chains';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 
+// ERC-8021 attribution suffix for Base Builder Code "bc_lul4sldw"
+// Format: [codes(N)] [codesLength(1)] [schemaId(1)] [marker(16)]
+// See https://docs.base.org/base-chain/quickstart/builder-codes
+export const ERC_8021_SUFFIX = '0x62635f6c756c34736c64770b0080218021802180218021802180218021' as `0x${string}`;
+
 /**
  * Wagmi configuration with Farcaster miniapp connector
  * Auto-connects to user's Farcaster wallet

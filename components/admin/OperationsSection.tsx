@@ -2120,9 +2120,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 {/* JackpotManager — Sepolia */}
                 <div style={{
                   padding: '16px',
-                  background: contractState.sepolia.hasMismatch ? '#fef2f2' : '#f0fdf4',
-                  border: `1px solid ${contractState.sepolia.hasMismatch ? '#fecaca' : '#bbf7d0'}`,
+                  background: '#f9fafb',
+                  border: '1px solid #e5e7eb',
                   borderRadius: '8px',
+                  opacity: 0.65,
                 }}>
                   <div style={{
                     display: 'flex',
@@ -2130,13 +2131,14 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     alignItems: 'center',
                     marginBottom: '12px',
                   }}>
-                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px', color: '#6b7280' }}>
                       JackpotManager — Sepolia
                     </span>
                     <span style={{
-                      fontSize: '20px',
+                      fontSize: '16px',
+                      color: '#9ca3af',
                     }}>
-                      {contractState.sepolia.hasMismatch ? '⚠️' : '✅'}
+                      {contractState.sepolia.hasMismatch ? '⚠️' : '✓'}
                     </span>
                   </div>
                   {contractState.sepolia.error ? (
