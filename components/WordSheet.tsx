@@ -135,9 +135,9 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
                 )
               ) : (
                 /* No wallet connected */
-                <div className="section-card text-center space-y-3">
+                <div className="section-card bg-gradient-to-br from-brand-50 to-indigo-50 text-center space-y-3">
                   <div className="text-3xl">💰</div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-brand-700">
                     Connect your wallet to see your $WORD balance and holder tier bonus.
                   </p>
                   <BuyButton size="sm" />
@@ -149,10 +149,10 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
 
               {/* Market cap & price */}
               {tokenomicsData && (
-                <div className="section-card">
+                <div className="section-card bg-success-50">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Market cap</span>
-                    <span className="font-semibold text-gray-900">
+                    <span className="text-success-700">Market cap</span>
+                    <span className="font-semibold text-success-900">
                       ${parseInt(tokenomicsData.marketCap).toLocaleString('en-US')}
                     </span>
                   </div>

@@ -45,34 +45,37 @@ export default function WordHoldings({
   const bonusGuesses = holderTier; // tier 1 = +1, tier 2 = +2, tier 3 = +3
 
   return (
-    <div className="section-card">
-      {/* Top row: Total balance + tier badge */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-xs text-gray-500 uppercase tracking-wider font-medium">Total balance</div>
-          <div className="text-2xl font-bold text-gray-900">{formatTokenAmount(effective)} $WORD</div>
-          <div className="text-sm text-gray-500">${valueUsd} USD</div>
-        </div>
-        <div
-          className="px-3 py-1.5 rounded-full text-sm font-bold text-white"
-          style={{ backgroundColor: tierColor }}
-        >
-          {tierLabel}
-          {bonusGuesses > 0 && <span className="ml-1">+{bonusGuesses}</span>}
+    <div className="space-y-3">
+      {/* Hero balance */}
+      <div className="section-card bg-gradient-to-br from-brand-50 to-indigo-50 text-center">
+        <p className="text-sm text-brand-700 font-medium">Your $WORD</p>
+        <p className="text-4xl font-extrabold text-brand-900 tabular-nums">{formatTokenAmount(effective)}</p>
+        <div className="flex items-center justify-center gap-2 mt-1">
+          <span className="text-sm text-brand-600">${valueUsd} USD</span>
+          <div
+            className="px-2.5 py-0.5 rounded-full text-xs font-bold text-white"
+            style={{ backgroundColor: tierColor }}
+          >
+            {tierLabel}
+            {bonusGuesses > 0 && <span className="ml-1">+{bonusGuesses}</span>}
+          </div>
         </div>
       </div>
 
       {/* Balance breakdown */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-gray-50 rounded-lg p-3">
-          <div className="text-xs text-gray-500">Wallet</div>
-          <div className="text-sm font-semibold text-gray-900">{formatTokenAmount(wallet)}</div>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-3">
-          <div className="text-xs text-gray-500">
-            Staked {!stakingAvailable && <span className="text-gray-400">(coming soon)</span>}
+      <div className="section-card bg-brand-50">
+        <h3 className="text-base font-semibold text-brand-900">Balance</h3>
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="bg-white rounded-lg p-3 text-center border border-brand-100">
+            <p className="text-xs text-brand-600">Wallet</p>
+            <p className="text-lg font-bold text-brand-900 tabular-nums">{formatTokenAmount(wallet)}</p>
           </div>
-          <div className="text-sm font-semibold text-gray-900">{formatTokenAmount(staked)}</div>
+          <div className="bg-white rounded-lg p-3 text-center border border-brand-100">
+            <p className="text-xs text-brand-600">
+              Staked {!stakingAvailable && <span className="text-brand-400">(coming soon)</span>}
+            </p>
+            <p className="text-lg font-bold text-brand-900 tabular-nums">{formatTokenAmount(staked)}</p>
+          </div>
         </div>
       </div>
 

@@ -37,51 +37,51 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
   return (
     <div className="space-y-3">
       {/* Supply stats */}
-      <div className="section-card">
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Supply</h4>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div>
-            <div className="text-lg font-bold text-gray-900">{formatTokenAmount(data.totalSupply)}</div>
+      <div className="section-card bg-gray-50">
+        <h3 className="text-base font-semibold text-gray-900">Supply</h3>
+        <div className="grid grid-cols-3 gap-3 text-center mt-2">
+          <div className="bg-white rounded-lg p-3 border border-gray-100">
+            <div className="text-lg font-bold text-gray-900 tabular-nums">{formatTokenAmount(data.totalSupply)}</div>
             <div className="text-xs text-gray-500">Total supply</div>
           </div>
-          <div>
-            <div className="text-lg font-bold text-red-600">{formatTokenAmount(data.totalBurned)}</div>
+          <div className="bg-white rounded-lg p-3 border border-red-100">
+            <div className="text-lg font-bold text-red-600 tabular-nums">{formatTokenAmount(data.totalBurned)}</div>
             <div className="text-xs text-gray-500">Burned</div>
           </div>
-          <div>
-            <div className="text-lg font-bold text-purple-600">{formatTokenAmount(data.totalStaked)}</div>
+          <div className="bg-white rounded-lg p-3 border border-purple-100">
+            <div className="text-lg font-bold text-purple-600 tabular-nums">{formatTokenAmount(data.totalStaked)}</div>
             <div className="text-xs text-gray-500">Staked</div>
           </div>
         </div>
       </div>
 
       {/* Game stats */}
-      <div className="section-card">
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Game activity</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-red-50 rounded-lg p-3">
+      <div className="section-card bg-accent-50">
+        <h3 className="text-base font-semibold text-accent-900">Game activity</h3>
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="bg-white rounded-lg p-3 border border-red-100">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-sm">🔥</span>
               <span className="text-xs font-medium text-red-700">Burn words</span>
             </div>
-            <div className="text-lg font-bold text-red-700">{data.burnStats.burnWordsFound}</div>
+            <div className="text-lg font-bold text-red-700 tabular-nums">{data.burnStats.burnWordsFound}</div>
             <div className="text-xs text-red-500">{formatTokenAmount(data.burnStats.totalBurned)} tokens burned</div>
           </div>
-          <div className="bg-purple-50 rounded-lg p-3">
+          <div className="bg-white rounded-lg p-3 border border-purple-100">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-sm">🎣</span>
               <span className="text-xs font-medium text-purple-700">Bonus words</span>
             </div>
-            <div className="text-lg font-bold text-purple-700">{data.bonusStats.bonusWordsFound}</div>
+            <div className="text-lg font-bold text-purple-700 tabular-nums">{data.bonusStats.bonusWordsFound}</div>
             <div className="text-xs text-purple-500">{formatTokenAmount(data.bonusStats.totalDistributed)} distributed</div>
           </div>
         </div>
       </div>
 
       {/* Fee distribution */}
-      <div className="section-card">
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-3">Fee distribution</h4>
-        <div className="space-y-2">
+      <div className="section-card bg-gray-50">
+        <h3 className="text-base font-semibold text-gray-900">Fee distribution</h3>
+        <div className="space-y-2 mt-2">
           {[
             { label: 'Game treasury', value: data.feeDistribution.gameTreasury, color: '#2D68C7' },
             { label: 'Buyback & stake', value: data.feeDistribution.buybackStake, color: '#7c3aed' },
