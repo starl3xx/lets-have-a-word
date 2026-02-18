@@ -312,7 +312,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Tap the <strong>Buy $WORD</strong> button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
-          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e...fb4b).</p>
+          <p className="mt-2"><WordTokenLink>$WORD</WordTokenLink> is an ERC-20 token on Base (address: 0x304e649e69979298BD1AEE63e175ADf07885fb4b).</p>
         </>
       ),
     },
