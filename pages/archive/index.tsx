@@ -24,7 +24,7 @@ interface ArchiveStats {
   totalPlayers: number;
   uniqueWinners: number;
   totalJackpotDistributed: string;
-  totalWordTokenDistributed: number;
+  totalWordTokenBonuses: number;
   avgGuessesPerRound: number;
   avgPlayersPerRound: number;
   avgRoundLengthMinutes: number;
@@ -140,7 +140,7 @@ export default function ArchiveListPage() {
                 />
                 <StatChip
                   label="$WORD distributed"
-                  value={formatCompactNumber(stats.totalWordTokenDistributed)}
+                  value={formatCompactNumber(stats.totalWordTokenBonuses)}
                   variant="purple"
                 />
               </div>
