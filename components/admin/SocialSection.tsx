@@ -178,16 +178,18 @@ export default function SocialSection({ user }: SocialSectionProps) {
     setStatusCastCopied(false)
 
     try {
-      // Fetch fresh round state, top guessers, and bonus word winners in parallel
-      const [roundStateRes, topGuessersRes, bonusWinnersRes] = await Promise.all([
+      // Fetch fresh round state, top guessers, bonus word winners, and burn word finders in parallel
+      const [roundStateRes, topGuessersRes, bonusWinnersRes, burnFindersRes] = await Promise.all([
         fetch('/api/round-state'),
         fetch('/api/round/top-guessers'),
         fetch('/api/round/bonus-word-winners'),
+        fetch('/api/round/burn-word-finders'),
       ])
 
       const roundState = roundStateRes.ok ? await roundStateRes.json() : null
       const topGuessersData = topGuessersRes.ok ? await topGuessersRes.json() : { topGuessers: [], uniqueGuessersCount: 0 }
       const bonusWinnersData = bonusWinnersRes.ok ? await bonusWinnersRes.json() : { winners: [] }
+      const burnFindersData = burnFindersRes.ok ? await burnFindersRes.json() : { finders: [] }
 
       if (!roundState?.roundId) {
         setStatusCastText("No active round found.")
@@ -233,9 +235,22 @@ export default function SocialSection({ user }: SocialSectionProps) {
         bonusWordFindersStr = bonusUsernames.join(" ")
       }
 
-      // Build cast text, only include bonus finders line if there are winners
+      // Build burn word finders string
+      let burnWordFindersStr = ""
+      if (burnFindersData.finders && burnFindersData.finders.length > 0) {
+        const burnEntries = burnFindersData.finders.map(
+          (f: { username: string; fid: number; word: string }) =>
+            `@${f.username || `fid:${f.fid}`} (${f.word.toUpperCase()})`
+        )
+        burnWordFindersStr = burnEntries.join(" ")
+      }
+
+      // Build cast text, only include finders lines if there are winners
       const bonusWordFindersLine = bonusWordFindersStr
         ? `\n🎣 Bonus word finders: ${bonusWordFindersStr}`
+        : ""
+      const burnWordFindersLine = burnWordFindersStr
+        ? `\n🔥 Burn word finders: ${burnWordFindersStr}`
         : ""
 
       const castText = `@letshaveaword status
@@ -243,7 +258,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
 💰 Prize pool: ${prizePool} ETH
 🎯 Global guesses: ${globalGuesses} (≈${guessPercentage}%)
 👥 Players: ${playerCount}
-⚡ Top early guessers: ${topGuessersStr || "N/A"}${bonusWordFindersLine}
+⚡ Top early guessers: ${topGuessersStr || "N/A"}${bonusWordFindersLine}${burnWordFindersLine}
 🏅 Mini app rank: #`
 
       setStatusCastText(castText)
