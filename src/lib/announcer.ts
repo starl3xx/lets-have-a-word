@@ -265,8 +265,8 @@ The secret word is locked onchain 🔒
 Happy hunting 🕵️‍♂️
 letshaveaword.fun`;
 
-  // Send push notification to mini app users
-  const notification = await notifyRoundStarted(roundNumber);
+  // Send push notification to mini app users (with jackpot data for template)
+  const notification = await notifyRoundStarted(roundNumber, jackpotEth);
 
   const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
