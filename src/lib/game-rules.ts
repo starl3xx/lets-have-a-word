@@ -20,7 +20,7 @@ export const DEFAULT_RULES_CONFIG: GameRulesConfig = {
     referrer: 0.1,
     top10: 0.1,
   },
-  seedCapEth: '0.03', // Updated from 0.1 in Milestone 5.4b
+  seedCapEth: '0.02', // Updated from 0.03 in seed cap reduction
   wordThreshold: '100000000',
 };
 

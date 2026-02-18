@@ -211,8 +211,8 @@ export default async function handler(
     // =========================================================================
     // TREASURY + SEED CALCULATION
     // =========================================================================
-    // Next Round Seed = min(0.03, 5% of jackpot + treasury)
-    // Treasury contributes to seed until 0.03 target is reached
+    // Next Round Seed = min(0.02, 5% of jackpot + treasury)
+    // Treasury contributes to seed until 0.02 target is reached
     // Only treasury balance ABOVE what's needed for seed is withdrawable
     // =========================================================================
 
@@ -222,16 +222,16 @@ export default async function handler(
     // 5% of current jackpot
     const fivePercentOfJackpot = currentJackpotFloat * 0.05;
 
-    // How much more do we need to reach 0.03 target?
+    // How much more do we need to reach 0.02 target?
     const shortfallAfterFivePercent = Math.max(0, SEED_TARGET_ETH - fivePercentOfJackpot);
 
     // Treasury contributes up to the shortfall amount
     const treasuryContribution = Math.min(treasuryBalance, shortfallAfterFivePercent);
 
-    // Total seed = 5% + treasury contribution (capped at 0.03)
+    // Total seed = 5% + treasury contribution (capped at 0.02)
     const totalSeed = Math.min(SEED_TARGET_ETH, fivePercentOfJackpot + treasuryContribution);
 
-    // Final shortfall (if 5% + treasury still < 0.03)
+    // Final shortfall (if 5% + treasury still < 0.02)
     const finalShortfall = Math.max(0, SEED_TARGET_ETH - totalSeed);
 
     // Withdrawable = treasury balance minus what's being used for seed
