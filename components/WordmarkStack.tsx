@@ -167,17 +167,17 @@ export default function WordmarkStack({
         </div>
       )}
 
-      {/* $WORD Holder (position 9) */}
+      {/* $WORD Whale (position 9) */}
       {hasWordTokenHolder && (
         <div
           className={`${config.wordmark} rounded-full overflow-hidden flex items-center justify-center relative z-[70] ${shouldOverlap(8) ? config.overlap : ''}`}
           style={{ boxShadow: '0 0 0 1px #C4B5FD' }}
-          onMouseEnter={() => setTooltipText('$WORD Holder')}
-          onTouchStart={() => setTooltipText('$WORD Holder')}
+          onMouseEnter={() => setTooltipText('$WORD Whale')}
+          onTouchStart={() => setTooltipText('$WORD Whale')}
         >
           <img
             src="/LHAW-icon.png"
-            alt="$WORD Holder"
+            alt="$WORD Whale"
             className="w-full h-full object-cover"
           />
         </div>
