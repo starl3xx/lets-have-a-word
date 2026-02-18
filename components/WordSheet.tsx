@@ -115,18 +115,11 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
                   valueUsd={balanceData.valueUsd}
                   holderTier={balanceData.holderTier}
                   stakingAvailable={balanceData.stakingAvailable}
-                />
-
-                {/* Staking button */}
-                <button
-                  onClick={() => {
+                  onStakingClick={() => {
                     triggerHaptic('light');
                     setShowStakingModal(true);
                   }}
-                  className="w-full mt-3 py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
-                >
-                  <span>🔒</span> Manage staking
-                </button>
+                />
               </div>
             ) : (
               <div className="section-card mb-4 text-center">
