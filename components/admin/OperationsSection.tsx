@@ -77,6 +77,7 @@ interface ContractNetworkState {
 interface WordManagerState {
   configured: boolean
   contractAddress: string | null
+  tokenBalance: string
   totalStaked: string
   totalBurned: string
   totalDistributed: string
@@ -2257,6 +2258,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                         <span style={{ ...styles.infoValue, fontSize: '10px', fontFamily: 'monospace' }}>
                           {contractState.wordManager.contractAddress?.slice(0, 10)}...{contractState.wordManager.contractAddress?.slice(-8)}
                         </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>$WORD Balance</span>
+                        <span style={{ ...styles.infoValue, fontWeight: 700 }}>{contractState.wordManager.tokenBalance} $WORD</span>
                       </div>
                       <div style={styles.infoRow}>
                         <span style={styles.infoLabel}>Total Staked</span>
