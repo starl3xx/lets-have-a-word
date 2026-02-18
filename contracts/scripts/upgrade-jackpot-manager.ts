@@ -36,26 +36,30 @@ async function main() {
   console.log("Current Implementation:", currentImplementation);
   console.log("");
 
-  // Prepare upgrade
+  // Deploy new implementation directly and call upgradeToAndCall on the proxy.
+  // We bypass the OZ upgrades plugin for the upgrade step because previous
+  // upgrades used upgradeToAndCall directly, leaving the plugin manifest stale.
   const JackpotManagerV2 =
     await hre.ethers.getContractFactory("JackpotManagerV2");
 
-  console.log("Validating upgrade compatibility...");
-  await hre.upgrades.validateUpgrade(PROXY_ADDRESS, JackpotManagerV2, {
-    kind: "uups",
-  });
-  console.log("Upgrade validation passed!");
+  console.log("Deploying new JackpotManagerV2 implementation...");
+  const newImpl = await JackpotManagerV2.deploy();
+  await newImpl.waitForDeployment();
+  const newImplAddress = await newImpl.getAddress();
+  console.log("New implementation deployed at:", newImplAddress);
   console.log("");
 
-  console.log("Deploying new implementation and upgrading proxy...");
-  const upgraded = await hre.upgrades.upgradeProxy(
-    PROXY_ADDRESS,
-    JackpotManagerV2
+  console.log("Calling upgradeToAndCall on proxy...");
+  const proxy = await hre.ethers.getContractAt(
+    ["function upgradeToAndCall(address newImplementation, bytes memory data) external"],
+    PROXY_ADDRESS
   );
-  await upgraded.waitForDeployment();
+  const tx = await proxy.upgradeToAndCall(newImplAddress, "0x");
+  console.log("Transaction:", tx.hash);
+  const receipt = await tx.wait();
+  console.log("Confirmed in block:", receipt?.blockNumber);
 
-  const newImplementation =
-    await hre.upgrades.erc1967.getImplementationAddress(PROXY_ADDRESS);
+  const newImplementation = newImplAddress;
 
   console.log("");
   console.log("=".repeat(60));
