@@ -69,7 +69,7 @@ export function getSepoliaProvider(): ethers.Provider {
 export async function getEffectiveBalance(walletAddress: string): Promise<number> {
   try {
     // Try WordManager first (wallet + staked balance)
-    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS;
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
     if (wordManagerAddress && wordManagerAddress !== '') {
       try {
         const provider = getBaseProvider();

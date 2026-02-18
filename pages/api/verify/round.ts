@@ -132,7 +132,7 @@ export default async function handler(
 
     // Milestone 14: WordManager commitment data
     const roundCommitTxHash = roundData.roundCommitTxHash || undefined;
-    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS || undefined;
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim() || undefined;
 
     let wordManagerCommitted = false;
     try {
