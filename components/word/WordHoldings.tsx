@@ -13,6 +13,7 @@ interface WordHoldingsProps {
   valueUsd: string;
   holderTier: number;
   stakingAvailable: boolean;
+  onStakingClick?: () => void;
 }
 
 const TIER_LABELS: Record<number, string> = {
@@ -37,6 +38,7 @@ export default function WordHoldings({
   valueUsd,
   holderTier,
   stakingAvailable,
+  onStakingClick,
 }: WordHoldingsProps) {
   const tierLabel = TIER_LABELS[holderTier] || 'No Tier';
   const tierColor = TIER_COLORS[holderTier] || '#9ca3af';
@@ -74,8 +76,18 @@ export default function WordHoldings({
         </div>
       </div>
 
-      {/* Buy button */}
-      <BuyButton className="w-full" />
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <BuyButton className="flex-1" />
+        {onStakingClick && (
+          <button
+            onClick={onStakingClick}
+            className="flex-1 py-2.5 px-5 bg-gray-100 hover:bg-gray-200 rounded-xl text-base font-semibold text-gray-700 transition-all"
+          >
+            Staking
+          </button>
+        )}
+      </div>
     </div>
   );
 }
