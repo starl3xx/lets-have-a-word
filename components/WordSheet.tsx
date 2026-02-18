@@ -91,67 +91,80 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
                 alt="$WORD"
                 className="w-8 h-8 rounded-full border border-gray-200"
               />
-              <h2 className="text-xl font-bold text-gray-900">$WORD</h2>
+              <h2 className="text-2xl font-bold text-gray-900">$WORD</h2>
             </div>
             <button onClick={onClose} className="btn-close" aria-label="Close">
               ×
             </button>
           </div>
 
-          {/* Holdings section */}
-          {walletAddress ? (
-            isLoadingBalance ? (
-              <div className="section-card animate-pulse mb-4">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-                <div className="h-6 bg-gray-200 rounded w-2/3 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/4"></div>
-              </div>
-            ) : balanceData ? (
-              <div className="mb-4">
-                <WordHoldings
-                  wallet={balanceData.wallet}
-                  staked={balanceData.staked}
-                  effective={balanceData.effective}
-                  valueUsd={balanceData.valueUsd}
-                  holderTier={balanceData.holderTier}
-                  stakingAvailable={balanceData.stakingAvailable}
-                  onStakingClick={() => {
-                    triggerHaptic('light');
-                    setShowStakingModal(true);
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="section-card mb-4 text-center">
-                <p className="text-sm text-gray-500">Failed to load balance</p>
-                <BuyButton className="mt-3" size="sm" />
-              </div>
-            )
-          ) : (
-            /* No wallet connected */
-            <div className="section-card mb-4 text-center space-y-3">
-              <div className="text-3xl">💰</div>
-              <p className="text-sm text-gray-600">
-                Connect your wallet to see your $WORD balance and holder tier bonus.
-              </p>
-              <BuyButton size="sm" />
+          {/* Loading State */}
+          {isLoadingBalance && isLoadingTokenomics && (
+            <div className="text-center py-8">
+              <p className="text-gray-500 animate-pulse">Loading...</p>
             </div>
           )}
 
-          {/* Tokenomics section */}
-          <TokenomicsOverview data={tokenomicsData} isLoading={isLoadingTokenomics} />
+          {/* Content */}
+          {!(isLoadingBalance && isLoadingTokenomics) && (
+            <div className="space-y-4">
+              {/* Holdings section */}
+              {walletAddress ? (
+                isLoadingBalance ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 animate-pulse">Loading balance...</p>
+                  </div>
+                ) : balanceData ? (
+                  <WordHoldings
+                    wallet={balanceData.wallet}
+                    staked={balanceData.staked}
+                    effective={balanceData.effective}
+                    valueUsd={balanceData.valueUsd}
+                    holderTier={balanceData.holderTier}
+                    stakingAvailable={balanceData.stakingAvailable}
+                    onStakingClick={() => {
+                      triggerHaptic('light');
+                      setShowStakingModal(true);
+                    }}
+                  />
+                ) : (
+                  <div className="bg-error-50 border border-error-200 rounded-btn p-4 text-center">
+                    <p className="text-error-700 text-sm">Failed to load balance</p>
+                    <BuyButton className="mt-3" size="sm" />
+                  </div>
+                )
+              ) : (
+                /* No wallet connected */
+                <div className="section-card text-center space-y-3">
+                  <div className="text-3xl">💰</div>
+                  <p className="text-sm text-gray-600">
+                    Connect your wallet to see your $WORD balance and holder tier bonus.
+                  </p>
+                  <BuyButton size="sm" />
+                </div>
+              )}
 
-          {/* Market cap & price */}
-          {tokenomicsData && (
-            <div className="mt-3 section-card">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Market cap</span>
-                <span className="font-semibold text-gray-900">
-                  ${parseInt(tokenomicsData.marketCap).toLocaleString('en-US')}
-                </span>
-              </div>
+              {/* Tokenomics section */}
+              <TokenomicsOverview data={tokenomicsData} isLoading={isLoadingTokenomics} />
+
+              {/* Market cap & price */}
+              {tokenomicsData && (
+                <div className="section-card">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Market cap</span>
+                    <span className="font-semibold text-gray-900">
+                      ${parseInt(tokenomicsData.marketCap).toLocaleString('en-US')}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Close Button */}
+          <button onClick={onClose} className="btn-secondary w-full mt-4">
+            Close
+          </button>
         </div>
       </div>
 
