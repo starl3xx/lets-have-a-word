@@ -1,12 +1,69 @@
-node_modules/
-dist/
-.env
-.env.local
-*.log
-.DS_Store
-drizzle/
+# Security - Never commit sensitive files
+SECURITY_*.md
+*_SECURITY.md
+DEPLOYMENT_*.md
+EXECUTION_*.md
+TROUBLESHOOTING.md
+AUDIT_*.md
 
-# Next.js
+# Private/internal docs
+*OUTREACH*.md
+*PARTNERSHIP*.md
+*PROMO_TRACKER*.md
+*ANNOUNCEMENT_PLAN*.md
+*ACTION*.md
+
+# Credentials & keys
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*secret*
+*SECRET*
+*_KEY*
+
+# Private directory (all subprojects)
+private/
+.private/
+
+# Wallet files
+*wallet*
+*keystore*
+
+# API keys in URLs
+*.alchemy.com*
+*.infura.io*
+
+# Node
+node_modules/
+.npm/
+npm-debug.log*
+
+# Build
+dist/
+build/
 .next/
 out/
-next-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Temporary
+tmp/
+temp/
+*.tmp
