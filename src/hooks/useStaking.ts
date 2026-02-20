@@ -87,6 +87,10 @@ export type StakingPhase =
   | 'withdraw-confirming'
   | 'claiming'
   | 'claim-confirming'
+  | 'compound-claiming'
+  | 'compound-claim-confirming'
+  | 'compound-staking'
+  | 'compound-stake-confirming'
   | 'success'
   | 'error';
 
@@ -94,17 +98,20 @@ export interface UseStakingReturn {
   stake: (amountWhole: string) => void;
   withdraw: (amountWhole: string) => void;
   claimRewards: () => void;
+  compound: (rewardAmountWhole: string) => void;
   phase: StakingPhase;
   error: Error | null;
   txHash: `0x${string}` | undefined;
   reset: () => void;
   isConfigError: boolean;
+  currentAction: 'stake' | 'withdraw' | 'claim' | 'compound' | null;
 }
 
 export function useStaking(): UseStakingReturn {
   const [phase, setPhase] = useState<StakingPhase>('idle');
-  const [currentAction, setCurrentAction] = useState<'stake' | 'withdraw' | 'claim' | null>(null);
+  const [currentAction, setCurrentAction] = useState<'stake' | 'withdraw' | 'claim' | 'compound' | null>(null);
   const [pendingStakeAmount, setPendingStakeAmount] = useState<bigint | null>(null);
+  const [pendingCompoundAmount, setPendingCompoundAmount] = useState<bigint | null>(null);
   const [configError, setConfigError] = useState<Error | null>(null);
   const [actionError, setActionError] = useState<Error | null>(null);
 
@@ -155,7 +162,7 @@ export function useStaking(): UseStakingReturn {
       // Approve confirmed — now call stake() after a delay for RPC propagation.
       // Farcaster's wallet pre-simulates txs against its own RPC node; without
       // this delay, the simulation may not see the new allowance yet.
-      setPhase('staking');
+      setPhase(currentAction === 'compound' ? 'compound-staking' : 'staking');
       resetWrite();
       setTimeout(() => {
         writeContract({
@@ -167,7 +174,37 @@ export function useStaking(): UseStakingReturn {
           dataSuffix: ERC_8021_SUFFIX,
         });
       }, 3000);
-    } else if (phase === 'stake-confirming' || phase === 'withdraw-confirming' || phase === 'claim-confirming') {
+    } else if (phase === 'compound-claim-confirming' && pendingCompoundAmount !== null) {
+      // Compound: claim confirmed — now stake the claimed rewards
+      resetWrite();
+      if (currentAllowance !== undefined && currentAllowance >= pendingCompoundAmount) {
+        // Allowance sufficient — stake directly after delay
+        setPhase('compound-staking');
+        setTimeout(() => {
+          writeContract({
+            address: WORD_MANAGER_ADDRESS,
+            abi: WORD_MANAGER_ABI,
+            functionName: 'stake',
+            args: [pendingCompoundAmount],
+            chainId: base.id,
+            dataSuffix: ERC_8021_SUFFIX,
+          });
+        }, 3000);
+      } else {
+        // Need approval first — reuse approve → stake chain
+        setPendingStakeAmount(pendingCompoundAmount);
+        setPhase('approving');
+        setTimeout(() => {
+          writeContract({
+            address: WORD_TOKEN_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [WORD_MANAGER_ADDRESS, maxUint256],
+            chainId: base.id,
+          });
+        }, 3000);
+      }
+    } else if (phase === 'stake-confirming' || phase === 'withdraw-confirming' || phase === 'claim-confirming' || phase === 'compound-stake-confirming') {
       // Final action confirmed
       setFinalTxHash(txHash);
       setPhase('success');
@@ -186,7 +223,7 @@ export function useStaking(): UseStakingReturn {
         }).catch(() => {}); // Fire-and-forget
       }
     }
-  }, [isReceiptSuccess, phase, pendingStakeAmount, txHash, currentAction, resetWrite, writeContract, refetchAllowance]);
+  }, [isReceiptSuccess, phase, pendingStakeAmount, pendingCompoundAmount, currentAllowance, txHash, currentAction, resetWrite, writeContract, refetchAllowance]);
 
   // Track write pending → confirming transitions
   useEffect(() => {
@@ -201,6 +238,12 @@ export function useStaking(): UseStakingReturn {
       prevReceiptSuccess.current = false;
     } else if (txHash && phase === 'claiming') {
       setPhase('claim-confirming');
+      prevReceiptSuccess.current = false;
+    } else if (txHash && phase === 'compound-claiming') {
+      setPhase('compound-claim-confirming');
+      prevReceiptSuccess.current = false;
+    } else if (txHash && phase === 'compound-staking') {
+      setPhase('compound-stake-confirming');
       prevReceiptSuccess.current = false;
     }
   }, [txHash, phase]);
@@ -302,10 +345,38 @@ export function useStaking(): UseStakingReturn {
     });
   }, [writeContract]);
 
+  const compound = useCallback((rewardAmountWhole: string) => {
+    setConfigError(null);
+    setActionError(null);
+
+    if (!WORD_MANAGER_ADDRESS) {
+      setConfigError(new Error('Staking not available. Contract address not configured.'));
+      setPhase('error');
+      return;
+    }
+
+    const amountWei = parseUnits(rewardAmountWhole, 18);
+    setPendingCompoundAmount(amountWei);
+    setCurrentAction('compound');
+    prevReceiptSuccess.current = false;
+
+    // Step 1: Claim rewards first, then auto-stake on confirmation
+    setPhase('compound-claiming');
+    writeContract({
+      address: WORD_MANAGER_ADDRESS,
+      abi: WORD_MANAGER_ABI,
+      functionName: 'claimRewards',
+      args: [],
+      chainId: base.id,
+      dataSuffix: ERC_8021_SUFFIX,
+    });
+  }, [writeContract]);
+
   const reset = useCallback(() => {
     setPhase('idle');
     setCurrentAction(null);
     setPendingStakeAmount(null);
+    setPendingCompoundAmount(null);
     setConfigError(null);
     setActionError(null);
     setFinalTxHash(undefined);
@@ -317,10 +388,12 @@ export function useStaking(): UseStakingReturn {
     stake,
     withdraw,
     claimRewards,
+    compound,
     phase,
     error: configError || actionError || null,
     txHash: finalTxHash ?? txHash,
     reset,
     isConfigError,
+    currentAction,
   };
 }
