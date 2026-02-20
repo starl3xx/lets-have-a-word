@@ -249,7 +249,22 @@ export default function GuessPurchaseModal({
   // Handle transaction error
   useEffect(() => {
     if (isTxError && txError) {
-      setError(txError.message || 'Transaction failed');
+      // Extract a clean error message from viem's verbose errors
+      const rawMsg = txError.message || '';
+      let userMsg: string;
+
+      if (rawMsg.includes('User rejected') || rawMsg.includes('user rejected') || rawMsg.includes('denied')) {
+        userMsg = 'Transaction cancelled.';
+      } else if (rawMsg.includes('insufficient funds')) {
+        userMsg = 'Insufficient funds for this transaction.';
+      } else if ((txError as any).shortMessage) {
+        userMsg = (txError as any).shortMessage;
+      } else {
+        // Fallback: take only the first line to avoid verbose dumps
+        userMsg = rawMsg.split('\n')[0].slice(0, 120) || 'Transaction failed';
+      }
+
+      setError(userMsg);
       setIsPurchasing(false);
       void haptics.inputBecameInvalid();
     }
