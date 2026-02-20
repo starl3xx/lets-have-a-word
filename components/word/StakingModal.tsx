@@ -77,6 +77,10 @@ function getPhaseLabel(phase: StakingPhase, action: StakingTab): string {
     'withdraw-confirming': 'Confirming unstake...',
     'claiming': 'Claiming...',
     'claim-confirming': 'Confirming claim...',
+    'compound-claiming': 'Claiming rewards...',
+    'compound-claim-confirming': 'Confirming claim...',
+    'compound-staking': 'Restaking...',
+    'compound-stake-confirming': 'Confirming restake...',
     'success': 'Done!',
     'error': 'Try again',
   };
@@ -115,7 +119,7 @@ export default function StakingModal({
   const [showCelebration, setShowCelebration] = useState(false);
   const previousTierRef = useRef(xpStakingTier);
 
-  const { stake, withdraw, claimRewards, phase, error, txHash, reset } = useStaking();
+  const { stake, withdraw, claimRewards, compound, phase, error, txHash, reset, currentAction } = useStaking();
 
   // Ticking reward counter state
   const [displayedRewards, setDisplayedRewards] = useState(parseFloat(unclaimedRewards) || 0);
@@ -217,6 +221,12 @@ export default function StakingModal({
   const handleClaim = useCallback(() => {
     claimRewards();
   }, [claimRewards]);
+
+  const handleCompound = useCallback(() => {
+    const rewardWhole = Math.floor(displayedRewards).toString();
+    if (parseFloat(rewardWhole) <= 0) return;
+    compound(rewardWhole);
+  }, [displayedRewards, compound]);
 
   const tabs: { key: StakingTab; label: string }[] = [
     { key: 'stake', label: 'Stake' },
@@ -539,7 +549,26 @@ export default function StakingModal({
                         : 'bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400'
                     }`}
                   >
-                    {phase === 'success' ? '✓ Claimed!' : getPhaseLabel(phase, 'rewards')}
+                    {phase === 'success'
+                      ? (currentAction === 'compound' ? '✓ Compounded!' : '✓ Claimed!')
+                      : getPhaseLabel(phase, 'rewards')}
+                  </button>
+                  <button
+                    onClick={handleCompound}
+                    disabled={!walletAddress || Math.floor(displayedRewards) < 1 || isPhaseBusy(phase)}
+                    className={`w-full py-3 rounded-xl text-sm font-semibold transition-all border-2 ${
+                      phase === 'success' && currentAction === 'compound'
+                        ? 'bg-green-500 text-white border-green-500'
+                        : phase === 'error' && currentAction === 'compound'
+                        ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200'
+                        : 'border-green-600 text-green-700 hover:bg-green-50 disabled:border-gray-200 disabled:text-gray-400'
+                    }`}
+                  >
+                    {phase === 'success' && currentAction === 'compound'
+                      ? '✓ Compounded!'
+                      : currentAction === 'compound' && isPhaseBusy(phase)
+                      ? getPhaseLabel(phase, 'rewards')
+                      : 'Claim + Restake'}
                   </button>
                   {phase === 'error' && error && (
                     <p className="text-xs text-red-500 text-center">{getFriendlyError(error)}</p>
