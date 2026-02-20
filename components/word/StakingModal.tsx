@@ -555,7 +555,7 @@ export default function StakingModal({
                   </button>
                   <button
                     onClick={handleCompound}
-                    disabled={!walletAddress || displayedRewards <= 0 || isPhaseBusy(phase)}
+                    disabled={!walletAddress || Math.floor(displayedRewards) < 1 || isPhaseBusy(phase)}
                     className={`w-full py-3 rounded-xl text-sm font-semibold transition-all border-2 ${
                       phase === 'success' && currentAction === 'compound'
                         ? 'bg-green-500 text-white border-green-500'

@@ -44,6 +44,13 @@ const ERC20_ABI = [
     ],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
 ] as const;
 
 const WORD_MANAGER_ABI = [
@@ -129,6 +136,15 @@ export function useStaking(): UseStakingReturn {
     query: { enabled: !!userAddress && !!WORD_MANAGER_ADDRESS },
   });
 
+  // Read token balance — used to cap compound stake at actual post-claim balance
+  const { refetch: refetchTokenBalance } = useReadContract({
+    address: WORD_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: userAddress ? [userAddress] : undefined,
+    query: { enabled: !!userAddress },
+  });
+
   const {
     writeContract,
     data: txHash,
@@ -175,26 +191,36 @@ export function useStaking(): UseStakingReturn {
         });
       }, 3000);
     } else if (phase === 'compound-claim-confirming' && pendingCompoundAmount !== null) {
-      // Compound: claim confirmed — now stake the claimed rewards
+      // Compound: claim confirmed — now stake the claimed rewards.
+      // Refetch actual token balance after RPC delay to avoid staking more than claimed.
       resetWrite();
-      if (currentAllowance !== undefined && currentAllowance >= pendingCompoundAmount) {
-        // Allowance sufficient — stake directly after delay
-        setPhase('compound-staking');
-        setTimeout(() => {
+      setPhase('compound-staking');
+      setTimeout(async () => {
+        // Get actual post-claim balance to cap stake amount
+        const { data: freshBalance } = await refetchTokenBalance();
+        const stakeAmount = (freshBalance !== undefined && freshBalance < pendingCompoundAmount)
+          ? freshBalance
+          : pendingCompoundAmount;
+
+        if (stakeAmount <= 0n) {
+          setActionError(new Error('No tokens available to restake.'));
+          setPhase('error');
+          return;
+        }
+
+        if (currentAllowance !== undefined && currentAllowance >= stakeAmount) {
           writeContract({
             address: WORD_MANAGER_ADDRESS,
             abi: WORD_MANAGER_ABI,
             functionName: 'stake',
-            args: [pendingCompoundAmount],
+            args: [stakeAmount],
             chainId: base.id,
             dataSuffix: ERC_8021_SUFFIX,
           });
-        }, 3000);
-      } else {
-        // Need approval first — reuse approve → stake chain
-        setPendingStakeAmount(pendingCompoundAmount);
-        setPhase('approving');
-        setTimeout(() => {
+        } else {
+          // Need approval first — reuse approve → stake chain
+          setPendingStakeAmount(stakeAmount);
+          setPhase('approving');
           writeContract({
             address: WORD_TOKEN_ADDRESS,
             abi: ERC20_ABI,
@@ -202,8 +228,8 @@ export function useStaking(): UseStakingReturn {
             args: [WORD_MANAGER_ADDRESS, maxUint256],
             chainId: base.id,
           });
-        }, 3000);
-      }
+        }
+      }, 3000);
     } else if (phase === 'stake-confirming' || phase === 'withdraw-confirming' || phase === 'claim-confirming' || phase === 'compound-stake-confirming') {
       // Final action confirmed
       setFinalTxHash(txHash);
@@ -223,7 +249,7 @@ export function useStaking(): UseStakingReturn {
         }).catch(() => {}); // Fire-and-forget
       }
     }
-  }, [isReceiptSuccess, phase, pendingStakeAmount, pendingCompoundAmount, currentAllowance, txHash, currentAction, resetWrite, writeContract, refetchAllowance]);
+  }, [isReceiptSuccess, phase, pendingStakeAmount, pendingCompoundAmount, currentAllowance, txHash, currentAction, resetWrite, writeContract, refetchAllowance, refetchTokenBalance]);
 
   // Track write pending → confirming transitions
   useEffect(() => {
