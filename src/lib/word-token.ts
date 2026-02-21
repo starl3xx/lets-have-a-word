@@ -68,29 +68,13 @@ export function getSepoliaProvider(): ethers.Provider {
  */
 export async function getEffectiveBalance(walletAddress: string): Promise<number> {
   try {
-    // Try WordManager first (wallet + staked balance)
-    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
-    if (wordManagerAddress && wordManagerAddress !== '') {
-      try {
-        const provider = getBaseProvider();
-        const wordManagerABI = [
-          'function getEffectiveBalance(address user) view returns (uint256)',
-        ];
-        const wordManager = new ethers.Contract(wordManagerAddress, wordManagerABI, provider);
-        const balance = await wordManager.getEffectiveBalance(walletAddress);
-        const wholeTokens = parseFloat(ethers.formatUnits(balance, 18));
-        return wholeTokens;
-      } catch (err) {
-        console.warn('[$WORD] WordManager.getEffectiveBalance() failed, falling back to balanceOf():', err);
-      }
-    }
-
-    // Fallback: raw ERC-20 balanceOf + staked balance from WordManager
     const provider = getBaseProvider();
     const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
     const walletBalance = await contract.balanceOf(walletAddress);
 
+    // Add staked balance from WordManager if deployed
     let stakedBalance = 0n;
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
     if (wordManagerAddress && wordManagerAddress !== '') {
       try {
         const wordManager = new ethers.Contract(
