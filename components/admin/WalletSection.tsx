@@ -227,7 +227,7 @@ function computeWalletHealth(
 
   const seedShortfall = parseFloat(balances?.nextRoundSeed?.shortfallEth || '0');
   if (seedShortfall > 0) {
-    issues.push(`Next round seed ${seedShortfall.toFixed(4)} ETH short of target`);
+    issues.push(`Next round seed ${seedShortfall.toFixed(4)} ETH short — operator wallet will auto-top-up`);
   }
 
   if (opStatus?.deadDay?.enabled) {
@@ -1405,6 +1405,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
             const fromTreasury = balances.nextRoundSeed?.fromTreasuryEth || '0';
             const shortfall = balances.nextRoundSeed?.shortfallEth || '0';
             const hasShortfall = parseFloat(shortfall) > 0;
+            const onChainJackpot = parseFloat(balances.prizePool.currentJackpotEth);
+            const needsTopUp = onChainJackpot < 0.02;
+            const topUpAmount = needsTopUp ? (0.02 - onChainJackpot) : 0;
 
             return (
               <>
@@ -1412,7 +1415,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 <div style={styles.grid4}>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Prize Pool</div>
-                    <div style={styles.statValueSmall}>{parseFloat(balances.prizePool.currentJackpotEth).toFixed(4)}</div>
+                    <div style={styles.statValueSmall}>{onChainJackpot.toFixed(4)}</div>
                     <div style={styles.statSubtext}>ETH</div>
                   </div>
                   <div style={styles.statCard}>
@@ -1421,7 +1424,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                       {parseFloat(seedTotal).toFixed(4)}
                     </div>
                     <div style={styles.statSubtext}>
-                      {hasShortfall ? `${parseFloat(shortfall).toFixed(4)} short` : 'Target met'}
+                      {hasShortfall ? `${parseFloat(shortfall).toFixed(4)} short` : needsTopUp ? 'Auto-top-up ready' : 'Target met'}
                     </div>
                   </div>
                   <div style={styles.statCard}>
@@ -1465,7 +1468,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
                     </div>
                     {hasShortfall && (
                       <div style={{ fontSize: '11px', color: '#b45309', marginTop: '4px', fontStyle: 'italic' }}>
-                        Next round will start with {parseFloat(seedTotal).toFixed(4)} ETH (below 0.02 target)
+                        Operator wallet will auto-top-up {topUpAmount.toFixed(4)} ETH shortfall when starting round
+                      </div>
+                    )}
+                    {!hasShortfall && needsTopUp && (
+                      <div style={{ fontSize: '11px', color: '#047857', marginTop: '4px', fontStyle: 'italic' }}>
+                        Operator wallet will auto-top-up {topUpAmount.toFixed(4)} ETH when starting round
                       </div>
                     )}
                   </div>
