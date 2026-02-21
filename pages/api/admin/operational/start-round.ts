@@ -11,7 +11,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
 import { createRound, getActiveRound } from '../../../../src/lib/rounds';
-import { getJackpotManagerReadOnly } from '../../../../src/lib/jackpot-contract';
+import { getJackpotManagerReadOnly, getContractRoundInfo, topUpJackpotOnChain } from '../../../../src/lib/jackpot-contract';
+import { SEED_CAP_WEI } from '../../../../src/lib/economics';
 
 interface StartRoundResponse {
   success: boolean;
@@ -21,6 +22,10 @@ interface StartRoundResponse {
   prizePoolEth?: string;
   startedAt?: string;
   error?: string;
+  seedingPerformed?: boolean;
+  seedingTxHash?: string;
+  seedingAmountEth?: string;
+  newJackpotEth?: string;
 }
 
 export default async function handler(
@@ -108,6 +113,49 @@ export default async function handler(
       // Continue anyway - let the contract call fail with its error
     }
 
+    // Auto-top-up: check contract jackpot and seed if needed
+    let seedingPerformed = false;
+    let seedingTxHash: string | undefined;
+    let seedingAmountEth: string | undefined;
+    let newJackpotEth: string | undefined;
+
+    try {
+      const roundInfo = await getContractRoundInfo();
+      const currentJackpotWei = roundInfo.jackpot;
+      console.log(`[start-round] Current contract jackpot: ${ethers.formatEther(currentJackpotWei)} ETH`);
+      console.log(`[start-round] Seed target: ${ethers.formatEther(SEED_CAP_WEI)} ETH`);
+
+      if (currentJackpotWei < SEED_CAP_WEI) {
+        const shortfallWei = SEED_CAP_WEI - currentJackpotWei;
+        console.log(`[start-round] Jackpot below seed target, topping up ${ethers.formatEther(shortfallWei)} ETH...`);
+
+        const topUpResult = await topUpJackpotOnChain(shortfallWei);
+        seedingPerformed = true;
+        seedingTxHash = topUpResult.txHash;
+        seedingAmountEth = topUpResult.amountEth;
+        newJackpotEth = topUpResult.newJackpotEth;
+
+        console.log(`[start-round] Top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
+
+        // Verify post-top-up jackpot meets minimum
+        if (topUpResult.newJackpotWei < SEED_CAP_WEI) {
+          return res.status(500).json({
+            success: false,
+            message: `Jackpot still below minimum after top-up. Current: ${topUpResult.newJackpotEth} ETH, need: ${ethers.formatEther(SEED_CAP_WEI)} ETH`,
+          });
+        }
+      } else {
+        console.log(`[start-round] Jackpot already at or above seed target, no top-up needed`);
+      }
+    } catch (topUpError) {
+      console.error('[start-round] Failed to top up jackpot:', topUpError);
+      return res.status(500).json({
+        success: false,
+        message: `Failed to top up jackpot to seed target: ${topUpError instanceof Error ? topUpError.message : 'Unknown error'}`,
+        error: topUpError instanceof Error ? topUpError.message : 'Unknown error',
+      });
+    }
+
     // Create new round
     console.log(`[start-round] Admin FID ${fid} starting new round...`);
     const round = await createRound();
@@ -121,6 +169,10 @@ export default async function handler(
       commitHash: round.commitHash,
       prizePoolEth: round.prizePoolEth,
       startedAt: round.startedAt.toISOString(),
+      seedingPerformed,
+      seedingTxHash,
+      seedingAmountEth,
+      newJackpotEth,
     });
   } catch (error) {
     console.error('[start-round] Error:', error);

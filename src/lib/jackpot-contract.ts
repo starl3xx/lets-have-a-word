@@ -434,6 +434,74 @@ export async function seedJackpotOnChain(amountEth: string): Promise<string> {
 }
 
 /**
+ * Top up jackpot by sending plain ETH to the contract address.
+ *
+ * Uses a plain ETH transfer (triggers the contract's receive() fallback) instead
+ * of seedJackpot() to avoid auto-starting a round with a zero commitment hash,
+ * which would break provable fairness.
+ *
+ * @param amountWei - Amount to send in wei
+ * @returns Object with tx details and new jackpot balance
+ */
+export async function topUpJackpotOnChain(amountWei: bigint): Promise<{
+  txHash: string;
+  amountWei: bigint;
+  amountEth: string;
+  newJackpotWei: bigint;
+  newJackpotEth: string;
+}> {
+  const config = getContractConfig();
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+
+  if (!operatorPrivateKey) {
+    throw new Error('OPERATOR_PRIVATE_KEY not configured for jackpot top-up');
+  }
+
+  const provider = getBaseProvider();
+  const wallet = new Wallet(operatorPrivateKey, provider);
+
+  // Pre-flight: check operator wallet balance
+  const operatorBalance = await provider.getBalance(wallet.address);
+  const amountEth = ethers.formatEther(amountWei);
+
+  console.log(`[CONTRACT] Top-up jackpot: ${amountEth} ETH`);
+  console.log(`[CONTRACT] Operator balance: ${ethers.formatEther(operatorBalance)} ETH`);
+
+  // Need enough for the top-up amount plus gas (~21000 gas for plain transfer)
+  const estimatedGasCost = 30000n * 1000000000n; // ~30k gas * 1 gwei (conservative)
+  if (operatorBalance < amountWei + estimatedGasCost) {
+    throw new Error(
+      `Insufficient operator balance for top-up. ` +
+      `Need ~${ethers.formatEther(amountWei + estimatedGasCost)} ETH, ` +
+      `have ${ethers.formatEther(operatorBalance)} ETH`
+    );
+  }
+
+  // Send plain ETH transfer to contract (triggers receive() fallback)
+  const tx = await wallet.sendTransaction({
+    to: config.jackpotManagerAddress,
+    value: amountWei,
+  });
+  console.log(`[CONTRACT] Top-up transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Top-up confirmed - Block: ${receipt!.blockNumber}, Gas: ${receipt!.gasUsed}`);
+
+  // Read back new jackpot
+  const newJackpotWei = await getCurrentJackpotOnChainWei();
+  const newJackpotEth = ethers.formatEther(newJackpotWei);
+  console.log(`[CONTRACT] New jackpot: ${newJackpotEth} ETH`);
+
+  return {
+    txHash: tx.hash,
+    amountWei,
+    amountEth,
+    newJackpotWei,
+    newJackpotEth,
+  };
+}
+
+/**
  * Purchase guesses onchain for a player
  *
  * @param playerAddress - Wallet address of the player
