@@ -12,7 +12,6 @@ import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
 import { createRound, getActiveRound } from '../../../../src/lib/rounds';
 import { getJackpotManagerReadOnly, getContractRoundInfo, topUpJackpotOnChain } from '../../../../src/lib/jackpot-contract';
-import { SEED_CAP_WEI } from '../../../../src/lib/economics';
 
 interface StartRoundResponse {
   success: boolean;
@@ -120,14 +119,20 @@ export default async function handler(
     let newJackpotEth: string | undefined;
 
     try {
-      const roundInfo = await getContractRoundInfo();
+      // Read both the current jackpot and MINIMUM_SEED directly from the contract
+      // to avoid any mismatch between our constant and the deployed contract value
+      const contract = getJackpotManagerReadOnly();
+      const [roundInfo, minimumSeedWei] = await Promise.all([
+        getContractRoundInfo(),
+        contract.MINIMUM_SEED() as Promise<bigint>,
+      ]);
       const currentJackpotWei = roundInfo.jackpot;
       console.log(`[start-round] Current contract jackpot: ${ethers.formatEther(currentJackpotWei)} ETH`);
-      console.log(`[start-round] Seed target: ${ethers.formatEther(SEED_CAP_WEI)} ETH`);
+      console.log(`[start-round] Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeedWei)} ETH`);
 
-      if (currentJackpotWei < SEED_CAP_WEI) {
-        const shortfallWei = SEED_CAP_WEI - currentJackpotWei;
-        console.log(`[start-round] Jackpot below seed target, topping up ${ethers.formatEther(shortfallWei)} ETH...`);
+      if (currentJackpotWei < minimumSeedWei) {
+        const shortfallWei = minimumSeedWei - currentJackpotWei;
+        console.log(`[start-round] Jackpot below minimum seed, topping up ${ethers.formatEther(shortfallWei)} ETH...`);
 
         const topUpResult = await topUpJackpotOnChain(shortfallWei);
         seedingPerformed = true;
@@ -138,14 +143,14 @@ export default async function handler(
         console.log(`[start-round] Top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
 
         // Verify post-top-up jackpot meets minimum
-        if (topUpResult.newJackpotWei < SEED_CAP_WEI) {
+        if (topUpResult.newJackpotWei < minimumSeedWei) {
           return res.status(500).json({
             success: false,
-            message: `Jackpot still below minimum after top-up. Current: ${topUpResult.newJackpotEth} ETH, need: ${ethers.formatEther(SEED_CAP_WEI)} ETH`,
+            message: `Jackpot still below minimum after top-up. Current: ${topUpResult.newJackpotEth} ETH, need: ${ethers.formatEther(minimumSeedWei)} ETH`,
           });
         }
       } else {
-        console.log(`[start-round] Jackpot already at or above seed target, no top-up needed`);
+        console.log(`[start-round] Jackpot already at or above minimum seed, no top-up needed`);
       }
     } catch (topUpError) {
       console.error('[start-round] Failed to top up jackpot:', topUpError);

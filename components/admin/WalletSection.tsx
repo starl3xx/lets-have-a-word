@@ -1468,7 +1468,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                     </div>
                     {hasShortfall && (
                       <div style={{ fontSize: '11px', color: '#b45309', marginTop: '4px', fontStyle: 'italic' }}>
-                        Operator wallet will auto-top-up {topUpAmount.toFixed(4)} ETH shortfall when starting round
+                        Operator wallet will auto-top-up {parseFloat(shortfall).toFixed(4)} ETH shortfall when starting round
                       </div>
                     )}
                     {!hasShortfall && needsTopUp && (
