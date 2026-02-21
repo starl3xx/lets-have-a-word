@@ -521,7 +521,10 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         throw new Error('Server returned success but no round ID')
       }
 
-      setSuccess(`Round #${data.roundId} started successfully! Commit hash: ${data.commitHash?.slice(0, 16)}...`)
+      const seedingInfo = data.seedingPerformed
+        ? ` (Auto-seeded ${data.seedingAmountEth} ETH, jackpot now ${data.newJackpotEth} ETH)`
+        : ''
+      setSuccess(`Round #${data.roundId} started successfully!${seedingInfo} Commit hash: ${data.commitHash?.slice(0, 16)}...`)
       await fetchStatus()
     } catch (err: any) {
       setError(err.message)
