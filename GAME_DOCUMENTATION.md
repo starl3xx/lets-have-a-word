@@ -3825,7 +3825,7 @@ The XP system tracks player engagement and progression using an **event-sourced 
 | `REFERRAL_FIRST_GUESS` | +20 | Referrer earns when referred user makes first guess |
 | `STREAK_DAY` | +15 | Each consecutive day playing (after day 1) |
 | `CLANKTON_BONUS_DAY` | +10 | $WORD holder (100M+) daily participation | <!-- event type stored in DB, do not rename -->
-| `SHARE_CAST` | +15 | Sharing to Farcaster (once per day) |
+| `SHARE_CAST` | +15 | Sharing guess to Farcaster/Base (once per day) |
 | `PACK_PURCHASE` | +20 | Each guess pack purchased |
 | `BONUS_WORD` | +250 | Found a bonus word during a round |
 | `BURN_WORD` | +100 | Found a burn word during a round |

@@ -395,7 +395,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 <li><strong>+10 XP</strong> — Daily participation (first guess)</li>
                 <li><strong>+10 XP</strong> — $WORD holder daily bonus</li>
                 <li><strong>+15 XP</strong> — Consecutive day streak</li>
-                <li><strong>+15 XP</strong> — Sharing to Farcaster/Base</li>
+                <li><strong>+15 XP</strong> — Sharing guess to Farcaster/Base</li>
                 <li><strong>+20 XP</strong> — Referred user makes first guess</li>
                 <li><strong>+20 XP</strong> — Buying a guess pack</li>
                 <li><strong>+50 XP</strong> — Finding a Bonus word</li>

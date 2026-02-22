@@ -740,7 +740,7 @@ Introduced a comprehensive XP tracking system with event-sourced backend and Tot
   - `REFERRAL_FIRST_GUESS` (+20 XP) — Referred user makes first guess
   - `STREAK_DAY` (+15 XP) — Consecutive day playing
   - `CLANKTON_BONUS_DAY` (+10 XP) — $WORD holder daily bonus (event type stored in DB, do not rename)
-  - `SHARE_CAST` (+15 XP) — Sharing to Farcaster
+  - `SHARE_CAST` (+15 XP) — Sharing guess to Farcaster/Base
   - `PACK_PURCHASE` (+20 XP) — Buying a guess pack
   - `NEAR_MISS` (0 XP) — Tracked for future use
 
