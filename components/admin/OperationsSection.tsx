@@ -340,7 +340,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     { value: 'REFERRAL_FIRST_GUESS', label: 'Referred user first guess (+20 XP)', xp: 20 },
     { value: 'STREAK_DAY', label: 'Consecutive day streak (+15 XP)', xp: 15 },
     { value: 'CLANKTON_BONUS_DAY', label: '$WORD holder daily (+10 XP)', xp: 10 }, // DB event type must stay as CLANKTON_BONUS_DAY
-    { value: 'SHARE_CAST', label: 'Sharing to Farcaster (+15 XP)', xp: 15 },
+    { value: 'SHARE_CAST', label: 'Sharing guess to Farcaster/Base (+15 XP)', xp: 15 },
     { value: 'PACK_PURCHASE', label: 'Buying guess pack (+20 XP)', xp: 20 },
     { value: 'OG_HUNTER_AWARD', label: 'OG Hunter badge (+500 XP)', xp: 500 },
   ]
