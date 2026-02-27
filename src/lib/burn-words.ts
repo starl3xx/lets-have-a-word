@@ -353,7 +353,34 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     .from(users)
     .where(inArray(users.fid, finderFids));
 
-  const userMap = new Map(userRecords.map(u => [u.fid, u]));
+  const userMap = new Map<number, { fid: number; username: string | null; signerWalletAddress: string | null; pfpUrl: string }>(
+    userRecords.map(u => [u.fid, { ...u, pfpUrl: `https://avatar.vercel.sh/${u.fid}` }])
+  );
+
+  // Enrich with Neynar data for usernames and profile pictures
+  try {
+    const { neynarClient } = await import('./farcaster');
+    const neynarData = await neynarClient.fetchBulkUsers({ fids: finderFids });
+    if (neynarData.users) {
+      for (const user of neynarData.users) {
+        const existing = userMap.get(user.fid);
+        if (existing) {
+          existing.username = user.username || existing.username;
+          existing.pfpUrl = user.pfp_url || existing.pfpUrl;
+        } else {
+          userMap.set(user.fid, {
+            fid: user.fid,
+            username: user.username || null,
+            signerWalletAddress: null,
+            pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[burn-words] Error fetching profiles from Neynar:', error);
+    // Continue with local data
+  }
 
   // Fetch badge data for all finders
   const badges = await db
@@ -406,7 +433,7 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     return {
       fid,
       username: user?.username || `fid:${fid}`,
-      pfpUrl: `https://avatar.vercel.sh/${fid}`,
+      pfpUrl: user?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       word: decryptedWord,
       burnAmount: bw.burnAmount,
       txHash: bw.txHash,
