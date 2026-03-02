@@ -1569,11 +1569,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
       {balances && (() => {
         const opBal = parseFloat(balances.operatorWallet.balanceEth);
         const shortfall = parseFloat(balances.nextRoundSeed?.shortfallEth || '0');
-        const onChainJackpot = parseFloat(balances.prizePool.currentJackpotEth);
-        const needsTopUp = onChainJackpot < 0.02;
-        const topUpNeeded = needsTopUp ? (0.02 - onChainJackpot) : shortfall;
+        const topUpNeeded = shortfall;
         const gasBuffer = 0.003;
-        const suggestedAmount = topUpNeeded > 0 ? (topUpNeeded + gasBuffer) : 0;
+        const fundingShortfall = Math.max(0, topUpNeeded - opBal);
+        const suggestedAmount = fundingShortfall > 0 ? (fundingShortfall + gasBuffer) : 0;
         const balColor = opBal < 0.01 ? '#dc2626' : opBal < 0.025 ? '#d97706' : '#16a34a';
         const statusType: 'error' | 'warning' | 'success' =
           opBal < 0.01 ? 'error' : opBal < 0.025 ? 'warning' : 'success';
@@ -1599,7 +1598,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Next Round Need</div>
                 <div style={styles.statValueSmall}>{topUpNeeded > 0 ? topUpNeeded.toFixed(4) : '0.0000'}</div>
-                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'shortfall + gas' : 'No top-up needed'}</div>
+                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'seed shortfall' : 'No top-up needed'}</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Suggested Fund</div>
