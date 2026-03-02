@@ -1568,24 +1568,25 @@ export default function WalletSection({ user }: WalletSectionProps) {
       {/* Fund Operator Wallet */}
       {balances && (() => {
         const opBal = parseFloat(balances.operatorWallet.balanceEth);
+        // shortfallEth already accounts for treasury auto-funding contribution,
+        // so it represents only what the operator wallet needs to cover as fallback
         const shortfall = parseFloat(balances.nextRoundSeed?.shortfallEth || '0');
         const topUpNeeded = shortfall;
         const gasBuffer = 0.003;
-        const fundingShortfall = Math.max(0, topUpNeeded - opBal);
-        const suggestedAmount = fundingShortfall > 0 ? (fundingShortfall + gasBuffer) : 0;
+        const suggestedAmount = topUpNeeded > 0 ? (topUpNeeded + gasBuffer) : 0;
         const balColor = opBal < 0.01 ? '#dc2626' : opBal < 0.025 ? '#d97706' : '#16a34a';
         const statusType: 'error' | 'warning' | 'success' =
           opBal < 0.01 ? 'error' : opBal < 0.025 ? 'warning' : 'success';
         const statusMsg =
-          opBal < 0.01 ? 'Critically low - operator cannot fund next round seed' :
-          opBal < 0.025 ? 'Getting low - may not cover seed + gas for upcoming rounds' :
-          'Sufficient balance for upcoming rounds';
+          opBal < 0.01 ? 'Critically low - operator may not cover fallback seed + gas' :
+          opBal < 0.025 ? 'Getting low - may not cover fallback seed + gas' :
+          'Sufficient balance for gas and fallback seeding';
 
         return (
           <div style={styles.card}>
             <h3 style={{ ...styles.cardTitle, margin: 0 }}>Fund Operator Wallet</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 16px 0' }}>
-              Send ETH to the operator wallet so it can auto-top-up jackpot seeds
+              Treasury auto-funds the jackpot seed when starting rounds. Operator wallet is only used as a fallback when treasury is insufficient.
             </p>
 
             {/* Operator balance and info */}
@@ -1596,9 +1597,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 <div style={styles.statSubtext}>ETH</div>
               </div>
               <div style={styles.statCard}>
-                <div style={styles.statLabel}>Next Round Need</div>
+                <div style={styles.statLabel}>Operator Shortfall</div>
                 <div style={styles.statValueSmall}>{topUpNeeded > 0 ? topUpNeeded.toFixed(4) : '0.0000'}</div>
-                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'seed shortfall' : 'No top-up needed'}</div>
+                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'after treasury auto-seed' : 'Treasury covers seed'}</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Suggested Fund</div>

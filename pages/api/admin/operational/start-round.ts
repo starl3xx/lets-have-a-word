@@ -11,7 +11,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
 import { createRound, getActiveRound } from '../../../../src/lib/rounds';
-import { getJackpotManagerReadOnly, getContractRoundInfo, topUpJackpotOnChain } from '../../../../src/lib/jackpot-contract';
+import { getJackpotManagerReadOnly, getContractRoundInfo, topUpJackpotOnChain, seedFromTreasuryOnChain } from '../../../../src/lib/jackpot-contract';
 
 interface StartRoundResponse {
   success: boolean;
@@ -25,6 +25,9 @@ interface StartRoundResponse {
   seedingTxHash?: string;
   seedingAmountEth?: string;
   newJackpotEth?: string;
+  treasurySeedingPerformed?: boolean;
+  treasurySeedingAmountEth?: string;
+  treasurySeedingTxHash?: string;
 }
 
 export default async function handler(
@@ -113,50 +116,84 @@ export default async function handler(
     }
 
     // Auto-top-up: check contract jackpot and seed if needed
+    // Strategy: treasury first, operator wallet as fallback
     let seedingPerformed = false;
     let seedingTxHash: string | undefined;
     let seedingAmountEth: string | undefined;
     let newJackpotEth: string | undefined;
+    let treasurySeedingPerformed = false;
+    let treasurySeedingAmountEth: string | undefined;
+    let treasurySeedingTxHash: string | undefined;
 
     try {
-      // Read both the current jackpot and MINIMUM_SEED directly from the contract
-      // to avoid any mismatch between our constant and the deployed contract value
+      // Read the current jackpot, MINIMUM_SEED, and treasury balance from contract
       const contract = getJackpotManagerReadOnly();
-      const [roundInfo, minimumSeedWei] = await Promise.all([
+      const [roundInfo, minimumSeedWei, treasuryWei] = await Promise.all([
         getContractRoundInfo(),
         contract.MINIMUM_SEED() as Promise<bigint>,
+        contract.creatorProfitAccumulated() as Promise<bigint>,
       ]);
       const currentJackpotWei = roundInfo.jackpot;
       console.log(`[start-round] Current contract jackpot: ${ethers.formatEther(currentJackpotWei)} ETH`);
       console.log(`[start-round] Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeedWei)} ETH`);
+      console.log(`[start-round] Treasury (creatorProfitAccumulated): ${ethers.formatEther(treasuryWei)} ETH`);
 
-      if (currentJackpotWei < minimumSeedWei) {
+      if (currentJackpotWei >= minimumSeedWei) {
+        console.log(`[start-round] Jackpot already at or above minimum seed, no top-up needed`);
+      } else {
         const shortfallWei = minimumSeedWei - currentJackpotWei;
-        console.log(`[start-round] Jackpot below minimum seed, topping up ${ethers.formatEther(shortfallWei)} ETH...`);
+        console.log(`[start-round] Jackpot shortfall: ${ethers.formatEther(shortfallWei)} ETH`);
 
-        const topUpResult = await topUpJackpotOnChain(shortfallWei);
-        seedingPerformed = true;
-        seedingTxHash = topUpResult.txHash;
-        seedingAmountEth = topUpResult.amountEth;
-        newJackpotEth = topUpResult.newJackpotEth;
+        if (treasuryWei >= shortfallWei) {
+          // Treasury covers the entire shortfall
+          console.log(`[start-round] Treasury covers full shortfall, calling seedFromTreasury(${ethers.formatEther(shortfallWei)} ETH)...`);
+          const treasuryResult = await seedFromTreasuryOnChain(shortfallWei);
+          treasurySeedingPerformed = true;
+          treasurySeedingAmountEth = treasuryResult.amountEth;
+          treasurySeedingTxHash = treasuryResult.txHash;
+          newJackpotEth = treasuryResult.newJackpotEth;
+          console.log(`[start-round] Treasury seed complete: ${treasuryResult.amountEth} ETH from treasury, new jackpot: ${treasuryResult.newJackpotEth} ETH`);
+        } else if (treasuryWei > 0n) {
+          // Treasury partially covers — use all treasury, then operator covers the rest
+          console.log(`[start-round] Treasury partially covers shortfall, using all ${ethers.formatEther(treasuryWei)} ETH from treasury...`);
+          const treasuryResult = await seedFromTreasuryOnChain(treasuryWei);
+          treasurySeedingPerformed = true;
+          treasurySeedingAmountEth = treasuryResult.amountEth;
+          treasurySeedingTxHash = treasuryResult.txHash;
 
-        console.log(`[start-round] Top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
+          const remainingShortfall = shortfallWei - treasuryWei;
+          console.log(`[start-round] Remaining shortfall after treasury: ${ethers.formatEther(remainingShortfall)} ETH, topping up from operator wallet...`);
+          const topUpResult = await topUpJackpotOnChain(remainingShortfall);
+          seedingPerformed = true;
+          seedingTxHash = topUpResult.txHash;
+          seedingAmountEth = topUpResult.amountEth;
+          newJackpotEth = topUpResult.newJackpotEth;
+          console.log(`[start-round] Operator top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
+        } else {
+          // Treasury empty — operator covers all (original behavior)
+          console.log(`[start-round] Treasury empty, topping up ${ethers.formatEther(shortfallWei)} ETH from operator wallet...`);
+          const topUpResult = await topUpJackpotOnChain(shortfallWei);
+          seedingPerformed = true;
+          seedingTxHash = topUpResult.txHash;
+          seedingAmountEth = topUpResult.amountEth;
+          newJackpotEth = topUpResult.newJackpotEth;
+          console.log(`[start-round] Operator top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
+        }
 
-        // Verify post-top-up jackpot meets minimum
-        if (topUpResult.newJackpotWei < minimumSeedWei) {
+        // Verify post-seed jackpot meets minimum
+        const postSeedJackpot = await contract.currentJackpot() as bigint;
+        if (postSeedJackpot < minimumSeedWei) {
           return res.status(500).json({
             success: false,
-            message: `Jackpot still below minimum after top-up. Current: ${topUpResult.newJackpotEth} ETH, need: ${ethers.formatEther(minimumSeedWei)} ETH`,
+            message: `Jackpot still below minimum after seeding. Current: ${ethers.formatEther(postSeedJackpot)} ETH, need: ${ethers.formatEther(minimumSeedWei)} ETH`,
           });
         }
-      } else {
-        console.log(`[start-round] Jackpot already at or above minimum seed, no top-up needed`);
       }
     } catch (topUpError) {
-      console.error('[start-round] Failed to top up jackpot:', topUpError);
+      console.error('[start-round] Failed to seed jackpot:', topUpError);
       return res.status(500).json({
         success: false,
-        message: `Failed to top up jackpot to seed target: ${topUpError instanceof Error ? topUpError.message : 'Unknown error'}`,
+        message: `Failed to seed jackpot: ${topUpError instanceof Error ? topUpError.message : 'Unknown error'}`,
         error: topUpError instanceof Error ? topUpError.message : 'Unknown error',
       });
     }
@@ -178,6 +215,9 @@ export default async function handler(
       seedingTxHash,
       seedingAmountEth,
       newJackpotEth,
+      treasurySeedingPerformed,
+      treasurySeedingAmountEth,
+      treasurySeedingTxHash,
     });
   } catch (error) {
     console.error('[start-round] Error:', error);

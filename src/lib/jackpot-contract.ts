@@ -58,6 +58,9 @@ const JACKPOT_MANAGER_ABI = [
   'function totalClanktonDistributed() view returns (uint256)',
   'function getClanktonBalance() view returns (uint256)',
 
+  // V3: Treasury auto-seed
+  'function seedFromTreasury(uint256 amount)',
+
   // Write functions (operator only)
   'function seedJackpot() payable',
   'function emergencyWithdrawClankton(uint256 amount, address to)',
@@ -498,6 +501,60 @@ export async function topUpJackpotOnChain(amountWei: bigint): Promise<{
     amountEth,
     newJackpotWei,
     newJackpotEth,
+  };
+}
+
+/**
+ * Seed jackpot from treasury (creatorProfitAccumulated) without external ETH.
+ *
+ * This is a V3 contract function that moves internal treasury funds into the
+ * jackpot. No ETH leaves or enters the contract — pure internal bookkeeping.
+ *
+ * @param amountWei - Amount to move from treasury to jackpot (in wei)
+ * @returns Object with tx details and updated balances
+ */
+export async function seedFromTreasuryOnChain(amountWei: bigint): Promise<{
+  txHash: string;
+  amountWei: bigint;
+  amountEth: string;
+  newJackpotWei: bigint;
+  newJackpotEth: string;
+  remainingTreasuryWei: bigint;
+  remainingTreasuryEth: string;
+}> {
+  const contract = getJackpotManagerWithOperator();
+  const amountEth = ethers.formatEther(amountWei);
+
+  console.log(`[CONTRACT] Seeding jackpot from treasury: ${amountEth} ETH`);
+
+  const tx = await contract.seedFromTreasury(amountWei, {
+    gasLimit: 100000n,
+  });
+  console.log(`[CONTRACT] Treasury seed transaction submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  console.log(`[CONTRACT] Treasury seed confirmed - Block: ${receipt!.blockNumber}, Gas: ${receipt!.gasUsed}`);
+
+  // Read back updated state
+  const readOnlyContract = getJackpotManagerReadOnly();
+  const [newJackpotWei, remainingTreasuryWei] = await Promise.all([
+    readOnlyContract.currentJackpot() as Promise<bigint>,
+    readOnlyContract.creatorProfitAccumulated() as Promise<bigint>,
+  ]);
+
+  const newJackpotEth = ethers.formatEther(newJackpotWei);
+  const remainingTreasuryEth = ethers.formatEther(remainingTreasuryWei);
+
+  console.log(`[CONTRACT] New jackpot: ${newJackpotEth} ETH, remaining treasury: ${remainingTreasuryEth} ETH`);
+
+  return {
+    txHash: tx.hash,
+    amountWei,
+    amountEth,
+    newJackpotWei,
+    newJackpotEth,
+    remainingTreasuryWei,
+    remainingTreasuryEth,
   };
 }
 
