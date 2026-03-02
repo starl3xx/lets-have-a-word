@@ -144,35 +144,34 @@ export default async function handler(
         const shortfallWei = minimumSeedWei - currentJackpotWei;
         console.log(`[start-round] Jackpot shortfall: ${ethers.formatEther(shortfallWei)} ETH`);
 
-        if (treasuryWei >= shortfallWei) {
-          // Treasury covers the entire shortfall
-          console.log(`[start-round] Treasury covers full shortfall, calling seedFromTreasury(${ethers.formatEther(shortfallWei)} ETH)...`);
-          const treasuryResult = await seedFromTreasuryOnChain(shortfallWei);
-          treasurySeedingPerformed = true;
-          treasurySeedingAmountEth = treasuryResult.amountEth;
-          treasurySeedingTxHash = treasuryResult.txHash;
-          newJackpotEth = treasuryResult.newJackpotEth;
-          console.log(`[start-round] Treasury seed complete: ${treasuryResult.amountEth} ETH from treasury, new jackpot: ${treasuryResult.newJackpotEth} ETH`);
-        } else if (treasuryWei > 0n) {
-          // Treasury partially covers — use all treasury, then operator covers the rest
-          console.log(`[start-round] Treasury partially covers shortfall, using all ${ethers.formatEther(treasuryWei)} ETH from treasury...`);
-          const treasuryResult = await seedFromTreasuryOnChain(treasuryWei);
-          treasurySeedingPerformed = true;
-          treasurySeedingAmountEth = treasuryResult.amountEth;
-          treasurySeedingTxHash = treasuryResult.txHash;
+        // Amount still needed after any treasury seeding attempt
+        let remainingShortfallWei = shortfallWei;
 
-          const remainingShortfall = shortfallWei - treasuryWei;
-          console.log(`[start-round] Remaining shortfall after treasury: ${ethers.formatEther(remainingShortfall)} ETH, topping up from operator wallet...`);
-          const topUpResult = await topUpJackpotOnChain(remainingShortfall);
-          seedingPerformed = true;
-          seedingTxHash = topUpResult.txHash;
-          seedingAmountEth = topUpResult.amountEth;
-          newJackpotEth = topUpResult.newJackpotEth;
-          console.log(`[start-round] Operator top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
-        } else {
-          // Treasury empty — operator covers all (original behavior)
-          console.log(`[start-round] Treasury empty, topping up ${ethers.formatEther(shortfallWei)} ETH from operator wallet...`);
-          const topUpResult = await topUpJackpotOnChain(shortfallWei);
+        // Step 1: Try treasury seeding first (if treasury has funds)
+        // Wrapped in try-catch because seedFromTreasury is a V3 contract feature;
+        // if the deployed contract hasn't been upgraded yet, this call will revert
+        // and we gracefully fall back to operator wallet top-up.
+        if (treasuryWei > 0n) {
+          const treasurySeedAmount = treasuryWei >= shortfallWei ? shortfallWei : treasuryWei;
+          try {
+            console.log(`[start-round] Attempting treasury seed: ${ethers.formatEther(treasurySeedAmount)} ETH...`);
+            const treasuryResult = await seedFromTreasuryOnChain(treasurySeedAmount);
+            treasurySeedingPerformed = true;
+            treasurySeedingAmountEth = treasuryResult.amountEth;
+            treasurySeedingTxHash = treasuryResult.txHash;
+            newJackpotEth = treasuryResult.newJackpotEth;
+            remainingShortfallWei = shortfallWei - treasurySeedAmount;
+            console.log(`[start-round] Treasury seed complete: ${treasuryResult.amountEth} ETH from treasury, new jackpot: ${treasuryResult.newJackpotEth} ETH`);
+          } catch (treasuryError) {
+            console.warn(`[start-round] Treasury seed failed (contract may not support seedFromTreasury yet), falling back to operator wallet:`, treasuryError instanceof Error ? treasuryError.message : treasuryError);
+            // remainingShortfallWei stays at full shortfall — operator covers everything
+          }
+        }
+
+        // Step 2: If shortfall remains, top up from operator wallet
+        if (remainingShortfallWei > 0n) {
+          console.log(`[start-round] Topping up ${ethers.formatEther(remainingShortfallWei)} ETH from operator wallet...`);
+          const topUpResult = await topUpJackpotOnChain(remainingShortfallWei);
           seedingPerformed = true;
           seedingTxHash = topUpResult.txHash;
           seedingAmountEth = topUpResult.amountEth;
