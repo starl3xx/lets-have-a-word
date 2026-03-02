@@ -102,12 +102,21 @@ async function main() {
   console.log("");
 
   // Verify the new function is accessible (ABI check)
+  // staticCall(0) will revert with InsufficientPayment if the function exists,
+  // or with a different error (e.g. CALL_EXCEPTION) if it doesn't.
   try {
-    // This will revert with InsufficientPayment (amount=0) but proves the function exists
-    await contract.seedFromTreasury.staticCall(0).catch(() => {});
+    await contract.seedFromTreasury.staticCall(0);
+    // If it somehow succeeds (shouldn't with amount=0), function exists
     console.log("  seedFromTreasury: ACCESSIBLE (function exists on proxy)");
-  } catch {
-    console.error("  seedFromTreasury: NOT FOUND - upgrade may have failed!");
+  } catch (err: any) {
+    const errorName = err?.revert?.name || err?.reason || "";
+    if (errorName === "InsufficientPayment" || String(err).includes("InsufficientPayment")) {
+      // Expected revert — function exists and correctly rejects amount=0
+      console.log("  seedFromTreasury: ACCESSIBLE (reverted with InsufficientPayment as expected)");
+    } else {
+      console.error("  seedFromTreasury: NOT FOUND - upgrade may have failed!");
+      console.error("  Error:", String(err).slice(0, 200));
+    }
   }
 
   console.log("");
