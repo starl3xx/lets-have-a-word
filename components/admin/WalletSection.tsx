@@ -1586,7 +1586,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           <div style={styles.card}>
             <h3 style={{ ...styles.cardTitle, margin: 0 }}>Fund Operator Wallet</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 16px 0' }}>
-              Send ETH to the operator wallet so it can auto-top-up jackpot seeds
+              Treasury auto-funds the jackpot seed when starting rounds. Operator wallet is only used as a fallback when treasury is insufficient.
             </p>
 
             {/* Operator balance and info */}
