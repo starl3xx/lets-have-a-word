@@ -1568,19 +1568,19 @@ export default function WalletSection({ user }: WalletSectionProps) {
       {/* Fund Operator Wallet */}
       {balances && (() => {
         const opBal = parseFloat(balances.operatorWallet.balanceEth);
+        // shortfallEth already accounts for treasury auto-funding contribution,
+        // so it represents only what the operator wallet needs to cover as fallback
         const shortfall = parseFloat(balances.nextRoundSeed?.shortfallEth || '0');
-        const onChainJackpot = parseFloat(balances.prizePool.currentJackpotEth);
-        const needsTopUp = onChainJackpot < 0.02;
-        const topUpNeeded = needsTopUp ? (0.02 - onChainJackpot) : shortfall;
+        const topUpNeeded = shortfall;
         const gasBuffer = 0.003;
         const suggestedAmount = topUpNeeded > 0 ? (topUpNeeded + gasBuffer) : 0;
         const balColor = opBal < 0.01 ? '#dc2626' : opBal < 0.025 ? '#d97706' : '#16a34a';
         const statusType: 'error' | 'warning' | 'success' =
           opBal < 0.01 ? 'error' : opBal < 0.025 ? 'warning' : 'success';
         const statusMsg =
-          opBal < 0.01 ? 'Critically low - operator cannot fund next round seed' :
-          opBal < 0.025 ? 'Getting low - may not cover seed + gas for upcoming rounds' :
-          'Sufficient balance for upcoming rounds';
+          opBal < 0.01 ? 'Critically low - operator may not cover fallback seed + gas' :
+          opBal < 0.025 ? 'Getting low - may not cover fallback seed + gas' :
+          'Sufficient balance for gas and fallback seeding';
 
         return (
           <div style={styles.card}>
@@ -1597,9 +1597,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 <div style={styles.statSubtext}>ETH</div>
               </div>
               <div style={styles.statCard}>
-                <div style={styles.statLabel}>Next Round Need</div>
+                <div style={styles.statLabel}>Operator Shortfall</div>
                 <div style={styles.statValueSmall}>{topUpNeeded > 0 ? topUpNeeded.toFixed(4) : '0.0000'}</div>
-                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'shortfall + gas' : 'No top-up needed'}</div>
+                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'after treasury auto-seed' : 'Treasury covers seed'}</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Suggested Fund</div>
