@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-03-02 (after Round 14)
+
+- **Fix jackpot top-up on round start**: Treasury seeding via `seedFromTreasury` (V3 contract feature) now gracefully falls back to operator wallet top-up if the deployed contract hasn't been upgraded to V3 yet, instead of failing the entire round start.
+
 ### 2026-02-18 (during Round 14)
 
 - **Automated Notification Templates**: Replaced single hardcoded push notification messages with 8 randomized templates each for round-start and daily-reset notifications. Templates interpolate live round data (round number, jackpot ETH). Added Vercel Cron job (`/api/cron/daily-notify`) running at 11:00 UTC for daily free guess reset notifications.
