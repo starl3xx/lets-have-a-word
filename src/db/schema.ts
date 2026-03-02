@@ -511,7 +511,8 @@ export type RoundEconomicsConfigInsert = typeof roundEconomicsConfig.$inferInser
 export type AdminWalletActionType =
   | 'prize_pool_injection'
   | 'creator_pool_withdrawal'
-  | 'refund_batch';
+  | 'refund_batch'
+  | 'operator_funding';
 
 export const adminWalletActions = pgTable('admin_wallet_actions', {
   id: serial('id').primaryKey(),

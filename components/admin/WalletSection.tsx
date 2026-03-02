@@ -563,6 +563,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
 
+  // Fund operator wallet state
+  const [fundOperatorAmount, setFundOperatorAmount] = useState('');
+  const [fundOperatorConfirmText, setFundOperatorConfirmText] = useState('');
+  const [isFundingOperator, setIsFundingOperator] = useState(false);
+  const [showFundOperatorConfirm, setShowFundOperatorConfirm] = useState(false);
+
   // Bonus distribution state
   const [bonusDistStatus, setBonusDistStatus] = useState<BonusDistributionStatus | null>(null);
   const [bonusDistLoading, setBonusDistLoading] = useState(false);
@@ -1139,6 +1145,80 @@ export default function WalletSection({ user }: WalletSectionProps) {
   };
 
   // =============================================================================
+  // Fund Operator Wallet Handler
+  // =============================================================================
+
+  const handleFundOperator = async () => {
+    if (!connectedWallet || !balances || !user) return;
+    if (connectedWallet.chainId !== BASE_CHAIN_ID) {
+      setWalletError('Please switch to Base network');
+      return;
+    }
+    if (fundOperatorConfirmText !== 'FUND') {
+      setWalletError('Please type FUND to confirm');
+      return;
+    }
+
+    const amount = parseFloat(fundOperatorAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setWalletError('Please enter a valid amount');
+      return;
+    }
+    if (amount > 0.1) {
+      setWalletError('Safety cap: maximum 0.1 ETH per transaction');
+      return;
+    }
+
+    setIsFundingOperator(true);
+    setWalletError(null);
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const valueWei = ethers.parseEther(fundOperatorAmount);
+
+      const tx = await signer.sendTransaction({
+        to: balances.operatorWallet.address,
+        value: valueWei,
+      });
+
+      // Log the action
+      await fetch('/api/admin/wallet/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          devFid: user.fid,
+          actionType: 'operator_funding',
+          amountEth: fundOperatorAmount,
+          amountWei: valueWei.toString(),
+          fromAddress: connectedWallet.address,
+          toAddress: balances.operatorWallet.address,
+          txHash: tx.hash,
+          initiatedByFid: user.fid,
+          initiatedByAddress: connectedWallet.address,
+          note: 'Operator wallet funded from admin panel',
+          metadata: { chainId: connectedWallet.chainId },
+        }),
+      });
+
+      // Reset form
+      setFundOperatorAmount('');
+      setFundOperatorConfirmText('');
+      setShowFundOperatorConfirm(false);
+
+      // Refresh data
+      await Promise.all([fetchBalances(), fetchActions()]);
+
+      alert(`Transaction submitted: ${tx.hash}\n\nView on BaseScan: https://basescan.org/tx/${tx.hash}`);
+    } catch (err: any) {
+      console.error('Fund operator error:', err);
+      setWalletError(err.message || 'Funding failed');
+    } finally {
+      setIsFundingOperator(false);
+    }
+  };
+
+  // =============================================================================
   // Safety Alerts
   // =============================================================================
 
@@ -1484,6 +1564,108 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </>
         ) : null}
       </div>
+
+      {/* Fund Operator Wallet */}
+      {balances && (() => {
+        const opBal = parseFloat(balances.operatorWallet.balanceEth);
+        const shortfall = parseFloat(balances.nextRoundSeed?.shortfallEth || '0');
+        const onChainJackpot = parseFloat(balances.prizePool.currentJackpotEth);
+        const needsTopUp = onChainJackpot < 0.02;
+        const topUpNeeded = needsTopUp ? (0.02 - onChainJackpot) : shortfall;
+        const gasBuffer = 0.003;
+        const suggestedAmount = topUpNeeded > 0 ? (topUpNeeded + gasBuffer) : 0;
+        const balColor = opBal < 0.01 ? '#dc2626' : opBal < 0.025 ? '#d97706' : '#16a34a';
+        const statusType: 'error' | 'warning' | 'success' =
+          opBal < 0.01 ? 'error' : opBal < 0.025 ? 'warning' : 'success';
+        const statusMsg =
+          opBal < 0.01 ? 'Critically low - operator cannot fund next round seed' :
+          opBal < 0.025 ? 'Getting low - may not cover seed + gas for upcoming rounds' :
+          'Sufficient balance for upcoming rounds';
+
+        return (
+          <div style={styles.card}>
+            <h3 style={{ ...styles.cardTitle, margin: 0 }}>Fund Operator Wallet</h3>
+            <p style={{ ...styles.cardSubtitle, margin: '4px 0 16px 0' }}>
+              Send ETH to the operator wallet so it can auto-top-up jackpot seeds
+            </p>
+
+            {/* Operator balance and info */}
+            <div style={styles.grid4}>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Operator Balance</div>
+                <div style={{ ...styles.statValueSmall, color: balColor }}>{opBal.toFixed(4)}</div>
+                <div style={styles.statSubtext}>ETH</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Next Round Need</div>
+                <div style={styles.statValueSmall}>{topUpNeeded > 0 ? topUpNeeded.toFixed(4) : '0.0000'}</div>
+                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'shortfall + gas' : 'No top-up needed'}</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Suggested Fund</div>
+                <div style={styles.statValueSmall}>{suggestedAmount > 0 ? suggestedAmount.toFixed(4) : '--'}</div>
+                <div style={styles.statSubtext}>{suggestedAmount > 0 ? 'incl. 0.003 gas buffer' : 'Fully funded'}</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Operator Address</div>
+                <div style={{ fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all' as const, marginTop: '4px' }}>
+                  <a
+                    href={`https://basescan.org/address/${balances.operatorWallet.address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={styles.link}
+                  >
+                    {shortenAddress(balances.operatorWallet.address)}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Status alert */}
+            <div style={{ ...styles.alert(statusType), marginTop: '16px', marginBottom: '16px' }}>
+              {statusType === 'error' ? '🔴' : statusType === 'warning' ? '🟡' : '🟢'} {statusMsg}
+            </div>
+
+            {/* Fund form */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <label style={styles.label}>Amount (ETH)</label>
+                <input
+                  type="text"
+                  value={fundOperatorAmount}
+                  onChange={(e) => setFundOperatorAmount(e.target.value)}
+                  placeholder="0.0000"
+                  style={styles.input}
+                />
+              </div>
+              {suggestedAmount > 0 && (
+                <button
+                  onClick={() => setFundOperatorAmount(suggestedAmount.toFixed(4))}
+                  style={{ ...styles.quickBtn, marginBottom: '1px' }}
+                >
+                  Suggested: {suggestedAmount.toFixed(4)}
+                </button>
+              )}
+              <button
+                onClick={() => setShowFundOperatorConfirm(true)}
+                disabled={!connectedWallet || !isOnBase || !fundOperatorAmount || parseFloat(fundOperatorAmount) <= 0}
+                style={{
+                  ...styles.btnPrimary,
+                  marginBottom: '1px',
+                  ...(!connectedWallet || !isOnBase || !fundOperatorAmount || parseFloat(fundOperatorAmount) <= 0 ? styles.btnDisabled : {}),
+                }}
+              >
+                Fund Operator Wallet
+              </button>
+            </div>
+            {parseFloat(fundOperatorAmount) > 0.1 && (
+              <div style={{ ...styles.alert('error'), marginTop: '8px' }}>
+                Safety cap: maximum 0.1 ETH per transaction
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Fee Recipients */}
       {balances && balances.feeRecipients && (
@@ -2061,6 +2243,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                   <td style={styles.td}>
                     <span style={styles.badge(
                       action.actionType === 'prize_pool_injection' ? 'green' :
+                      action.actionType === 'operator_funding' ? 'green' :
                       action.actionType === 'creator_pool_withdrawal' ? 'yellow' :
                       'gray'
                     )}>
@@ -2610,6 +2793,77 @@ export default function WalletSection({ user }: WalletSectionProps) {
         </div>
         );
       })()}
+
+      {/* Fund Operator Confirmation Modal */}
+      {showFundOperatorConfirm && balances && connectedWallet && (
+        <div style={styles.modal} onClick={() => setShowFundOperatorConfirm(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>Fund Operator Wallet</h3>
+
+            <div style={{ ...styles.alert('info'), marginBottom: '16px' }}>
+              You are sending ETH directly to the operator wallet (EOA). This is a plain ETH transfer.
+            </div>
+
+            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>From (Your Wallet):</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{connectedWallet.address}</div>
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>To (Operator):</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>{balances.operatorWallet.address}</div>
+              </div>
+              <div>
+                <span style={{ color: '#6b7280' }}>Amount:</span>
+                <div style={{ fontWeight: 600, fontSize: '18px' }}>{fundOperatorAmount} ETH</div>
+              </div>
+            </div>
+
+            {parseFloat(fundOperatorAmount) > 0.1 && (
+              <div style={{ ...styles.alert('error'), marginBottom: '16px' }}>
+                Exceeds 0.1 ETH safety cap. Transaction will be rejected.
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Type &quot;FUND&quot; to confirm:</label>
+              <input
+                type="text"
+                value={fundOperatorConfirmText}
+                onChange={(e) => setFundOperatorConfirmText(e.target.value.toUpperCase())}
+                placeholder="FUND"
+                style={{
+                  ...styles.input,
+                  ...(fundOperatorConfirmText && fundOperatorConfirmText !== 'FUND' ? styles.inputError : {}),
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowFundOperatorConfirm(false);
+                  setFundOperatorConfirmText('');
+                }}
+                style={styles.btnSecondary}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFundOperator}
+                disabled={isFundingOperator || fundOperatorConfirmText !== 'FUND' || parseFloat(fundOperatorAmount) > 0.1}
+                style={{
+                  ...styles.btnPrimary,
+                  flex: 1,
+                  ...(isFundingOperator || fundOperatorConfirmText !== 'FUND' || parseFloat(fundOperatorAmount) > 0.1 ? styles.btnDisabled : {}),
+                }}
+              >
+                {isFundingOperator ? 'Processing...' : 'Confirm & Send ETH'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

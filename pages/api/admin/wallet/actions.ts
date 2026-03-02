@@ -122,7 +122,7 @@ async function handlePost(
     }
 
     // Validate action type
-    const validTypes: AdminWalletActionType[] = ['prize_pool_injection', 'creator_pool_withdrawal', 'refund_batch'];
+    const validTypes: AdminWalletActionType[] = ['prize_pool_injection', 'creator_pool_withdrawal', 'refund_batch', 'operator_funding'];
     if (!validTypes.includes(body.actionType)) {
       return res.status(400).json({ error: 'Invalid action type' });
     }
