@@ -78,23 +78,7 @@ export default async function handler(
       });
     }
 
-    // Verify DEPLOYER_PRIVATE_KEY is available (contract owner)
-    const ownerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (!ownerPrivateKey) {
-      return res.status(500).json({
-        success: false,
-        message: 'DEPLOYER_PRIVATE_KEY not configured. Required for contract upgrades.',
-      });
-    }
-
-    const provider = getBaseProvider();
-    const ownerWallet = new ethers.Wallet(ownerPrivateKey, provider);
-    const config = getContractConfig();
-    const proxyAddress = config.jackpotManagerAddress;
-
-    console.log(`[upgrade-contract] Admin FID ${fid} initiating V3 upgrade for proxy ${proxyAddress}`);
-    console.log(`[upgrade-contract] Owner wallet: ${ownerWallet.address}`);
-
+    // V3 detection (read-only — no private key needed)
     // Check if already upgraded: try calling seedFromTreasury.staticCall(0)
     // If it reverts with InsufficientPayment, V3 is already live.
     // If it reverts with a different error (function not found), V2 is still live.
@@ -116,7 +100,7 @@ export default async function handler(
         });
       }
       // Any other revert means V3 is NOT deployed — proceed with upgrade
-      console.log(`[upgrade-contract] V3 not detected, proceeding with upgrade`);
+      console.log(`[upgrade-contract] V3 not detected`);
     }
 
     // If checkOnly flag is set, just return the detection result without upgrading
@@ -126,6 +110,23 @@ export default async function handler(
         message: 'Contract is V2 — upgrade available.',
       });
     }
+
+    // From here on we need DEPLOYER_PRIVATE_KEY to actually deploy + upgrade
+    const ownerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    if (!ownerPrivateKey) {
+      return res.status(500).json({
+        success: false,
+        message: 'DEPLOYER_PRIVATE_KEY not configured. Required for contract upgrades.',
+      });
+    }
+
+    const provider = getBaseProvider();
+    const ownerWallet = new ethers.Wallet(ownerPrivateKey, provider);
+    const config = getContractConfig();
+    const proxyAddress = config.jackpotManagerAddress;
+
+    console.log(`[upgrade-contract] Admin FID ${fid} initiating V3 upgrade for proxy ${proxyAddress}`);
+    console.log(`[upgrade-contract] Owner wallet: ${ownerWallet.address}`);
 
     // Read current implementation address
     const oldImplementation = await getImplementationAddress(provider, proxyAddress);
