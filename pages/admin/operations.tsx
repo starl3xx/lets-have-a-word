@@ -349,22 +349,15 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
   // Check if contract is V3 (has seedFromTreasury)
   const checkV3Status = useCallback(async () => {
+    if (!user?.fid) return
     try {
-      const res = await fetch(`/api/admin/wallet/balances?devFid=${user?.fid}`)
-      if (!res.ok) { setIsV3(null); return }
-      const data = await res.json()
-      // If treasury balance is readable and we have a contract, check for V3
-      // The upgrade endpoint itself does the definitive check, but for UI purposes
-      // we check if the balances endpoint returns treasury data (it always does for V2+)
-      // We'll use a dedicated check: try calling the upgrade endpoint's detection
-      const upgradeCheck = await fetch(`/api/admin/operational/upgrade-contract?devFid=${user?.fid}`, {
+      const res = await fetch(`/api/admin/operational/upgrade-contract?devFid=${user.fid}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ checkOnly: true }),
       })
-      const upgradeData = await upgradeCheck.json()
-      // 409 = already V3
-      setIsV3(upgradeCheck.status === 409)
+      // 409 = already V3, 200 = V2 (upgrade available)
+      setIsV3(res.status === 409)
     } catch {
       setIsV3(null)
     }
