@@ -709,17 +709,24 @@ contract JackpotManagerV3 is
 
     /**
      * @notice Withdraw accumulated creator profits
+     * @dev Retains MINIMUM_SEED as reserve for auto-seeding next round.
+     *      Only callable by operator.
      */
-    function withdrawCreatorProfit() external nonReentrant {
+    function withdrawCreatorProfit() external onlyOperator nonReentrant {
         if (creatorProfitAccumulated == 0) revert NoProfitToWithdraw();
 
-        uint256 amount = creatorProfitAccumulated;
-        creatorProfitAccumulated = 0;
+        // Retain MINIMUM_SEED as reserve for auto-seeding next round
+        uint256 withdrawable = creatorProfitAccumulated > MINIMUM_SEED
+            ? creatorProfitAccumulated - MINIMUM_SEED
+            : 0;
+        if (withdrawable == 0) revert NoProfitToWithdraw();
 
-        (bool success, ) = creatorProfitWallet.call{value: amount}("");
+        creatorProfitAccumulated -= withdrawable;
+
+        (bool success, ) = creatorProfitWallet.call{value: withdrawable}("");
         if (!success) revert PaymentFailed();
 
-        emit CreatorProfitPaid(creatorProfitWallet, amount);
+        emit CreatorProfitPaid(creatorProfitWallet, withdrawable);
     }
 
     /**

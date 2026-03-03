@@ -177,13 +177,37 @@ export default async function handler(
 
         // Step 2: If shortfall remains, top up from operator wallet
         if (remainingShortfallWei > 0n) {
-          console.log(`[start-round] Topping up ${ethers.formatEther(remainingShortfallWei)} ETH from operator wallet...`);
-          const topUpResult = await topUpJackpotOnChain(remainingShortfallWei);
-          seedingPerformed = true;
-          seedingTxHash = topUpResult.txHash;
-          seedingAmountEth = topUpResult.amountEth;
-          newJackpotEth = topUpResult.newJackpotEth;
-          console.log(`[start-round] Operator top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
+          try {
+            console.log(`[start-round] Topping up ${ethers.formatEther(remainingShortfallWei)} ETH from operator wallet...`);
+            const topUpResult = await topUpJackpotOnChain(remainingShortfallWei);
+            seedingPerformed = true;
+            seedingTxHash = topUpResult.txHash;
+            seedingAmountEth = topUpResult.amountEth;
+            newJackpotEth = topUpResult.newJackpotEth;
+            console.log(`[start-round] Operator top-up complete: ${topUpResult.amountEth} ETH, new jackpot: ${topUpResult.newJackpotEth} ETH`);
+          } catch (operatorTopUpError) {
+            const errMsg = operatorTopUpError instanceof Error ? operatorTopUpError.message : String(operatorTopUpError);
+            console.error(`[start-round] Operator top-up failed:`, errMsg);
+
+            // Provide specific actionable guidance
+            const isInsufficientFunds = errMsg.includes('insufficient funds') || errMsg.includes('exceeds balance');
+            const v3Available = treasurySeedingPerformed; // If treasury seeding worked, V3 is live
+
+            let guidance: string;
+            if (!v3Available && treasuryWei > 0n) {
+              guidance = `Operator wallet has insufficient ETH and V3 is not deployed yet. Deploy V3 to enable treasury auto-seeding (treasury has ${ethers.formatEther(treasuryWei)} ETH available).`;
+            } else if (isInsufficientFunds && treasuryWei === 0n) {
+              guidance = `Operator wallet has insufficient ETH and treasury is empty. Not enough gameplay revenue yet — fund operator wallet or wait for more pack purchases.`;
+            } else {
+              guidance = `Operator top-up failed: ${errMsg}`;
+            }
+
+            return res.status(500).json({
+              success: false,
+              message: guidance,
+              error: errMsg,
+            });
+          }
         }
 
         // Verify post-seed jackpot meets minimum

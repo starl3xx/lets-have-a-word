@@ -266,6 +266,10 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   // Start Round state
   const [startRoundLoading, setStartRoundLoading] = useState(false)
 
+  // Upgrade Contract state
+  const [upgradeLoading, setUpgradeLoading] = useState(false)
+  const [isV3, setIsV3] = useState<boolean | null>(null) // null = checking, true = already V3, false = V2
+
   // Reset for Launch state
   const [resetLoading, setResetLoading] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -343,12 +347,62 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
     }
   }, [user?.fid])
 
+  // Check if contract is V3 (has seedFromTreasury)
+  const checkV3Status = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/wallet/balances?devFid=${user?.fid}`)
+      if (!res.ok) { setIsV3(null); return }
+      const data = await res.json()
+      // If treasury balance is readable and we have a contract, check for V3
+      // The upgrade endpoint itself does the definitive check, but for UI purposes
+      // we check if the balances endpoint returns treasury data (it always does for V2+)
+      // We'll use a dedicated check: try calling the upgrade endpoint's detection
+      const upgradeCheck = await fetch(`/api/admin/operational/upgrade-contract?devFid=${user?.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkOnly: true }),
+      })
+      const upgradeData = await upgradeCheck.json()
+      // 409 = already V3
+      setIsV3(upgradeCheck.status === 409)
+    } catch {
+      setIsV3(null)
+    }
+  }, [user?.fid])
+
   useEffect(() => {
     fetchStatus()
+    checkV3Status()
     // Refresh every 30 seconds
     const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)
-  }, [fetchStatus])
+  }, [fetchStatus, checkV3Status])
+
+  const handleUpgradeContract = async () => {
+    try {
+      setUpgradeLoading(true)
+      setError(null)
+
+      const res = await fetch(`/api/admin/operational/upgrade-contract?devFid=${user?.fid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || `Failed to upgrade contract (${res.status})`)
+      }
+
+      setSuccess(`Contract upgraded to V3! Old: ${data.oldImplementation?.slice(0, 10)}... New: ${data.newImplementation?.slice(0, 10)}... Tx: ${data.txHash?.slice(0, 10)}...`)
+      setIsV3(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setUpgradeLoading(false)
+    }
+  }
 
   const handleEnableKillSwitch = async () => {
     if (!killSwitchReason || killSwitchReason.length < 10) {
@@ -1096,6 +1150,55 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
                 </div>
               )}
             </div>
+
+            {/* Upgrade Contract Card - only show when V2 detected */}
+            {isV3 === false && (
+              <div style={{
+                ...styles.card,
+                background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                border: '2px solid #f59e0b',
+              }}>
+                <h2 style={{ ...styles.cardTitle, color: '#92400e' }}>
+                  Upgrade Contract to V3
+                </h2>
+                <p style={{ fontSize: '14px', color: '#78350f', marginBottom: '16px' }}>
+                  V3 enables treasury auto-seeding: the contract can move accumulated creator profits
+                  directly into the jackpot, so rounds start without needing external ETH.
+                </p>
+                <div style={{
+                  background: 'white',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  color: '#374151',
+                }}>
+                  <strong>V3 adds:</strong>
+                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                    <li><code>seedFromTreasury()</code> &mdash; move treasury ETH into jackpot internally</li>
+                    <li><code>withdrawCreatorProfit()</code> hardened with operator-only access + 0.02 ETH reserve</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={handleUpgradeContract}
+                  disabled={upgradeLoading}
+                  style={{
+                    padding: '14px 20px',
+                    background: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    width: '100%',
+                    opacity: upgradeLoading ? 0.7 : 1,
+                  }}
+                >
+                  {upgradeLoading ? 'Upgrading...' : 'Upgrade to V3'}
+                </button>
+              </div>
+            )}
 
             {/* Start Round Card - only show when no active round */}
             {!status.activeRoundId && !status.killSwitch.enabled && (
