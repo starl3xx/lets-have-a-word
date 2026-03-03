@@ -304,8 +304,10 @@ export default async function handler(
     // Final shortfall (if 5% + treasury still < 0.02)
     const finalShortfall = Math.max(0, SEED_TARGET_ETH - totalSeed);
 
-    // Withdrawable = treasury balance minus what's being used for seed
-    const withdrawableAmount = Math.max(0, treasuryBalance - treasuryContribution);
+    // Withdrawable = treasury balance minus the greater of (seed contribution, reserve floor)
+    // This matches the V3 contract which retains MINIMUM_SEED (0.02 ETH) on withdrawal
+    const TREASURY_RESERVE_ETH = SEED_TARGET_ETH; // 0.02 ETH
+    const withdrawableAmount = Math.max(0, treasuryBalance - Math.max(treasuryContribution, TREASURY_RESERVE_ETH));
     const isWithdrawable = withdrawableAmount > 0;
 
     const response: WalletBalancesResponse = {
