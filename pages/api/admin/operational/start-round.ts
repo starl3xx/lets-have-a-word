@@ -126,13 +126,20 @@ export default async function handler(
     let treasurySeedingTxHash: string | undefined;
 
     try {
-      // Read the current jackpot, MINIMUM_SEED, and treasury balance from contract
+      // Read the current jackpot and MINIMUM_SEED from contract
       const contract = getJackpotManagerReadOnly();
-      const [roundInfo, minimumSeedWei, treasuryWei] = await Promise.all([
+      const [roundInfo, minimumSeedWei] = await Promise.all([
         getContractRoundInfo(),
         contract.MINIMUM_SEED() as Promise<bigint>,
-        contract.creatorProfitAccumulated() as Promise<bigint>,
       ]);
+
+      // Treasury read is V3-only — default to 0 if contract hasn't been upgraded
+      let treasuryWei = 0n;
+      try {
+        treasuryWei = await contract.creatorProfitAccumulated() as bigint;
+      } catch {
+        console.warn('[start-round] creatorProfitAccumulated() not available (contract may be V2), skipping treasury seeding');
+      }
       const currentJackpotWei = roundInfo.jackpot;
       console.log(`[start-round] Current contract jackpot: ${ethers.formatEther(currentJackpotWei)} ETH`);
       console.log(`[start-round] Contract MINIMUM_SEED: ${ethers.formatEther(minimumSeedWei)} ETH`);
