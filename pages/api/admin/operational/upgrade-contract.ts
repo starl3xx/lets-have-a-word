@@ -119,6 +119,14 @@ export default async function handler(
       console.log(`[upgrade-contract] V3 not detected, proceeding with upgrade`);
     }
 
+    // If checkOnly flag is set, just return the detection result without upgrading
+    if (req.body?.checkOnly) {
+      return res.status(200).json({
+        success: true,
+        message: 'Contract is V2 — upgrade available.',
+      });
+    }
+
     // Read current implementation address
     const oldImplementation = await getImplementationAddress(provider, proxyAddress);
     console.log(`[upgrade-contract] Current implementation: ${oldImplementation}`);
