@@ -39,6 +39,7 @@ export enum OracleSource {
 export interface MarketCapData {
   marketCapUsd: number;
   priceUsd: number;
+  priceChange24h?: number;
   source: OracleSource;
   timestamp: Date;
 }
@@ -87,14 +88,16 @@ export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
 
     const priceUsd = parseFloat(bestPair.priceUsd || '0');
     const fdv = parseFloat(bestPair.fdv || '0'); // Fully diluted valuation as market cap proxy
+    const priceChange24h = bestPair.priceChange?.h24 != null ? parseFloat(bestPair.priceChange.h24) : undefined;
 
     console.log(
-      `[ORACLE] DexScreener - Price: $${priceUsd.toFixed(8)}, FDV: $${fdv.toLocaleString()}`
+      `[ORACLE] DexScreener - Price: $${priceUsd.toFixed(8)}, FDV: $${fdv.toLocaleString()}, 24h: ${priceChange24h ?? 'N/A'}%`
     );
 
     return {
       marketCapUsd: fdv,
       priceUsd,
+      priceChange24h,
       source: OracleSource.DEXSCREENER,
       timestamp: new Date(),
     };

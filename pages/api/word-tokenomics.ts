@@ -22,6 +22,7 @@ export interface WordTokenomicsResponse {
   totalStaked: string;
   marketCap: string;
   price: string;
+  priceChange24h?: string;
   feeDistribution: {
     gameTreasury: string;
     buybackStake: string;
@@ -88,6 +89,7 @@ export default async function handler(
     // Use live DexScreener data, fall back to env var
     const marketCapUsd = liveMarketData?.marketCapUsd ?? WORD_MARKET_CAP_USD;
     const price = liveMarketData?.priceUsd ?? (totalSupply > 0 ? marketCapUsd / totalSupply : 0);
+    const priceChange24h = liveMarketData?.priceChange24h;
 
     // DB aggregates for burn/bonus stats
     // Bonus: count claimed bonus words only in $WORD-era rounds (those with burn words = Milestone 14+)
@@ -124,6 +126,7 @@ export default async function handler(
       totalStaked: Math.floor(totalStaked).toString(),
       marketCap: marketCapUsd.toString(),
       price: price.toFixed(12),
+      ...(priceChange24h != null && { priceChange24h: priceChange24h.toFixed(2) }),
       feeDistribution: {
         gameTreasury: '50%',
         buybackStake: '25%',

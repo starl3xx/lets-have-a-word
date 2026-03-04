@@ -259,8 +259,8 @@ function GameContent() {
     playerCount: number;
   } | null>(null);
 
-  // $WORD token price for splash page
-  const [wordPrice, setWordPrice] = useState<string | null>(null);
+  // $WORD token data for splash page
+  const [wordTokenData, setWordTokenData] = useState<{ marketCap: string; priceChange24h?: string } | null>(null);
 
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -458,10 +458,10 @@ function GameContent() {
 
     fetchStats();
 
-    // Fetch $WORD token price
+    // Fetch $WORD token data
     fetch('/api/word-tokenomics')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.price) setWordPrice(data.price); })
+      .then(data => { if (data?.marketCap) setWordTokenData({ marketCap: data.marketCap, priceChange24h: data.priceChange24h }); })
       .catch(() => {});
   }, [hasCheckedContext, isInMiniApp]);
 
@@ -1660,21 +1660,32 @@ function GameContent() {
           )}
 
           {/* $WORD Token Info */}
-          <div className="bg-white rounded-xl shadow-card px-4 py-3 text-center space-y-1">
+          <div className="bg-white rounded-xl shadow-card px-4 py-3 text-center space-y-1 border border-purple-200">
             <div className="flex items-center justify-center gap-1.5 text-sm">
               <span className="font-semibold text-gray-900">$WORD</span>
-              {wordPrice && (
+              {wordTokenData && (
                 <>
                   <span className="text-gray-400">·</span>
-                  <span className="text-gray-600">${parseFloat(wordPrice) < 0.01 ? parseFloat(wordPrice).toExponential(2) : parseFloat(wordPrice).toFixed(4)}</span>
+                  <span className="text-gray-600">
+                    {parseFloat(wordTokenData.marketCap) >= 1_000_000
+                      ? `$${(parseFloat(wordTokenData.marketCap) / 1_000_000).toFixed(2)}M`
+                      : parseFloat(wordTokenData.marketCap) >= 1_000
+                        ? `$${(parseFloat(wordTokenData.marketCap) / 1_000).toFixed(1)}K`
+                        : `$${parseFloat(wordTokenData.marketCap).toFixed(0)}`}
+                  </span>
+                  {wordTokenData.priceChange24h && (
+                    <span className={parseFloat(wordTokenData.priceChange24h) >= 0 ? 'text-green-600' : 'text-red-500'}>
+                      {parseFloat(wordTokenData.priceChange24h) >= 0 ? '+' : ''}{wordTokenData.priceChange24h}%
+                    </span>
+                  )}
                 </>
               )}
             </div>
             <a
-              href="https://basescan.org/token/0x304e649e69979298BD1AEE63e175ADf07885fb4b"
+              href="https://dexscreener.com/base/0xc5db937916d2c6f96142a6886ba8b5b74e14949c9cc1080a676ab2a5eb1ea275"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-gray-400 hover:text-primary-600 font-mono break-all"
+              className="text-xs text-gray-400 hover:text-purple-600 font-mono break-all"
             >
               0x304e649e...07885fb4b
             </a>
