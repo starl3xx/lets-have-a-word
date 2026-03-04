@@ -259,6 +259,9 @@ function GameContent() {
     playerCount: number;
   } | null>(null);
 
+  // $WORD token price for splash page
+  const [wordPrice, setWordPrice] = useState<string | null>(null);
+
   // Round Archive modal state (Milestone 5.4)
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [currentRoundId, setCurrentRoundId] = useState<number | undefined>(undefined);
@@ -454,6 +457,12 @@ function GameContent() {
     };
 
     fetchStats();
+
+    // Fetch $WORD token price
+    fetch('/api/word-tokenomics')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.price) setWordPrice(data.price); })
+      .catch(() => {});
   }, [hasCheckedContext, isInMiniApp]);
 
   /**
@@ -1649,6 +1658,27 @@ function GameContent() {
               </div>
             </div>
           )}
+
+          {/* $WORD Token Info */}
+          <div className="bg-white rounded-xl shadow-card px-4 py-3 text-center space-y-1">
+            <div className="flex items-center justify-center gap-1.5 text-sm">
+              <span className="font-semibold text-gray-900">$WORD</span>
+              {wordPrice && (
+                <>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-600">${parseFloat(wordPrice) < 0.01 ? parseFloat(wordPrice).toExponential(2) : parseFloat(wordPrice).toFixed(4)}</span>
+                </>
+              )}
+            </div>
+            <a
+              href="https://basescan.org/token/0x304e649e69979298BD1AEE63e175ADf07885fb4b"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-primary-600 font-mono break-all"
+            >
+              0x304e649e...07885fb4b
+            </a>
+          </div>
 
           {/* CTA Button */}
           <div>
