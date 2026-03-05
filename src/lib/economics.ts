@@ -15,8 +15,10 @@ import {
   getCurrentJackpotOnSepoliaWei,
   getSepoliaContractBalance,
   getMainnetContractBalance,
+  getContractConfig,
   type PayoutRecipient,
 } from './jackpot-contract';
+import { getBaseProvider } from './word-token';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
@@ -702,6 +704,34 @@ export async function resolveRoundAndCreatePayouts(
       throw new Error(`Precompile address for ${payout.role}: "${payout.address}" cannot receive ETH`);
     }
     console.log(`  ✓ ${payout.role} (FID ${payout.fid}): ${payout.address}`);
+  }
+
+  // Pre-flight ETH receive check: simulate sending 1 wei to each recipient
+  // Contracts with reverting receive() functions will brick resolution (Pashov audit finding)
+  if (!sepoliaSimulationMode && !skipOnchainResolutionFlag) {
+    const provider = getBaseProvider();
+    const config = getContractConfig();
+    console.log(`[economics] Pre-flight ETH receive check for ${onChainPayouts.length} recipients...`);
+    for (const payout of onChainPayouts) {
+      try {
+        await provider.call({
+          to: payout.address,
+          value: 1n, // 1 wei simulation
+        });
+      } catch {
+        console.error(`[economics] ⚠️ Recipient ${payout.address} (${payout.role}, FID ${payout.fid}) cannot accept ETH — substituting operator wallet`);
+        payout.originalAddress = payout.address;
+        payout.address = config.operatorWallet;
+      }
+    }
+    // Log any substitutions for manual follow-up
+    const substitutions = onChainPayouts.filter(p => p.originalAddress);
+    if (substitutions.length > 0) {
+      console.warn(`[economics] ⚠️ ${substitutions.length} recipient(s) substituted with operator wallet:`);
+      for (const sub of substitutions) {
+        console.warn(`  - ${sub.role} (FID ${sub.fid}): ${sub.originalAddress} → ${sub.address}`);
+      }
+    }
   }
 
   // CRITICAL: Validate payout math before calling contract

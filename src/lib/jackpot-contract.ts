@@ -241,6 +241,7 @@ export interface PayoutRecipient {
   amountWei: bigint;
   role: 'winner' | 'referrer' | 'top_guesser';
   fid?: number;
+  originalAddress?: string; // Set when address was substituted due to ETH receive failure
 }
 
 /**

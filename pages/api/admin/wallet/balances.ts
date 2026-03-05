@@ -80,6 +80,8 @@ export interface WalletBalancesResponse {
     roundsAvailable: number;
     stakingPeriodActive: boolean;
     stakingPeriodEnds: string | null;
+    stakingHeadroom: string;
+    stakingHealthy: boolean;
   };
   pendingRefunds: {
     count: number;
@@ -240,6 +242,10 @@ export default async function handler(
           ? Number(availableForGames / perRoundCost)
           : 0;
 
+        // Staking health: how much buffer exists above total staked principal
+        const stakingHeadroom = totalBalanceBig > totalStaked ? totalBalanceBig - totalStaked : 0n;
+        const stakingHealthy = stakingHeadroom > perRoundCost * 3n; // 3+ rounds of buffer above staked
+
         const formatWhole = (val: bigint) => Math.floor(parseFloat(ethers.formatEther(val))).toLocaleString();
 
         wordManagerData = {
@@ -253,6 +259,8 @@ export default async function handler(
           stakingPeriodEnds: stakingPeriodActive
             ? new Date(Number(periodFinish) * 1000).toISOString()
             : null,
+          stakingHeadroom: formatWhole(stakingHeadroom),
+          stakingHealthy,
         };
       } catch (err) {
         console.warn('[admin/wallet/balances] WordManager data fetch failed:', err);
