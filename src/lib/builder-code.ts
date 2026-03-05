@@ -17,11 +17,6 @@ import { ethers, type ContractTransactionResponse } from 'ethers';
 const BUILDER_SUFFIX_HEX = '62635f6c756c34736c64770b0080218021802180218021802180218021';
 
 /**
- * Full suffix with 0x prefix — use as `data` field for plain ETH transfers.
- */
-export const BUILDER_CODE_DATA = '0x' + BUILDER_SUFFIX_HEX;
-
-/**
  * Send a contract method call with the ERC-8021 builder code appended.
  *
  * Works by populating the transaction, appending the suffix to calldata,
