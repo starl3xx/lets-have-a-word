@@ -8,7 +8,6 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { ethers, Wallet } from 'ethers';
-import { BUILDER_CODE_DATA } from './builder-code';
 import { db } from '../db';
 import {
   packPurchases,
@@ -114,11 +113,10 @@ async function sendRefundTransaction(
     `[Refunds] Sending ${ethers.formatEther(amount)} ETH to FID ${fid} (${recipientAddress})`
   );
 
-  // Send transaction (with ERC-8021 builder code)
+  // Send plain ETH transfer (no data — receive() only fires when msg.data is empty)
   const tx = await wallet.sendTransaction({
     to: recipientAddress,
     value: amount,
-    data: BUILDER_CODE_DATA,
   });
 
   console.log(`[Refunds] Transaction submitted: ${tx.hash}`);

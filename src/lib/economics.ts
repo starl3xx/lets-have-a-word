@@ -718,10 +718,18 @@ export async function resolveRoundAndCreatePayouts(
           to: payout.address,
           value: 1n, // 1 wei simulation
         });
-      } catch {
-        console.error(`[economics] ⚠️ Recipient ${payout.address} (${payout.role}, FID ${payout.fid}) cannot accept ETH — substituting operator wallet`);
-        payout.originalAddress = payout.address;
-        payout.address = config.operatorWallet;
+      } catch (err: any) {
+        // Distinguish revert errors (contract can't accept ETH) from transient RPC failures
+        const errMsg = err?.message || String(err);
+        const isRevert = errMsg.includes('CALL_EXCEPTION') || errMsg.includes('revert') || errMsg.includes('execution reverted');
+        if (isRevert) {
+          console.error(`[economics] ⚠️ Recipient ${payout.address} (${payout.role}, FID ${payout.fid}) cannot accept ETH — substituting operator wallet. Error: ${errMsg}`);
+          payout.originalAddress = payout.address;
+          payout.address = config.operatorWallet;
+        } else {
+          // RPC timeout/network error — don't redirect, log and continue (will fail at resolution if truly broken)
+          console.warn(`[economics] ⚠️ Pre-flight check RPC error for ${payout.address} (${payout.role}, FID ${payout.fid}) — skipping check (not a revert). Error: ${errMsg}`);
+        }
       }
     }
     // Log any substitutions for manual follow-up
