@@ -16,7 +16,7 @@
 import { ethers, Contract, Wallet } from 'ethers';
 import { getBaseProvider, getSepoliaProvider } from './word-token';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
-import { sendWithBuilderCode, BUILDER_CODE_DATA } from './builder-code';
+import { sendWithBuilderCode } from './builder-code';
 
 /**
  * JackpotManager ABI (minimal - only functions we call from backend)
@@ -481,11 +481,11 @@ export async function topUpJackpotOnChain(amountWei: bigint): Promise<{
     );
   }
 
-  // Send plain ETH transfer to contract (triggers receive() fallback, with ERC-8021 builder code)
+  // Send plain ETH transfer to contract (triggers receive() fallback)
+  // Note: no data field — receive() only fires when msg.data is empty (no fallback() exists)
   const tx = await wallet.sendTransaction({
     to: config.jackpotManagerAddress,
     value: amountWei,
-    data: BUILDER_CODE_DATA,
   });
   console.log(`[CONTRACT] Top-up transaction submitted: ${tx.hash}`);
 
