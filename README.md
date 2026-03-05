@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-03-05 (after Round 14)
+
+- **ERC-8021 builder code on all backend transactions**: Added Base builder code attribution suffix (`bc_lul4sldw`) to all operator-signed onchain transactions across `jackpot-contract.ts`, `word-manager.ts`, `word-oracle.ts`, `refunds.ts`, and `airdrop.ts`. Previously only user-initiated client-side transactions (pack purchases, staking) included the builder code. Also added builder code to ERC-20 approve calls in `useStaking.ts`.
+
 ### 2026-03-02 (after Round 14)
 
 - **Fix jackpot top-up on round start**: Treasury seeding via `seedFromTreasury` (V3 contract feature) now gracefully falls back to operator wallet top-up if the deployed contract hasn't been upgraded to V3 yet, instead of failing the entire round start.

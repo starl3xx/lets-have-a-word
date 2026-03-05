@@ -16,6 +16,7 @@
 import { ethers, Contract, Wallet } from 'ethers';
 import { getBaseProvider, getSepoliaProvider } from './word-token';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
+import { sendWithBuilderCode, BUILDER_CODE_DATA } from './builder-code';
 
 /**
  * JackpotManager ABI (minimal - only functions we call from backend)
@@ -324,8 +325,8 @@ export async function resolveRoundOnChain(winnerFid: number): Promise<string> {
 
   console.log(`[CONTRACT] Resolving round - Winner FID: ${winnerFid}, Wallet: ${winnerWallet}`);
 
-  // Call resolveRound on contract
-  const tx = await contract.resolveRound(winnerWallet);
+  // Call resolveRound on contract (with ERC-8021 builder code)
+  const tx = await sendWithBuilderCode(contract, 'resolveRound', [winnerWallet]);
   console.log(`[CONTRACT] Transaction submitted: ${tx.hash}`);
 
   // Wait for confirmation
@@ -404,8 +405,8 @@ export async function resolveRoundWithPayoutsOnChain(
   }
   console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
 
-  // Call resolveRoundWithPayouts on contract
-  const tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei);
+  // Call resolveRoundWithPayouts on contract (with ERC-8021 builder code)
+  const tx = await sendWithBuilderCode(contract, 'resolveRoundWithPayouts', [recipients, amounts, seedForNextRoundWei]);
   console.log(`[CONTRACT] Transaction submitted: ${tx.hash}`);
 
   // Wait for confirmation
@@ -427,7 +428,7 @@ export async function seedJackpotOnChain(amountEth: string): Promise<string> {
 
   console.log(`[CONTRACT] Seeding jackpot with ${amountEth} ETH`);
 
-  const tx = await contract.seedJackpot({ value: amountWei });
+  const tx = await sendWithBuilderCode(contract, 'seedJackpot', [], { value: amountWei });
   console.log(`[CONTRACT] Seed transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -480,10 +481,11 @@ export async function topUpJackpotOnChain(amountWei: bigint): Promise<{
     );
   }
 
-  // Send plain ETH transfer to contract (triggers receive() fallback)
+  // Send plain ETH transfer to contract (triggers receive() fallback, with ERC-8021 builder code)
   const tx = await wallet.sendTransaction({
     to: config.jackpotManagerAddress,
     value: amountWei,
+    data: BUILDER_CODE_DATA,
   });
   console.log(`[CONTRACT] Top-up transaction submitted: ${tx.hash}`);
 
@@ -527,7 +529,7 @@ export async function seedFromTreasuryOnChain(amountWei: bigint): Promise<{
 
   console.log(`[CONTRACT] Seeding jackpot from treasury: ${amountEth} ETH`);
 
-  const tx = await contract.seedFromTreasury(amountWei, {
+  const tx = await sendWithBuilderCode(contract, 'seedFromTreasury', [amountWei], {
     gasLimit: 100000n,
   });
   console.log(`[CONTRACT] Treasury seed transaction submitted: ${tx.hash}`);
@@ -576,7 +578,7 @@ export async function purchaseGuessesOnChain(
 
   console.log(`[CONTRACT] Purchasing ${quantity} guesses for ${playerAddress} (${amountEth} ETH)`);
 
-  const tx = await contract.purchaseGuesses(playerAddress, quantity, { value: amountWei });
+  const tx = await sendWithBuilderCode(contract, 'purchaseGuesses', [playerAddress, quantity], { value: amountWei });
   console.log(`[CONTRACT] Purchase transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -655,9 +657,9 @@ export async function startRoundWithCommitmentOnChain(commitHash: string): Promi
     throw error;
   }
 
-  // Try with explicit gas limit to bypass estimateGas and get actual revert reason
-  const tx = await contract.startRoundWithCommitment(bytes32Hash, {
-    gasLimit: 500000n, // Explicit gas limit to bypass estimateGas
+  // Try with explicit gas limit to bypass estimateGas and get actual revert reason (with ERC-8021 builder code)
+  const tx = await sendWithBuilderCode(contract, 'startRoundWithCommitment', [bytes32Hash], {
+    gasLimit: 500000n,
   });
   console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
 
@@ -709,7 +711,7 @@ export async function withdrawCreatorProfitOnChain(): Promise<string> {
   const accumulated = await contract.creatorProfitAccumulated();
   console.log(`[CONTRACT] Withdrawing creator profit: ${ethers.formatEther(accumulated)} ETH`);
 
-  const tx = await contract.withdrawCreatorProfit();
+  const tx = await sendWithBuilderCode(contract, 'withdrawCreatorProfit', []);
   console.log(`[CONTRACT] Withdrawal transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -1017,7 +1019,7 @@ export async function purchaseGuessesOnSepolia(
 
   console.log(`[SEPOLIA] Purchasing ${quantity} guesses for ${playerAddress} (${amountEth} ETH)`);
 
-  const tx = await contract.purchaseGuesses(playerAddress, quantity, { value: amountWei });
+  const tx = await sendWithBuilderCode(contract, 'purchaseGuesses', [playerAddress, quantity], { value: amountWei });
   console.log(`[SEPOLIA] Purchase transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -1099,8 +1101,8 @@ export async function resolveRoundWithPayoutsOnSepolia(
     }
     console.log(`  - Seed for next round: ${ethers.formatEther(seedForNextRoundWei)} ETH`);
 
-    // Call resolveRoundWithPayouts
-    const tx = await contract.resolveRoundWithPayouts(recipients, amounts, seedForNextRoundWei);
+    // Call resolveRoundWithPayouts (with ERC-8021 builder code)
+    const tx = await sendWithBuilderCode(contract, 'resolveRoundWithPayouts', [recipients, amounts, seedForNextRoundWei]);
     console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
 
     const receipt = await tx.wait();
@@ -1114,7 +1116,7 @@ export async function resolveRoundWithPayoutsOnSepolia(
     console.log(`[SEPOLIA] Winner address: ${winnerAddress}`);
     console.log(`[SEPOLIA] Note: All jackpot goes to winner (simple contract mode)`);
 
-    const tx = await contract.resolveRound(winnerAddress);
+    const tx = await sendWithBuilderCode(contract, 'resolveRound', [winnerAddress]);
     console.log(`[SEPOLIA] Transaction submitted: ${tx.hash}`);
 
     const receipt = await tx.wait();
@@ -1135,7 +1137,7 @@ export async function startRoundWithCommitmentOnSepolia(commitHash: string): Pro
   console.log(`[SEPOLIA] Starting round with onchain commitment`);
   console.log(`[SEPOLIA] Commit hash: ${bytes32Hash}`);
 
-  const tx = await contract.startRoundWithCommitment(bytes32Hash);
+  const tx = await sendWithBuilderCode(contract, 'startRoundWithCommitment', [bytes32Hash]);
   console.log(`[SEPOLIA] Start round transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -1183,9 +1185,9 @@ export async function resolveSepoliaPreviousRound(): Promise<string> {
   console.log(`[SEPOLIA] Jackpot: ${ethers.formatEther(roundInfo.jackpot)} ETH`);
   console.log(`[SEPOLIA] Using resolveRound() to pay winner: ${operatorAddress}`);
 
-  // Use the simpler resolveRound(winner) function
+  // Use the simpler resolveRound(winner) function (with ERC-8021 builder code)
   const contract = getSepoliaJackpotManagerWithOperator();
-  const tx = await contract.resolveRound(operatorAddress);
+  const tx = await sendWithBuilderCode(contract, 'resolveRound', [operatorAddress]);
   console.log(`[SEPOLIA] Resolve transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -1219,7 +1221,7 @@ export async function seedJackpotOnSepolia(amountEth: string): Promise<string> {
 
   console.log(`[SEPOLIA] Seeding jackpot with ${amountEth} ETH`);
 
-  const tx = await contract.seedJackpot({ value: amountWei });
+  const tx = await sendWithBuilderCode(contract, 'seedJackpot', [], { value: amountWei });
   console.log(`[SEPOLIA] Seed transaction submitted: ${tx.hash}`);
 
   const receipt = await tx.wait();
@@ -1346,8 +1348,8 @@ export async function startRoundWithBothCommitmentsOnChain(
     throw error;
   }
 
-  // Call startRoundWithCommitments with explicit gas limit
-  const tx = await contract.startRoundWithCommitments(bytes32SecretHash, bytes32BonusHash, {
+  // Call startRoundWithCommitments with explicit gas limit (with ERC-8021 builder code)
+  const tx = await sendWithBuilderCode(contract, 'startRoundWithCommitments', [bytes32SecretHash, bytes32BonusHash], {
     gasLimit: 600000n,
   });
   console.log(`[CONTRACT] Start round transaction submitted: ${tx.hash}`);
@@ -1375,7 +1377,7 @@ export async function distributeBonusWordRewardOnChain(
   console.log(`  - Recipient: ${recipientAddress}`);
   console.log(`  - Bonus word index: ${bonusWordIndex}`);
 
-  const tx = await contract.distributeBonusWordReward(recipientAddress, bonusWordIndex, {
+  const tx = await sendWithBuilderCode(contract, 'distributeBonusWordReward', [recipientAddress, bonusWordIndex], {
     gasLimit: 200000n,
   });
   console.log(`[CONTRACT] Bonus word reward transaction submitted: ${tx.hash}`);
@@ -1454,7 +1456,7 @@ export async function emergencyWithdrawWordTokenOnChain(
   console.log(`  - Amount: ${ethers.formatUnits(amountWei, 18)} $WORD`);
   console.log(`  - To: ${toAddress}`);
 
-  const tx = await contract.emergencyWithdrawClankton(amountWei, toAddress, {
+  const tx = await sendWithBuilderCode(contract, 'emergencyWithdrawClankton', [amountWei, toAddress], {
     gasLimit: 100000n,
   });
   console.log(`[CONTRACT] Emergency withdraw transaction submitted: ${tx.hash}`);
@@ -1486,7 +1488,7 @@ export async function setBonusWordsEnabledOnChain(enabled: boolean): Promise<str
 
   console.log(`[CONTRACT] Setting bonus words enabled: ${enabled}`);
 
-  const tx = await contract.setBonusWordsEnabled(enabled, {
+  const tx = await sendWithBuilderCode(contract, 'setBonusWordsEnabled', [enabled], {
     gasLimit: 100000n,
   });
   console.log(`[CONTRACT] Set bonus words transaction submitted: ${tx.hash}`);

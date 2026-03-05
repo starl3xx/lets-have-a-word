@@ -19,6 +19,7 @@ import { ethers, Wallet } from 'ethers';
 import { isAdminFid } from '../me';
 import { resolveWalletIdentity } from '../../../../src/lib/wallet-identity';
 import { getBaseProvider } from '../../../../src/lib/word-token';
+import { BUILDER_CODE_DATA } from '../../../../src/lib/builder-code';
 import { db } from '../../../../src/db';
 import { users, operationalEvents, type OperationalEventType } from '../../../../src/db/schema';
 import { eq } from 'drizzle-orm';
@@ -277,6 +278,7 @@ async function handleExecute(
       const tx = await wallet.sendTransaction({
         to: identity.walletAddress,
         value: amountWei,
+        data: BUILDER_CODE_DATA,
       });
 
       // Wait for 1-block confirmation
