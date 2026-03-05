@@ -209,6 +209,13 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-03-05 (after Round 14)
+
+- **Pashov audit safeguard: pre-flight ETH receive check**: Before round resolution, each payout recipient is now tested with a 1-wei `eth_call` simulation to verify they can accept ETH. If a contract recipient has a reverting `receive()` function, the payout is redirected to the operator wallet to prevent bricking resolution. Substitutions are logged for manual follow-up.
+- **Staking depletion monitoring**: Admin dashboard Wallet tab now shows staking health status. When the WordManager token balance is within 3 rounds of game distributions above total staked principal, a red alert warns that staker withdrawals may fail.
+- **Admin dashboard cleanup**: Removed obsolete "Upgrade Contract to V3" card (V3 already deployed), "Reset for Launch" dead code (post-launch), and Sepolia diagnostics card from Operations tab. Deleted `upgrade-contract.ts` and `reset-for-launch.ts` API endpoints. Removed Sepolia state query from contract-state API. Sepolia Simulation card retained for testing.
+- **ERC-8021 builder code on all backend transactions**: Added Base builder code attribution suffix (`bc_lul4sldw`) to all operator-signed onchain transactions across `jackpot-contract.ts`, `word-manager.ts`, `word-oracle.ts`, `refunds.ts`, and `airdrop.ts`. Previously only user-initiated client-side transactions (pack purchases, staking) included the builder code. Also added builder code to ERC-20 approve calls in `useStaking.ts`.
+
 ### 2026-03-02 (after Round 14)
 
 - **Fix jackpot top-up on round start**: Treasury seeding via `seedFromTreasury` (V3 contract feature) now gracefully falls back to operator wallet top-up if the deployed contract hasn't been upgraded to V3 yet, instead of failing the entire round start.

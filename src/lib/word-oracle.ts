@@ -15,6 +15,7 @@
 import { ethers } from 'ethers';
 import { getJackpotManagerReadOnly, getJackpotManagerWithOperator } from './jackpot-contract';
 import { WORD_TOKEN_ADDRESS } from './word-token';
+import { sendWithBuilderCode } from './builder-code';
 
 /**
  * Market cap tier thresholds (in USD)
@@ -252,8 +253,8 @@ export async function pushMarketCapToContract(): Promise<string | null> {
     // Get contract with operator signer
     const contract = getJackpotManagerWithOperator();
 
-    // Update market cap on contract (legacy ABI function name - deployed contract)
-    const tx = await contract.updateClanktonMarketCap(marketCapScaled);
+    // Update market cap on contract (legacy ABI function name - deployed contract, with ERC-8021 builder code)
+    const tx = await sendWithBuilderCode(contract, 'updateClanktonMarketCap', [marketCapScaled]);
     console.log(`[ORACLE] Transaction submitted: ${tx.hash}`);
 
     // Wait for confirmation

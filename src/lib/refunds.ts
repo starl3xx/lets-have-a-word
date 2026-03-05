@@ -113,7 +113,7 @@ async function sendRefundTransaction(
     `[Refunds] Sending ${ethers.formatEther(amount)} ETH to FID ${fid} (${recipientAddress})`
   );
 
-  // Send transaction
+  // Send plain ETH transfer (no data — receive() only fires when msg.data is empty)
   const tx = await wallet.sendTransaction({
     to: recipientAddress,
     value: amount,

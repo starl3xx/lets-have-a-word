@@ -1793,6 +1793,20 @@ export default function WalletSection({ user }: WalletSectionProps) {
             </div>
           </div>
 
+          {/* Staking depletion warning */}
+          {balances.wordManager.stakingHealthy === false && (
+            <div style={{
+              ...styles.alert('error'),
+              marginTop: '12px',
+            }}>
+              <span>🚨</span>
+              <div>
+                <strong>Staking at risk</strong>: token balance is close to total staked (headroom: {balances.wordManager.stakingHeadroom} $WORD).
+                Game distributions may make staker withdrawals fail. Transfer more $WORD to the WordManager contract.
+              </div>
+            </div>
+          )}
+
           {/* Contract address and staking period */}
           <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

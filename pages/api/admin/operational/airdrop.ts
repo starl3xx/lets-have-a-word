@@ -274,6 +274,7 @@ async function handleExecute(
         `[admin/airdrop] Sending ${r.amountEth} ETH to FID ${r.fid} (@${user?.username || 'unknown'}) at ${identity.walletAddress}`
       );
 
+      // Plain ETH transfer (no data — receive() only fires when msg.data is empty)
       const tx = await wallet.sendTransaction({
         to: identity.walletAddress,
         value: amountWei,

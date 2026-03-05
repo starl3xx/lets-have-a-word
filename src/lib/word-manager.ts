@@ -17,6 +17,7 @@
 import { ethers } from 'ethers';
 import { getBaseProvider } from './word-token';
 import { isDevModeEnabled } from './devGameState';
+import { sendWithBuilderCode } from './builder-code';
 
 /**
  * WordManager ABI (ethers.js human-readable format)
@@ -230,7 +231,7 @@ export async function distributeBonusRewardOnChain(
   }
 
   try {
-    const tx = await contract.distributeBonusReward(playerAddress, amount);
+    const tx = await sendWithBuilderCode(contract, 'distributeBonusReward', [playerAddress, amount]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Bonus reward distributed: ${receipt.hash}`);
     return receipt.hash;
@@ -260,7 +261,7 @@ export async function notifyRewardAmountOnChain(amountWei: string): Promise<stri
   }
 
   try {
-    const tx = await contract.notifyRewardAmount(amountWei);
+    const tx = await sendWithBuilderCode(contract, 'notifyRewardAmount', [amountWei]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Reward period started: ${receipt.hash}`);
     return receipt.hash;
@@ -291,7 +292,7 @@ export async function distributeTop10RewardsOnChain(
   }
 
   try {
-    const tx = await contract.distributeTop10Rewards(roundId, playerAddresses, amounts);
+    const tx = await sendWithBuilderCode(contract, 'distributeTop10Rewards', [roundId, playerAddresses, amounts]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Top-10 rewards distributed for round ${roundId}: ${receipt.hash}`);
     return receipt.hash;
@@ -323,7 +324,7 @@ export async function burnWordOnChain(
 
   try {
     // Discoverer address — use zero address as discoverer info is tracked in DB
-    const tx = await contract.burnWord(roundId, ethers.ZeroAddress, amount);
+    const tx = await sendWithBuilderCode(contract, 'burnWord', [roundId, ethers.ZeroAddress, amount]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Burn executed for round ${roundId}: ${receipt.hash}`);
     return receipt.hash;
@@ -360,7 +361,7 @@ export async function commitRoundOnChain(
 
   try {
     console.log(`[word-manager] Committing round ${roundId} with 16 word hashes...`);
-    const tx = await contract.commitRound(roundId, secretHash, bonusWordHashes, burnWordHashes);
+    const tx = await sendWithBuilderCode(contract, 'commitRound', [roundId, secretHash, bonusWordHashes, burnWordHashes]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Round ${roundId} committed: ${receipt.hash}`);
     return receipt.hash;
@@ -396,7 +397,7 @@ export async function claimBonusRewardOnChain(
 
   try {
     console.log(`[word-manager] Claiming verified bonus reward: round ${roundId}, index ${wordIndex}, word "${word}"`);
-    const tx = await contract.claimBonusReward(roundId, wordIndex, word.toUpperCase(), salt, playerAddress, amount);
+    const tx = await sendWithBuilderCode(contract, 'claimBonusReward', [roundId, wordIndex, word.toUpperCase(), salt, playerAddress, amount]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Verified bonus reward claimed: ${receipt.hash}`);
     return receipt.hash;
@@ -431,7 +432,7 @@ export async function claimBurnWordOnChain(
 
   try {
     console.log(`[word-manager] Claiming verified burn: round ${roundId}, index ${wordIndex}, word "${word}"`);
-    const tx = await contract.claimBurnWord(roundId, wordIndex, word.toUpperCase(), salt, amount);
+    const tx = await sendWithBuilderCode(contract, 'claimBurnWord', [roundId, wordIndex, word.toUpperCase(), salt, amount]);
     const receipt = await tx.wait();
     console.log(`[word-manager] ✅ Verified burn executed: ${receipt.hash}`);
     return receipt.hash;

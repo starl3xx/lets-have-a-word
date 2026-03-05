@@ -15,15 +15,9 @@ import { ethers } from 'ethers';
 import {
   getCurrentJackpotOnChain,
   getMainnetContractBalance,
-  getCurrentJackpotOnSepolia,
-  getSepoliaContractBalance,
-  getSepoliaRoundInfo,
   getContractRoundInfo,
-  resolveSepoliaPreviousRound,
   getContractConfig,
-  getSepoliaContractConfig,
   getJackpotManagerReadOnly,
-  getSepoliaJackpotManagerReadOnly,
 } from '../../../../src/lib/jackpot-contract';
 import {
   getWordManagerAddress,
@@ -35,7 +29,7 @@ import {
 import { WORD_TOKEN_ADDRESS } from '../../../../src/lib/word-token';
 
 interface ContractState {
-  network: 'mainnet' | 'sepolia';
+  network: 'mainnet';
   contractAddress: string;
   rpcUrl: string;
   roundNumber: number;
@@ -271,83 +265,6 @@ async function getMainnetState(): Promise<ContractState> {
   }
 }
 
-async function getSepoliaState(): Promise<ContractState> {
-  const config = getSepoliaContractConfig();
-  const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
-
-  // Get our signing wallet address from OPERATOR_PRIVATE_KEY
-  let ourSigningWallet = 'NOT_CONFIGURED';
-  try {
-    const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
-    if (operatorPrivateKey) {
-      const wallet = new ethers.Wallet(operatorPrivateKey);
-      ourSigningWallet = wallet.address;
-    }
-  } catch {
-    ourSigningWallet = 'INVALID_KEY';
-  }
-
-  try {
-    const contract = getSepoliaJackpotManagerReadOnly();
-    const [roundInfo, internalJackpot, actualBalance, contractOperatorWallet] = await Promise.all([
-      getSepoliaRoundInfo(),
-      getCurrentJackpotOnSepolia(),
-      getSepoliaContractBalance(),
-      contract.operatorWallet() as Promise<string>,
-    ]);
-
-    const jackpotWei = ethers.parseEther(internalJackpot);
-    const balanceWei = ethers.parseEther(actualBalance);
-    const diff = jackpotWei - balanceWei;
-    const absDiff = diff < 0n ? -diff : diff;
-    const mismatchPercent = jackpotWei > 0n
-      ? Number((absDiff * 10000n) / jackpotWei) / 100
-      : 0;
-
-    const operatorAuthorized = ourSigningWallet.toLowerCase() === contractOperatorWallet.toLowerCase();
-
-    return {
-      network: 'sepolia',
-      contractAddress: config.jackpotManagerAddress,
-      rpcUrl,
-      roundNumber: Number(roundInfo.roundNumber),
-      isActive: roundInfo.isActive,
-      internalJackpot,
-      actualBalance,
-      internalJackpotWei: jackpotWei.toString(),
-      actualBalanceWei: balanceWei.toString(),
-      hasMismatch: balanceWei < jackpotWei,
-      mismatchAmount: ethers.formatEther(absDiff),
-      mismatchPercent,
-      canResolve: roundInfo.isActive && balanceWei >= jackpotWei,
-      contractOperatorWallet,
-      ourSigningWallet,
-      operatorAuthorized,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return {
-      network: 'sepolia',
-      contractAddress: config.jackpotManagerAddress,
-      rpcUrl,
-      roundNumber: 0,
-      isActive: false,
-      internalJackpot: '0',
-      actualBalance: '0',
-      internalJackpotWei: '0',
-      actualBalanceWei: '0',
-      hasMismatch: false,
-      mismatchAmount: '0',
-      mismatchPercent: 0,
-      canResolve: false,
-      contractOperatorWallet: 'UNKNOWN',
-      ourSigningWallet,
-      operatorAuthorized: false,
-      error: message,
-    };
-  }
-}
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -365,16 +282,14 @@ export default async function handler(
 
     if (req.method === 'GET') {
       // Fetch state for all contracts in parallel
-      const [mainnet, sepolia, wordManager] = await Promise.all([
+      const [mainnet, wordManager] = await Promise.all([
         getMainnetState(),
-        getSepoliaState(),
         getWordManagerState(),
       ]);
 
       return res.status(200).json({
         ok: true,
         mainnet,
-        sepolia,
         wordManager,
         timestamp: new Date().toISOString(),
         recommendations: {
@@ -385,13 +300,6 @@ export default async function handler(
               : mainnet.isActive
                 ? '✅ Contract state is healthy. Resolution should work.'
                 : '✅ No active round. Ready to start new round.',
-          sepolia: !sepolia.operatorAuthorized
-            ? `🚫 OPERATOR MISMATCH! Contract expects ${sepolia.contractOperatorWallet} but we're signing with ${sepolia.ourSigningWallet}. All contract writes will fail.`
-            : sepolia.hasMismatch
-              ? `⚠️ Use "Clear Sepolia Round" to reset contract state. This pays the jackpot to the operator wallet.`
-              : sepolia.isActive
-                ? '✅ Contract state is healthy. Simulation should work.'
-                : 'ℹ️ No active round. Start a simulation to create one.',
           wordManager: !wordManager.configured
             ? 'ℹ️ WordManager not configured. Set WORD_MANAGER_ADDRESS to enable $WORD contract monitoring.'
             : wordManager.error
@@ -401,36 +309,6 @@ export default async function handler(
                 : '✅ WordManager is healthy.',
         },
       });
-    }
-
-    if (req.method === 'POST') {
-      const { action, network } = req.body as { action: string; network: 'mainnet' | 'sepolia' };
-
-      if (action === 'clear-sepolia-round') {
-        if (network !== 'sepolia') {
-          return res.status(400).json({ error: 'This action is only available for Sepolia' });
-        }
-
-        // Check if Sepolia has an active round
-        const sepoliaState = await getSepoliaState();
-        if (!sepoliaState.isActive) {
-          return res.status(400).json({ error: 'No active Sepolia round to clear' });
-        }
-
-        // Resolve the Sepolia round by paying 100% to operator
-        console.log(`[contract-state] Admin ${fid} clearing Sepolia round #${sepoliaState.roundNumber}`);
-        const txHash = await resolveSepoliaPreviousRound();
-        console.log(`[contract-state] Sepolia round cleared: ${txHash}`);
-
-        return res.status(200).json({
-          ok: true,
-          action: 'clear-sepolia-round',
-          txHash,
-          message: `Cleared Sepolia round #${sepoliaState.roundNumber}. Jackpot (${sepoliaState.actualBalance} ETH) returned to operator.`,
-        });
-      }
-
-      return res.status(400).json({ error: `Unknown action: ${action}` });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

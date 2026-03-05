@@ -94,11 +94,9 @@ interface WordManagerState {
 interface ContractStateResponse {
   ok: boolean
   mainnet: ContractNetworkState
-  sepolia: ContractNetworkState
   wordManager: WordManagerState
   recommendations: {
     mainnet: string
-    sepolia: string
     wordManager: string
   }
   timestamp: string
@@ -348,7 +346,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Contract state
   const [contractState, setContractState] = useState<ContractStateResponse | null>(null)
   const [contractStateLoading, setContractStateLoading] = useState(false)
-  const [clearSepoliaLoading, setClearSepoliaLoading] = useState(false)
 
   // Recover stuck round state
   const [recoverRoundId, setRecoverRoundId] = useState("")
@@ -375,13 +372,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   // Start round state
   const [startRoundLoading, setStartRoundLoading] = useState(false)
 
-  // Upgrade Contract state
-  const [upgradeLoading, setUpgradeLoading] = useState(false)
-  const [isV3, setIsV3] = useState<boolean | null>(null)
-
-  // Reset for launch state
-  const [resetLoading, setResetLoading] = useState(false)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   // Round health check state
   const [roundHealth, setRoundHealth] = useState<RoundHealthCheck | null>(null)
@@ -409,54 +399,12 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }, [user?.fid])
 
-  // Check if contract is V3 (has seedFromTreasury)
-  const checkV3Status = useCallback(async () => {
-    if (!user?.fid) return
-    try {
-      const res = await fetch(`/api/admin/operational/upgrade-contract?devFid=${user.fid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkOnly: true }),
-      })
-      // 409 = already V3, 200 = V2 (upgrade available)
-      setIsV3(res.status === 409)
-    } catch {
-      setIsV3(null)
-    }
-  }, [user?.fid])
-
   useEffect(() => {
     fetchStatus()
-    checkV3Status()
     const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)
-  }, [fetchStatus, checkV3Status])
+  }, [fetchStatus])
 
-  const handleUpgradeContract = async () => {
-    try {
-      setUpgradeLoading(true)
-      setError(null)
-
-      const res = await fetch(`/api/admin/operational/upgrade-contract?devFid=${user?.fid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || `Failed to upgrade contract (${res.status})`)
-      }
-
-      setSuccess(`Contract upgraded to V3! Old: ${data.oldImplementation?.slice(0, 10)}... New: ${data.newImplementation?.slice(0, 10)}... Tx: ${data.txHash?.slice(0, 10)}...`)
-      setIsV3(true)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setUpgradeLoading(false)
-    }
-  }
 
   const fetchContractState = useCallback(async () => {
     if (!user?.fid) return
@@ -508,41 +456,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     fetchRoundHealth()
   }, [fetchRoundHealth])
 
-  const handleClearSepoliaRound = async () => {
-    if (!user?.fid) return
-
-    if (!confirm('Clear the Sepolia round? This will pay the jackpot to the operator wallet and reset the contract state.')) {
-      return
-    }
-
-    try {
-      setClearSepoliaLoading(true)
-      setError(null)
-
-      const res = await fetch('/api/admin/operational/contract-state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          devFid: user.fid,
-          action: 'clear-sepolia-round',
-          network: 'sepolia',
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to clear Sepolia round')
-      }
-
-      setSuccess(data.message)
-      await fetchContractState()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setClearSepoliaLoading(false)
-    }
-  }
 
   const handleEnableKillSwitch = async () => {
     if (!killSwitchReason || killSwitchReason.length < 10) {
@@ -973,44 +886,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }
 
-  const handleResetForLaunch = async () => {
-    if (!user?.fid) return
-
-    try {
-      setResetLoading(true)
-      setError(null)
-
-      const res = await fetch(`/api/admin/reset-for-launch?devFid=${user.fid}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ confirm: 'RESET_FOR_LAUNCH' }),
-      })
-
-      const text = await res.text()
-      let data: any = {}
-      if (text) {
-        try {
-          data = JSON.parse(text)
-        } catch {
-          throw new Error(`Server returned invalid response: ${text.slice(0, 100) || '(empty)'}`)
-        }
-      }
-
-      if (!res.ok) {
-        throw new Error(data.message || data.error || `Failed to reset (${res.status})`)
-      }
-
-      setSuccess(`Database reset! Deleted ${data.deletedRounds} rounds and ${data.deletedGuesses} guesses. Ready for Round #1!`)
-      setShowResetConfirm(false)
-      await fetchStatus()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setResetLoading(false)
-    }
-  }
 
   const handleAwardXp = async () => {
     if (!user?.fid) return
@@ -1508,54 +1383,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             </div>
           )}
 
-          {/* Upgrade Contract Card - only show when V2 detected */}
-          {isV3 === false && (
-            <div style={{
-              ...styles.card,
-              background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-              border: '2px solid #f59e0b',
-            }}>
-              <h2 style={{ ...styles.cardTitle, color: '#92400e' }}>
-                Upgrade Contract to V3
-              </h2>
-              <p style={{ fontSize: '14px', color: '#78350f', marginBottom: '16px' }}>
-                V3 enables treasury auto-seeding: the contract can move accumulated creator profits
-                directly into the jackpot, so rounds start without needing external ETH.
-              </p>
-              <div style={{
-                background: 'white',
-                borderRadius: '8px',
-                padding: '12px 16px',
-                marginBottom: '16px',
-                fontSize: '13px',
-                color: '#374151',
-              }}>
-                <strong>V3 adds:</strong>
-                <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                  <li><code>seedFromTreasury()</code> &mdash; move treasury ETH into jackpot internally</li>
-                  <li><code>withdrawCreatorProfit()</code> hardened with operator-only access + 0.02 ETH reserve</li>
-                </ul>
-              </div>
-              <button
-                onClick={handleUpgradeContract}
-                disabled={upgradeLoading}
-                style={{
-                  padding: '14px 20px',
-                  background: '#f59e0b',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  width: '100%',
-                  opacity: upgradeLoading ? 0.7 : 1,
-                }}
-              >
-                {upgradeLoading ? 'Upgrading...' : 'Upgrade to V3'}
-              </button>
-            </div>
-          )}
 
           {/* Start New Round Card */}
           {!status.killSwitch.enabled && (
@@ -2142,7 +1969,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 Loading contract state...
               </div>
             ) : contractState ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 {/* JackpotManager — Mainnet */}
                 <div style={{
                   padding: '16px',
@@ -2209,93 +2036,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                           ⚠️ Balance is {contractState.mainnet.mismatchAmount} ETH ({contractState.mainnet.mismatchPercent.toFixed(1)}%) less than jackpot.
                           Resolution will fail.
                         </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* JackpotManager — Sepolia */}
-                <div style={{
-                  padding: '16px',
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  opacity: 0.65,
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '12px',
-                  }}>
-                    <span style={{ fontWeight: 600, fontSize: '14px', color: '#6b7280' }}>
-                      JackpotManager — Sepolia
-                    </span>
-                    <span style={{
-                      fontSize: '16px',
-                      color: '#9ca3af',
-                    }}>
-                      {contractState.sepolia.hasMismatch ? '⚠️' : '✓'}
-                    </span>
-                  </div>
-                  {contractState.sepolia.error ? (
-                    <div style={{ color: '#dc2626', fontSize: '13px' }}>
-                      Error: {contractState.sepolia.error}
-                    </div>
-                  ) : (
-                    <>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Contract</span>
-                        <span style={{ ...styles.infoValue, fontSize: '10px', fontFamily: 'monospace' }}>
-                          {contractState.sepolia.contractAddress?.slice(0, 10)}...{contractState.sepolia.contractAddress?.slice(-8)}
-                        </span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>RPC</span>
-                        <span style={{ ...styles.infoValue, fontSize: '10px' }}>
-                          {contractState.sepolia.rpcUrl?.replace('https://', '')}
-                        </span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Round</span>
-                        <span style={styles.infoValue}>
-                          #{contractState.sepolia.roundNumber} {contractState.sepolia.isActive ? '(active)' : '(inactive)'}
-                        </span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Internal Jackpot</span>
-                        <span style={styles.infoValue}>{parseFloat(contractState.sepolia.internalJackpot).toFixed(6)} ETH</span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Actual Balance</span>
-                        <span style={styles.infoValue}>{parseFloat(contractState.sepolia.actualBalance).toFixed(6)} ETH</span>
-                      </div>
-                      {contractState.sepolia.hasMismatch && (
-                        <div style={{
-                          marginTop: '12px',
-                          padding: '8px',
-                          background: '#fee2e2',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          color: '#991b1b',
-                        }}>
-                          ⚠️ Balance is {contractState.sepolia.mismatchAmount} ETH ({contractState.sepolia.mismatchPercent.toFixed(1)}%) less than jackpot.
-                        </div>
-                      )}
-                      {contractState.sepolia.isActive && (
-                        <button
-                          onClick={handleClearSepoliaRound}
-                          style={{
-                            ...styles.btnDanger,
-                            marginTop: '12px',
-                            width: '100%',
-                            padding: '8px 12px',
-                            fontSize: '12px',
-                          }}
-                          disabled={clearSepoliaLoading}
-                        >
-                          {clearSepoliaLoading ? 'Clearing...' : 'Clear Sepolia Round'}
-                        </button>
                       )}
                     </>
                   )}
@@ -2410,25 +2150,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </div>
             ) : null}
 
-            {/* Warning if same contract address used for both networks */}
-            {contractState?.mainnet.contractAddress &&
-             contractState?.sepolia.contractAddress &&
-             contractState.mainnet.contractAddress === contractState.sepolia.contractAddress && (
-              <div style={{
-                marginTop: '16px',
-                padding: '12px',
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '8px',
-                fontSize: '13px',
-                color: '#991b1b',
-              }}>
-                <strong>⚠️ Configuration Warning:</strong> Both networks are using the same contract address!
-                <br />
-                Set <code style={{ background: '#fee2e2', padding: '2px 4px', borderRadius: '4px' }}>SEPOLIA_JACKPOT_MANAGER_ADDRESS</code> in
-                your environment to point to a separate Sepolia contract.
-              </div>
-            )}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
               <button
@@ -2444,9 +2165,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               <div style={{ marginTop: '16px', fontSize: '12px', color: '#6b7280' }}>
                 <div style={{ marginBottom: '4px' }}>
                   <strong>Mainnet:</strong> {contractState.recommendations.mainnet}
-                </div>
-                <div style={{ marginBottom: '4px' }}>
-                  <strong>Sepolia:</strong> {contractState.recommendations.sepolia}
                 </div>
                 <div>
                   <strong>WordManager:</strong> {contractState.recommendations.wordManager}

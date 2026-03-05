@@ -227,6 +227,7 @@ export function useStaking(): UseStakingReturn {
             functionName: 'approve',
             args: [WORD_MANAGER_ADDRESS, maxUint256],
             chainId: base.id,
+            dataSuffix: ERC_8021_SUFFIX,
           });
         }
       }, 3000);
@@ -319,6 +320,7 @@ export function useStaking(): UseStakingReturn {
       functionName: 'approve',
       args: [WORD_MANAGER_ADDRESS, maxUint256],
       chainId: base.id,
+      dataSuffix: ERC_8021_SUFFIX,
     });
   }, [writeContract, currentAllowance]);
 
