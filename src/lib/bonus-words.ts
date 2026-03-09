@@ -7,6 +7,7 @@ import { db, roundBonusWords, users, rounds, userBadges } from '../db';
 import { eq, and, isNotNull, isNull, desc, inArray } from 'drizzle-orm';
 import { hasWordTokenBonus } from './word-token';
 import { getPlaintextAnswer } from './encryption';
+import { isRealFcUsername } from './farcaster';
 
 /**
  * Claimed bonus word info for API responses
@@ -98,7 +99,7 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
         for (const user of neynarData.users) {
           const existing = userDataMap.get(user.fid) || { username: null, pfpUrl: `https://avatar.vercel.sh/${user.fid}` };
           userDataMap.set(user.fid, {
-            username: user.username || existing.username,
+            username: isRealFcUsername(user.username) ? user.username : existing.username,
             pfpUrl: user.pfp_url || existing.pfpUrl,
           });
         }

@@ -18,6 +18,14 @@ const config = new Configuration({
 const neynarClient = new NeynarAPIClient(config);
 
 /**
+ * Check if a Farcaster username is real (not a !-prefixed FID placeholder).
+ * Neynar returns "!<fid>" for users who never set a username.
+ */
+export function isRealFcUsername(username: string | null | undefined): username is string {
+  return !!username && !username.startsWith('!');
+}
+
+/**
  * Farcaster authentication context extracted from verified request
  */
 export interface FarcasterContext {
@@ -234,7 +242,7 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
       signerWallet: user.verified_addresses?.eth_addresses?.[0] || null,
       custodyAddress: user.custody_address || null,
       spamScore: user.follower_count || null,
-      username: user.username || null,
+      username: isRealFcUsername(user.username) ? user.username : null,
     };
   } catch (error) {
     console.error(`Failed to fetch user data for FID ${fid}:`, error);

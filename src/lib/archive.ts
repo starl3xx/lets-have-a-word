@@ -27,6 +27,7 @@ import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
 import { getTop10LockForRound } from './top10-lock';
 import { getTotalWordTokenDistributed } from './jackpot-contract';
+import { isRealFcUsername } from './farcaster';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
 function getRows<T = any>(result: any): T[] {
@@ -640,7 +641,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             userDataMap.set(user.fid, {
               ...existing,
               // Prefer Neynar username over local DB (more up-to-date)
-              username: user.username || existing.username,
+              username: isRealFcUsername(user.username) ? user.username : existing.username,
               pfpUrl: user.pfp_url || null,
             });
           }
@@ -713,7 +714,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
             userDataMap.set(user.fid, {
               ...existing,
-              username: user.username || existing.username,
+              username: isRealFcUsername(user.username) ? user.username : existing.username,
               pfpUrl: user.pfp_url || null,
             });
           }

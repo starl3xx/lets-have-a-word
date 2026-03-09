@@ -13,6 +13,7 @@
  */
 
 import { db } from '../db';
+import { isRealFcUsername } from './farcaster';
 import { roundBurnWords, roundBonusWords, wordRewards, guesses, users, userBadges } from '../db/schema';
 import type { RoundBurnWordRow } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
@@ -365,12 +366,12 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
       for (const user of neynarData.users) {
         const existing = userMap.get(user.fid);
         if (existing) {
-          existing.username = user.username || existing.username;
+          existing.username = isRealFcUsername(user.username) ? user.username : existing.username;
           existing.pfpUrl = user.pfp_url || existing.pfpUrl;
         } else {
           userMap.set(user.fid, {
             fid: user.fid,
-            username: user.username || null,
+            username: isRealFcUsername(user.username) ? user.username : null,
             signerWalletAddress: null,
             pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
           });

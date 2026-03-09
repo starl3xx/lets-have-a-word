@@ -87,7 +87,7 @@ export default async function handler(
           // Create a map of FID -> username
           const usernameMap = new Map<number, string>();
           for (const user of userData.users) {
-            if (user.username) {
+            if (user.username && !user.username.startsWith('!')) {
               usernameMap.set(user.fid, user.username);
             }
           }

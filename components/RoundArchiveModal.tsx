@@ -483,7 +483,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                         {/* Username + Badges + ETH Payout */}
                         <div className="flex-1 flex items-center gap-1 min-w-0">
                           <span className="text-sm font-medium text-gray-900 truncate">
-                            {guesser.username?.startsWith('fid:') ? guesser.username : `@${guesser.username || `fid:${guesser.fid}`}`}
+                            {(guesser.username?.startsWith('fid:') || guesser.username?.startsWith('!')) ? `fid:${guesser.fid}` : `@${guesser.username || `fid:${guesser.fid}`}`}
                           </span>
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
@@ -543,7 +543,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                       {/* Username + Badges */}
                       <div className="flex-1 flex items-center gap-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900 truncate">
-                          {winner.username?.startsWith('fid:') ? winner.username : `@${winner.username || `fid:${winner.fid}`}`}
+                          {(winner.username?.startsWith('fid:') || winner.username?.startsWith('!')) ? `fid:${winner.fid}` : `@${winner.username || `fid:${winner.fid}`}`}
                         </span>
                         <BadgeStack
                           hasOgHunterBadge={winner.hasOgHunterBadge}
@@ -602,7 +602,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                       {/* Username + Badges */}
                       <div className="flex-1 flex items-center gap-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900 truncate">
-                          {finder.username?.startsWith('fid:') ? finder.username : `@${finder.username || `fid:${finder.fid}`}`}
+                          {(finder.username?.startsWith('fid:') || finder.username?.startsWith('!')) ? `fid:${finder.fid}` : `@${finder.username || `fid:${finder.fid}`}`}
                         </span>
                         <BadgeStack
                           hasOgHunterBadge={finder.hasOgHunterBadge}
