@@ -98,8 +98,8 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
           custodyAddress = user.custody_address;
         }
 
-        // Get username
-        if (user.username) {
+        // Get username (filter out Farcaster !-prefixed placeholders)
+        if (isRealFcUsername(user.username)) {
           username = user.username;
         }
 
@@ -183,7 +183,7 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
           custodyAddress = user.custody_address;
         }
 
-        if (user.username) {
+        if (isRealFcUsername(user.username)) {
           username = user.username;
         }
 
