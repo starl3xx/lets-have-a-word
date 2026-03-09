@@ -641,7 +641,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             userDataMap.set(user.fid, {
               ...existing,
               // Prefer Neynar username over local DB (more up-to-date)
-              username: isRealFcUsername(user.username) ? user.username : existing.username,
+              username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
               pfpUrl: user.pfp_url || null,
             });
           }
@@ -714,7 +714,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
             userDataMap.set(user.fid, {
               ...existing,
-              username: isRealFcUsername(user.username) ? user.username : existing.username,
+              username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
               pfpUrl: user.pfp_url || null,
             });
           }

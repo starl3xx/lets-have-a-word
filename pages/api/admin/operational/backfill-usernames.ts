@@ -14,7 +14,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db, users } from '../../../../src/db';
 import { isNull, or, eq } from 'drizzle-orm';
-import { neynarClient } from '../../../../src/lib/farcaster';
+import { neynarClient, isRealFcUsername } from '../../../../src/lib/farcaster';
 
 const BATCH_SIZE = 100; // Neynar batch limit
 const MAX_LIMIT = 500;
@@ -87,7 +87,7 @@ export default async function handler(
           // Create a map of FID -> username
           const usernameMap = new Map<number, string>();
           for (const user of userData.users) {
-            if (user.username && !user.username.startsWith('!')) {
+            if (isRealFcUsername(user.username)) {
               usernameMap.set(user.fid, user.username);
             }
           }

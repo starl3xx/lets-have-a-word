@@ -99,7 +99,7 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
         for (const user of neynarData.users) {
           const existing = userDataMap.get(user.fid) || { username: null, pfpUrl: `https://avatar.vercel.sh/${user.fid}` };
           userDataMap.set(user.fid, {
-            username: isRealFcUsername(user.username) ? user.username : existing.username,
+            username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
             pfpUrl: user.pfp_url || existing.pfpUrl,
           });
         }

@@ -366,7 +366,7 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
       for (const user of neynarData.users) {
         const existing = userMap.get(user.fid);
         if (existing) {
-          existing.username = isRealFcUsername(user.username) ? user.username : existing.username;
+          existing.username = isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null;
           existing.pfpUrl = user.pfp_url || existing.pfpUrl;
         } else {
           userMap.set(user.fid, {
