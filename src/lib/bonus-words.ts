@@ -85,7 +85,7 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
 
       if (userRecord.length > 0) {
         userDataMap.set(fid, {
-          username: userRecord[0].username,
+          username: isRealFcUsername(userRecord[0].username) ? userRecord[0].username : null,
           pfpUrl: `https://avatar.vercel.sh/${fid}`,
         });
       }

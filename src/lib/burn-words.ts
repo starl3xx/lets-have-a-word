@@ -355,7 +355,7 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     .where(inArray(users.fid, finderFids));
 
   const userMap = new Map<number, { fid: number; username: string | null; signerWalletAddress: string | null; pfpUrl: string }>(
-    userRecords.map(u => [u.fid, { ...u, pfpUrl: `https://avatar.vercel.sh/${u.fid}` }])
+    userRecords.map(u => [u.fid, { ...u, username: isRealFcUsername(u.username) ? u.username : null, pfpUrl: `https://avatar.vercel.sh/${u.fid}` }])
   );
 
   // Enrich with Neynar data for usernames and profile pictures

@@ -622,7 +622,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
 
       for (const user of userRecords) {
         userDataMap.set(user.fid, {
-          username: user.username,
+          username: isRealFcUsername(user.username) ? user.username : null,
           wallet: user.signerWalletAddress,
           pfpUrl: null, // Will be filled from Neynar
         });
@@ -699,7 +699,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       for (const user of userRecords) {
         if (!userDataMap.has(user.fid)) {
           userDataMap.set(user.fid, {
-            username: user.username,
+            username: isRealFcUsername(user.username) ? user.username : null,
             wallet: user.signerWalletAddress,
             pfpUrl: null,
           });
