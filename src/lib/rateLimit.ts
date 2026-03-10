@@ -42,8 +42,9 @@ export const RateLimitConfig = {
   },
   // Duplicate submission detection
   duplicateGuess: {
-    // Same word within 10 seconds is considered duplicate
-    windowSeconds: parseInt(process.env.RATE_LIMIT_DUPLICATE_WINDOW || '10', 10),
+    // Same word within 30 seconds is considered duplicate
+    // Wider window prevents credit drain when frontend times out (12s) and user retries
+    windowSeconds: parseInt(process.env.RATE_LIMIT_DUPLICATE_WINDOW || '30', 10),
   },
 };
 

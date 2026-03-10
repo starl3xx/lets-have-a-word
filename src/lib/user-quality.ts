@@ -190,8 +190,13 @@ async function fetchUserScoreFromNeynar(fid: number): Promise<number | null> {
       return null;
     }
 
-    // Fetch user data from Neynar
-    const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
+    // Fetch user data from Neynar (with 3s timeout to avoid blocking guess flow)
+    const userData = await Promise.race([
+      neynarClient.fetchBulkUsers({ fids: [fid] }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Neynar user score fetch timed out (3s)')), 3000)
+      ),
+    ]);
 
     if (!userData.users || userData.users.length === 0) {
       console.warn(`[UserQuality] User FID ${fid} not found in Neynar`);

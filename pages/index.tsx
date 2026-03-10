@@ -57,7 +57,7 @@ function isClientDevMode(): boolean {
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
-  timeoutMs = 12000,
+  timeoutMs = 20000,
 ): Promise<Response> {
   const attempt = async (isRetry: boolean): Promise<Response> => {
     const controller = new AbortController();
