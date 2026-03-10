@@ -13,6 +13,7 @@
  */
 
 import { db } from '../db';
+import { isRealFcUsername } from './farcaster';
 import { roundBurnWords, roundBonusWords, wordRewards, guesses, users, userBadges } from '../db/schema';
 import type { RoundBurnWordRow } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
@@ -354,7 +355,7 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     .where(inArray(users.fid, finderFids));
 
   const userMap = new Map<number, { fid: number; username: string | null; signerWalletAddress: string | null; pfpUrl: string }>(
-    userRecords.map(u => [u.fid, { ...u, pfpUrl: `https://avatar.vercel.sh/${u.fid}` }])
+    userRecords.map(u => [u.fid, { ...u, username: isRealFcUsername(u.username) ? u.username : null, pfpUrl: `https://avatar.vercel.sh/${u.fid}` }])
   );
 
   // Enrich with Neynar data for usernames and profile pictures
@@ -365,12 +366,12 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
       for (const user of neynarData.users) {
         const existing = userMap.get(user.fid);
         if (existing) {
-          existing.username = user.username || existing.username;
+          existing.username = isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null;
           existing.pfpUrl = user.pfp_url || existing.pfpUrl;
         } else {
           userMap.set(user.fid, {
             fid: user.fid,
-            username: user.username || null,
+            username: isRealFcUsername(user.username) ? user.username : null,
             signerWalletAddress: null,
             pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
           });

@@ -27,6 +27,7 @@ import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
 import { getTop10LockForRound } from './top10-lock';
 import { getTotalWordTokenDistributed } from './jackpot-contract';
+import { isRealFcUsername } from './farcaster';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
 function getRows<T = any>(result: any): T[] {
@@ -621,7 +622,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
 
       for (const user of userRecords) {
         userDataMap.set(user.fid, {
-          username: user.username,
+          username: isRealFcUsername(user.username) ? user.username : null,
           wallet: user.signerWalletAddress,
           pfpUrl: null, // Will be filled from Neynar
         });
@@ -640,7 +641,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             userDataMap.set(user.fid, {
               ...existing,
               // Prefer Neynar username over local DB (more up-to-date)
-              username: user.username || existing.username,
+              username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
               pfpUrl: user.pfp_url || null,
             });
           }
@@ -698,7 +699,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       for (const user of userRecords) {
         if (!userDataMap.has(user.fid)) {
           userDataMap.set(user.fid, {
-            username: user.username,
+            username: isRealFcUsername(user.username) ? user.username : null,
             wallet: user.signerWalletAddress,
             pfpUrl: null,
           });
@@ -713,7 +714,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
             userDataMap.set(user.fid, {
               ...existing,
-              username: user.username || existing.username,
+              username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
               pfpUrl: user.pfp_url || null,
             });
           }

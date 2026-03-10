@@ -18,6 +18,14 @@ const config = new Configuration({
 const neynarClient = new NeynarAPIClient(config);
 
 /**
+ * Check if a Farcaster username is real (not a !-prefixed FID placeholder).
+ * Neynar returns "!<fid>" for users who never set a username.
+ */
+export function isRealFcUsername(username: string | null | undefined): username is string {
+  return !!username && !username.startsWith('!');
+}
+
+/**
  * Farcaster authentication context extracted from verified request
  */
 export interface FarcasterContext {
@@ -45,8 +53,13 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
   }
 
   try {
-    // Validate and verify the frame message using Neynar
-    const { message, isValid } = await neynarClient.validateFrameAction(messageBytes);
+    // Validate and verify the frame message using Neynar (4s timeout)
+    const { message, isValid } = await Promise.race([
+      neynarClient.validateFrameAction(messageBytes),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Neynar frame validation timed out (4s)')), 4000)
+      ),
+    ]);
 
     if (!isValid || !message) {
       throw new Error('Invalid frame message signature');
@@ -66,9 +79,14 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
     let username: string | null = null;
 
     try {
-      // Fetch full user data from Neynar
+      // Fetch full user data from Neynar (3s timeout — enrichment only, not critical)
       // SDK v2 requires object with fids property
-      const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
+      const userData = await Promise.race([
+        neynarClient.fetchBulkUsers({ fids: [fid] }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Neynar user data fetch timed out (3s)')), 3000)
+        ),
+      ]);
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
@@ -90,8 +108,8 @@ export async function verifyFrameMessage(messageBytes: string): Promise<Farcaste
           custodyAddress = user.custody_address;
         }
 
-        // Get username
-        if (user.username) {
+        // Get username (filter out Farcaster !-prefixed placeholders)
+        if (isRealFcUsername(user.username)) {
           username = user.username;
         }
 
@@ -137,8 +155,13 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
   }
 
   try {
-    // Look up signer details
-    const signer = await neynarClient.lookupSigner(signerUuid);
+    // Look up signer details (4s timeout)
+    const signer = await Promise.race([
+      neynarClient.lookupSigner(signerUuid),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Neynar signer lookup timed out (4s)')), 4000)
+      ),
+    ]);
 
     if (!signer || !signer.fid) {
       throw new Error('Invalid signer or no FID associated');
@@ -154,8 +177,13 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
     let username: string | null = null;
 
     try {
-      // SDK v2 requires object with fids property
-      const userData = await neynarClient.fetchBulkUsers({ fids: [fid] });
+      // SDK v2 requires object with fids property (3s timeout — enrichment only)
+      const userData = await Promise.race([
+        neynarClient.fetchBulkUsers({ fids: [fid] }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Neynar user data fetch timed out (3s)')), 3000)
+        ),
+      ]);
 
       if (userData.users && userData.users.length > 0) {
         const user = userData.users[0];
@@ -175,7 +203,7 @@ export async function verifySigner(signerUuid: string): Promise<FarcasterContext
           custodyAddress = user.custody_address;
         }
 
-        if (user.username) {
+        if (isRealFcUsername(user.username)) {
           username = user.username;
         }
 
@@ -234,7 +262,7 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
       signerWallet: user.verified_addresses?.eth_addresses?.[0] || null,
       custodyAddress: user.custody_address || null,
       spamScore: user.follower_count || null,
-      username: user.username || null,
+      username: isRealFcUsername(user.username) ? user.username : null,
     };
   } catch (error) {
     console.error(`Failed to fetch user data for FID ${fid}:`, error);
@@ -268,14 +296,19 @@ export async function verifyRecentShareCast(
   }
 
   try {
-    // Get user's recent casts using Neynar feed API
+    // Get user's recent casts using Neynar feed API (5s timeout)
     // The fids filter ensures we only get casts from this user
-    const response = await neynarClient.fetchFeed({
-      feedType: 'filter',
-      filterType: 'fids',
-      fids: [fid],
-      limit: 20, // Check last 20 casts
-    });
+    const response = await Promise.race([
+      neynarClient.fetchFeed({
+        feedType: 'filter',
+        filterType: 'fids',
+        fids: [fid],
+        limit: 20, // Check last 20 casts
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Neynar feed fetch timed out (5s)')), 5000)
+      ),
+    ]);
 
     if (!response.casts || response.casts.length === 0) {
       console.log(`[verifyRecentShareCast] No casts found for FID ${fid}`);

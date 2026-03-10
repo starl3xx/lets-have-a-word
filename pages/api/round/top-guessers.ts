@@ -10,7 +10,7 @@ import { db } from '../../../src/db';
 import { guesses, rounds, users, userBadges } from '../../../src/db/schema';
 import { eq, and, or, sql, desc, asc, lte, isNull, inArray } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
-import { neynarClient } from '../../../src/lib/farcaster';
+import { neynarClient, isRealFcUsername } from '../../../src/lib/farcaster';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 import { hasWordTokenBonus } from '../../../src/lib/word-token';
@@ -352,7 +352,7 @@ export default async function handler(
         if (neynarResult.users && neynarResult.users.length > 0) {
           for (const user of neynarResult.users) {
             neynarProfiles.set(user.fid, {
-              username: user.username || `fid:${user.fid}`,
+              username: isRealFcUsername(user.username) ? user.username : `fid:${user.fid}`,
               pfpUrl: user.pfp_url || `https://avatar.vercel.sh/${user.fid}`,
             });
           }
@@ -364,7 +364,7 @@ export default async function handler(
         const topGuessers: TopGuesser[] = topGuessersData.map((g) => {
           const neynarProfile = neynarProfiles.get(g.fid);
           // Only use local DB username if it's a real username (not null, empty, or "unknown")
-          const localUsername = g.username && g.username !== 'unknown' ? g.username : null;
+          const localUsername = isRealFcUsername(g.username) && g.username !== 'unknown' ? g.username : null;
           return {
             fid: g.fid,
             username: neynarProfile?.username || localUsername || `fid:${g.fid}`,
