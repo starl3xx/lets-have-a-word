@@ -670,7 +670,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
         lines.push(`Cancelled Round: #${status.killSwitch.roundId}`)
       }
 
-      const cancelledRound = status.cancelledRounds.find(r => r.roundId === status.killSwitch.roundId)
+      const cancelledRound = status.cancelledRounds?.find(r => r.roundId === status.killSwitch.roundId)
       if (cancelledRound?.refunds) {
         const r = cancelledRound.refunds
         lines.push('')
@@ -1427,7 +1427,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
                 {/* Refund Monitoring Panel */}
                 {(() => {
-                  const cancelledRound = status.cancelledRounds.find(r => r.roundId === status.killSwitch.roundId)
+                  const cancelledRound = status.cancelledRounds?.find(r => r.roundId === status.killSwitch.roundId)
                   const refunds = cancelledRound?.refunds
                   return refunds ? (
                     <div style={{
@@ -1728,7 +1728,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           </div>
 
           {/* Cancelled Rounds / Refunds Card */}
-          {status.cancelledRounds.length > 0 && (
+          {status.cancelledRounds?.length > 0 && (
             <div style={styles.card}>
               <h2 style={styles.cardTitle}>Cancelled Rounds & Refunds</h2>
               {status.cancelledRounds.map((round) => (
@@ -1759,38 +1759,46 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                        round.refundsStartedAt ? 'In Progress' : 'Pending'}
                     </span>
                   </div>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(5, 1fr)',
-                    gap: '8px',
-                    marginTop: '12px',
-                    fontSize: '12px',
-                    textAlign: 'center',
-                  }}>
-                    <div>
-                      <div style={{ color: '#6b7280' }}>Total</div>
-                      <div style={{ fontWeight: 600 }}>{round.refunds.total}</div>
+                  {round.refunds ? (
+                    <>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(5, 1fr)',
+                        gap: '8px',
+                        marginTop: '12px',
+                        fontSize: '12px',
+                        textAlign: 'center',
+                      }}>
+                        <div>
+                          <div style={{ color: '#6b7280' }}>Total</div>
+                          <div style={{ fontWeight: 600 }}>{round.refunds.total}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#6b7280' }}>Pending</div>
+                          <div style={{ fontWeight: 600, color: '#d97706' }}>{round.refunds.pending}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#6b7280' }}>Processing</div>
+                          <div style={{ fontWeight: 600, color: '#2563eb' }}>{round.refunds.processing}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#6b7280' }}>Sent</div>
+                          <div style={{ fontWeight: 600, color: '#16a34a' }}>{round.refunds.sent}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#6b7280' }}>Failed</div>
+                          <div style={{ fontWeight: 600, color: '#dc2626' }}>{round.refunds.failed}</div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: '#374151' }}>
+                        Total Amount: <strong>{parseFloat(round.refunds.totalAmountEth).toFixed(6)} ETH</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: '#9ca3af' }}>
+                      Refund data unavailable
                     </div>
-                    <div>
-                      <div style={{ color: '#6b7280' }}>Pending</div>
-                      <div style={{ fontWeight: 600, color: '#d97706' }}>{round.refunds.pending}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: '#6b7280' }}>Processing</div>
-                      <div style={{ fontWeight: 600, color: '#2563eb' }}>{round.refunds.processing}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: '#6b7280' }}>Sent</div>
-                      <div style={{ fontWeight: 600, color: '#16a34a' }}>{round.refunds.sent}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: '#6b7280' }}>Failed</div>
-                      <div style={{ fontWeight: 600, color: '#dc2626' }}>{round.refunds.failed}</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '8px', fontSize: '13px', color: '#374151' }}>
-                    Total Amount: <strong>{parseFloat(round.refunds.totalAmountEth).toFixed(6)} ETH</strong>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1971,6 +1979,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             ) : contractState ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 {/* JackpotManager — Mainnet */}
+                {contractState.mainnet ? (
                 <div style={{
                   padding: '16px',
                   background: contractState.mainnet.hasMismatch ? '#fef2f2' : '#f0fdf4',
@@ -2018,11 +2027,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                       </div>
                       <div style={styles.infoRow}>
                         <span style={styles.infoLabel}>Internal Jackpot</span>
-                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.internalJackpot).toFixed(6)} ETH</span>
+                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.internalJackpot || '0').toFixed(6)} ETH</span>
                       </div>
                       <div style={styles.infoRow}>
                         <span style={styles.infoLabel}>Actual Balance</span>
-                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.actualBalance).toFixed(6)} ETH</span>
+                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.actualBalance || '0').toFixed(6)} ETH</span>
                       </div>
                       {contractState.mainnet.hasMismatch && (
                         <div style={{
@@ -2033,15 +2042,21 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                           fontSize: '12px',
                           color: '#991b1b',
                         }}>
-                          ⚠️ Balance is {contractState.mainnet.mismatchAmount} ETH ({contractState.mainnet.mismatchPercent.toFixed(1)}%) less than jackpot.
+                          ⚠️ Balance is {contractState.mainnet.mismatchAmount} ETH ({(contractState.mainnet.mismatchPercent ?? 0).toFixed(1)}%) less than jackpot.
                           Resolution will fail.
                         </div>
                       )}
                     </>
                   )}
                 </div>
+                ) : (
+                  <div style={{ padding: '16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#6b7280', fontSize: '13px' }}>
+                    Mainnet contract data unavailable
+                  </div>
+                )}
 
                 {/* WordManager — Mainnet */}
+                {contractState.wordManager ? (
                 <div style={{
                   padding: '16px',
                   background: !contractState.wordManager.configured ? '#f9fafb'
@@ -2135,11 +2150,15 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                           <span style={styles.infoLabel}>Reward Rate</span>
                           <span style={styles.infoValue}>
                             {(() => {
-                              const rateWei = BigInt(contractState.wordManager.rewardRate || '0');
-                              const ratePerDay = rateWei * 86400n / BigInt(1e18);
-                              if (ratePerDay >= 1000000n) return `${(Number(ratePerDay) / 1e6).toFixed(1)}M/day`;
-                              if (ratePerDay >= 1000n) return `${(Number(ratePerDay) / 1e3).toFixed(1)}K/day`;
-                              return `${ratePerDay.toString()}/day`;
+                              try {
+                                const rateWei = BigInt(contractState.wordManager.rewardRate || '0');
+                                const ratePerDay = rateWei * 86400n / 1000000000000000000n;
+                                if (ratePerDay >= 1000000n) return `${(Number(ratePerDay) / 1e6).toFixed(1)}M/day`;
+                                if (ratePerDay >= 1000n) return `${(Number(ratePerDay) / 1e3).toFixed(1)}K/day`;
+                                return `${ratePerDay.toString()}/day`;
+                              } catch {
+                                return 'N/A';
+                              }
                             })()}
                           </span>
                         </div>
@@ -2147,6 +2166,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     </>
                   )}
                 </div>
+                ) : (
+                  <div style={{ padding: '16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#6b7280', fontSize: '13px' }}>
+                    WordManager data unavailable
+                  </div>
+                )}
               </div>
             ) : null}
 
