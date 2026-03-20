@@ -309,7 +309,8 @@ export async function getActiveRound(): Promise<Round | null> {
       .where(and(
         isNull(rounds.resolvedAt),
         isNull(rounds.winnerFid), // Round is locked once winner is set
-        eq(rounds.status, 'active') // Exclude cancelled rounds
+        eq(rounds.status, 'active'), // Exclude cancelled rounds
+        eq(rounds.isDevTestRound, false) // Never return dev test rounds in production
       ))
       .orderBy(desc(rounds.startedAt))
       .limit(1);

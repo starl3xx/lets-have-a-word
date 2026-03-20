@@ -16,6 +16,7 @@ interface SuperguessStatusData {
   available: boolean;
   reason?: string;
   tier?: { id: string; usdPrice: number };
+  wordTokenAmount?: string; // e.g. "64M"
   cooldown?: { endsAt: string };
   globalGuessCount?: number;
   roundId?: number;
@@ -165,9 +166,16 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 text-sm">Price</span>
-                <span className="text-white font-bold text-lg">
-                  ${statusData.tier?.usdPrice} <span className="text-gray-400 text-sm">in $WORD</span>
-                </span>
+                <div className="text-right">
+                  <span className="text-white font-bold text-lg">
+                    ${statusData.tier?.usdPrice} <span className="text-gray-400 text-sm">in $WORD</span>
+                  </span>
+                  {statusData.wordTokenAmount && (
+                    <div className="text-gray-500 text-xs">
+                      ≈{statusData.wordTokenAmount} $WORD
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -183,16 +191,15 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
               </div>
               <div className="flex items-center gap-2 text-gray-300">
                 <span className="text-amber-400">🍿</span>
-                Earn the Showstopper wordmark
+                Earn the Showstopper Wordmark
               </div>
             </div>
 
-            {/* Tokenomics explainer */}
-            <div className="bg-gray-800/50 rounded-lg p-3 mb-4 text-xs text-gray-400">
-              <p>50% of payment burned · 50% to staking rewards</p>
-              <p className="mt-1 text-amber-400/80">
-                ⚠️ Round pauses for all other players during your Superguess
-              </p>
+            {/* Rules */}
+            <div className="bg-gray-800/50 rounded-lg p-3 mb-4 text-xs text-gray-400 space-y-1.5">
+              <p>Timer starts immediately upon purchase — all 25 guesses must be used within the 10-minute window.</p>
+              <p>One Superguess per round. Round pauses for all other players while active.</p>
+              <p className="text-gray-500">50% of payment burned · 50% to staking rewards</p>
             </div>
 
             {/* Wallet balance */}

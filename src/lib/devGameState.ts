@@ -10,7 +10,7 @@
 import type { GameStateResponse, DevBackendState } from '../types';
 import { getEthUsdPrice } from './prices';
 import { db, rounds, gameRules } from '../db';
-import { isNull, desc, eq } from 'drizzle-orm';
+import { isNull, desc, eq, and } from 'drizzle-orm';
 import { createCommitment } from './commit-reveal';
 
 /**
@@ -356,11 +356,12 @@ export async function ensureDevRound(): Promise<number> {
 
   const fixedSolution = getDevFixedSolution();
 
-  // Check if there's an active round with the correct answer
+  // Check if there's an active DEV round with the correct answer
+  // CRITICAL: Only look at dev test rounds — never touch production rounds
   const existingRound = await db
     .select()
     .from(rounds)
-    .where(isNull(rounds.resolvedAt))
+    .where(and(isNull(rounds.resolvedAt), eq(rounds.isDevTestRound, true)))
     .orderBy(desc(rounds.startedAt))
     .limit(1);
 
@@ -373,12 +374,12 @@ export async function ensureDevRound(): Promise<number> {
       return round.id;
     }
 
-    // Otherwise, resolve the old round and create a new one
-    console.log(`🎮 Dev mode: Resolving round ${round.id} (answer mismatch: ${round.answer} != ${fixedSolution})`);
+    // Otherwise, resolve ONLY dev test rounds (never touch production rounds!)
+    console.log(`🎮 Dev mode: Resolving dev round ${round.id} (answer mismatch: ${round.answer} != ${fixedSolution})`);
     await db
       .update(rounds)
       .set({ resolvedAt: new Date() })
-      .where(isNull(rounds.resolvedAt));
+      .where(and(isNull(rounds.resolvedAt), eq(rounds.isDevTestRound, true)));
   }
 
   // Create a new round with the fixed solution

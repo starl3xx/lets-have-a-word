@@ -23,6 +23,8 @@ import { getActiveRound } from '../../../src/lib/rounds';
 import { getTotalGuessCountInRound } from '../../../src/lib/guesses';
 import { getGuessWords } from '../../../src/lib/word-lists';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
+import { isDevModeEnabled } from '../../../src/lib/devGameState';
+import { SUPERGUESS_MIN_GUESS_COUNT } from '../../../src/lib/superguess';
 
 export default async function handler(
   req: NextApiRequest,
@@ -37,20 +39,31 @@ export default async function handler(
       return res.status(200).json({ active: false, eligible: false });
     }
 
-    const activeRound = await getActiveRound();
-    if (!activeRound) {
-      return res.status(200).json({ active: false, eligible: false });
+    // In dev mode, use the dev round (not the live production round)
+    let roundId: number;
+    if (isDevModeEnabled()) {
+      const { ensureDevRound } = await import('../../../src/lib/devGameState');
+      roundId = await ensureDevRound();
+    } else {
+      const activeRound = await getActiveRound();
+      if (!activeRound) {
+        return res.status(200).json({ active: false, eligible: false });
+      }
+      roundId = activeRound.id;
     }
 
     const totalDictionaryWords = getGuessWords().length;
 
     // Use cache-aside with 2s TTL (invalidated on each Superguess guess)
     const state = await cacheAside(
-      CacheKeys.superguessState(activeRound.id),
+      CacheKeys.superguessState(roundId),
       CacheTTL.superguessState,
       async () => {
-        const globalGuessCount = await getTotalGuessCountInRound(activeRound.id);
-        return getSuperguessState(activeRound.id, globalGuessCount, totalDictionaryWords);
+        const realCount = await getTotalGuessCountInRound(roundId);
+        const globalGuessCount = isDevModeEnabled()
+          ? Math.max(realCount, SUPERGUESS_MIN_GUESS_COUNT + 100)
+          : realCount;
+        return getSuperguessState(roundId, globalGuessCount, totalDictionaryWords);
       }
     );
 
@@ -58,6 +71,9 @@ export default async function handler(
     return res.status(200).json(state);
   } catch (error) {
     console.error('[superguess/state] Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 }

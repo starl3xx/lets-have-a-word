@@ -13,6 +13,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from '../me';
 import { createDevSession } from '../../../../src/lib/superguess';
 import { getActiveRound } from '../../../../src/lib/rounds';
+import { isDevModeEnabled, ensureDevRound } from '../../../../src/lib/devGameState';
 
 export default async function handler(
   req: NextApiRequest,
@@ -38,14 +39,18 @@ export default async function handler(
       return res.status(400).json({ error: 'fid is required (number)' });
     }
 
-    // Get round ID (use provided or current active round)
+    // Get round ID (use provided, or dev round in dev mode, or current active round)
     let targetRoundId = roundId;
     if (!targetRoundId) {
-      const activeRound = await getActiveRound();
-      if (!activeRound) {
-        return res.status(400).json({ error: 'No active round and no roundId provided' });
+      if (isDevModeEnabled()) {
+        targetRoundId = await ensureDevRound();
+      } else {
+        const activeRound = await getActiveRound();
+        if (!activeRound) {
+          return res.status(400).json({ error: 'No active round and no roundId provided' });
+        }
+        targetRoundId = activeRound.id;
       }
-      targetRoundId = activeRound.id;
     }
 
     const session = await createDevSession({
