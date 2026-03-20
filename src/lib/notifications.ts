@@ -31,71 +31,71 @@ function pickRandom<T>(arr: T[]): T {
 // ── Round Start templates (8 variations) ─────────────────────────────
 const ROUND_START_TEMPLATES: NotificationTemplate[] = [
   {
-    title: (n) => `Round #${n} is live!`,
-    body: (_, jackpot) => `The hunt begins — ${jackpot} ETH jackpot up for grabs. One correct guess wins it all.`,
+    title: (n) => `🔵 Round #${n} is live!`,
+    body: (_, jackpot) => `The hunt begins — ${jackpot} ETH jackpot up for grabs. One correct guess wins it all. 🕵️‍♂️`,
   },
   {
-    title: () => `New round just dropped`,
-    body: (n, jackpot) => `Round #${n} is live with a ${jackpot} ETH prize pool. Can you find the secret 5-letter word?`,
+    title: () => `🔵 New round just dropped`,
+    body: (n, jackpot) => `Round #${n} is live with a ${jackpot} ETH prize pool. Can you find the secret 5-letter word? 🕵️‍♂️`,
   },
   {
-    title: (n) => `Round #${n} — game on`,
-    body: (_, jackpot) => `A new secret word is locked onchain. ${jackpot} ETH to whoever cracks it first.`,
+    title: (n) => `🔵 Round #${n} — game on`,
+    body: (_, jackpot) => `A new secret word is locked onchain. ${jackpot} ETH to whoever cracks it first! 👀`,
   },
   {
-    title: (n) => `Round #${n} is here`,
-    body: (_, jackpot) => `Fresh word, fresh jackpot. ${jackpot} ETH on the line. Start guessing now.`,
+    title: (n) => `🔵 Round #${n} is here`,
+    body: (_, jackpot) => `Fresh word, fresh jackpot. ${jackpot} ETH on the line. Start guessing now! 🕵️‍♂️`,
   },
   {
-    title: () => `The word is locked`,
-    body: (n, jackpot) => `Round #${n} is live with ${jackpot} ETH. Every wrong guess narrows the field.`,
+    title: () => `🔵 The word is locked`,
+    body: (n, jackpot) => `Round #${n} is live with ${jackpot} ETH. Every wrong guess narrows the field... 🕵️‍♂️`,
   },
   {
-    title: (n) => `Hunt for word #${n}`,
-    body: (_, jackpot) => `New round, new word. Prize pool: ${jackpot} ETH. One guess could change everything.`,
+    title: (n) => `🔵 Hunt for word #${n}`,
+    body: (_, jackpot) => `New round, new word. Prize pool: ${jackpot} ETH. One guess could change everything. 🕵️‍♂️`,
   },
   {
-    title: (_, jackpot) => `${jackpot} ETH up for grabs`,
-    body: (n) => `Round #${n} just started. Find the secret word before anyone else.`,
+    title: (_, jackpot) => `🔵 ${jackpot} ETH up for grabs`,
+    body: (n) => `Round #${n} just started. Can you find the secret word before anyone else? ⏳`,
   },
   {
-    title: (n) => `Round #${n} — let's go`,
-    body: (_, jackpot) => `The secret word is committed onchain. ${jackpot} ETH jackpot waiting for the right guess.`,
+    title: (n) => `🔵 Round #${n} — let\u2019s go!`,
+    body: (_, jackpot) => `The secret word is committed onchain. ${jackpot} ETH jackpot waiting for the right guess. 🕵️‍♂️`,
   },
 ];
 
 // ── Daily Reset templates (8 variations) ─────────────────────────────
 const DAILY_RESET_TEMPLATES: NotificationTemplate[] = [
   {
-    title: () => `Your guesses are refreshed`,
-    body: (n, jackpot) => `New day, new chances. Round #${n} is still live with ${jackpot} ETH on the line.`,
+    title: () => `🌱 Your guesses are refreshed`,
+    body: (n, jackpot) => `New day, new chances. Round #${n} is still live with ${jackpot} ETH on the line!`,
   },
   {
-    title: () => `Free guesses reset`,
-    body: (n) => `Your daily guesses are back. The secret word in Round #${n} is still out there.`,
+    title: () => `🫳 Free guesses reset`,
+    body: (n) => `Your daily guesses are back. The secret word in Round #${n} is still out there...`,
   },
   {
-    title: () => `Daily reset — you're back in`,
+    title: () => `🔁 Daily reset — you\u2019re back in`,
     body: (_, jackpot) => `Fresh guesses are live. Can you crack the ${jackpot} ETH jackpot today?`,
   },
   {
-    title: () => `New guesses available`,
+    title: () => `👀 New guesses available`,
     body: (n, jackpot) => `Your free guesses just reset. Jump back into Round #${n} — ${jackpot} ETH up for grabs.`,
   },
   {
-    title: () => `Good morning, word hunter`,
-    body: (n, jackpot) => `Daily guesses are live. Round #${n} prize pool: ${jackpot} ETH. Today could be your day.`,
+    title: () => `🔎 Gm, word hunter`,
+    body: (n, jackpot) => `Daily guesses are live. Round #${n} prize pool: ${jackpot} ETH. Today could be your day!`,
   },
   {
-    title: () => `Daily guesses are live`,
+    title: () => `🌅 Daily guesses are live`,
     body: (_, jackpot) => `Guesses refreshed. The hunt for the secret word continues — ${jackpot} ETH jackpot.`,
   },
   {
-    title: () => `Guess again`,
+    title: () => `🎯 Guess again`,
     body: (n, jackpot) => `Daily reset complete. Your free guesses are ready. ${jackpot} ETH in Round #${n} awaits.`,
   },
   {
-    title: () => `Back in the game`,
+    title: () => `💪 Back in the game`,
     body: (n, jackpot) => `Free guesses refreshed for Round #${n}. ${jackpot} ETH is still on the line.`,
   },
 ];
@@ -273,8 +273,8 @@ export async function notifyRoundResolved(
   const prize = prizeEth ? `${prizeEth} ETH` : 'the jackpot';
 
   return sendNotification(
-    `Round #${roundNumber} complete!`,
-    `${winner} found the word and won ${prize}! New round starts soon.`,
+    `🟣 Round #${roundNumber} complete!`,
+    `${winner} found the word and won ${prize}! New round starts soon... 👀`,
     `${GAME_URL}/verify?round=${roundNumber}`
   );
 }
