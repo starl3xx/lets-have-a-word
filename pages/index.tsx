@@ -29,6 +29,10 @@ import BurnWordModal from '../components/BurnWordModal';
 import WordSheet from '../components/WordSheet';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
+// Milestone 15: Superguess components
+import SuperguessSpectatorOverlay from '../components/SuperguessSpectatorOverlay';
+import SuperguessActiveBar from '../components/SuperguessActiveBar';
+import SuperguessPurchaseModal from '../components/SuperguessPurchaseModal';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
 // Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
 // Uses 6500 which is the dev mode FID defined in daily-limits.ts
@@ -280,6 +284,16 @@ function GameContent() {
   const [burnWordData, setBurnWordData] = useState<{ word: string; burnAmount: string; txHash: string | null } | null>(null);
   // Milestone 14: $WORD sheet state
   const [showWordSheet, setShowWordSheet] = useState(false);
+  // Milestone 15: Superguess state
+  const [showSuperguessModal, setShowSuperguessModal] = useState(false);
+  const [superguessActive, setSuperguessActive] = useState(false);
+  const [superguessEligible, setSuperguessEligible] = useState(false);
+  const [isSuperguessing, setIsSuperguessing] = useState(false);
+  const [superguessState, setSuperguessState] = useState<{
+    guessesUsed: number;
+    guessesAllowed: number;
+    expiresAt: string;
+  } | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isWordTokenHolder, setIsWordTokenHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -1161,6 +1175,16 @@ function GameContent() {
           txHash: data.txHash || null,
         });
         setShowBonusWordWinModal(true);
+      } else if (data.status === 'superguess_blocked') {
+        // Milestone 15: Another player has Superguess active
+        setSuperguessActive(true);
+        setIsLoading(false);
+        return; // Enter spectator mode
+      } else if (data.status === 'superguess_cooldown') {
+        // Milestone 15: Superguess cooldown
+        setErrorMessage('Superguess cooldown active — try again soon');
+        setIsLoading(false);
+        return;
       } else if (data.status === 'burn_word') {
         // Milestone 14: User found a burn word
         setBoxResultState('correct'); // Show green success state
@@ -1734,6 +1758,50 @@ function GameContent() {
     );
   }
 
+  // Milestone 15: Poll Superguess state when active
+  useEffect(() => {
+    if (!superguessActive && !isSuperguessing) return;
+
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/superguess/state');
+        if (res.ok && active) {
+          const data = await res.json();
+          if (data.active && data.session) {
+            setSuperguessState({
+              guessesUsed: data.session.guessesUsed,
+              guessesAllowed: data.session.guessesAllowed,
+              expiresAt: data.session.expiresAt,
+            });
+            // Check if we're the Superguesser
+            if (effectiveFid && data.session.fid === effectiveFid) {
+              setIsSuperguessing(true);
+              setSuperguessActive(false);
+            } else {
+              setSuperguessActive(true);
+              setIsSuperguessing(false);
+            }
+          } else {
+            // Session ended
+            setSuperguessActive(false);
+            setIsSuperguessing(false);
+            setSuperguessState(null);
+          }
+        }
+      } catch (err) {
+        console.error('[Superguess] Poll error:', err);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [superguessActive, isSuperguessing, effectiveFid]);
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Milestone 9.5: Game Paused Banner */}
@@ -2060,10 +2128,18 @@ function GameContent() {
             : 'max(1.5rem, env(safe-area-inset-bottom))',
         }}
       >
+        {/* Milestone 15: Superguess Active Bar (shown to the Superguesser) */}
+        {isSuperguessing && superguessState && (
+          <SuperguessActiveBar
+            guessesUsed={superguessState.guessesUsed}
+            guessesAllowed={superguessState.guessesAllowed}
+            expiresAt={superguessState.expiresAt}
+          />
+        )}
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
-          disabled={isLoading || !hasActiveRound}
+          disabled={isLoading || !hasActiveRound || (superguessActive && !isSuperguessing)}
         />
       </div>
 
@@ -2206,6 +2282,26 @@ function GameContent() {
       {effectiveFid && !isClientDevMode() && (
         <OnboardingManager fid={effectiveFid} />
       )}
+
+      {/* Milestone 15: Superguess Spectator Overlay */}
+      {superguessActive && !isSuperguessing && currentRoundId && (
+        <SuperguessSpectatorOverlay
+          roundId={currentRoundId}
+          onDismiss={() => setSuperguessActive(false)}
+        />
+      )}
+
+      {/* Milestone 15: Superguess Purchase Modal */}
+      <SuperguessPurchaseModal
+        isOpen={showSuperguessModal}
+        onClose={() => setShowSuperguessModal(false)}
+        onPurchaseComplete={() => {
+          setIsSuperguessing(true);
+          setSuperguessActive(false);
+          setUserStateKey(prev => prev + 1); // Refresh user state
+        }}
+        devFid={isClientDevMode() ? effectiveFid ?? undefined : undefined}
+      />
     </div>
   );
 }

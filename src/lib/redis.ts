@@ -147,6 +147,14 @@ export const CacheKeys = {
 
   /** User profile (Neynar data - username, pfpUrl) */
   userProfile: (fid: number) => `${CACHE_PREFIX}user-profile:${fid}`,
+
+  // Milestone 15: Superguess cache keys
+  /** Active Superguess session for a round */
+  superguessActive: (roundId: number) => `${CACHE_PREFIX}superguess:active:${roundId}`,
+  /** Superguess cooldown flag for a round */
+  superguessCooldown: (roundId: number) => `${CACHE_PREFIX}superguess:cooldown:${roundId}`,
+  /** Superguess state endpoint cache */
+  superguessState: (roundId: number) => `${CACHE_PREFIX}superguess:state:${roundId}`,
 } as const;
 
 // ============================================================
@@ -191,6 +199,10 @@ export const CacheTTL = {
 
   /** User profile - longer TTL, rarely changes */
   userProfile: 300, // 5 minutes
+
+  // Milestone 15: Superguess TTLs
+  /** Superguess state endpoint cache - very short, invalidated on each guess */
+  superguessState: 2,
 } as const;
 
 // ============================================================

@@ -87,6 +87,13 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
     emoji: '🔥',
     color: 'red',
   },
+  SHOWSTOPPER: {
+    id: 'SHOWSTOPPER',
+    name: 'Showstopper',
+    description: 'Purchased a Superguess',
+    emoji: '🍿',
+    color: 'violet',
+  },
 };
 
 /**

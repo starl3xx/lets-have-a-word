@@ -476,7 +476,13 @@ export async function getDevRoundStatus(): Promise<{
   // Generate deterministic "random" display values
   const displayRoundId = Math.floor(5 + rng() * 296); // 5-300
   const displayPrizePool = (0.02 + rng() * 0.38).toFixed(4); // 0.02-0.40 ETH
-  const displayGuessCount = Math.floor(100 + rng() * 5900); // 100-6000
+
+  // Milestone 15: If Superguess is enabled in dev mode, set guess count > 850
+  // so the Superguess purchase button is always visible for testing
+  const superguessEnabled = process.env.NEXT_PUBLIC_SUPERGUESS_ENABLED === 'true';
+  const displayGuessCount = superguessEnabled
+    ? Math.floor(900 + rng() * 3000) // 900-3900 (always above 850)
+    : Math.floor(100 + rng() * 5900); // 100-6000
 
   // Random round start time: 0-6 days ago
   const hoursAgo = Math.floor(rng() * 144); // 0-144 hours (6 days)

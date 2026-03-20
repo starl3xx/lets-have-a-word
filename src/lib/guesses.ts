@@ -15,6 +15,14 @@ import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 import { invalidateRoundCaches, invalidateOnRoundTransition, invalidateUserCaches, invalidateTopGuessersCache } from './redis';
 import { getPlaintextAnswer } from './encryption';
+import {
+  isSuperguessFeatureEnabled,
+  getActiveSuperguess,
+  isCooldownActive,
+  recordSuperguessGuess,
+  completeSuperguessSession,
+  getSuperguessUsername,
+} from './superguess';
 
 import { logXpEvent } from './xp';
 import { getUserByFid as getNeynarUserByFid } from './farcaster';
@@ -517,6 +525,38 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     return { status: 'round_closed' };
   }
 
+  // Step 5b: Superguess blocking (Milestone 15)
+  if (isSuperguessFeatureEnabled()) {
+    const activeSession = await getActiveSuperguess(round.id);
+
+    if (activeSession) {
+      // Block non-Superguessers
+      if (activeSession.fid !== fid) {
+        const guesserUsername = await getSuperguessUsername(activeSession.fid);
+        return {
+          status: 'superguess_blocked',
+          guesserUsername,
+          expiresAt: activeSession.expiresAt.toISOString(),
+        };
+      }
+
+      // Block Superguesser if they've used all guesses
+      if (activeSession.guessesUsed >= activeSession.guessesAllowed) {
+        await completeSuperguessSession(activeSession.id, 'exhausted');
+        // Fall through to normal flow after exhaustion
+      }
+    } else {
+      // No active session — check cooldown
+      const cooldown = await isCooldownActive(round.id);
+      if (cooldown.active) {
+        return {
+          status: 'superguess_cooldown',
+          cooldownEndsAt: cooldown.endsAt!,
+        };
+      }
+    }
+  }
+
   // Step 6: Check global duplication (wrong guesses)
   const alreadyGuessed = await hasBeenGuessedIncorrectly(round.id, word);
   if (alreadyGuessed) {
@@ -634,6 +674,16 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
 
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
+
+      // Milestone 15: Complete Superguess session on win
+      if (isSuperguessFeatureEnabled()) {
+        const activeSession = await getActiveSuperguess(round.id);
+        if (activeSession && activeSession.fid === fid) {
+          await recordSuperguessGuess(activeSession.id, round.id);
+          await completeSuperguessSession(activeSession.id, 'won');
+          console.log(`🔴 [Superguess] Session ${activeSession.id} won!`);
+        }
+      }
 
       // CRITICAL: Invalidate all caches immediately on round transition
       // This ensures no stale data is served about the old round
@@ -820,6 +870,18 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         createdAt: new Date(),
       });
     });
+
+    // Milestone 15: Track Superguess guess and check exhaustion
+    if (isSuperguessFeatureEnabled()) {
+      const activeSession = await getActiveSuperguess(round.id);
+      if (activeSession && activeSession.fid === fid) {
+        const newCount = await recordSuperguessGuess(activeSession.id, round.id);
+        if (newCount >= activeSession.guessesAllowed) {
+          await completeSuperguessSession(activeSession.id, 'exhausted');
+          console.log(`🔴 [Superguess] Session ${activeSession.id} exhausted after ${newCount} guesses`);
+        }
+      }
+    }
 
     // Milestone 9.0: Invalidate caches after wrong guess
     // This ensures the wheel shows the new wrong word and guess count updates
