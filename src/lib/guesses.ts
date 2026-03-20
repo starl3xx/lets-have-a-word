@@ -545,16 +545,9 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         await completeSuperguessSession(activeSession.id, 'exhausted');
         // Fall through to normal flow after exhaustion
       }
-    } else {
-      // No active session — check cooldown
-      const cooldown = await isCooldownActive(round.id);
-      if (cooldown.active) {
-        return {
-          status: 'superguess_cooldown',
-          cooldownEndsAt: cooldown.endsAt!,
-        };
-      }
     }
+    // Note: Cooldown does NOT block regular gameplay — it only prevents
+    // new Superguess purchases (enforced in /api/superguess/purchase)
   }
 
   // Step 6: Check global duplication (wrong guesses)

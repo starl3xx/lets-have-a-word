@@ -49,7 +49,7 @@ export default async function handler(
     // 1. Auth
     let fid: number | null = null;
 
-    if (req.body.devFid) {
+    if (req.body.devFid && isDevModeEnabled()) {
       fid = parseInt(req.body.devFid as string, 10);
     } else if (req.body.signerUuid) {
       // Quick auth via signer UUID (Mini App SDK)

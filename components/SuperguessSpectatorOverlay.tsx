@@ -8,7 +8,8 @@
  * On fail → shows "Superguess ended" + cooldown countdown
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useCountdown } from '../src/hooks/useCountdown';
 
 interface SuperguessSession {
   id: number;
@@ -32,34 +33,6 @@ interface Props {
   roundId: number;
   onDismiss: () => void;
   onWin?: () => void;
-}
-
-function useCountdown(targetIso: string | undefined): string {
-  const [remaining, setRemaining] = useState('');
-
-  useEffect(() => {
-    if (!targetIso) {
-      setRemaining('');
-      return;
-    }
-
-    const update = () => {
-      const diff = new Date(targetIso).getTime() - Date.now();
-      if (diff <= 0) {
-        setRemaining('0:00');
-        return;
-      }
-      const mins = Math.floor(diff / 60000);
-      const secs = Math.floor((diff % 60000) / 1000);
-      setRemaining(`${mins}:${secs.toString().padStart(2, '0')}`);
-    };
-
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [targetIso]);
-
-  return remaining;
 }
 
 export default function SuperguessSpectatorOverlay({ roundId, onDismiss, onWin }: Props) {

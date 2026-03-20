@@ -5,35 +5,12 @@
  * Shows: guesses remaining, time remaining
  */
 
-import { useState, useEffect } from 'react';
+import { useCountdown } from '../src/hooks/useCountdown';
 
 interface Props {
   guessesUsed: number;
   guessesAllowed: number;
   expiresAt: string;
-}
-
-function useCountdown(targetIso: string): string {
-  const [remaining, setRemaining] = useState('');
-
-  useEffect(() => {
-    const update = () => {
-      const diff = new Date(targetIso).getTime() - Date.now();
-      if (diff <= 0) {
-        setRemaining('0:00');
-        return;
-      }
-      const mins = Math.floor(diff / 60000);
-      const secs = Math.floor((diff % 60000) / 1000);
-      setRemaining(`${mins}:${secs.toString().padStart(2, '0')}`);
-    };
-
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [targetIso]);
-
-  return remaining;
 }
 
 export default function SuperguessActiveBar({ guessesUsed, guessesAllowed, expiresAt }: Props) {
