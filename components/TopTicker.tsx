@@ -315,6 +315,21 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
           </p>
         </div>
       </div>
+
+      {/* Milestone 15: Superguess Live indicator */}
+      {status.superguessActive && (
+        <div className="max-w-6xl mx-auto mt-1.5">
+          <div className="flex items-center justify-center gap-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+            </span>
+            <span className="text-xs font-bold tracking-widest uppercase text-red-300 animate-pulse">
+              Superguess Live
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

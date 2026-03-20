@@ -293,3 +293,17 @@ export async function notifyCustom(
 ): Promise<NotificationResult> {
   return sendNotification(title, body, targetUrl);
 }
+
+/**
+ * Notify all users that a Superguess has been purchased
+ * Milestone 15: Superguess mechanic
+ */
+export async function notifySuperguessStarted(
+  username: string
+): Promise<NotificationResult> {
+  return sendNotification(
+    '🔴 Superguess purchased',
+    `@${username} is attempting a Superguess — watch live!`,
+    GAME_URL
+  );
+}

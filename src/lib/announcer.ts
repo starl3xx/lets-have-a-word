@@ -751,3 +751,55 @@ Play now 👉 letshaveaword.fun`;
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
 }
+
+/**
+ * Announce a Superguess started via cast + tweet
+ * Milestone 15: Superguess mechanic
+ */
+export async function announceSuperguessStarted(
+  roundId: number,
+  guesserFid: number
+) {
+  const username = (await getUsernameByFid(guesserFid))?.replace(/^@/, '') ?? `fid:${guesserFid}`;
+
+  const text = `🔴 SUPERGUESS — @${username} has 25 guesses and 10 minutes. All eyes on them.
+
+Watch live 👉 letshaveaword.fun`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'superguess_started',
+    roundId,
+    milestoneKey: `superguess_${guesserFid}`,
+    text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}
+
+/**
+ * Announce a Superguess result via cast + tweet
+ * Milestone 15: Superguess mechanic
+ */
+export async function announceSuperguessResult(
+  roundId: number,
+  guesserFid: number,
+  won: boolean,
+  guessesUsed: number
+) {
+  const username = (await getUsernameByFid(guesserFid))?.replace(/^@/, '') ?? `fid:${guesserFid}`;
+
+  const text = won
+    ? `🔴 SUPERGUESS WON! @${username} cracked it in ${guessesUsed} guesses! 🎉
+
+What a play! 👉 letshaveaword.fun`
+    : `🔴 Superguess over — @${username} used ${guessesUsed}/25 guesses but couldn\u2019t find the word.
+
+Normal play resumes after cooldown. 👉 letshaveaword.fun`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'superguess_result',
+    roundId,
+    milestoneKey: `superguess_result_${guesserFid}`,
+    text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}

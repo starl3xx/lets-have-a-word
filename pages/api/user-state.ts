@@ -16,6 +16,8 @@ import { db } from '../../src/db';
 import { users } from '../../src/db/schema';
 import { eq } from 'drizzle-orm';
 import { isDevModeEnabled, getDevUserId } from '../../src/lib/devGameState';
+import { isSuperguessFeatureEnabled, getActiveSuperguess } from '../../src/lib/superguess';
+import { getActiveRound as getActiveRoundForSuperguess } from '../../src/lib/rounds';
 
 export interface UserStateResponse {
   fid: number;
@@ -38,6 +40,8 @@ export interface UserStateResponse {
   wordBonusTier: number; // Milestone 14: 0-3 holder tier
   // Milestone 6.5: Source-level tracking for unified guess bar
   sourceState: GuessSourceState;
+  // Milestone 15: Superguess status
+  isSuperguessing: boolean;
 }
 
 interface ErrorResponse {
@@ -251,6 +255,16 @@ export default async function handler(
     // Milestone 6.3: Check if user has already shared today
     const hasSharedToday = dailyState.freeAllocatedShareBonus > 0;
 
+    // Milestone 15: Check if user is currently Superguessing
+    let isSuperguessing = false;
+    if (isSuperguessFeatureEnabled()) {
+      const sgRound = await getActiveRoundForSuperguess();
+      if (sgRound) {
+        const sgSession = await getActiveSuperguess(sgRound.id);
+        isSuperguessing = sgSession !== null && sgSession.fid === fid;
+      }
+    }
+
     const response: UserStateResponse = {
       fid,
       freeGuessesRemaining: freeRemaining,
@@ -272,6 +286,8 @@ export default async function handler(
       wordBonusTier, // Milestone 14: 0-3 holder tier
       // Milestone 6.5: Source-level tracking for unified guess bar
       sourceState,
+      // Milestone 15: Superguess
+      isSuperguessing,
     };
 
     return res.status(200).json(response);

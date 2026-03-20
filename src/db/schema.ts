@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, numeric, index, date, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, numeric, index, date, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 import type { GameRulesConfig } from '../types';
 
 /**
@@ -311,6 +311,15 @@ export interface RoundArchivePayouts {
     clanktonAmount: string; // legacy field name, was CLANKTON, now $WORD
     txHash?: string;
   }>;
+  // Milestone 15: Superguess data
+  superguess?: {
+    buyerFid: number;
+    tier: string;
+    outcome: string; // 'won' | 'exhausted' | 'expired' | 'cancelled'
+    guessesUsed: number;
+    wordAmountPaid: string;
+    usdEquivalent: string;
+  };
 }
 
 export type RoundArchiveRow = typeof roundArchive.$inferSelect;
@@ -543,7 +552,7 @@ export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
  * Wordmarks are permanent achievements earned by playing
  * Note: Database column remains 'badge_type' for backwards compatibility
  */
-export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN' | 'BURN_WORD_FINDER';
+export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN' | 'BURN_WORD_FINDER' | 'SHOWSTOPPER';
 
 // Alias for backwards compatibility with existing code
 export type BadgeType = WordmarkType;
@@ -761,3 +770,45 @@ export const airdropDistributions = pgTable('airdrop_distributions', {
 
 export type AirdropDistributionRow = typeof airdropDistributions.$inferSelect;
 export type AirdropDistributionInsert = typeof airdropDistributions.$inferInsert;
+
+/**
+ * Superguess Session Status Types
+ * Milestone 15: Superguess mechanic
+ */
+export type SuperguessStatus = 'active' | 'won' | 'exhausted' | 'expired' | 'cancelled';
+
+/**
+ * Superguess Sessions Table
+ * Milestone 15: High-stakes late-game mechanic
+ * After guess #850, a player pays $WORD for an exclusive 25-guess, 10-minute window
+ */
+export const superguessSessions = pgTable('superguess_sessions', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  fid: integer('fid').notNull(),
+  tier: varchar('tier', { length: 20 }).notNull(), // 'tier_1' | 'tier_2' | 'tier_3' | 'tier_4'
+  wordAmountPaid: varchar('word_amount_paid', { length: 78 }).notNull(), // $WORD in wei
+  usdEquivalent: decimal('usd_equivalent', { precision: 10, scale: 2 }).notNull(),
+  burnedAmount: varchar('burned_amount', { length: 78 }).notNull(), // 50% burned
+  stakingAmount: varchar('staking_amount', { length: 78 }).notNull(), // 50% to staking
+  burnTxHash: varchar('burn_tx_hash', { length: 66 }),
+  stakingTxHash: varchar('staking_tx_hash', { length: 66 }),
+  status: varchar('status', { length: 20 }).notNull().default('active').$type<SuperguessStatus>(),
+  guessesUsed: integer('guesses_used').notNull().default(0),
+  guessesAllowed: integer('guesses_allowed').notNull().default(25),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  completedAt: timestamp('completed_at'),
+  cooldownEndsAt: timestamp('cooldown_ends_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  roundIdx: index('superguess_sessions_round_idx').on(table.roundId),
+  fidIdx: index('superguess_sessions_fid_idx').on(table.fid),
+  statusIdx: index('superguess_sessions_status_idx').on(table.status),
+  // Partial unique index: only one active session per round
+  // Note: Drizzle doesn't support WHERE clauses on unique indexes natively,
+  // so the actual partial unique index is created in the SQL migration
+}));
+
+export type SuperguessSessionRow = typeof superguessSessions.$inferSelect;
+export type SuperguessSessionInsert = typeof superguessSessions.$inferInsert;
