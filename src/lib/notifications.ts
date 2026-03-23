@@ -303,7 +303,7 @@ export async function notifySuperguessStarted(
 ): Promise<NotificationResult> {
   return sendNotification(
     '🔴 Superguess purchased',
-    `@${username} is attempting a Superguess — watch live!`,
+    `@${username} is making a Superguess — 25 guesses with 10 minutes on the clock. Watch live!`,
     GAME_URL
   );
 }
