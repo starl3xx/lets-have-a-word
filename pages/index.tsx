@@ -2452,6 +2452,7 @@ function GameContent() {
         }}
         fid={effectiveFid}
         devFid={isClientDevMode() ? effectiveFid ?? undefined : undefined}
+        authToken={authToken}
         preview={hasSuperguessPreview}
       />
     </div>

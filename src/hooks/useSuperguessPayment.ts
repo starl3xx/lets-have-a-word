@@ -15,7 +15,8 @@ import { base } from 'wagmi/chains';
 const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b' as `0x${string}`;
 
 // Operator wallet for receiving Superguess payments
-const OPERATOR_WALLET = (process.env.NEXT_PUBLIC_SUPERGUESS_OPERATOR_WALLET ||
+// Uses NEXT_PUBLIC_ prefix because this runs client-side (Wagmi hook)
+const OPERATOR_WALLET = (process.env.NEXT_PUBLIC_OPERATOR_WALLET ||
   process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS || '') as `0x${string}`;
 
 // Minimal ABI for ERC-20 transfer + approve
@@ -68,7 +69,8 @@ interface UseSuperguessPaymentReturn {
 }
 
 export function useSuperguessPayment(
-  devFid?: number
+  devFid?: number,
+  authToken?: string | null
 ): UseSuperguessPaymentReturn {
   const { address } = useAccount();
   const [phase, setPhase] = useState<SuperguessPaymentPhase>('idle');
@@ -150,6 +152,7 @@ export function useSuperguessPayment(
             txHash: transferHash,
           };
           if (devFid) body.devFid = devFid;
+          if (authToken) body.authToken = authToken;
 
           const response = await fetch('/api/superguess/purchase', {
             method: 'POST',

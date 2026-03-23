@@ -51,8 +51,20 @@ export default async function handler(
 
     if (req.body.devFid && isDevModeEnabled()) {
       fid = parseInt(req.body.devFid as string, 10);
+    } else if (req.body.authToken) {
+      // Quick Auth — JWT token from Farcaster Mini App SDK
+      try {
+        const { createClient } = await import('@farcaster/quick-auth');
+        const quickAuthClient = createClient();
+        const verifyResult = await quickAuthClient.verifyJwt({ token: req.body.authToken });
+        if (verifyResult?.sub) {
+          fid = parseInt(verifyResult.sub, 10);
+        }
+      } catch (err) {
+        console.error('[superguess/purchase] Quick Auth verification failed:', err);
+      }
     } else if (req.body.signerUuid) {
-      // Quick auth via signer UUID (Mini App SDK)
+      // Signer UUID (Mini App SDK fallback)
       const { verifySigner } = await import('../../../src/lib/farcaster');
       const signerData = await verifySigner(req.body.signerUuid);
       if (signerData) fid = signerData.fid;

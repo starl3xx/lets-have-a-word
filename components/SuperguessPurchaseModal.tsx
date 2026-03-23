@@ -29,6 +29,7 @@ interface Props {
   onPurchaseComplete?: () => void;
   fid?: number | null; // User's FID for "already used" check
   devFid?: number;
+  authToken?: string | null; // Quick Auth JWT for production auth
   preview?: boolean; // Use mock data instead of fetching from server
 }
 
@@ -39,7 +40,7 @@ const TIER_LABELS: Record<string, string> = {
   tier_4: 'Ultra',
 };
 
-export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, fid: userFid, devFid, preview }: Props) {
+export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, fid: userFid, devFid, authToken, preview }: Props) {
   const [statusData, setStatusData] = useState<SuperguessStatusData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,7 +52,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     startPayment,
     reset: resetPayment,
     balance,
-  } = useSuperguessPayment(devFid);
+  } = useSuperguessPayment(devFid, authToken);
 
   // Fetch availability on open
   useEffect(() => {
