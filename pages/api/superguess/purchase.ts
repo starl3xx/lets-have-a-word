@@ -101,9 +101,10 @@ export default async function handler(
       return res.status(409).json({ error: 'A Superguess session is already active' });
     }
 
-    const alreadyUsed = await hasUsedSuperguessThisRound(activeRound.id, fid);
-    if (alreadyUsed) {
-      return res.status(400).json({ error: 'You\u2019ve already used your Superguess this round' });
+    // One Superguess per round total (any player)
+    const anyoneUsed = await hasUsedSuperguessThisRound(activeRound.id);
+    if (anyoneUsed) {
+      return res.status(400).json({ error: 'Superguess has already been used this round' });
     }
 
     // 5. Determine tier

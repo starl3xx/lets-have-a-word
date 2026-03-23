@@ -130,16 +130,9 @@ export async function getActiveSuperguess(
 
 /**
  * Fast check if a Superguess is currently active for a round
- * Checks Redis first, then DB as fallback
+ * Delegates to getActiveSuperguess which handles lazy expiry
  */
 export async function isSuperguessActive(roundId: number): Promise<boolean> {
-  // Quick Redis check
-  if (redis) {
-    const exists = await redis.exists(SuperguessCacheKeys.active(roundId));
-    if (exists) return true;
-  }
-
-  // DB fallback
   const session = await getActiveSuperguess(roundId);
   return session !== null;
 }
@@ -248,29 +241,29 @@ export async function recordSuperguessGuess(
     }
   }
 
-  // Invalidate caches so spectators see the update
-  await Promise.all([
-    cacheDel(SuperguessCacheKeys.active(roundId)),
-    cacheDel(SuperguessCacheKeys.state(roundId)),
-  ]);
+  // Auto-complete if all guesses used (handles bonus/burn word edge case)
+  // Skip if result is 'correct' — the caller handles win completion separately
+  const shouldExhaust = newCount >= updated.guessesAllowed && updated.status === 'active' && result !== 'correct';
 
-  // Re-cache the updated session
-  if (updated.status === 'active') {
-    const remainingMs = new Date(updated.expiresAt).getTime() - Date.now();
-    const ttl = Math.max(1, Math.min(2, Math.floor(remainingMs / 1000)));
-    await cacheSet(SuperguessCacheKeys.active(roundId), updated, ttl);
+  if (shouldExhaust) {
+    await completeSuperguessSession(sessionId, 'exhausted');
+    console.log(`🔴 [Superguess] Session ${sessionId} auto-exhausted after ${newCount} guesses`);
+  } else {
+    // Only invalidate+re-cache if session is still active (not just exhausted)
+    await Promise.all([
+      cacheDel(SuperguessCacheKeys.active(roundId)),
+      cacheDel(SuperguessCacheKeys.state(roundId)),
+    ]);
+    if (updated.status === 'active') {
+      const remainingMs = new Date(updated.expiresAt).getTime() - Date.now();
+      const ttl = Math.max(1, Math.min(2, Math.floor(remainingMs / 1000)));
+      await cacheSet(SuperguessCacheKeys.active(roundId), updated, ttl);
+    }
   }
 
   console.log(
     `🔴 [Superguess] Guess ${newCount}/${updated.guessesAllowed} "${word}" (${result}) for session ${sessionId}`
   );
-
-  // Auto-complete if all guesses used (handles bonus/burn word edge case)
-  // Skip if result is 'correct' — the caller handles win completion separately
-  if (newCount >= updated.guessesAllowed && updated.status === 'active' && result !== 'correct') {
-    await completeSuperguessSession(sessionId, 'exhausted');
-    console.log(`🔴 [Superguess] Session ${sessionId} auto-exhausted after ${newCount} guesses`);
-  }
 
   return newCount;
 }
@@ -339,22 +332,21 @@ export async function completeSuperguessSession(
 }
 
 /**
- * Check if a user has already used Superguess in this round
- * (They can use it again after cooldown, but we track for UI)
+ * Check if Superguess has already been used this round (by any player)
+ * One Superguess per round total.
+ * Optional fid param checks if a specific player used it (for UI messaging).
  */
 export async function hasUsedSuperguessThisRound(
   roundId: number,
-  fid: number
+  fid?: number
 ): Promise<boolean> {
+  const conditions = [eq(superguessSessions.roundId, roundId)];
+  if (fid) conditions.push(eq(superguessSessions.fid, fid));
+
   const [result] = await db
     .select({ id: superguessSessions.id })
     .from(superguessSessions)
-    .where(
-      and(
-        eq(superguessSessions.roundId, roundId),
-        eq(superguessSessions.fid, fid)
-      )
-    )
+    .where(and(...conditions))
     .limit(1);
 
   return !!result;
