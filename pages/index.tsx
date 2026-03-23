@@ -1714,7 +1714,7 @@ function GameContent() {
               guessLog,
             });
 
-            // Spectator: show the latest guess in letter boxes
+            // Spectator: show the latest guess in letter boxes + trigger modals
             if (guessLog.length > lastSeenGuessCountRef.current) {
               const latestGuess = guessLog[guessLog.length - 1];
               setSpectatorLastGuess({ word: latestGuess.word, result: latestGuess.result });
@@ -1722,16 +1722,44 @@ function GameContent() {
 
               // Show the word in letter boxes
               setLetters(latestGuess.word.split(''));
-              setBoxResultState(latestGuess.result === 'correct' ? 'correct' : 'wrong');
 
-              // Clear after 2.5s for next guess
-              setTimeout(() => {
-                if (active) {
-                  setLetters(['', '', '', '', '']);
-                  setBoxResultState('typing');
-                  setSpectatorLastGuess(null);
-                }
-              }, 2500);
+              // Trigger the appropriate celebration for special results
+              if (latestGuess.result === 'correct') {
+                setBoxResultState('correct');
+                // Win celebration — same confetti + share card the winner sees
+                setWinnerData({
+                  word: latestGuess.word,
+                  roundId: data.session.id,
+                  jackpotEth: '0', // Spectator doesn't know exact amount
+                });
+                setShowWinnerShareCard(true);
+              } else if (latestGuess.result === 'bonus_word') {
+                setBoxResultState('correct');
+                setBonusWordWinData({
+                  word: latestGuess.word,
+                  tokenRewardAmount: '5000000',
+                  txHash: null,
+                });
+                setShowBonusWordWinModal(true);
+              } else if (latestGuess.result === 'burn_word') {
+                setBoxResultState('correct');
+                setBurnWordData({
+                  word: latestGuess.word,
+                  burnAmount: '5000000',
+                  txHash: null,
+                });
+                setShowBurnWordModal(true);
+              } else {
+                setBoxResultState('wrong');
+                // Clear after 2.5s for next guess
+                setTimeout(() => {
+                  if (active) {
+                    setLetters(['', '', '', '', '']);
+                    setBoxResultState('typing');
+                    setSpectatorLastGuess(null);
+                  }
+                }, 2500);
+              }
             }
 
             // Check if we're the Superguesser

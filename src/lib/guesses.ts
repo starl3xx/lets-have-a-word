@@ -468,6 +468,14 @@ async function handleBonusWordWin(
 
   console.log(`🎣 Bonus word win complete for FID ${fid}!`);
 
+  // Milestone 15: Track in Superguess session if active
+  if (isSuperguessFeatureEnabled()) {
+    const activeSession = await getActiveSuperguess(roundId);
+    if (activeSession && activeSession.fid === fid) {
+      await recordSuperguessGuess(activeSession.id, roundId, word, 'bonus_word');
+    }
+  }
+
   return {
     status: 'bonus_word',
     word,
