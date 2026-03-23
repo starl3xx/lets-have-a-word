@@ -113,27 +113,62 @@ export default async function handler(
       return res.status(400).json({ error: 'txHash is required' });
     }
 
-    // 6b. Calculate token amount from tier price and $WORD market price
+    // 6b. Verify onchain transfer + extract actual amount (production only)
+    const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
+    const OPERATOR_WALLET = (process.env.OPERATOR_WALLET || '').toLowerCase();
     let wordAmountPaid = '0';
     let burnedAmount = '0';
     let stakingAmount = '0';
 
-    if (!isDevMode) {
+    if (!isDevMode && txHash) {
       try {
-        const { fetchWordTokenMarketCap } = await import('../../../src/lib/word-oracle');
-        const marketData = await fetchWordTokenMarketCap();
-        if (marketData && marketData.priceUsd > 0) {
-          const { ethers } = await import('ethers');
-          const tokensNeeded = tier.usdPrice / marketData.priceUsd;
-          const tokensWei = ethers.parseUnits(Math.floor(tokensNeeded).toString(), 18);
-          wordAmountPaid = tokensWei.toString();
-          // 50/50 split
-          const halfWei = tokensWei / 2n;
-          burnedAmount = halfWei.toString();
-          stakingAmount = (tokensWei - halfWei).toString();
+        const { ethers } = await import('ethers');
+        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL || 'https://mainnet.base.org');
+
+        // Fetch tx receipt and verify
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (!receipt) {
+          return res.status(400).json({ error: 'Transaction not found or not yet mined' });
         }
+        if (receipt.status !== 1) {
+          return res.status(400).json({ error: 'Transaction reverted' });
+        }
+
+        // Parse ERC-20 Transfer events to find $WORD transfer to operator
+        const transferTopic = ethers.id('Transfer(address,address,uint256)');
+        let transferredAmount: bigint | null = null;
+
+        for (const log of receipt.logs) {
+          if (
+            log.address.toLowerCase() === WORD_TOKEN_ADDRESS.toLowerCase() &&
+            log.topics[0] === transferTopic &&
+            log.topics.length >= 3
+          ) {
+            // topics[2] is the 'to' address (padded to 32 bytes)
+            const toAddress = '0x' + log.topics[2].slice(26);
+            if (toAddress.toLowerCase() === OPERATOR_WALLET) {
+              transferredAmount = BigInt(log.data);
+              break;
+            }
+          }
+        }
+
+        if (transferredAmount === null || transferredAmount === 0n) {
+          return res.status(400).json({
+            error: 'No $WORD transfer to operator wallet found in transaction',
+          });
+        }
+
+        wordAmountPaid = transferredAmount.toString();
+        // 50/50 split
+        const halfWei = transferredAmount / 2n;
+        burnedAmount = halfWei.toString();
+        stakingAmount = (transferredAmount - halfWei).toString();
+
+        console.log(`🔴 [Superguess] Verified transfer: ${wordAmountPaid} $WORD (burn: ${burnedAmount}, staking: ${stakingAmount})`);
       } catch (err) {
-        console.warn('[superguess/purchase] Failed to calculate token amounts:', err);
+        console.error('[superguess/purchase] Tx verification failed:', err);
+        return res.status(400).json({ error: 'Transaction verification failed' });
       }
     }
 
@@ -164,28 +199,36 @@ export default async function handler(
     if (!isDevMode && burnedAmount !== '0') {
       (async () => {
         try {
-          const { burnWordOnChain } = await import('../../../src/lib/word-manager');
+          const { burnWordOnChain, getWordManagerAddress } = await import('../../../src/lib/word-manager');
           const { ethers } = await import('ethers');
           const { db } = await import('../../../src/db');
           const { superguessSessions, wordRewards } = await import('../../../src/db/schema');
           const { eq } = await import('drizzle-orm');
 
-          // Burn 50% using the contract's burn() mechanic (not dead address)
+          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL || 'https://mainnet.base.org');
+          const operatorWallet = new ethers.Wallet(process.env.OPERATOR_PRIVATE_KEY!, provider);
+          const erc20 = new ethers.Contract(
+            WORD_TOKEN_ADDRESS,
+            ['function transfer(address to, uint256 amount) returns (bool)'],
+            operatorWallet
+          );
+
+          // Step 1: Transfer burn portion to WordManager so burnWord() can burn from contract balance
+          const wordManagerAddress = getWordManagerAddress();
+          if (wordManagerAddress) {
+            const depositTx = await erc20.transfer(wordManagerAddress, burnedAmount);
+            await depositTx.wait();
+            console.log(`🔴 [Superguess] Deposited ${burnedAmount} $WORD to WordManager for burn`);
+          }
+
+          // Step 2: Burn 50% via contract's burnWord() mechanic
           const burnTxHash = await burnWordOnChain(activeRound.id, fid, burnedAmount);
           console.log(`🔴 [Superguess] Burned ${burnedAmount} $WORD: ${burnTxHash}`);
 
-          // Transfer 50% to staking rewards address via ERC-20 transfer
+          // Step 3: Transfer 50% to staking rewards address
           const STAKING_REWARDS_ADDRESS = '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB';
-          const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
           let stakingTxHash: string | null = null;
           try {
-            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL || 'https://mainnet.base.org');
-            const operatorWallet = new ethers.Wallet(process.env.OPERATOR_PRIVATE_KEY!, provider);
-            const erc20 = new ethers.Contract(
-              WORD_TOKEN_ADDRESS,
-              ['function transfer(address to, uint256 amount) returns (bool)'],
-              operatorWallet
-            );
             const tx = await erc20.transfer(STAKING_REWARDS_ADDRESS, stakingAmount);
             const receipt = await tx.wait();
             stakingTxHash = receipt.hash;
