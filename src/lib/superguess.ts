@@ -210,14 +210,24 @@ export async function recordSuperguessGuess(
   word: string,
   result: SuperguessGuessLogEntry['result']
 ): Promise<number> {
-  const [updated] = await db
+  const result = await db
     .update(superguessSessions)
     .set({
       guessesUsed: sql`${superguessSessions.guessesUsed} + 1`,
     })
-    .where(eq(superguessSessions.id, sessionId))
+    .where(and(
+      eq(superguessSessions.id, sessionId),
+      eq(superguessSessions.status, 'active')
+    ))
     .returning();
 
+  // If session already completed (race with exhaustion/expiry), bail out
+  if (result.length === 0) {
+    console.log(`🔴 [Superguess] Session ${sessionId} already completed, skipping guess record`);
+    return -1;
+  }
+
+  const updated = result[0];
   const newCount = updated.guessesUsed;
 
   // Append to guess log in Redis (spectators poll this)
