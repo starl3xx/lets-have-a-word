@@ -164,19 +164,35 @@ export default async function handler(
     if (!isDevMode && burnedAmount !== '0') {
       (async () => {
         try {
-          const { burnWordOnChain, notifyRewardAmountOnChain } = await import('../../../src/lib/word-manager');
+          const { burnWordOnChain } = await import('../../../src/lib/word-manager');
+          const { ethers } = await import('ethers');
           const { db } = await import('../../../src/db');
           const { superguessSessions, wordRewards } = await import('../../../src/db/schema');
           const { eq } = await import('drizzle-orm');
 
-          // Burn 50% using the contract's burn() mechanic
+          // Burn 50% using the contract's burn() mechanic (not dead address)
           const burnTxHash = await burnWordOnChain(activeRound.id, fid, burnedAmount);
           console.log(`🔴 [Superguess] Burned ${burnedAmount} $WORD: ${burnTxHash}`);
 
-          // Send 50% to staking rewards via notifyRewardAmount
-          // (tokens must already be in the WordManager contract)
-          const stakingTxHash = await notifyRewardAmountOnChain(stakingAmount);
-          console.log(`🔴 [Superguess] Staking rewards notified ${stakingAmount} $WORD: ${stakingTxHash}`);
+          // Transfer 50% to staking rewards address via ERC-20 transfer
+          const STAKING_REWARDS_ADDRESS = '0x1a5b29652219664a8f6072d2f7bc6306175aad26';
+          const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
+          let stakingTxHash: string | null = null;
+          try {
+            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL || 'https://mainnet.base.org');
+            const operatorWallet = new ethers.Wallet(process.env.OPERATOR_PRIVATE_KEY!, provider);
+            const erc20 = new ethers.Contract(
+              WORD_TOKEN_ADDRESS,
+              ['function transfer(address to, uint256 amount) returns (bool)'],
+              operatorWallet
+            );
+            const tx = await erc20.transfer(STAKING_REWARDS_ADDRESS, stakingAmount);
+            const receipt = await tx.wait();
+            stakingTxHash = receipt.hash;
+            console.log(`🔴 [Superguess] Transferred ${stakingAmount} $WORD to staking rewards: ${stakingTxHash}`);
+          } catch (transferErr) {
+            console.error('[superguess/purchase] Staking transfer failed:', transferErr);
+          }
 
           // Update session with tx hashes
           await db
