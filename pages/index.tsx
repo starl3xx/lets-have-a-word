@@ -1959,6 +1959,13 @@ function GameContent() {
         }}
         onRoundStatusChange={setHasActiveRound}
         superguessLive={superguessActive || isSuperguessing}
+        onSuperguessStatusChange={(active, eligible) => {
+          // Detect Superguess starting from round-state poll (before any guess attempt)
+          if (active && !superguessActive && !isSuperguessing) {
+            setSuperguessActive(true);
+          }
+          setSuperguessEligible(eligible);
+        }}
       />
 
       {/* Game Area Wrapper - contains UserState, game container, and overlays */}

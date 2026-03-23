@@ -308,7 +308,8 @@ export async function recordSuperguessGuess(
   );
 
   // Auto-complete if all guesses used (handles bonus/burn word edge case)
-  if (newCount >= updated.guessesAllowed && updated.status === 'active') {
+  // Skip if result is 'correct' — the caller handles win completion separately
+  if (newCount >= updated.guessesAllowed && updated.status === 'active' && result !== 'correct') {
     await completeSuperguessSession(sessionId, 'exhausted');
     console.log(`🔴 [Superguess] Session ${sessionId} auto-exhausted after ${newCount} guesses`);
   }
