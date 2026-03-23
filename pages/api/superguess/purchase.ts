@@ -175,7 +175,7 @@ export default async function handler(
           console.log(`🔴 [Superguess] Burned ${burnedAmount} $WORD: ${burnTxHash}`);
 
           // Transfer 50% to staking rewards address via ERC-20 transfer
-          const STAKING_REWARDS_ADDRESS = '0x1a5b29652219664a8f6072d2f7bc6306175aad26';
+          const STAKING_REWARDS_ADDRESS = '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB';
           const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
           let stakingTxHash: string | null = null;
           try {
