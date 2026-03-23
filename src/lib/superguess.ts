@@ -297,14 +297,31 @@ export async function completeSuperguessSession(
 ): Promise<SuperguessSessionRow> {
   const now = new Date();
 
-  const [completed] = await db
+  // Only transition from active → terminal (prevents overwriting terminal states)
+  const result = await db
     .update(superguessSessions)
     .set({
       status,
       completedAt: now,
     })
-    .where(eq(superguessSessions.id, sessionId))
+    .where(and(
+      eq(superguessSessions.id, sessionId),
+      eq(superguessSessions.status, 'active')
+    ))
     .returning();
+
+  // If no rows updated, session was already completed by another caller
+  if (result.length === 0) {
+    console.log(`🔴 [Superguess] Session ${sessionId} already completed, skipping ${status}`);
+    const [existing] = await db
+      .select()
+      .from(superguessSessions)
+      .where(eq(superguessSessions.id, sessionId))
+      .limit(1);
+    return existing;
+  }
+
+  const completed = result[0];
 
   // Clear active cache — play resumes immediately
   await cacheDel(SuperguessCacheKeys.active(completed.roundId));

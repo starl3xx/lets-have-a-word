@@ -117,21 +117,6 @@ export default async function handler(
       }
     }
 
-    // Check if user already used Superguess this round (optional fid param)
-    let alreadyUsedThisRound = false;
-    const fidParam = req.query.fid ? parseInt(req.query.fid as string, 10) : null;
-    if (fidParam && !isNaN(fidParam)) {
-      alreadyUsedThisRound = await hasUsedSuperguessThisRound(roundId, fidParam);
-    }
-
-    if (alreadyUsedThisRound) {
-      return res.status(200).json({
-        available: false,
-        reason: 'already_used',
-        globalGuessCount,
-      });
-    }
-
     return res.status(200).json({
       available: true,
       tier: tier ? { id: tier.id, usdPrice: tier.usdPrice } : null,

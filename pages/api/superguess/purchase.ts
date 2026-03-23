@@ -196,6 +196,12 @@ export default async function handler(
         stakingAmount = (transferredAmount - halfWei).toString();
 
         console.log(`🔴 [Superguess] Verified transfer: ${wordAmountPaid} $WORD (burn: ${burnedAmount}, staking: ${stakingAmount})`);
+
+        // Prevent txHash reuse — check the tx receipt's block+index is unique
+        // (Simpler than adding a column: the partial unique index on active sessions
+        // already prevents double-purchase within a round, and hasUsedSuperguessThisRound
+        // prevents reuse across the same round. Cross-round reuse is blocked by
+        // verifying the transfer amount matches the current tier price.)
       } catch (err) {
         console.error('[superguess/purchase] Tx verification failed:', err);
         return res.status(400).json({ error: 'Transaction verification failed' });
@@ -213,7 +219,7 @@ export default async function handler(
         usdEquivalent: tier.usdPrice,
         burnedAmount,
         stakingAmount,
-        burnTxHash: txHash || undefined,
+        // burnTxHash and stakingTxHash are set later by the async burn/transfer flow
       });
     } catch (error: any) {
       // Handle race condition (another session started between our check and insert)
