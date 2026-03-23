@@ -170,7 +170,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
           <div className="text-center py-4">
             <p className="text-gray-400 mb-2">
               {statusData?.reason === 'below_threshold'
-                ? `Available after ${statusData.globalGuessCount || 0} more guesses reach 850`
+                ? `Available after ${Math.max(0, 850 - (statusData.globalGuessCount || 0))} more guesses (${statusData.globalGuessCount || 0}/850)`
                 : statusData?.reason === 'session_active'
                 ? 'A Superguess is already in progress'
                 : statusData?.reason === 'cooldown'

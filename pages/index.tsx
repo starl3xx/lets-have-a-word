@@ -1727,7 +1727,7 @@ function GameContent() {
                 // Win celebration — same confetti + share card the winner sees
                 setWinnerData({
                   word: latestGuess.word,
-                  roundId: data.session.id,
+                  roundId: currentRoundId || 0,
                   jackpotEth: '0', // Spectator doesn't know exact amount
                 });
                 setShowWinnerShareCard(true);
