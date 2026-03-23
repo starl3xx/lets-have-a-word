@@ -15,7 +15,7 @@ Watch live 👉 letshaveaword.fun
 
 **Push notification:**
 ```
-Title: 🔴 Superguess purchased
+Title: 🔴 SUPERGUESS purchased
 Body:  @username is making a Superguess — 25 guesses with 10 minutes on the clock. Watch live!
 ```
 
@@ -25,7 +25,7 @@ Body:  @username is making a Superguess — 25 guesses with 10 minutes on the cl
 
 **Farcaster cast:**
 ```
-🔴 SUPERGUESS WON! @username found the secret word it in 14 guesses! 🎉
+🔴 SUPERGUESS WON! @username found the secret word in 14 guesses! 🎉
 
 What a play! 👉 letshaveaword.fun
 ```
@@ -36,18 +36,18 @@ What a play! 👉 letshaveaword.fun
 
 **Farcaster cast (no bonus/burn words found):**
 ```
-🔴 Superguess over — @username used 25/25 guesses but couldn't find the word.
+🔴 Superguess over — @username used 25/25 guesses but didn’t find the secret word.
 
-Normal play resumes now. 👉 letshaveaword.fun
+Normal play resumes now! 👉 letshaveaword.fun
 ```
 
 **Farcaster cast (with bonus/burn words found):**
 ```
-🔴 Superguess over — @username used 25/25 guesses but couldn't find the word.
+🔴 Superguess over — @username used 25/25 guesses but didn’t find the secret word.
 
-But they did find 1 bonus word and 2 burn words along the way!
+But they did find 1 bonus word and 2 burn words along the way 🕵️‍♂️
 
-Normal play resumes now. 👉 letshaveaword.fun
+Normal play resumes now! 👉 letshaveaword.fun
 ```
 
 ---

@@ -839,12 +839,12 @@ What a play! 👉 letshaveaword.fun`;
     const parts: string[] = [];
     if (bonusCount > 0) parts.push(`${bonusCount} bonus word${bonusCount > 1 ? 's' : ''}`);
     if (burnCount > 0) parts.push(`${burnCount} burn word${burnCount > 1 ? 's' : ''}`);
-    extras = `\n\nBut they did find ${parts.join(' and ')} along the way!`;
+    extras = `\n\nBut they did find ${parts.join(' and ')} along the way 🕵️‍♂️`;
   }
 
-  const text = `🔴 Superguess over — @${username} used ${guessesUsed}/25 guesses but couldn\u2019t find the word.${extras}
+  const text = `🔴 Superguess over — @${username} used ${guessesUsed}/25 guesses but didn\u2019t find the secret word.${extras}
 
-Normal play resumes now. 👉 letshaveaword.fun`;
+Normal play resumes now! 👉 letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'superguess_result',
