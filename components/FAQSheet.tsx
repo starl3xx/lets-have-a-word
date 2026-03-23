@@ -130,12 +130,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How much do guess packs cost?",
       answer: (
         <>
-          Each pack contains <strong>3 guesses</strong>. Pricing has two components:
+          Each pack contains <strong>3 guesses</strong>. Available in 1-pack and 3-pack sizes. Pricing has two components:
           <p className="mt-2"><strong>Stage-based pricing</strong> (based on total guesses in round):</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>0–849 guesses (early): 0.00030 ETH base</li>
-            <li>850–1249 guesses (mid): 0.00045 ETH base</li>
-            <li>1250+ guesses (late): 0.00060 ETH base</li>
+            <li>0–849 guesses (early): 0.00040 ETH base</li>
+            <li>850–1249 guesses (mid): 0.00060 ETH base</li>
+            <li>1250+ guesses (late): 0.00080 ETH base</li>
           </ul>
           <p className="mt-2"><strong>Volume-based multipliers</strong> (based on daily purchases):</p>
           <ul className="list-disc list-inside mt-1 space-y-1">
@@ -249,6 +249,16 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </>
       ),
     },
+    {
+      question: "What is a Superguess?",
+      answer: (
+        <>
+          Superguess is a high-stakes late-game mechanic. After the round reaches <strong>850 guesses</strong>, any player can purchase a Superguess with $WORD tokens for an <strong>exclusive 25-guess, 10-minute window</strong>.
+          <p className="mt-2">During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, a <strong>10-minute cooldown</strong> begins before normal play resumes.</p>
+          <p className="mt-2">50% of the $WORD payment is burned, and 50% goes to staking rewards. Purchasing a Superguess earns the <strong>Showstopper</strong> Wordmark. One Superguess per round.</p>
+        </>
+      ),
+    },
     // ── $WORD Token ──────────────────────────────────────────────────
     {
       question: "What is $WORD?",
@@ -348,6 +358,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
             <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
             <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>
             <li><strong>🍩 Baker's Dozen</strong> — Earned by guessing words starting with 13 different letters, on 13 different days. Only the <em>first guess of each day</em> counts toward progress.</li>
+            <li><strong>🍿 Showstopper</strong> — Purchased a Superguess</li>
           </ul>
           <p className="mt-2">View your wordmarks collection in your Stats sheet under <strong>Lexicon</strong>.</p>
         </>
