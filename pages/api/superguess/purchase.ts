@@ -176,17 +176,20 @@ export default async function handler(
         // (small tolerance for price movement between quote and execution)
         const { fetchWordTokenMarketCap } = await import('../../../src/lib/word-oracle');
         const marketData = await fetchWordTokenMarketCap();
-        if (marketData && marketData.priceUsd > 0) {
-          const expectedTokens = tier.usdPrice / marketData.priceUsd;
-          const expectedWei = ethers.parseUnits(Math.floor(expectedTokens).toString(), 18);
-          const minimumWei = (expectedWei * BigInt(80)) / BigInt(100); // 80% tolerance
-          if (transferredAmount < minimumWei) {
-            return res.status(400).json({
-              error: 'Insufficient $WORD payment for this tier',
-              expected: expectedWei.toString(),
-              received: transferredAmount.toString(),
-            });
-          }
+        if (!marketData || marketData.priceUsd <= 0) {
+          return res.status(503).json({
+            error: 'Unable to verify payment — $WORD price oracle unavailable. Try again shortly.',
+          });
+        }
+        const expectedTokens = tier.usdPrice / marketData.priceUsd;
+        const expectedWei = ethers.parseUnits(Math.floor(expectedTokens).toString(), 18);
+        const minimumWei = (expectedWei * BigInt(80)) / BigInt(100); // 80% tolerance
+        if (transferredAmount < minimumWei) {
+          return res.status(400).json({
+            error: 'Insufficient $WORD payment for this tier',
+            expected: expectedWei.toString(),
+            received: transferredAmount.toString(),
+          });
         }
 
         wordAmountPaid = transferredAmount.toString();

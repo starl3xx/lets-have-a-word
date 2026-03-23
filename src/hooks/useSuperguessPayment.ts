@@ -176,7 +176,7 @@ export function useSuperguessPayment(
 
       callPurchaseApi();
     }
-  }, [transferConfirmed, transferHash, phase, devFid]);
+  }, [transferConfirmed, transferHash, phase, devFid, authToken]);
 
   // Handle transfer failure
   useEffect(() => {
