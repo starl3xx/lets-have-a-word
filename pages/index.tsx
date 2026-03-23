@@ -1596,7 +1596,8 @@ function GameContent() {
 
   // Check if GUESS button should be enabled (Milestone 4.6)
   // Also disable when no active round
-  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound;
+  const isSpectatingSuperguesser = superguessActive && !isSuperguessing;
+  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound || isSpectatingSuperguesser;
 
   /**
    * Handle share modal close
@@ -2201,13 +2202,21 @@ function GameContent() {
                   }
                 }}
                 className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
-                  isButtonDisabled
+                  isSpectatingSuperguesser
+                    ? 'cursor-not-allowed opacity-80'
+                    : isButtonDisabled
                     ? 'bg-gray-300 cursor-not-allowed opacity-60'
                     : 'active:scale-95'
                 }`}
-                style={!isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}}
+                style={
+                  isSpectatingSuperguesser
+                    ? { backgroundColor: '#991B1B' } // red-800
+                    : !isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}
+                }
               >
-                {isLoading ? 'SUBMITTING...' : 'GUESS'}
+                {superguessActive && !isSuperguessing && superguessState?.username
+                  ? `WATCHING @${(superguessState.username.length > 10 ? superguessState.username.slice(0, 10) + '\u2026' : superguessState.username).toUpperCase()} GUESS LIVE`
+                  : isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
 
           </div>
