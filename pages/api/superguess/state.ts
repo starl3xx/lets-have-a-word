@@ -73,7 +73,6 @@ export default async function handler(
     console.error('[superguess/state] Error:', error);
     return res.status(500).json({
       error: 'Internal server error',
-      details: error instanceof Error ? error.message : String(error),
     });
   }
 }

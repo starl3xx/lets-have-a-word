@@ -551,7 +551,11 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // Block Superguesser if they've used all guesses
       if (activeSession.guessesUsed >= activeSession.guessesAllowed) {
         await completeSuperguessSession(activeSession.id, 'exhausted');
-        // Fall through to normal flow after exhaustion
+        return {
+          status: 'superguess_blocked',
+          guesserUsername: await getSuperguessUsername(activeSession.fid),
+          expiresAt: activeSession.expiresAt.toISOString(),
+        };
       }
     }
     // Note: Cooldown does NOT block regular gameplay — it only prevents

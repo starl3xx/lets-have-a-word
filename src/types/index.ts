@@ -87,8 +87,7 @@ export type SubmitGuessResult =
   | { status: 'rate_limited'; message: string; retryAfterSeconds?: number } // Milestone 9.6: Rate limit soft block
   | { status: 'bonus_word'; word: string; tokenRewardAmount: string; txHash?: string; message: string } // Bonus Words feature
   | { status: 'burn_word'; word: string; burnAmount: string; txHash?: string; message: string } // Milestone 14: Burn Words
-  | { status: 'superguess_blocked'; guesserUsername: string; expiresAt: string } // Milestone 15: Another player has Superguess active
-  | { status: 'superguess_cooldown'; cooldownEndsAt: string }; // Milestone 15: Cooldown after failed Superguess
+  | { status: 'superguess_blocked'; guesserUsername: string; expiresAt: string }; // Milestone 15: Another player has Superguess active
 
 /**
  * Submit Guess Parameters

@@ -50,7 +50,7 @@ export default async function handler(
       if (!activeRound) {
         return res.status(200).json({ available: false, reason: 'no_active_round' });
       }
-      roundId = roundId;
+      roundId = activeRound.id;
     }
 
     const realGuessCount = await getTotalGuessCountInRound(roundId);

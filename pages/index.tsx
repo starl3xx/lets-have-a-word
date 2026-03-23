@@ -1246,11 +1246,6 @@ function GameContent() {
         setSuperguessActive(true);
         setIsLoading(false);
         return; // Enter spectator mode
-      } else if (data.status === 'superguess_cooldown') {
-        // Milestone 15: Superguess cooldown
-        setErrorMessage('Superguess cooldown active — try again soon');
-        setIsLoading(false);
-        return;
       } else if (data.status === 'burn_word') {
         // Milestone 14: User found a burn word
         setBoxResultState('correct'); // Show green success state

@@ -11,6 +11,7 @@ import { logRoundEvent, AnalyticsEventTypes } from './analytics';
 import { trackSlowQuery } from './redis';
 import { shouldBlockNewRoundCreation } from './operational-guard';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
+import { isDevModeEnabled } from './devGameState';
 import {
   startRoundWithCommitmentOnChain,
   startRoundWithBothCommitmentsOnChain,
@@ -303,15 +304,19 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
  */
 export async function getActiveRound(): Promise<Round | null> {
   return trackSlowQuery('query:getActiveRound', async () => {
+    const conditions = [
+      isNull(rounds.resolvedAt),
+      isNull(rounds.winnerFid), // Round is locked once winner is set
+      eq(rounds.status, 'active'), // Exclude cancelled rounds
+    ];
+    // Only filter out dev test rounds when NOT in dev mode
+    if (!isDevModeEnabled()) {
+      conditions.push(eq(rounds.isDevTestRound, false));
+    }
     const result = await db
       .select()
       .from(rounds)
-      .where(and(
-        isNull(rounds.resolvedAt),
-        isNull(rounds.winnerFid), // Round is locked once winner is set
-        eq(rounds.status, 'active'), // Exclude cancelled rounds
-        eq(rounds.isDevTestRound, false) // Never return dev test rounds in production
-      ))
+      .where(and(...conditions))
       .orderBy(desc(rounds.startedAt))
       .limit(1);
 

@@ -83,34 +83,6 @@ const MIGRATIONS: Record<string, string> = {
       ('0xf19782ed888d9e69533cb106f8af2d41be75f165', 'CLANKTON', 100000000, '2026-01-17')
     ON CONFLICT (wallet_address) DO NOTHING;
   `,
-  '0009_superguess': `
-    CREATE TABLE IF NOT EXISTS superguess_sessions (
-      id SERIAL PRIMARY KEY,
-      round_id INTEGER NOT NULL REFERENCES rounds(id),
-      fid INTEGER NOT NULL,
-      tier VARCHAR(20) NOT NULL,
-      word_amount_paid VARCHAR(78) NOT NULL,
-      usd_equivalent DECIMAL(10, 2) NOT NULL,
-      burned_amount VARCHAR(78) NOT NULL,
-      staking_amount VARCHAR(78) NOT NULL,
-      burn_tx_hash VARCHAR(66),
-      staking_tx_hash VARCHAR(66),
-      status VARCHAR(20) NOT NULL DEFAULT 'active',
-      guesses_used INTEGER NOT NULL DEFAULT 0,
-      guesses_allowed INTEGER NOT NULL DEFAULT 25,
-      started_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      expires_at TIMESTAMP NOT NULL,
-      completed_at TIMESTAMP,
-      cooldown_ends_at TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW()
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS superguess_sessions_round_active_unique
-      ON superguess_sessions (round_id)
-      WHERE status = 'active';
-    CREATE INDEX IF NOT EXISTS superguess_sessions_round_idx ON superguess_sessions (round_id);
-    CREATE INDEX IF NOT EXISTS superguess_sessions_fid_idx ON superguess_sessions (fid);
-    CREATE INDEX IF NOT EXISTS superguess_sessions_status_idx ON superguess_sessions (status);
-  `,
   '0008_airdrop_farcaster_handles': `
     ALTER TABLE airdrop_wallets ADD COLUMN IF NOT EXISTS farcaster_handle VARCHAR(100);
     UPDATE airdrop_wallets SET farcaster_handle = v.handle FROM (VALUES
@@ -139,6 +111,34 @@ const MIGRATIONS: Record<string, string> = {
       ('0xf19782ed888d9e69533cb106f8af2d41be75f165', 'hillside')
     ) AS v(addr, handle)
     WHERE airdrop_wallets.wallet_address = v.addr;
+  `,
+  '0009_superguess': `
+    CREATE TABLE IF NOT EXISTS superguess_sessions (
+      id SERIAL PRIMARY KEY,
+      round_id INTEGER NOT NULL REFERENCES rounds(id),
+      fid INTEGER NOT NULL,
+      tier VARCHAR(20) NOT NULL,
+      word_amount_paid VARCHAR(78) NOT NULL,
+      usd_equivalent DECIMAL(10, 2) NOT NULL,
+      burned_amount VARCHAR(78) NOT NULL,
+      staking_amount VARCHAR(78) NOT NULL,
+      burn_tx_hash VARCHAR(66),
+      staking_tx_hash VARCHAR(66),
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      guesses_used INTEGER NOT NULL DEFAULT 0,
+      guesses_allowed INTEGER NOT NULL DEFAULT 25,
+      started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      completed_at TIMESTAMP,
+      cooldown_ends_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS superguess_sessions_round_active_unique
+      ON superguess_sessions (round_id)
+      WHERE status = 'active';
+    CREATE INDEX IF NOT EXISTS superguess_sessions_round_idx ON superguess_sessions (round_id);
+    CREATE INDEX IF NOT EXISTS superguess_sessions_fid_idx ON superguess_sessions (fid);
+    CREATE INDEX IF NOT EXISTS superguess_sessions_status_idx ON superguess_sessions (status);
   `,
 };
 

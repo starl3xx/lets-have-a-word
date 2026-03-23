@@ -85,7 +85,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     };
 
     fetchStatus();
-  }, [isOpen, preview]);
+  }, [isOpen, preview, userFid, devFid]);
 
   // Handle purchase complete
   useEffect(() => {
@@ -100,11 +100,17 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
   }, [phase, onPurchaseComplete, onClose, resetPayment]);
 
   const handlePurchase = useCallback(() => {
-    if (!statusData?.tier) return;
+    if (!statusData?.tier || !statusData?.wordTokenAmount) return;
 
-    // For dev mode, use a minimal token amount
-    // In production, this would be calculated from the tier price and $WORD market cap
-    const tokenAmount = '1000000'; // Placeholder: 1M $WORD tokens
+    // Parse human-readable token amount (e.g. "64M") back to raw number string
+    const amt = statusData.wordTokenAmount;
+    let tokensNeeded = 0;
+    if (amt.endsWith('B')) tokensNeeded = parseFloat(amt) * 1_000_000_000;
+    else if (amt.endsWith('M')) tokensNeeded = parseFloat(amt) * 1_000_000;
+    else if (amt.endsWith('K')) tokensNeeded = parseFloat(amt) * 1_000;
+    else tokensNeeded = parseFloat(amt);
+
+    const tokenAmount = Math.round(tokensNeeded).toString();
     startPayment(tokenAmount);
   }, [statusData, startPayment]);
 

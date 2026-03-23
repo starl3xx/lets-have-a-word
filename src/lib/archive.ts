@@ -438,7 +438,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
       if (sgSessions.length > 0) {
         // Use the most significant session (won > exhausted > expired > cancelled)
-        const priorityOrder = ['won', 'exhausted', 'expired', 'cancelled'];
+        const priorityOrder = ['won', 'exhausted', 'expired', 'cancelled', 'active'];
         const sorted = sgSessions.sort((a, b) =>
           priorityOrder.indexOf(a.status) - priorityOrder.indexOf(b.status)
         );

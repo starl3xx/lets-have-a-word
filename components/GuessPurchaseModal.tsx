@@ -538,11 +538,11 @@ export default function GuessPurchaseModal({
                     onClose();
                     onSuperguess();
                   }}
-                  disabled={isPurchasing}
+                  disabled={isPurchasing || !superguessEligible}
                   className={`w-full p-4 rounded-btn border-2 transition-all duration-fast flex items-center justify-between ${
                     superguessEligible
                       ? 'border-red-300 bg-red-50 hover:border-red-400 hover:bg-red-100'
-                      : 'border-gray-200 bg-gray-50 opacity-60'
+                      : 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
                   }`}
                 >
                   <div className="flex items-center gap-3">
