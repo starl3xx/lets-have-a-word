@@ -27,6 +27,7 @@ interface Props {
   onClose: () => void;
   onPurchaseComplete?: () => void;
   devFid?: number;
+  preview?: boolean; // Use mock data instead of fetching from server
 }
 
 const TIER_LABELS: Record<string, string> = {
@@ -36,7 +37,7 @@ const TIER_LABELS: Record<string, string> = {
   tier_4: 'Ultra',
 };
 
-export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, devFid }: Props) {
+export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, devFid, preview }: Props) {
   const [statusData, setStatusData] = useState<SuperguessStatusData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,6 +55,19 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
   useEffect(() => {
     if (!isOpen) return;
 
+    if (preview) {
+      // Mock data for UI preview — no server call
+      setStatusData({
+        available: true,
+        tier: { id: 'tier_1', usdPrice: 20 },
+        wordTokenAmount: '64M',
+        globalGuessCount: 920,
+        roundId: 1,
+      });
+      setLoading(false);
+      return;
+    }
+
     const fetchStatus = async () => {
       setLoading(true);
       try {
@@ -68,7 +82,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     };
 
     fetchStatus();
-  }, [isOpen]);
+  }, [isOpen, preview]);
 
   // Handle purchase complete
   useEffect(() => {

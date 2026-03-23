@@ -8,6 +8,7 @@ interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;
   adminFid?: number; // Pass admin FID to enable start round button
   onRoundStatusChange?: (hasActiveRound: boolean) => void; // Notify parent when round status changes
+  superguessLive?: boolean; // Milestone 15: Turns banner red during active Superguess
 }
 
 /**
@@ -91,7 +92,7 @@ function getPercentageColor(guessCount: number, totalWords: number): string {
  *
  * Polls /api/round-state every 15 seconds for live updates.
  */
-export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange }: TopTickerProps) {
+export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange, superguessLive }: TopTickerProps) {
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -254,8 +255,10 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
   /**
    * Display round status
    */
+  const bannerBg = superguessLive ? 'bg-red-700' : 'bg-brand';
+
   return (
-    <div className="bg-brand text-white py-3 px-4 shadow-md">
+    <div className={`${bannerBg} text-white py-3 px-4 shadow-md transition-colors duration-500`}>
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-visible">
         {/* Prize Pool */}
         <div>
@@ -316,20 +319,6 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
         </div>
       </div>
 
-      {/* Milestone 15: Superguess Live indicator */}
-      {status.superguessActive && (
-        <div className="max-w-6xl mx-auto mt-1.5">
-          <div className="flex items-center justify-center gap-1.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-            </span>
-            <span className="text-xs font-bold tracking-widest uppercase text-red-300 animate-pulse">
-              Superguess Live
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

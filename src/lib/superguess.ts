@@ -73,6 +73,8 @@ const SuperguessCacheKeys = {
   cooldown: (roundId: number) => `${CACHE_PREFIX}superguess:cooldown:${roundId}`,
   /** State endpoint cache (2s TTL, invalidated on each guess) */
   state: (roundId: number) => `${CACHE_PREFIX}superguess:state:${roundId}`,
+  /** Guess log (Redis list, appended on each guess) */
+  guessLog: (roundId: number) => `${CACHE_PREFIX}superguess:guesslog:${roundId}`,
 };
 
 // ============================================================
@@ -242,9 +244,21 @@ export async function startSuperguessSession(params: {
  * Record a guess in an active Superguess session
  * Increments counter and invalidates cache
  */
+export interface SuperguessGuessLogEntry {
+  word: string;
+  result: 'incorrect' | 'correct' | 'bonus_word' | 'burn_word' | 'already_guessed';
+  timestamp: string;
+}
+
+/**
+ * Record a guess in an active Superguess session
+ * Increments counter, appends to guess log in Redis, invalidates cache
+ */
 export async function recordSuperguessGuess(
   sessionId: number,
-  roundId: number
+  roundId: number,
+  word: string,
+  result: SuperguessGuessLogEntry['result']
 ): Promise<number> {
   const [updated] = await db
     .update(superguessSessions)
@@ -255,6 +269,27 @@ export async function recordSuperguessGuess(
     .returning();
 
   const newCount = updated.guessesUsed;
+
+  // Append to guess log in Redis (spectators poll this)
+  const logEntry: SuperguessGuessLogEntry = {
+    word,
+    result,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (redis) {
+    const logKey = SuperguessCacheKeys.guessLog(roundId);
+    try {
+      await redis.rpush(logKey, JSON.stringify(logEntry));
+      // Set TTL to match session (in case it doesn't exist yet)
+      const remainingMs = new Date(updated.expiresAt).getTime() - Date.now();
+      if (remainingMs > 0) {
+        await redis.expire(logKey, Math.ceil(remainingMs / 1000) + 60);
+      }
+    } catch (err) {
+      console.error('[Superguess] Failed to append guess log:', err);
+    }
+  }
 
   // Invalidate caches so spectators see the update
   await Promise.all([
@@ -270,10 +305,29 @@ export async function recordSuperguessGuess(
   }
 
   console.log(
-    `🔴 [Superguess] Guess ${newCount}/${updated.guessesAllowed} recorded for session ${sessionId}`
+    `🔴 [Superguess] Guess ${newCount}/${updated.guessesAllowed} "${word}" (${result}) for session ${sessionId}`
   );
 
   return newCount;
+}
+
+/**
+ * Get the guess log for a Superguess session from Redis
+ */
+export async function getGuessLog(roundId: number): Promise<SuperguessGuessLogEntry[]> {
+  if (!redis) return [];
+
+  try {
+    const logKey = SuperguessCacheKeys.guessLog(roundId);
+    const entries = await redis.lrange(logKey, 0, -1);
+    return entries.map((e: string) => {
+      if (typeof e === 'string') return JSON.parse(e);
+      return e as unknown as SuperguessGuessLogEntry;
+    });
+  } catch (err) {
+    console.error('[Superguess] Failed to read guess log:', err);
+    return [];
+  }
 }
 
 /**
@@ -465,6 +519,7 @@ export async function getSuperguessState(
     startedAt: string;
     tier: string;
   };
+  guessLog?: SuperguessGuessLogEntry[];
   cooldown?: {
     endsAt: string;
   };
@@ -473,7 +528,10 @@ export async function getSuperguessState(
   const session = await getActiveSuperguess(roundId);
 
   if (session) {
-    const username = await getSuperguessUsername(session.fid);
+    const [username, guessLog] = await Promise.all([
+      getSuperguessUsername(session.fid),
+      getGuessLog(roundId),
+    ]);
     return {
       active: true,
       session: {
@@ -486,6 +544,7 @@ export async function getSuperguessState(
         startedAt: typeof session.startedAt === 'string' ? session.startedAt : session.startedAt.toISOString(),
         tier: session.tier,
       },
+      guessLog,
       eligible: false,
     };
   }

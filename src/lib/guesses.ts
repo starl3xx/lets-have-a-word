@@ -672,7 +672,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       if (isSuperguessFeatureEnabled()) {
         const activeSession = await getActiveSuperguess(round.id);
         if (activeSession && activeSession.fid === fid) {
-          await recordSuperguessGuess(activeSession.id, round.id);
+          await recordSuperguessGuess(activeSession.id, round.id, word, 'correct');
           await completeSuperguessSession(activeSession.id, 'won');
           console.log(`🔴 [Superguess] Session ${activeSession.id} won!`);
         }
@@ -868,7 +868,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     if (isSuperguessFeatureEnabled()) {
       const activeSession = await getActiveSuperguess(round.id);
       if (activeSession && activeSession.fid === fid) {
-        const newCount = await recordSuperguessGuess(activeSession.id, round.id);
+        const newCount = await recordSuperguessGuess(activeSession.id, round.id, word, 'incorrect');
         if (newCount >= activeSession.guessesAllowed) {
           await completeSuperguessSession(activeSession.id, 'exhausted');
           console.log(`🔴 [Superguess] Session ${activeSession.id} exhausted after ${newCount} guesses`);
