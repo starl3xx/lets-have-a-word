@@ -28,8 +28,7 @@ import {
 /** Superguess window duration in minutes */
 export const SUPERGUESS_DURATION_MINUTES = 10;
 
-/** Cooldown after failed Superguess in minutes */
-export const SUPERGUESS_COOLDOWN_MINUTES = 10;
+/** No cooldown — play resumes immediately after Superguess ends */
 
 /** Maximum guesses per Superguess session */
 export const SUPERGUESS_MAX_GUESSES = 25;
@@ -340,41 +339,21 @@ export async function completeSuperguessSession(
 ): Promise<SuperguessSessionRow> {
   const now = new Date();
 
-  // Set cooldown for non-win, non-cancel completions
-  const setCooldown = status === 'exhausted' || status === 'expired';
-  const cooldownEndsAt = setCooldown
-    ? new Date(now.getTime() + SUPERGUESS_COOLDOWN_MINUTES * 60 * 1000)
-    : null;
-
   const [completed] = await db
     .update(superguessSessions)
     .set({
       status,
       completedAt: now,
-      cooldownEndsAt,
     })
     .where(eq(superguessSessions.id, sessionId))
     .returning();
 
-  // Clear active cache
+  // Clear active cache — play resumes immediately
   await cacheDel(SuperguessCacheKeys.active(completed.roundId));
   await cacheDel(SuperguessCacheKeys.state(completed.roundId));
 
-  // Set cooldown in Redis if applicable
-  if (cooldownEndsAt) {
-    const cooldownTtl = Math.max(
-      1,
-      Math.floor((cooldownEndsAt.getTime() - now.getTime()) / 1000)
-    );
-    await cacheSet(
-      SuperguessCacheKeys.cooldown(completed.roundId),
-      cooldownEndsAt.toISOString(),
-      cooldownTtl
-    );
-  }
-
   console.log(
-    `🔴 [Superguess] Session ${sessionId} completed: ${status}${cooldownEndsAt ? `, cooldown until ${cooldownEndsAt.toISOString()}` : ''}`
+    `🔴 [Superguess] Session ${sessionId} completed: ${status}`
   );
 
   // Announce the result (fire-and-forget)

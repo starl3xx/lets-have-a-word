@@ -51,7 +51,7 @@ Like bonus words, burn words are committed onchain as keccak256 hashes before th
 
 Superguess is a high-stakes late-game mechanic. After the round reaches **850 guesses**, any player can purchase a Superguess with $WORD tokens for an **exclusive 25-guess, 10-minute window**.
 
-During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, a **10-minute cooldown** begins before normal play resumes.
+During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, normal play resumes immediately.
 
 50% of the $WORD payment is burned, and 50% goes to staking rewards. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
 

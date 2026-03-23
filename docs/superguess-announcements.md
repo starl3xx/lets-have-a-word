@@ -38,7 +38,7 @@ What a play! 👉 letshaveaword.fun
 ```
 🔴 Superguess over — @username used 25/25 guesses but couldn't find the word.
 
-Normal play resumes after a 10-minute cooldown. 👉 letshaveaword.fun
+Normal play resumes now. 👉 letshaveaword.fun
 ```
 
 **Farcaster cast (with bonus/burn words found):**
@@ -47,7 +47,7 @@ Normal play resumes after a 10-minute cooldown. 👉 letshaveaword.fun
 
 But they did find 1 bonus word and 2 burn words along the way!
 
-Normal play resumes after a 10-minute cooldown. 👉 letshaveaword.fun
+Normal play resumes now. 👉 letshaveaword.fun
 ```
 
 ---
