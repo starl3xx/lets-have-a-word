@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSuperguessPayment, type SuperguessPaymentPhase } from '../src/hooks/useSuperguessPayment';
 import { formatUnits } from 'viem';
+import sdk from '@farcaster/miniapp-sdk';
 
 interface SuperguessStatusData {
   available: boolean;
@@ -216,47 +217,102 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
               <p className="text-gray-500">50% of payment burned · 50% to staking rewards</p>
             </div>
 
-            {/* Wallet balance */}
-            {balance !== undefined && (
-              <div className="text-xs text-gray-500 mb-3">
-                Wallet balance: {Number(balanceFormatted).toLocaleString()} $WORD
-              </div>
-            )}
+            {/* Wallet balance + sufficiency check */}
+            {(() => {
+              const balanceNum = balance !== undefined ? Number(formatUnits(balance, 18)) : null;
+              // Parse token amount needed from "64M" format
+              let tokensNeeded = 0;
+              if (statusData?.wordTokenAmount) {
+                const amt = statusData.wordTokenAmount;
+                if (amt.endsWith('B')) tokensNeeded = parseFloat(amt) * 1_000_000_000;
+                else if (amt.endsWith('M')) tokensNeeded = parseFloat(amt) * 1_000_000;
+                else if (amt.endsWith('K')) tokensNeeded = parseFloat(amt) * 1_000;
+                else tokensNeeded = parseFloat(amt);
+              }
+              const hasEnough = balanceNum !== null && tokensNeeded > 0 && balanceNum >= tokensNeeded;
+              const balanceDisplay = balanceNum !== null
+                ? balanceNum >= 1_000_000
+                  ? `${(balanceNum / 1_000_000).toFixed(1)}M`
+                  : balanceNum >= 1_000
+                  ? `${(balanceNum / 1_000).toFixed(0)}K`
+                  : balanceNum.toLocaleString()
+                : null;
 
-            {/* Action button */}
-            {phase !== 'idle' && phase !== 'error' ? (
-              <div className="text-center py-3">
-                <div className="text-sm text-gray-300">
-                  {phaseLabel[phase]}
-                </div>
-                {phase === 'complete' && (
-                  <div className="text-green-400 text-lg mt-2">✓</div>
-                )}
-              </div>
-            ) : (
-              <>
-                {paymentError && (
-                  <div className="text-red-400 text-xs mb-3 text-center">
-                    {paymentError}
-                  </div>
-                )}
-                {isDevMode ? (
-                  <button
-                    onClick={handleDevPurchase}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors"
-                  >
-                    Activate Superguess (Dev)
-                  </button>
-                ) : (
-                  <button
-                    onClick={handlePurchase}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors"
-                  >
-                    Purchase Superguess
-                  </button>
-                )}
-              </>
-            )}
+              return (
+                <>
+                  {balanceDisplay !== null && (
+                    <div className={`text-xs mb-3 flex items-center justify-between ${hasEnough ? 'text-green-400' : 'text-red-400'}`}>
+                      <span>
+                        Wallet: {balanceDisplay} $WORD
+                        {hasEnough ? ' ✓' : ' — insufficient'}
+                      </span>
+                      {!hasEnough && statusData?.wordTokenAmount && (
+                        <span className="text-gray-500">
+                          Need ≈{statusData.wordTokenAmount}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action button */}
+                  {phase !== 'idle' && phase !== 'error' ? (
+                    <div className="text-center py-3">
+                      <div className="text-sm text-gray-300">
+                        {phaseLabel[phase]}
+                      </div>
+                      {phase === 'complete' && (
+                        <div className="text-green-400 text-lg mt-2">✓</div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {paymentError && (
+                        <div className="text-red-400 text-xs mb-3 text-center">
+                          {paymentError}
+                        </div>
+                      )}
+                      {balanceNum !== null && !hasEnough && !isDevMode ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await sdk.actions.viewToken({
+                                token: 'eip155:8453/erc20:0x304e649e69979298bd1aee63e175adf07885fb4b',
+                              });
+                            } catch {
+                              const poolAddress = process.env.NEXT_PUBLIC_DEXSCREENER_POOL_ADDRESS;
+                              window.open(
+                                poolAddress
+                                  ? `https://dexscreener.com/base/${poolAddress}`
+                                  : 'https://dexscreener.com/base/0x304e649e69979298bd1aee63e175adf07885fb4b',
+                                '_blank'
+                              );
+                            }
+                          }}
+                          className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white font-bold py-3 rounded-xl transition-colors"
+                        >
+                          Buy $WORD
+                        </button>
+                      ) : isDevMode ? (
+                        <button
+                          onClick={handleDevPurchase}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors"
+                        >
+                          Activate Superguess (Dev)
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handlePurchase}
+                          disabled={balanceNum === null}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Purchase Superguess
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </div>
