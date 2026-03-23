@@ -2455,6 +2455,7 @@ function GameContent() {
           setSuperguessActive(false);
           setUserStateKey(prev => prev + 1); // Refresh user state
         }}
+        fid={effectiveFid}
         devFid={isClientDevMode() ? effectiveFid ?? undefined : undefined}
         preview={hasSuperguessPreview}
       />

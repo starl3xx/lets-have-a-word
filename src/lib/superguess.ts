@@ -377,6 +377,20 @@ export async function completeSuperguessSession(
     `🔴 [Superguess] Session ${sessionId} completed: ${status}${cooldownEndsAt ? `, cooldown until ${cooldownEndsAt.toISOString()}` : ''}`
   );
 
+  // Announce the result (fire-and-forget)
+  if (status !== 'cancelled') {
+    import('./announcer').then(({ announceSuperguessResult }) => {
+      announceSuperguessResult(
+        completed.roundId,
+        completed.fid,
+        status === 'won',
+        completed.guessesUsed
+      ).catch(err => {
+        console.error('[Superguess] Failed to announce result:', err);
+      });
+    }).catch(() => {});
+  }
+
   return completed;
 }
 

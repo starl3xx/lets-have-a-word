@@ -19,6 +19,7 @@ import {
   getActiveSuperguess,
   isCooldownActive,
   getSuperguessCurrentTier,
+  hasUsedSuperguessThisRound,
   SUPERGUESS_MIN_GUESS_COUNT,
 } from '../../../src/lib/superguess';
 import { getActiveRound } from '../../../src/lib/rounds';
@@ -117,6 +118,21 @@ export default async function handler(
       } catch (err) {
         console.warn('[superguess/status] Failed to fetch $WORD price:', err);
       }
+    }
+
+    // Check if user already used Superguess this round (optional fid param)
+    let alreadyUsedThisRound = false;
+    const fidParam = req.query.fid ? parseInt(req.query.fid as string, 10) : null;
+    if (fidParam && !isNaN(fidParam)) {
+      alreadyUsedThisRound = await hasUsedSuperguessThisRound(roundId, fidParam);
+    }
+
+    if (alreadyUsedThisRound) {
+      return res.status(200).json({
+        available: false,
+        reason: 'already_used',
+        globalGuessCount,
+      });
     }
 
     return res.status(200).json({

@@ -84,10 +84,15 @@ export default async function handler(
       });
     }
 
-    // 4. No active session or cooldown
+    // 4. No active session, no cooldown, not already used this round
     const existingSession = await getActiveSuperguess(activeRound.id);
     if (existingSession) {
       return res.status(409).json({ error: 'A Superguess session is already active' });
+    }
+
+    const alreadyUsed = await hasUsedSuperguessThisRound(activeRound.id, fid);
+    if (alreadyUsed) {
+      return res.status(400).json({ error: 'You\u2019ve already used your Superguess this round' });
     }
 
     const cooldown = await isCooldownActive(activeRound.id);

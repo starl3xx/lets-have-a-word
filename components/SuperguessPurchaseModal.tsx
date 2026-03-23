@@ -27,6 +27,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onPurchaseComplete?: () => void;
+  fid?: number | null; // User's FID for "already used" check
   devFid?: number;
   preview?: boolean; // Use mock data instead of fetching from server
 }
@@ -38,7 +39,7 @@ const TIER_LABELS: Record<string, string> = {
   tier_4: 'Ultra',
 };
 
-export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, devFid, preview }: Props) {
+export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, fid: userFid, devFid, preview }: Props) {
   const [statusData, setStatusData] = useState<SuperguessStatusData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -72,7 +73,8 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     const fetchStatus = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/superguess/status');
+        const fidParam = userFid || devFid;
+        const res = await fetch(`/api/superguess/status${fidParam ? `?fid=${fidParam}` : ''}`);
         const data = await res.json();
         setStatusData(data);
       } catch {
@@ -166,6 +168,8 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
                 ? 'A Superguess is already in progress'
                 : statusData?.reason === 'cooldown'
                 ? 'Cooldown active — try again soon'
+                : statusData?.reason === 'already_used'
+                ? 'You\u2019ve already used your Superguess this round'
                 : 'Superguess is not available right now'}
             </p>
           </div>
