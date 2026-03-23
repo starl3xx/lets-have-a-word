@@ -844,7 +844,7 @@ What a play! 👉 letshaveaword.fun`;
 
   const text = `🔴 Superguess over — @${username} used ${guessesUsed}/25 guesses but couldn\u2019t find the word.${extras}
 
-Normal play resumes after cooldown. 👉 letshaveaword.fun`;
+Normal play resumes after a 10-minute cooldown. 👉 letshaveaword.fun`;
 
   return await recordAndCastAnnouncerEvent({
     eventType: 'superguess_result',
