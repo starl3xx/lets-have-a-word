@@ -125,6 +125,10 @@ export default async function handler(
     let burnedAmount = '0';
     let stakingAmount = '0';
 
+    if (!isDevMode && !OPERATOR_WALLET) {
+      return res.status(500).json({ error: 'OPERATOR_WALLET not configured' });
+    }
+
     if (!isDevMode && txHash) {
       try {
         const { ethers } = await import('ethers');
@@ -162,6 +166,23 @@ export default async function handler(
           return res.status(400).json({
             error: 'No $WORD transfer to operator wallet found in transaction',
           });
+        }
+
+        // Validate minimum payment — must be at least 80% of expected amount
+        // (small tolerance for price movement between quote and execution)
+        const { fetchWordTokenMarketCap } = await import('../../../src/lib/word-oracle');
+        const marketData = await fetchWordTokenMarketCap();
+        if (marketData && marketData.priceUsd > 0) {
+          const expectedTokens = tier.usdPrice / marketData.priceUsd;
+          const expectedWei = ethers.parseUnits(Math.floor(expectedTokens).toString(), 18);
+          const minimumWei = (expectedWei * BigInt(80)) / BigInt(100); // 80% tolerance
+          if (transferredAmount < minimumWei) {
+            return res.status(400).json({
+              error: 'Insufficient $WORD payment for this tier',
+              expected: expectedWei.toString(),
+              received: transferredAmount.toString(),
+            });
+          }
         }
 
         wordAmountPaid = transferredAmount.toString();

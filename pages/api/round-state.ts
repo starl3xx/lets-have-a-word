@@ -130,22 +130,24 @@ export default async function handler(
     );
 
     // Milestone 15: Append Superguess status (not cached — fast Redis check)
+    // Spread to avoid mutating the cached object
+    const response = { ...roundStatus };
     if (isSuperguessFeatureEnabled()) {
       const sgActive = await isSuperguessActive(activeRound.id);
-      roundStatus.superguessActive = sgActive;
+      response.superguessActive = sgActive;
       if (!sgActive) {
         const cooldown = await isCooldownActive(activeRound.id);
-        roundStatus.superguessEligible =
-          !cooldown.active && roundStatus.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT;
+        response.superguessEligible =
+          !cooldown.active && response.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT;
       } else {
-        roundStatus.superguessEligible = false;
+        response.superguessEligible = false;
       }
     }
 
     // Set cache headers for client-side caching
     res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=10');
 
-    return res.status(200).json(roundStatus);
+    return res.status(200).json(response);
   } catch (error: any) {
     console.error('Error in /api/round-state:', error);
     Sentry.captureException(error, {
