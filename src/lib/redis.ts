@@ -151,8 +151,6 @@ export const CacheKeys = {
   // Milestone 15: Superguess cache keys
   /** Active Superguess session for a round */
   superguessActive: (roundId: number) => `${CACHE_PREFIX}superguess:active:${roundId}`,
-  /** Superguess cooldown flag for a round */
-  superguessCooldown: (roundId: number) => `${CACHE_PREFIX}superguess:cooldown:${roundId}`,
   /** Superguess state endpoint cache */
   superguessState: (roundId: number) => `${CACHE_PREFIX}superguess:state:${roundId}`,
 } as const;

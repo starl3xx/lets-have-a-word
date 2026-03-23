@@ -5,11 +5,10 @@
  * GET /api/superguess/status
  *
  * Returns:
- * - available: boolean (guess count >= 850, no active session, no cooldown)
+ * - available: boolean (guess count >= 850, no active session)
  * - tier?: { id, usdPrice }
  * - wordTokenPrice?: string (amount of $WORD tokens needed, in display format)
  * - activeSession?: boolean
- * - cooldown?: { endsAt }
  * - globalGuessCount: number
  */
 
@@ -17,7 +16,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import {
   isSuperguessFeatureEnabled,
   getActiveSuperguess,
-  isCooldownActive,
   getSuperguessCurrentTier,
   hasUsedSuperguessThisRound,
   SUPERGUESS_MIN_GUESS_COUNT,
@@ -78,17 +76,6 @@ export default async function handler(
         available: false,
         reason: 'session_active',
         activeSession: true,
-        globalGuessCount,
-      });
-    }
-
-    // Check cooldown
-    const cooldown = await isCooldownActive(roundId);
-    if (cooldown.active) {
-      return res.status(200).json({
-        available: false,
-        reason: 'cooldown',
-        cooldown: { endsAt: cooldown.endsAt },
         globalGuessCount,
       });
     }

@@ -68,8 +68,6 @@ export function isSuperguessFeatureEnabled(): boolean {
 const SuperguessCacheKeys = {
   /** Active session JSON, TTL = remaining window */
   active: (roundId: number) => `${CACHE_PREFIX}superguess:active:${roundId}`,
-  /** Cooldown flag, TTL = remaining cooldown */
-  cooldown: (roundId: number) => `${CACHE_PREFIX}superguess:cooldown:${roundId}`,
   /** State endpoint cache (2s TTL, invalidated on each guess) */
   state: (roundId: number) => `${CACHE_PREFIX}superguess:state:${roundId}`,
   /** Guess log (Redis list, appended on each guess) */
@@ -147,44 +145,6 @@ export async function isSuperguessActive(roundId: number): Promise<boolean> {
 }
 
 /**
- * Check if cooldown is active for a round
- */
-export async function isCooldownActive(roundId: number): Promise<{
-  active: boolean;
-  endsAt?: string;
-}> {
-  // Check Redis flag first
-  if (redis) {
-    const cooldownVal = await cacheGet<string>(SuperguessCacheKeys.cooldown(roundId));
-    if (cooldownVal) {
-      return { active: true, endsAt: cooldownVal };
-    }
-  }
-
-  // DB fallback: find most recent completed session with cooldown
-  const [session] = await db
-    .select()
-    .from(superguessSessions)
-    .where(
-      and(
-        eq(superguessSessions.roundId, roundId),
-        sql`${superguessSessions.cooldownEndsAt} > NOW()`
-      )
-    )
-    .orderBy(desc(superguessSessions.completedAt))
-    .limit(1);
-
-  if (session?.cooldownEndsAt) {
-    return {
-      active: true,
-      endsAt: session.cooldownEndsAt.toISOString(),
-    };
-  }
-
-  return { active: false };
-}
-
-/**
  * Start a new Superguess session
  * Atomic insert using partial unique index to prevent races
  */
@@ -226,8 +186,6 @@ export async function startSuperguessSession(params: {
   const ttlSeconds = SUPERGUESS_DURATION_MINUTES * 60;
   await cacheSet(SuperguessCacheKeys.active(params.roundId), session, ttlSeconds);
 
-  // Clear any stale cooldown
-  await cacheDel(SuperguessCacheKeys.cooldown(params.roundId));
 
   // Invalidate state cache
   await cacheDel(SuperguessCacheKeys.state(params.roundId));
@@ -477,12 +435,10 @@ export async function forceCancel(roundId: number): Promise<boolean> {
 export async function getDebugState(roundId: number): Promise<{
   featureEnabled: boolean;
   activeSession: SuperguessSessionRow | null;
-  cooldown: { active: boolean; endsAt?: string };
   recentSessions: SuperguessSessionRow[];
 }> {
-  const [activeSession, cooldown, recentSessions] = await Promise.all([
+  const [activeSession, recentSessions] = await Promise.all([
     getActiveSuperguess(roundId),
-    isCooldownActive(roundId),
     db
       .select()
       .from(superguessSessions)
@@ -494,7 +450,6 @@ export async function getDebugState(roundId: number): Promise<{
   return {
     featureEnabled: isSuperguessFeatureEnabled(),
     activeSession,
-    cooldown,
     recentSessions,
   };
 }
@@ -520,9 +475,6 @@ export async function getSuperguessState(
     tier: string;
   };
   guessLog?: SuperguessGuessLogEntry[];
-  cooldown?: {
-    endsAt: string;
-  };
   eligible: boolean;
 }> {
   const session = await getActiveSuperguess(roundId);
@@ -545,15 +497,6 @@ export async function getSuperguessState(
         tier: session.tier,
       },
       guessLog,
-      eligible: false,
-    };
-  }
-
-  const cooldown = await isCooldownActive(roundId);
-  if (cooldown.active) {
-    return {
-      active: false,
-      cooldown: { endsAt: cooldown.endsAt! },
       eligible: false,
     };
   }

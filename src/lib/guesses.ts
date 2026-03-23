@@ -18,7 +18,6 @@ import { getPlaintextAnswer } from './encryption';
 import {
   isSuperguessFeatureEnabled,
   getActiveSuperguess,
-  isCooldownActive,
   recordSuperguessGuess,
   completeSuperguessSession,
   getSuperguessUsername,

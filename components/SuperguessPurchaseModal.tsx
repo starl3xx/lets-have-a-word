@@ -18,7 +18,6 @@ interface SuperguessStatusData {
   reason?: string;
   tier?: { id: string; usdPrice: number };
   wordTokenAmount?: string; // e.g. "64M"
-  cooldown?: { endsAt: string };
   globalGuessCount?: number;
   roundId?: number;
 }
@@ -173,8 +172,6 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
                 ? `Available after ${Math.max(0, 850 - (statusData.globalGuessCount || 0))} more guesses (${statusData.globalGuessCount || 0}/850)`
                 : statusData?.reason === 'session_active'
                 ? 'A Superguess is already in progress'
-                : statusData?.reason === 'cooldown'
-                ? 'Cooldown active — try again soon'
                 : statusData?.reason === 'already_used'
                 ? 'You\u2019ve already used your Superguess this round'
                 : 'Superguess is not available right now'}

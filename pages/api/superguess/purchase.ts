@@ -26,7 +26,6 @@ import { isDevModeEnabled, getDevUserId } from '../../../src/lib/devGameState';
 import {
   isSuperguessFeatureEnabled,
   getActiveSuperguess,
-  isCooldownActive,
   getSuperguessCurrentTier,
   startSuperguessSession,
   hasUsedSuperguessThisRound,
@@ -105,14 +104,6 @@ export default async function handler(
     const alreadyUsed = await hasUsedSuperguessThisRound(activeRound.id, fid);
     if (alreadyUsed) {
       return res.status(400).json({ error: 'You\u2019ve already used your Superguess this round' });
-    }
-
-    const cooldown = await isCooldownActive(activeRound.id);
-    if (cooldown.active) {
-      return res.status(400).json({
-        error: 'Superguess cooldown is active',
-        cooldownEndsAt: cooldown.endsAt,
-      });
     }
 
     // 5. Determine tier
