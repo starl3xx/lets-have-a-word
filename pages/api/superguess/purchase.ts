@@ -158,7 +158,7 @@ export default async function handler(
           }
         }
 
-        if (transferredAmount === null || transferredAmount === 0n) {
+        if (!transferredAmount || transferredAmount === BigInt(0)) {
           return res.status(400).json({
             error: 'No $WORD transfer to operator wallet found in transaction',
           });
@@ -166,7 +166,7 @@ export default async function handler(
 
         wordAmountPaid = transferredAmount.toString();
         // 50/50 split
-        const halfWei = transferredAmount / 2n;
+        const halfWei = transferredAmount / BigInt(2);
         burnedAmount = halfWei.toString();
         stakingAmount = (transferredAmount - halfWei).toString();
 
