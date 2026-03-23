@@ -49,6 +49,8 @@ interface GuessPurchaseModalProps {
   fid: number | null;
   onClose: () => void;
   onPurchaseSuccess: (packCount: number) => void;
+  onSuperguess?: () => void; // Opens the Superguess purchase modal
+  superguessEligible?: boolean; // Whether Superguess is available (guess count >= 850)
 }
 
 /**
@@ -90,6 +92,8 @@ export default function GuessPurchaseModal({
   fid,
   onClose,
   onPurchaseSuccess,
+  onSuperguess,
+  superguessEligible,
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
@@ -108,9 +112,8 @@ export default function GuessPurchaseModal({
 
   // Pack pricing options (default values, updated from API)
   const [packOptions, setPackOptions] = useState<PackOption[]>([
-    { packCount: 1, guessCount: 3, totalPriceWei: '300000000000000', totalPriceEth: '0.0003' },
-    { packCount: 2, guessCount: 6, totalPriceWei: '600000000000000', totalPriceEth: '0.0006' },
-    { packCount: 3, guessCount: 9, totalPriceWei: '900000000000000', totalPriceEth: '0.0009' },
+    { packCount: 1, guessCount: 3, totalPriceWei: '400000000000000', totalPriceEth: '0.0004' },
+    { packCount: 3, guessCount: 9, totalPriceWei: '1200000000000000', totalPriceEth: '0.0012' },
   ]);
 
   // State
@@ -527,6 +530,40 @@ export default function GuessPurchaseModal({
                   </button>
                 );
               })}
+
+              {/* Superguess option */}
+              {onSuperguess && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onSuperguess();
+                  }}
+                  disabled={isPurchasing}
+                  className={`w-full p-4 rounded-btn border-2 transition-all duration-fast flex items-center justify-between ${
+                    superguessEligible
+                      ? 'border-red-300 bg-red-50 hover:border-red-400 hover:bg-red-100'
+                      : 'border-gray-200 bg-gray-50 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Red dot indicator */}
+                    <div className="w-5 h-5 flex items-center justify-center">
+                      <span className="text-lg">🔴</span>
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900">Superguess</p>
+                      <p className="text-sm text-gray-600">
+                        {superguessEligible ? '25 exclusive guesses' : 'Available after 850 guesses'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-red-600 text-sm">
+                      $WORD
+                    </p>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Packs purchased today indicator */}

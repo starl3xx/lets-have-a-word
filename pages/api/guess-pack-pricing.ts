@@ -104,7 +104,7 @@ export default async function handler(
     const pricingDetails = getPackPricingDetails(totalGuessesInRound, packsPurchasedToday);
 
     // Build pack options with volume-aware pricing
-    const packOptions = [1, 2, 3].map((packCount) => {
+    const packOptions = [1, 3].map((packCount) => {
       const totalCostWei = getTotalPackCostWei(totalGuessesInRound, packCount, packsPurchasedToday);
       const breakdown = getPackCostBreakdown(totalGuessesInRound, packCount, packsPurchasedToday);
 

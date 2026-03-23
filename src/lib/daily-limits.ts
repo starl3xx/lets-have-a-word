@@ -59,7 +59,7 @@ export const DAILY_LIMITS_RULES = {
   shareBonusGuesses: 1,
   wordThreshold: 100_000_000, // 100M tokens
   paidGuessPackSize: 3,
-  paidGuessPackPriceEth: '0.0003', // ETH (base price, multipliers apply)
+  paidGuessPackPriceEth: '0.0004', // ETH (base price, multipliers apply)
   /** Pack purchases are uncapped. Volume pricing tiers apply. */
   maxPaidPacksPerDay: MAX_PACKS_PER_DAY, // Default: unlimited (999), configurable via env var
 };

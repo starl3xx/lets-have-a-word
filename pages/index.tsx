@@ -2062,7 +2062,7 @@ function GameContent() {
                   setShowGuessPurchaseModal(true);
                   void haptics.buttonTapMinor();
                 }}
-                className="shine-button absolute top-0 right-0 p-1.5 text-gray-400 hover:text-emerald-500 transition-all overflow-hidden"
+                className="shine-button absolute top-0 right-0 p-1.5 text-emerald-500 hover:text-emerald-400 transition-all overflow-hidden"
                 style={{ zIndex: 20 }}
                 aria-label="Buy guesses"
               >
@@ -2368,6 +2368,8 @@ function GameContent() {
             // If user closed without purchasing and out of guesses, no modal - just can't play
           }}
           onPurchaseSuccess={handlePackPurchaseSuccess}
+          onSuperguess={() => setShowSuperguessModal(true)}
+          superguessEligible={superguessEligible}
         />
       )}
 
