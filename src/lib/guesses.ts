@@ -677,13 +677,18 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
 
-      // Milestone 15: Complete Superguess session on win
+      // Milestone 15: Complete Superguess session on win (fire-and-forget)
+      // Wrapped in its own try-catch so Superguess failures never block the win response
       if (isSuperguessFeatureEnabled()) {
-        const activeSession = await getActiveSuperguess(round.id);
-        if (activeSession && activeSession.fid === fid) {
-          await recordSuperguessGuess(activeSession.id, round.id, word, 'correct');
-          await completeSuperguessSession(activeSession.id, 'won');
-          console.log(`🔴 [Superguess] Session ${activeSession.id} won!`);
+        try {
+          const activeSession = await getActiveSuperguess(round.id);
+          if (activeSession && activeSession.fid === fid) {
+            await recordSuperguessGuess(activeSession.id, round.id, word, 'correct');
+            await completeSuperguessSession(activeSession.id, 'won');
+            console.log(`🔴 [Superguess] Session ${activeSession.id} won!`);
+          }
+        } catch (sgErr) {
+          console.error(`[Superguess] Failed to complete win session:`, sgErr);
         }
       }
 
