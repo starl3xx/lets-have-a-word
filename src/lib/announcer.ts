@@ -786,7 +786,8 @@ export async function announceSuperguessResult(
   roundId: number,
   guesserFid: number,
   won: boolean,
-  guessesUsed: number
+  guessesUsed: number,
+  sessionStartedAt?: Date | string
 ) {
   const username = (await getUsernameByFid(guesserFid))?.replace(/^@/, '') ?? `fid:${guesserFid}`;
 
@@ -804,29 +805,33 @@ What a play! 👉 letshaveaword.fun`;
     });
   }
 
-  // Failed — check for bonus/burn words found during the Superguess
+  // Failed — check for bonus/burn words found during the Superguess window only
   let bonusCount = 0;
   let burnCount = 0;
   try {
+    const bonusConditions = [
+      eq(roundBonusWords.roundId, roundId),
+      eq(roundBonusWords.claimedByFid, guesserFid),
+    ];
+    const burnConditions = [
+      eq(roundBurnWords.roundId, roundId),
+      eq(roundBurnWords.finderFid, guesserFid),
+    ];
+    // Only count finds during the Superguess window (not before purchase)
+    if (sessionStartedAt) {
+      const startTime = typeof sessionStartedAt === 'string' ? sessionStartedAt : sessionStartedAt.toISOString();
+      bonusConditions.push(sql`${roundBonusWords.claimedAt} >= ${startTime}::timestamp`);
+      burnConditions.push(sql`${roundBurnWords.foundAt} >= ${startTime}::timestamp`);
+    }
     const [bonusResult, burnResult] = await Promise.all([
       db
         .select({ count: count() })
         .from(roundBonusWords)
-        .where(
-          and(
-            eq(roundBonusWords.roundId, roundId),
-            eq(roundBonusWords.claimedByFid, guesserFid)
-          )
-        ),
+        .where(and(...bonusConditions)),
       db
         .select({ count: count() })
         .from(roundBurnWords)
-        .where(
-          and(
-            eq(roundBurnWords.roundId, roundId),
-            eq(roundBurnWords.finderFid, guesserFid)
-          )
-        ),
+        .where(and(...burnConditions)),
     ]);
     bonusCount = bonusResult[0]?.count ?? 0;
     burnCount = burnResult[0]?.count ?? 0;

@@ -321,7 +321,8 @@ export async function completeSuperguessSession(
         completed.roundId,
         completed.fid,
         status === 'won',
-        completed.guessesUsed
+        completed.guessesUsed,
+        completed.startedAt
       ).catch(err => {
         console.error('[Superguess] Failed to announce result:', err);
       });
@@ -340,7 +341,10 @@ export async function hasUsedSuperguessThisRound(
   roundId: number,
   fid?: number
 ): Promise<boolean> {
-  const conditions = [eq(superguessSessions.roundId, roundId)];
+  const conditions = [
+    eq(superguessSessions.roundId, roundId),
+    sql`${superguessSessions.status} != 'cancelled'`, // Admin cancels don't count
+  ];
   if (fid) conditions.push(eq(superguessSessions.fid, fid));
 
   const [result] = await db

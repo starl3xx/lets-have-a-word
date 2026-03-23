@@ -80,6 +80,16 @@ export default async function handler(
       });
     }
 
+    // Check if Superguess already used this round (by any player)
+    const roundUsed = await hasUsedSuperguessThisRound(roundId);
+    if (roundUsed) {
+      return res.status(200).json({
+        available: false,
+        reason: 'already_used_this_round',
+        globalGuessCount,
+      });
+    }
+
     // Available! Return tier + pricing
     const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
 
