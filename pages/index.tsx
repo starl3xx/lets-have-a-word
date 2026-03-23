@@ -297,6 +297,8 @@ function GameContent() {
   } | null>(null);
   const [spectatorLastGuess, setSpectatorLastGuess] = useState<{ word: string; result: string } | null>(null);
   const lastSeenGuessCountRef = useRef(0);
+  // Transition message shown for 5 seconds after Superguess ends
+  const [superguessEndedMessage, setSuperguessEndedMessage] = useState<string | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isWordTokenHolder, setIsWordTokenHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -1772,7 +1774,20 @@ function GameContent() {
               setIsSuperguessing(false);
             }
           } else {
-            // Session ended
+            // Session ended — show transition message before reverting
+            const wasSuperguessing = isSuperguessing;
+            const wasSpectating = superguessActive && !isSuperguessing;
+
+            if (wasSuperguessing || wasSpectating) {
+              const msg = wasSuperguessing
+                ? 'Superguess complete — normal play resumed'
+                : 'Superguess ended — normal play resumed';
+              setSuperguessEndedMessage(msg);
+              setTimeout(() => {
+                setSuperguessEndedMessage(null);
+              }, 5000);
+            }
+
             setSuperguessActive(false);
             setIsSuperguessing(false);
             setSuperguessState(null);
@@ -1964,6 +1979,13 @@ function GameContent() {
                 expiresAt={superguessState.expiresAt}
                 username={superguessState.username}
               />
+            ) : superguessEndedMessage ? (
+              <div className="flex items-center justify-center px-1">
+                <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
+                  <span className="text-green-500">✓</span>
+                  {superguessEndedMessage}
+                </span>
+              </div>
             ) : (
               <UserState
                 key={userStateKey}
@@ -2201,16 +2223,16 @@ function GameContent() {
                     e.currentTarget.style.backgroundColor = '#2D68C7'; // Reset if mouse leaves while pressed
                   }
                 }}
-                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
+                className={`w-full py-4 px-6 rounded-xl font-bold text-white transition-all shadow-lg ${
                   isSpectatingSuperguesser
-                    ? 'cursor-not-allowed opacity-80'
+                    ? 'text-xs tracking-wide cursor-not-allowed opacity-80'
                     : isButtonDisabled
-                    ? 'bg-gray-300 cursor-not-allowed opacity-60'
-                    : 'active:scale-95'
+                    ? 'text-lg tracking-wider bg-gray-300 cursor-not-allowed opacity-60'
+                    : 'text-lg tracking-wider active:scale-95'
                 }`}
                 style={
                   isSpectatingSuperguesser
-                    ? { backgroundColor: '#991B1B' } // red-800
+                    ? { backgroundColor: 'rgba(74, 222, 128, 0.15)', color: '#6B7280' } // faint green bg, gray-500 text
                     : !isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}
                 }
               >
