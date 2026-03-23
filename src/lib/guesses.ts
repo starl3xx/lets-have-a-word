@@ -873,15 +873,11 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       });
     });
 
-    // Milestone 15: Track Superguess guess and check exhaustion
+    // Milestone 15: Track Superguess guess (exhaustion handled inside recordSuperguessGuess)
     if (isSuperguessFeatureEnabled()) {
       const activeSession = await getActiveSuperguess(round.id);
       if (activeSession && activeSession.fid === fid) {
-        const newCount = await recordSuperguessGuess(activeSession.id, round.id, word, 'incorrect');
-        if (newCount >= activeSession.guessesAllowed) {
-          await completeSuperguessSession(activeSession.id, 'exhausted');
-          console.log(`🔴 [Superguess] Session ${activeSession.id} exhausted after ${newCount} guesses`);
-        }
+        await recordSuperguessGuess(activeSession.id, round.id, word, 'incorrect');
       }
     }
 

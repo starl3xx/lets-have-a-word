@@ -103,15 +103,14 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
   const handlePurchase = useCallback(() => {
     if (!statusData?.tier || !statusData?.wordTokenAmount) return;
 
-    // Parse human-readable token amount (e.g. "64M") to whole token count
-    // Use integer math to avoid floating point precision loss
+    // Parse human-readable token amount (e.g. "64M", "1.5B") to whole token count
     const amt = statusData.wordTokenAmount;
-    const numPart = parseInt(amt, 10);
+    const numPart = parseFloat(amt);
     let tokensNeeded: number;
-    if (amt.endsWith('B')) tokensNeeded = numPart * 1_000_000_000;
-    else if (amt.endsWith('M')) tokensNeeded = numPart * 1_000_000;
-    else if (amt.endsWith('K')) tokensNeeded = numPart * 1_000;
-    else tokensNeeded = numPart;
+    if (amt.endsWith('B')) tokensNeeded = Math.round(numPart * 1_000_000_000);
+    else if (amt.endsWith('M')) tokensNeeded = Math.round(numPart * 1_000_000);
+    else if (amt.endsWith('K')) tokensNeeded = Math.round(numPart * 1_000);
+    else tokensNeeded = Math.round(numPart);
 
     startPayment(tokensNeeded.toString());
   }, [statusData, startPayment]);
