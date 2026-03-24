@@ -297,6 +297,7 @@ function GameContent() {
   } | null>(null);
   const [spectatorLastGuess, setSpectatorLastGuess] = useState<{ word: string; result: string } | null>(null);
   const lastSeenGuessCountRef = useRef(0);
+  const lastGuessLogRef = useRef<Array<{ word: string; result: string }>>([]);
   // Transition message shown for 5 seconds after Superguess ends
   const [superguessEndedMessage, setSuperguessEndedMessage] = useState<string | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
@@ -1722,6 +1723,7 @@ function GameContent() {
               const latestGuess = guessLog[guessLog.length - 1];
               setSpectatorLastGuess({ word: latestGuess.word, result: latestGuess.result });
               lastSeenGuessCountRef.current = guessLog.length;
+              lastGuessLogRef.current = guessLog;
 
               // Show the word in letter boxes
               setLetters(latestGuess.word.split(''));
@@ -1778,8 +1780,8 @@ function GameContent() {
             const wasSuperguessing = isSuperguessing;
             const wasSpectating = superguessActive && !isSuperguessing;
 
-            // Check if the session ended with a win (last guess was correct)
-            const lastGuess = superguessState?.guessLog?.[superguessState.guessLog.length - 1];
+            // Check if the session ended with a win (use ref to avoid stale closure)
+            const lastGuess = lastGuessLogRef.current[lastGuessLogRef.current.length - 1];
             const endedWithWin = lastGuess?.result === 'correct';
 
             if (wasSuperguessing || wasSpectating) {
@@ -1801,6 +1803,7 @@ function GameContent() {
             setIsSuperguessing(false);
             setSuperguessState(null);
             lastSeenGuessCountRef.current = 0;
+            lastGuessLogRef.current = [];
           }
         }
       } catch (err) {
@@ -1814,7 +1817,7 @@ function GameContent() {
       active = false;
       clearInterval(interval);
     };
-  }, [superguessActive, isSuperguessing, effectiveFid]);
+  }, [superguessActive, isSuperguessing, effectiveFid, hasSuperguessPreview]);
 
   // Bypass browser fallback when Superguess preview params are active
   if (hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
