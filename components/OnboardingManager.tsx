@@ -20,6 +20,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import FirstTimeOverlay from './FirstTimeOverlay';
 import OgHunterThanksModal from './OgHunterThanksModal';
+import SuperguessAnnouncementModal from './SuperguessAnnouncementModal';
 import type { OnboardingStatusResponse } from '../pages/api/onboarding/status';
 
 interface OnboardingManagerProps {
@@ -29,7 +30,7 @@ interface OnboardingManagerProps {
   disabled?: boolean;
 }
 
-type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'done';
+type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'superguessAnnouncement' | 'done';
 
 export default function OnboardingManager({
   fid,
@@ -62,6 +63,8 @@ export default function OnboardingManager({
           setStep('howItWorks');
         } else if (data.isOgHunter && !data.hasSeenOgHunterThanks) {
           setStep('ogHunterThanks');
+        } else if (!data.hasSeenSuperguessAnnouncement) {
+          setStep('superguessAnnouncement');
         } else {
           setStep('done');
         }
@@ -75,7 +78,7 @@ export default function OnboardingManager({
   }, [fid, disabled]);
 
   // Mark a modal as seen
-  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks') => {
+  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks' | 'superguessAnnouncement') => {
     try {
       await fetch('/api/onboarding/mark-seen', {
         method: 'POST',
@@ -87,21 +90,42 @@ export default function OnboardingManager({
     }
   }, [fid]);
 
-  // Handle "How It Works" dismissal
-  const handleHowItWorksDismiss = useCallback(async () => {
-    await markSeen('intro');
-
-    // Check if we should show OG Hunter modal next
-    if (status?.isOgHunter && !status?.hasSeenOgHunterThanks) {
-      setStep('ogHunterThanks');
+  // Advance to the next unseen step, or finish
+  const advanceFrom = useCallback((currentStep: OnboardingStep) => {
+    if (currentStep === 'howItWorks') {
+      if (status?.isOgHunter && !status?.hasSeenOgHunterThanks) {
+        setStep('ogHunterThanks');
+      } else if (!status?.hasSeenSuperguessAnnouncement) {
+        setStep('superguessAnnouncement');
+      } else {
+        setStep('done');
+      }
+    } else if (currentStep === 'ogHunterThanks') {
+      if (!status?.hasSeenSuperguessAnnouncement) {
+        setStep('superguessAnnouncement');
+      } else {
+        setStep('done');
+      }
     } else {
       setStep('done');
     }
-  }, [markSeen, status]);
+  }, [status]);
+
+  // Handle "How It Works" dismissal
+  const handleHowItWorksDismiss = useCallback(async () => {
+    await markSeen('intro');
+    advanceFrom('howItWorks');
+  }, [markSeen, advanceFrom]);
 
   // Handle OG Hunter Thanks dismissal
   const handleOgHunterThanksDismiss = useCallback(async () => {
     await markSeen('ogHunterThanks');
+    advanceFrom('ogHunterThanks');
+  }, [markSeen, advanceFrom]);
+
+  // Handle Superguess Announcement dismissal
+  const handleSuperguessAnnouncementDismiss = useCallback(async () => {
+    await markSeen('superguessAnnouncement');
     setStep('done');
   }, [markSeen]);
 
@@ -126,6 +150,13 @@ export default function OnboardingManager({
           fid={fid}
           onDismiss={handleOgHunterThanksDismiss}
           alreadyAwarded={status?.ogHunterAwarded ?? false}
+        />
+      )}
+
+      {step === 'superguessAnnouncement' && (
+        <SuperguessAnnouncementModal
+          fid={fid}
+          onDismiss={handleSuperguessAnnouncementDismiss}
         />
       )}
     </>

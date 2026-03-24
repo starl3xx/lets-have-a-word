@@ -16,7 +16,7 @@ import { db } from '../../../src/db';
 import { users } from '../../../src/db/schema';
 import { eq } from 'drizzle-orm';
 
-type OnboardingKey = 'intro' | 'ogHunterThanks';
+type OnboardingKey = 'intro' | 'ogHunterThanks' | 'superguessAnnouncement';
 
 interface MarkSeenRequest {
   fid: number;
@@ -39,15 +39,18 @@ export default async function handler(
   }
 
   // Validate key
-  if (!key || !['intro', 'ogHunterThanks'].includes(key)) {
-    return res.status(400).json({ error: 'Invalid key. Must be "intro" or "ogHunterThanks"' });
+  if (!key || !['intro', 'ogHunterThanks', 'superguessAnnouncement'].includes(key)) {
+    return res.status(400).json({ error: 'Invalid key. Must be "intro", "ogHunterThanks", or "superguessAnnouncement"' });
   }
 
   try {
     // Map key to column name
-    const columnUpdate = key === 'intro'
-      ? { hasSeenIntro: true }
-      : { hasSeenOgHunterThanks: true };
+    const columnMap: Record<OnboardingKey, Record<string, boolean>> = {
+      intro: { hasSeenIntro: true },
+      ogHunterThanks: { hasSeenOgHunterThanks: true },
+      superguessAnnouncement: { hasSeenSuperguessAnnouncement: true },
+    };
+    const columnUpdate = columnMap[key];
 
     // Update user record
     const result = await db
