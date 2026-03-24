@@ -40,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       <div
         style={{
           width: '1200',
-          height: '630',
+          height: '800',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -250,7 +250,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ),
     {
       width: 1200,
-      height: 630,
+      height: 800,
       fonts: [
         {
           name: 'Soehne',

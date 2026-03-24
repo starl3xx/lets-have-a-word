@@ -65,7 +65,7 @@ export default function SharePage({ word, round, jackpot, ogImageUrl }: SharePag
         <meta property="og:description" content={description} />
         <meta property="og:image" content={ogImageUrl} />
         <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
+        <meta property="og:image:height" content="800" />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`https://letshaveaword.fun`} />
         <meta name="fc:miniapp" content={JSON.stringify({
