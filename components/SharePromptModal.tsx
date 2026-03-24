@@ -32,6 +32,11 @@ export default function SharePromptModal({
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
+  const [roundStats, setRoundStats] = useState<{
+    roundId: number;
+    guesses: number;
+    players: number;
+  } | null>(null);
 
   // Get random interjection once when modal mounts
   const interjection = useMemo(() => getRandomInterjection(), [getRandomInterjection]);
@@ -40,22 +45,36 @@ export default function SharePromptModal({
   // This ensures the template doesn't change during the share flow
   const selectedTemplate = useMemo(() => getRandomTemplate(), []);
 
-  // Milestone 8.1: Fetch prize pool when modal mounts
+  // Fetch round state (prize pool + stats for dynamic OG embed)
   useEffect(() => {
-    const fetchPrizePool = async () => {
+    const fetchRoundState = async () => {
       try {
-        const response = await fetch('/api/round-state');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.prizePoolEth) {
-            setPrizePoolEth(data.prizePoolEth);
+        const [roundRes, guessersRes] = await Promise.all([
+          fetch('/api/round-state'),
+          fetch('/api/game?type=topGuessers'),
+        ]);
+        if (roundRes.ok) {
+          const data = await roundRes.json();
+          if (data.prizePoolEth) setPrizePoolEth(data.prizePoolEth);
+          if (data.roundId) {
+            setRoundStats(prev => ({
+              roundId: data.roundId,
+              guesses: data.globalGuessCount || 0,
+              players: prev?.players || 0,
+            }));
+          }
+        }
+        if (guessersRes.ok) {
+          const data = await guessersRes.json();
+          if (data.uniqueGuessersCount != null) {
+            setRoundStats(prev => prev ? { ...prev, players: data.uniqueGuessersCount } : prev);
           }
         }
       } catch (err) {
-        console.error('[SharePromptModal] Error fetching prize pool:', err);
+        console.error('[SharePromptModal] Error fetching round state:', err);
       }
     };
-    fetchPrizePool();
+    fetchRoundState();
   }, []);
 
   /**
@@ -122,6 +141,23 @@ export default function SharePromptModal({
   // Memoize the share text so it doesn't change during the modal session
   const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
 
+  /**
+   * Build the dynamic embed URL with word + round stats for OG image
+   * Falls back to base URL if word or stats aren't available
+   */
+  const getEmbedUrl = (): string => {
+    const word = getGuessedWord();
+    if (!word || !roundStats) return 'https://letshaveaword.fun';
+
+    const params = new URLSearchParams({
+      round: String(roundStats.roundId),
+      jackpot: formatJackpotEth(prizePoolEth),
+      guesses: String(roundStats.guesses),
+      players: String(roundStats.players),
+    });
+    return `https://letshaveaword.fun/share/${word.toUpperCase()}?${params}`;
+  };
+
   // State for verification flow
   const [hasOpenedComposer, setHasOpenedComposer] = useState(false);
   const [verificationAttempts, setVerificationAttempts] = useState(0);
@@ -184,7 +220,7 @@ export default function SharePromptModal({
 
       await sdk.actions.composeCast({
         text: shareText,
-        embeds: ['https://letshaveaword.fun'],
+        embeds: [getEmbedUrl()],
       });
 
       console.log('[SharePromptModal] Composer opened');
