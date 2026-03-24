@@ -333,11 +333,14 @@ export async function completeSuperguessSession(
 
   const completed = result[0];
 
-  // Clear all Superguess caches — play resumes immediately
+  // Clear active/state caches — play resumes immediately
+  // Keep guess log for 30s so spectators can poll the final guess before it's gone
   await Promise.all([
     cacheDel(SuperguessCacheKeys.active(completed.roundId)),
     cacheDel(SuperguessCacheKeys.state(completed.roundId)),
-    cacheDel(SuperguessCacheKeys.guessLog(completed.roundId)),
+    ...(status === 'cancelled'
+      ? [cacheDel(SuperguessCacheKeys.guessLog(completed.roundId))]
+      : redis ? [redis.expire(SuperguessCacheKeys.guessLog(completed.roundId), 30)] : []),
   ]);
 
   console.log(
@@ -528,8 +531,9 @@ export async function getSuperguessState(
   }
 
   const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
+  const alreadyUsed = await hasUsedSuperguessThisRound(roundId);
   return {
     active: false,
-    eligible: tier !== null,
+    eligible: tier !== null && !alreadyUsed,
   };
 }
