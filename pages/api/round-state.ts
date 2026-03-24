@@ -82,8 +82,11 @@ export default async function handler(
       const top10Status = getTop10LockStatus(devStatus.globalGuessCount, devStatus.roundId);
 
       // Milestone 15: Superguess eligibility in dev mode
+      const { ensureDevRound } = await import('../../src/lib/devGameState');
+      const devRoundId = await ensureDevRound();
+      const devRoundUsed = await hasUsedSuperguessThisRound(devRoundId);
       const sgEligible = isSuperguessFeatureEnabled() &&
-        devStatus.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT;
+        devStatus.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT && !devRoundUsed;
 
       // Return dev round status with actual prize pool, random display values for round/guesses
       const syntheticStatus: RoundStatus = {
