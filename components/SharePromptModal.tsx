@@ -51,7 +51,7 @@ export default function SharePromptModal({
       try {
         const [roundRes, guessersRes] = await Promise.all([
           fetch('/api/round-state'),
-          fetch('/api/game?type=topGuessers'),
+          fetch('/api/round/top-guessers'),
         ]);
         if (roundRes.ok) {
           const data = await roundRes.json();
