@@ -146,7 +146,9 @@ export default function SharePromptModal({
    * Falls back to base URL if word or stats aren't available
    */
   const getEmbedUrl = (): string => {
-    const word = getGuessedWord();
+    // Only generate dynamic OG for incorrect guesses (correct guesses use WinnerShareCard)
+    if (!guessResult || guessResult.status !== 'incorrect') return 'https://letshaveaword.fun';
+    const word = guessResult.word;
     if (!word || !roundStats) return 'https://letshaveaword.fun';
 
     const params = new URLSearchParams({

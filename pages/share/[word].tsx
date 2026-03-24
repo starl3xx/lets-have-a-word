@@ -20,7 +20,13 @@ interface SharePageProps {
 
 export const getServerSideProps: GetServerSideProps<SharePageProps> = async (context) => {
   const { word } = context.params as { word: string };
-  const { round = '1', jackpot = '0.0200', guesses = '0', players = '0' } = context.query as Record<string, string>;
+  const q = context.query;
+  const first = (v: string | string[] | undefined, fallback: string) =>
+    Array.isArray(v) ? v[0] || fallback : v || fallback;
+  const round = first(q.round, '1');
+  const jackpot = first(q.jackpot, '0.0200');
+  const guesses = first(q.guesses, '0');
+  const players = first(q.players, '0');
 
   const safeWord = (word || 'HELLO').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
 
