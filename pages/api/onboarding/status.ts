@@ -19,6 +19,7 @@ import { eq, and } from 'drizzle-orm';
 export interface OnboardingStatusResponse {
   hasSeenIntro: boolean;
   hasSeenOgHunterThanks: boolean;
+  hasSeenSuperguessAnnouncement: boolean;
   isOgHunter: boolean;
   ogHunterAwarded: boolean;
   /** Whether user has installed the mini app (addedMiniAppAt is set) */
@@ -54,6 +55,7 @@ export default async function handler(
         columns: {
           hasSeenIntro: true,
           hasSeenOgHunterThanks: true,
+          hasSeenSuperguessAnnouncement: true,
           addedMiniAppAt: true,
         },
       }),
@@ -77,6 +79,7 @@ export default async function handler(
       return res.status(200).json({
         hasSeenIntro: false,
         hasSeenOgHunterThanks: false,
+        hasSeenSuperguessAnnouncement: false,
         isOgHunter: false,
         ogHunterAwarded: false,
         hasMiniAppInstalled: false,
@@ -90,6 +93,7 @@ export default async function handler(
     return res.status(200).json({
       hasSeenIntro: user.hasSeenIntro,
       hasSeenOgHunterThanks: user.hasSeenOgHunterThanks,
+      hasSeenSuperguessAnnouncement: user.hasSeenSuperguessAnnouncement,
       isOgHunter,
       ogHunterAwarded,
       hasMiniAppInstalled: !!user.addedMiniAppAt,

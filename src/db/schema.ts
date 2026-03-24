@@ -30,6 +30,7 @@ export const users = pgTable('users', {
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
+  hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: Superguess feature announcement
   addedMiniAppAt: timestamp('added_mini_app_at'), // OG Hunter: When user added the mini app via SDK
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
