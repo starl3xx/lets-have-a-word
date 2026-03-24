@@ -309,7 +309,7 @@ export default async function handler(
     }
 
     // 9. Award SHOWSTOPPER wordmark (on purchase, not win)
-    awardWordmark(fid, 'SHOWSTOPPER', {
+    await awardWordmark(fid, 'SHOWSTOPPER', {
       roundId: activeRound.id,
       tier: tier.id,
       usdPrice: tier.usdPrice,
@@ -317,21 +317,19 @@ export default async function handler(
       console.error('[superguess/purchase] Failed to award SHOWSTOPPER:', err);
     });
 
-    // 10. Fire notifications (non-blocking)
-    (async () => {
-      try {
-        const { announceSuperguessStarted } = await import('../../../src/lib/announcer');
-        const { notifySuperguessStarted } = await import('../../../src/lib/notifications');
-        const { getSuperguessUsername } = await import('../../../src/lib/superguess');
-        const username = await getSuperguessUsername(fid);
-        await Promise.all([
-          announceSuperguessStarted(activeRound.id, fid),
-          notifySuperguessStarted(username),
-        ]);
-      } catch (err) {
-        console.error('[superguess/purchase] Announcer/notification failed:', err);
-      }
-    })();
+    // 10. Fire notifications (awaited — Vercel serverless terminates after response)
+    try {
+      const { announceSuperguessStarted } = await import('../../../src/lib/announcer');
+      const { notifySuperguessStarted } = await import('../../../src/lib/notifications');
+      const { getSuperguessUsername } = await import('../../../src/lib/superguess');
+      const username = await getSuperguessUsername(fid);
+      await Promise.all([
+        announceSuperguessStarted(activeRound.id, fid),
+        notifySuperguessStarted(username),
+      ]);
+    } catch (err) {
+      console.error('[superguess/purchase] Announcer/notification failed:', err);
+    }
 
     console.log(
       `🔴 [Superguess] Purchase complete: FID ${fid}, round ${activeRound.id}, tier ${tier.id}, $${tier.usdPrice}`

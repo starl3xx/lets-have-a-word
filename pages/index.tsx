@@ -1723,62 +1723,52 @@ function GameContent() {
               guessLog,
             });
 
-            // Spectator: show the latest guess in letter boxes + trigger modals
-            if (guessLog.length > lastSeenGuessCountRef.current) {
-              const latestGuess = guessLog[guessLog.length - 1];
-              setSpectatorLastGuess({ word: latestGuess.word, result: latestGuess.result });
-              lastSeenGuessCountRef.current = guessLog.length;
-              lastGuessLogRef.current = guessLog;
+            // Determine if we're the Superguesser or a spectator
+            const isThisUserSuperguesser = effectiveFid && data.session.fid === effectiveFid;
 
-              // Show the word in letter boxes
-              setLetters(latestGuess.word.split(''));
+            // Track new guesses + update ref
+            const hasNewGuesses = guessLog.length > lastSeenGuessCountRef.current;
+            lastGuessLogRef.current = guessLog;
 
-              // Trigger the appropriate celebration for special results
-              if (latestGuess.result === 'correct') {
-                setBoxResultState('correct');
-                // Win celebration — same confetti + share card the winner sees
-                setWinnerData({
-                  word: latestGuess.word,
-                  roundId: currentRoundId || 0,
-                  jackpotEth: '0', // Spectator doesn't know exact amount
-                });
-                setShowWinnerShareCard(true);
-              } else if (latestGuess.result === 'bonus_word') {
-                setBoxResultState('correct');
-                setBonusWordWinData({
-                  word: latestGuess.word,
-                  tokenRewardAmount: '5000000',
-                  txHash: null,
-                });
-                setShowBonusWordWinModal(true);
-              } else if (latestGuess.result === 'burn_word') {
-                setBoxResultState('correct');
-                setBurnWordData({
-                  word: latestGuess.word,
-                  burnAmount: '5000000',
-                  txHash: null,
-                });
-                setShowBurnWordModal(true);
-              } else {
-                setBoxResultState('wrong');
-                // Clear after 2.5s for next guess
-                setTimeout(() => {
-                  if (active) {
-                    setLetters(['', '', '', '', '']);
-                    setBoxResultState('typing');
-                    setSpectatorLastGuess(null);
-                  }
-                }, 2500);
-              }
-            }
-
-            // Check if we're the Superguesser
-            if (effectiveFid && data.session.fid === effectiveFid) {
+            if (isThisUserSuperguesser) {
               setIsSuperguessing(true);
               setSuperguessActive(false);
+              // Update count but don't replay (Superguesser sees their own UI)
+              if (hasNewGuesses) lastSeenGuessCountRef.current = guessLog.length;
             } else {
               setSuperguessActive(true);
               setIsSuperguessing(false);
+
+              // Spectator only: replay latest guess in letter boxes + trigger modals
+              if (hasNewGuesses) {
+                const latestGuess = guessLog[guessLog.length - 1];
+                lastSeenGuessCountRef.current = guessLog.length;
+                setSpectatorLastGuess({ word: latestGuess.word, result: latestGuess.result });
+                setLetters(latestGuess.word.split(''));
+
+                if (latestGuess.result === 'correct') {
+                  setBoxResultState('correct');
+                  setWinnerData({ word: latestGuess.word, roundId: currentRoundId || 0, jackpotEth: '0' });
+                  setShowWinnerShareCard(true);
+                } else if (latestGuess.result === 'bonus_word') {
+                  setBoxResultState('correct');
+                  setBonusWordWinData({ word: latestGuess.word, tokenRewardAmount: '5000000', txHash: null });
+                  setShowBonusWordWinModal(true);
+                } else if (latestGuess.result === 'burn_word') {
+                  setBoxResultState('correct');
+                  setBurnWordData({ word: latestGuess.word, burnAmount: '5000000', txHash: null });
+                  setShowBurnWordModal(true);
+                } else {
+                  setBoxResultState('wrong');
+                  setTimeout(() => {
+                    if (active) {
+                      setLetters(['', '', '', '', '']);
+                      setBoxResultState('typing');
+                      setSpectatorLastGuess(null);
+                    }
+                  }, 2500);
+                }
+              }
             }
           } else {
             // Session ended — show transition message before reverting
