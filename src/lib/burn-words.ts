@@ -261,6 +261,19 @@ export async function handleBurnWordWin(
     }
   }, 0);
 
+  // Milestone 15: Track in Superguess session if active
+  try {
+    const { isSuperguessFeatureEnabled, getActiveSuperguess, recordSuperguessGuess } = await import('./superguess');
+    if (isSuperguessFeatureEnabled()) {
+      const activeSession = await getActiveSuperguess(roundId);
+      if (activeSession && activeSession.fid === fid) {
+        await recordSuperguessGuess(activeSession.id, roundId, word, 'burn_word');
+      }
+    }
+  } catch (err) {
+    console.error('[burn-words] Failed to track Superguess guess:', err);
+  }
+
   return {
     status: 'burn_word',
     word,

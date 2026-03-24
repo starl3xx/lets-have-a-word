@@ -93,6 +93,8 @@ export default async function handler(
 
     // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
     // Runs BEFORE any DB operations to fail fast and cheap
+    // Note: Superguessers are NOT exempt — 8/10s burst is generous enough
+    // for the ~1 guess/24s average pace of a 25-guess, 10-minute window
     const rateCheck = await checkGuessRateLimit(rateLimitFid, ip, userAgent);
     if (!rateCheck.allowed) {
       res.setHeader('Retry-After', rateCheck.retryAfterSeconds?.toString() || '10');

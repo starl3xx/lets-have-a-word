@@ -15,6 +15,13 @@ import { isDevModeEnabled, getDevFixedSolution } from './devGameState';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 import { invalidateRoundCaches, invalidateOnRoundTransition, invalidateUserCaches, invalidateTopGuessersCache } from './redis';
 import { getPlaintextAnswer } from './encryption';
+import {
+  isSuperguessFeatureEnabled,
+  getActiveSuperguess,
+  recordSuperguessGuess,
+  completeSuperguessSession,
+  getSuperguessUsername,
+} from './superguess';
 
 import { logXpEvent } from './xp';
 import { getUserByFid as getNeynarUserByFid } from './farcaster';
@@ -460,6 +467,14 @@ async function handleBonusWordWin(
 
   console.log(`🎣 Bonus word win complete for FID ${fid}!`);
 
+  // Milestone 15: Track in Superguess session if active
+  if (isSuperguessFeatureEnabled()) {
+    const activeSession = await getActiveSuperguess(roundId);
+    if (activeSession && activeSession.fid === fid) {
+      await recordSuperguessGuess(activeSession.id, roundId, word, 'bonus_word');
+    }
+  }
+
   return {
     status: 'bonus_word',
     word,
@@ -515,6 +530,32 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
   // Step 5: Check if round is already resolved
   if (round.resolvedAt !== null) {
     return { status: 'round_closed' };
+  }
+
+  // Step 5b: Superguess blocking (Milestone 15)
+  if (isSuperguessFeatureEnabled()) {
+    const activeSession = await getActiveSuperguess(round.id);
+
+    if (activeSession) {
+      // Block non-Superguessers
+      if (activeSession.fid !== fid) {
+        const guesserUsername = await getSuperguessUsername(activeSession.fid);
+        return {
+          status: 'superguess_blocked',
+          guesserUsername,
+          expiresAt: activeSession.expiresAt.toISOString(),
+        };
+      }
+
+      // Complete session if all guesses used, then fall through to normal flow
+      // (Superguesser can continue guessing normally with their regular daily allocation)
+      if (activeSession.guessesUsed >= activeSession.guessesAllowed) {
+        await completeSuperguessSession(activeSession.id, 'exhausted');
+        // Fall through — session is closed, guess proceeds as normal
+      }
+    }
+    // Note: Cooldown does NOT block regular gameplay — it only prevents
+    // new Superguess purchases (enforced in /api/superguess/purchase)
   }
 
   // Step 6: Check global duplication (wrong guesses)
@@ -634,6 +675,21 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
 
       // Success!
       console.log(`🎉 User ${fid} won round ${round.id} with word "${word}"!`);
+
+      // Milestone 15: Complete Superguess session on win (fire-and-forget)
+      // Wrapped in its own try-catch so Superguess failures never block the win response
+      if (isSuperguessFeatureEnabled()) {
+        try {
+          const activeSession = await getActiveSuperguess(round.id);
+          if (activeSession && activeSession.fid === fid) {
+            await recordSuperguessGuess(activeSession.id, round.id, word, 'correct');
+            await completeSuperguessSession(activeSession.id, 'won');
+            console.log(`🔴 [Superguess] Session ${activeSession.id} won!`);
+          }
+        } catch (sgErr) {
+          console.error(`[Superguess] Failed to complete win session:`, sgErr);
+        }
+      }
 
       // CRITICAL: Invalidate all caches immediately on round transition
       // This ensures no stale data is served about the old round
@@ -820,6 +876,14 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         createdAt: new Date(),
       });
     });
+
+    // Milestone 15: Track Superguess guess (exhaustion handled inside recordSuperguessGuess)
+    if (isSuperguessFeatureEnabled()) {
+      const activeSession = await getActiveSuperguess(round.id);
+      if (activeSession && activeSession.fid === fid) {
+        await recordSuperguessGuess(activeSession.id, round.id, word, 'incorrect');
+      }
+    }
 
     // Milestone 9.0: Invalidate caches after wrong guess
     // This ensures the wheel shows the new wrong word and guess count updates

@@ -36,6 +36,10 @@ import {
   awardReferralFirstGuessXp,
   checkAndLogNearMiss,
 } from './xp';
+import {
+  isSuperguessFeatureEnabled,
+  getActiveSuperguess,
+} from './superguess';
 
 /**
  * Game rules for daily limits
@@ -55,7 +59,7 @@ export const DAILY_LIMITS_RULES = {
   shareBonusGuesses: 1,
   wordThreshold: 100_000_000, // 100M tokens
   paidGuessPackSize: 3,
-  paidGuessPackPriceEth: '0.0003', // ETH (base price, multipliers apply)
+  paidGuessPackPriceEth: '0.0004', // ETH (base price, multipliers apply)
   /** Pack purchases are uncapped. Volume pricing tiers apply. */
   maxPaidPacksPerDay: MAX_PACKS_PER_DAY, // Default: unlimited (999), configurable via env var
 };
@@ -482,6 +486,21 @@ export async function submitGuessWithDailyLimits(params: {
   // Calculate available guesses
   const freeRemaining = getFreeGuessesRemaining(state);
   const paidRemaining = state.paidGuessCredits;
+
+  // Milestone 15: Superguess bypasses daily limits entirely
+  // Superguess guesses use a separate 25-guess pool, not free/paid
+  if (isSuperguessFeatureEnabled()) {
+    const activeRound = await getActiveRound();
+    if (activeRound) {
+      const activeSession = await getActiveSuperguess(activeRound.id);
+      if (activeSession && activeSession.fid === fid) {
+        // Superguesser — bypass daily limits, submit directly
+        console.log(`🔴 [Superguess] FID ${fid} bypassing daily limits (session ${activeSession.id})`);
+        const result = await submitGuess({ fid, word, isPaidGuess: false });
+        return result;
+      }
+    }
+  }
 
   // Check if user has any guesses left BEFORE validating the word
   if (freeRemaining <= 0 && paidRemaining <= 0) {

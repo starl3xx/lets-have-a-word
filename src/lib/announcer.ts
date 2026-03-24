@@ -751,3 +751,111 @@ Play now 👉 letshaveaword.fun`;
     embeds: [{ url: 'https://letshaveaword.fun' }],
   });
 }
+
+/**
+ * Announce a Superguess started via cast + tweet
+ * Milestone 15: Superguess mechanic
+ */
+export async function announceSuperguessStarted(
+  roundId: number,
+  guesserFid: number
+) {
+  const username = (await getUsernameByFid(guesserFid))?.replace(/^@/, '') ?? `fid:${guesserFid}`;
+
+  const text = `🔴 SUPERGUESS activated — @${username} has 25 guesses and 10 minutes. All eyes on them. 👀
+
+Watch live 👉 letshaveaword.fun`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'superguess_started',
+    roundId,
+    milestoneKey: `superguess_${guesserFid}`,
+    text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}
+
+/**
+ * Announce a Superguess result via cast + tweet
+ * Milestone 15: Superguess mechanic
+ *
+ * Won = found the secret word (only case for "won" announcement)
+ * Failed = includes any bonus/burn words found during the attempt
+ */
+export async function announceSuperguessResult(
+  roundId: number,
+  guesserFid: number,
+  won: boolean,
+  guessesUsed: number,
+  sessionStartedAt?: Date | string
+) {
+  const username = (await getUsernameByFid(guesserFid))?.replace(/^@/, '') ?? `fid:${guesserFid}`;
+
+  if (won) {
+    const text = `🔴 SUPERGUESS WON! @${username} found the secret word in ${guessesUsed} guesses! 🎉
+
+What a play! 👉 letshaveaword.fun`;
+
+    return await recordAndCastAnnouncerEvent({
+      eventType: 'superguess_result',
+      roundId,
+      milestoneKey: `superguess_result_${guesserFid}`,
+      text,
+      embeds: [{ url: 'https://letshaveaword.fun' }],
+    });
+  }
+
+  // Failed — check for bonus/burn words found during the Superguess window only
+  let bonusCount = 0;
+  let burnCount = 0;
+  try {
+    const bonusConditions = [
+      eq(roundBonusWords.roundId, roundId),
+      eq(roundBonusWords.claimedByFid, guesserFid),
+    ];
+    const burnConditions = [
+      eq(roundBurnWords.roundId, roundId),
+      eq(roundBurnWords.finderFid, guesserFid),
+    ];
+    // Only count finds during the Superguess window (not before purchase)
+    if (sessionStartedAt) {
+      const startTime = typeof sessionStartedAt === 'string' ? sessionStartedAt : sessionStartedAt.toISOString();
+      bonusConditions.push(sql`${roundBonusWords.claimedAt} >= ${startTime}::timestamp`);
+      burnConditions.push(sql`${roundBurnWords.foundAt} >= ${startTime}::timestamp`);
+    }
+    const [bonusResult, burnResult] = await Promise.all([
+      db
+        .select({ count: count() })
+        .from(roundBonusWords)
+        .where(and(...bonusConditions)),
+      db
+        .select({ count: count() })
+        .from(roundBurnWords)
+        .where(and(...burnConditions)),
+    ]);
+    bonusCount = bonusResult[0]?.count ?? 0;
+    burnCount = burnResult[0]?.count ?? 0;
+  } catch (err) {
+    console.error('[announcer] Failed to get bonus/burn counts for Superguess result:', err);
+  }
+
+  let extras = '';
+  if (bonusCount > 0 || burnCount > 0) {
+    const parts: string[] = [];
+    if (bonusCount > 0) parts.push(`${bonusCount} bonus word${bonusCount > 1 ? 's' : ''}`);
+    if (burnCount > 0) parts.push(`${burnCount} burn word${burnCount > 1 ? 's' : ''}`);
+    extras = `\n\nBut they did find ${parts.join(' and ')} along the way 🕵️‍♂️`;
+  }
+
+  const text = `🔴 Superguess over — @${username} used ${guessesUsed}/25 guesses but didn\u2019t find the secret word.${extras}
+
+Normal play resumes now! 👉 letshaveaword.fun`;
+
+  return await recordAndCastAnnouncerEvent({
+    eventType: 'superguess_result',
+    roundId,
+    milestoneKey: `superguess_result_${guesserFid}`,
+    text,
+    embeds: [{ url: 'https://letshaveaword.fun' }],
+  });
+}

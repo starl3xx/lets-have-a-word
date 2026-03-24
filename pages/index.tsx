@@ -29,6 +29,9 @@ import BurnWordModal from '../components/BurnWordModal';
 import WordSheet from '../components/WordSheet';
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
+// Milestone 15: Superguess components
+import SuperguessPurchaseModal from '../components/SuperguessPurchaseModal';
+import SuperguessBar from '../components/SuperguessBar';
 // AnotherGuessModal removed - when out of options, user just can't play anymore
 // Dev mode fallback FID (used when Farcaster SDK doesn't provide a FID)
 // Uses 6500 which is the dev mode FID defined in daily-limits.ts
@@ -280,6 +283,28 @@ function GameContent() {
   const [burnWordData, setBurnWordData] = useState<{ word: string; burnAmount: string; txHash: string | null } | null>(null);
   // Milestone 14: $WORD sheet state
   const [showWordSheet, setShowWordSheet] = useState(false);
+  // Milestone 15: Superguess state
+  const [showSuperguessModal, setShowSuperguessModal] = useState(false);
+  const [superguessActive, setSuperguessActive] = useState(false);
+  const [superguessEligible, setSuperguessEligible] = useState(false);
+  const [isSuperguessing, setIsSuperguessing] = useState(false);
+  const [superguessState, setSuperguessState] = useState<{
+    guessesUsed: number;
+    guessesAllowed: number;
+    expiresAt: string;
+    username?: string;
+    guessLog?: Array<{ word: string; result: string; timestamp: string }>;
+  } | null>(null);
+  const [spectatorLastGuess, setSpectatorLastGuess] = useState<{ word: string; result: string } | null>(null);
+  const lastSeenGuessCountRef = useRef(0);
+  const lastGuessLogRef = useRef<Array<{ word: string; result: string }>>([]);
+  const isSuperguessActiveRef = useRef(false);
+  const isSuperguessingSelfRef = useRef(false);
+  // Keep refs in sync with state for use in polling closures
+  useEffect(() => { isSuperguessActiveRef.current = superguessActive; }, [superguessActive]);
+  useEffect(() => { isSuperguessingSelfRef.current = isSuperguessing; }, [isSuperguessing]);
+  // Transition message shown for 5 seconds after Superguess ends
+  const [superguessEndedMessage, setSuperguessEndedMessage] = useState<string | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
   const [isWordTokenHolder, setIsWordTokenHolder] = useState(false); // For winner share card
   const [currentJackpotEth, setCurrentJackpotEth] = useState('0.00'); // For winner share card
@@ -472,7 +497,12 @@ function GameContent() {
    */
   useEffect(() => {
     // In dev mode, always show the tutorial overlay for testing
-    if (isClientDevMode() && effectiveFid) {
+    // Skip when Superguess preview params are active (they need a clean screen)
+    const hasSuperguessParam = typeof window !== 'undefined' &&
+      (new URLSearchParams(window.location.search).has('forceSuperguess') ||
+       new URLSearchParams(window.location.search).has('forceSpectator') ||
+       new URLSearchParams(window.location.search).has('forceSuperguessModal'));
+    if (isClientDevMode() && effectiveFid && !hasSuperguessParam) {
       setShowFirstTimeOverlay(true);
     }
     // In production, OnboardingManager handles the full onboarding flow
@@ -530,6 +560,61 @@ function GameContent() {
       setShowGuessPurchaseModal(true);
     }
   }, [router.query.forcePurchaseModal, effectiveFid]);
+
+  /**
+   * Superguess UI preview query params (client-side only, NO server calls)
+   * ?forceSuperguessModal=1 — opens the purchase modal
+   * ?forceSuperguess=1 — shows the active Superguesser bar with mock timer
+   * ?forceSpectator=1 — shows the spectator overlay with mock data
+   */
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    if (router.query.forceSuperguessModal === '1') {
+      setShowSuperguessModal(true);
+    }
+
+    if (router.query.forceSuperguess === '1') {
+      // Pure client-side mock — no DB writes
+      const mockExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      setIsSuperguessing(true);
+      setSuperguessActive(false);
+      setSuperguessState({
+        guessesUsed: 3,
+        guessesAllowed: 25,
+        expiresAt: mockExpiresAt,
+      });
+    }
+
+    if (router.query.forceSpectator === '1') {
+      // Pure client-side mock — no DB writes
+      const mockExpiresAt = new Date(Date.now() + 7 * 60 * 1000).toISOString();
+      const now = Date.now();
+      setSuperguessActive(true);
+      setIsSuperguessing(false);
+      setSuperguessState({
+        guessesUsed: 3,
+        guessesAllowed: 25,
+        expiresAt: mockExpiresAt,
+        username: 'demouser',
+        guessLog: [
+          { word: 'CRANE', result: 'incorrect', timestamp: new Date(now - 60000).toISOString() },
+          { word: 'SLATE', result: 'incorrect', timestamp: new Date(now - 40000).toISOString() },
+          { word: 'MOIST', result: 'incorrect', timestamp: new Date(now - 20000).toISOString() },
+        ],
+      });
+      // Show the latest guess in letter boxes immediately
+      lastSeenGuessCountRef.current = 2; // Show the 3rd guess as "new"
+      setTimeout(() => {
+        setLetters(['M', 'O', 'I', 'S', 'T']);
+        setBoxResultState('wrong');
+        setTimeout(() => {
+          setLetters(['', '', '', '', '']);
+          setBoxResultState('typing');
+        }, 2500);
+      }, 500);
+    }
+  }, [router.isReady, router.query.forceSuperguessModal, router.query.forceSuperguess, router.query.forceSpectator]);
 
   /**
    * Fetch wheel words on mount (Milestone 2.3, updated Milestone 4.10)
@@ -605,12 +690,13 @@ function GameContent() {
       }
     };
 
-    // Start polling after a short delay (don't poll immediately on mount)
-    const intervalId = setInterval(pollWrongGuesses, WRONG_GUESS_POLL_INTERVAL_MS);
+    // Start polling — faster during Superguess so spectators see wheel updates quickly
+    const pollInterval = (superguessActive && !isSuperguessing) ? 3000 : WRONG_GUESS_POLL_INTERVAL_MS;
+    const intervalId = setInterval(pollWrongGuesses, pollInterval);
 
-    // Cleanup on unmount
+    // Cleanup on unmount or when Superguess state changes (restarts with new interval)
     return () => clearInterval(intervalId);
-  }, []);
+  }, [superguessActive, isSuperguessing]);
 
   // Track whether this is the first user state fetch (for dev mode reset)
   const isFirstUserStateFetchRef = useRef(true);
@@ -660,6 +746,11 @@ function GameContent() {
           // Milestone 6.3: Track pack purchases for modal decision logic
           setPaidPacksPurchased(data.paidPacksPurchased || 0);
           setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
+          // Milestone 15: Bootstrap Superguess state on page load/refresh
+          if (data.isSuperguessing) {
+            setIsSuperguessing(true);
+            setSuperguessActive(false);
+          }
           // Milestone 4.14 + dev mode: Set wheel start index ONLY on initial load
           // In dev mode, preserve the session's random position across refetches
           // (wheel should return to same position after guess, not get a new random)
@@ -1161,6 +1252,11 @@ function GameContent() {
           txHash: data.txHash || null,
         });
         setShowBonusWordWinModal(true);
+      } else if (data.status === 'superguess_blocked') {
+        // Milestone 15: Another player has Superguess active
+        setSuperguessActive(true);
+        setIsLoading(false);
+        return; // Enter spectator mode
       } else if (data.status === 'burn_word') {
         // Milestone 14: User found a burn word
         setBoxResultState('correct'); // Show green success state
@@ -1508,7 +1604,8 @@ function GameContent() {
 
   // Check if GUESS button should be enabled (Milestone 4.6)
   // Also disable when no active round
-  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound;
+  const isSpectatingSuperguesser = superguessActive && !isSuperguessing;
+  const isButtonDisabled = !isGuessButtonEnabled(currentInputState) || isLoading || !hasActiveRound || isSpectatingSuperguesser;
 
   /**
    * Handle share modal close
@@ -1596,8 +1693,130 @@ function GameContent() {
     setLetters(['', '', '', '', '']);
   };
 
-  // Show browser fallback when not in mini app and not in dev mode
-  if (hasCheckedContext && !isInMiniApp && !isClientDevMode()) {
+  // Superguess preview mode detection (client-side only, no DB writes)
+  const hasSuperguessPreview = router.isReady && (
+    router.query.forceSuperguessModal === '1' ||
+    router.query.forceSuperguess === '1' ||
+    router.query.forceSpectator === '1'
+  );
+
+  // Milestone 15: Poll Superguess state when active
+  // IMPORTANT: This hook must be before any early returns (React Rules of Hooks)
+  useEffect(() => {
+    if (!superguessActive && !isSuperguessing) return;
+    // Don't poll when using client-side preview mocks — server has no real session
+    if (hasSuperguessPreview) return;
+
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/superguess/state');
+        if (res.ok && active) {
+          const data = await res.json();
+          if (data.active && data.session) {
+            const guessLog = data.guessLog || [];
+            setSuperguessState({
+              guessesUsed: data.session.guessesUsed,
+              guessesAllowed: data.session.guessesAllowed,
+              expiresAt: data.session.expiresAt,
+              username: data.session.username,
+              guessLog,
+            });
+
+            // Determine if we're the Superguesser or a spectator
+            const isThisUserSuperguesser = effectiveFid && data.session.fid === effectiveFid;
+
+            // Track new guesses + update ref
+            const hasNewGuesses = guessLog.length > lastSeenGuessCountRef.current;
+            lastGuessLogRef.current = guessLog;
+
+            if (isThisUserSuperguesser) {
+              setIsSuperguessing(true);
+              setSuperguessActive(false);
+              // Update count but don't replay (Superguesser sees their own UI)
+              if (hasNewGuesses) lastSeenGuessCountRef.current = guessLog.length;
+            } else {
+              setSuperguessActive(true);
+              setIsSuperguessing(false);
+
+              // Spectator only: replay latest guess in letter boxes + trigger modals
+              if (hasNewGuesses) {
+                const latestGuess = guessLog[guessLog.length - 1];
+                lastSeenGuessCountRef.current = guessLog.length;
+                setSpectatorLastGuess({ word: latestGuess.word, result: latestGuess.result });
+                setLetters(latestGuess.word.split(''));
+
+                if (latestGuess.result === 'correct') {
+                  setBoxResultState('correct');
+                  setWinnerData({ word: latestGuess.word, roundId: currentRoundId || 0, jackpotEth: '0' });
+                  setShowWinnerShareCard(true);
+                } else if (latestGuess.result === 'bonus_word') {
+                  setBoxResultState('correct');
+                  setBonusWordWinData({ word: latestGuess.word, tokenRewardAmount: '5000000', txHash: null });
+                  setShowBonusWordWinModal(true);
+                } else if (latestGuess.result === 'burn_word') {
+                  setBoxResultState('correct');
+                  setBurnWordData({ word: latestGuess.word, burnAmount: '5000000', txHash: null });
+                  setShowBurnWordModal(true);
+                } else {
+                  setBoxResultState('wrong');
+                  setTimeout(() => {
+                    if (active) {
+                      setLetters(['', '', '', '', '']);
+                      setBoxResultState('typing');
+                      setSpectatorLastGuess(null);
+                    }
+                  }, 2500);
+                }
+              }
+            }
+          } else {
+            // Session ended — show transition message before reverting
+            // Use refs to get current values (avoids stale closure)
+            const wasSuperguessing = isSuperguessingSelfRef.current;
+            const wasSpectating = isSuperguessActiveRef.current && !isSuperguessingSelfRef.current;
+
+            // Check if the session ended with a win (use ref to avoid stale closure)
+            const lastGuess = lastGuessLogRef.current[lastGuessLogRef.current.length - 1];
+            const endedWithWin = lastGuess?.result === 'correct';
+
+            if (wasSuperguessing || wasSpectating) {
+              const msg = endedWithWin
+                ? 'Superguess won! Round complete.'
+                : wasSuperguessing
+                ? 'Superguess complete — normal play resumed'
+                : 'Superguess ended — normal play resumed';
+              setSuperguessEndedMessage(msg);
+
+              // Longer delay after a win so spectators can see the celebration
+              const delay = endedWithWin ? 8000 : 5000;
+              setTimeout(() => {
+                setSuperguessEndedMessage(null);
+              }, delay);
+            }
+
+            setSuperguessActive(false);
+            setIsSuperguessing(false);
+            setSuperguessState(null);
+            lastSeenGuessCountRef.current = 0;
+            lastGuessLogRef.current = [];
+          }
+        }
+      } catch (err) {
+        console.error('[Superguess] Poll error:', err);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [superguessActive, isSuperguessing, effectiveFid, hasSuperguessPreview]);
+
+  // Bypass browser fallback when Superguess preview params are active
+  if (hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-5">
@@ -1752,19 +1971,44 @@ function GameContent() {
           setShowArchiveModal(true);
         }}
         onRoundStatusChange={setHasActiveRound}
+        superguessLive={superguessActive || isSuperguessing}
+        onSuperguessStatusChange={(active, eligible) => {
+          // Detect Superguess starting from round-state poll (before any guess attempt)
+          if (active && !superguessActive && !isSuperguessing) {
+            setSuperguessActive(true);
+          }
+          setSuperguessEligible(eligible);
+        }}
       />
 
       {/* Game Area Wrapper - contains UserState, game container, and overlays */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* User State (Milestone 4.1) - Minimal */}
+        {/* User State / Superguess Bar (Milestone 4.1, 15) */}
         <div className="px-4 pt-1">
           <div className="max-w-md mx-auto">
-            <UserState
-              key={userStateKey}
-              fid={effectiveFid}
-              onGetMore={() => setShowGuessPurchaseModal(true)}
-              onWordHintTap={() => setShowWordModal(true)}
-            />
+            {(superguessActive || isSuperguessing) && superguessState ? (
+              <SuperguessBar
+                mode={isSuperguessing ? 'superguesser' : 'spectator'}
+                guessesUsed={superguessState.guessesUsed}
+                guessesAllowed={superguessState.guessesAllowed}
+                expiresAt={superguessState.expiresAt}
+                username={superguessState.username}
+              />
+            ) : superguessEndedMessage ? (
+              <div className="flex items-center justify-center px-1">
+                <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
+                  <span className="text-green-500">✓</span>
+                  {superguessEndedMessage}
+                </span>
+              </div>
+            ) : (
+              <UserState
+                key={userStateKey}
+                fid={effectiveFid}
+                onGetMore={() => setShowGuessPurchaseModal(true)}
+                onWordHintTap={() => setShowWordModal(true)}
+              />
+            )}
           </div>
         </div>
 
@@ -1833,7 +2077,7 @@ function GameContent() {
                   setShowGuessPurchaseModal(true);
                   void haptics.buttonTapMinor();
                 }}
-                className="shine-button absolute top-0 right-0 p-1.5 text-gray-400 hover:text-emerald-500 transition-all overflow-hidden"
+                className="shine-button absolute top-0 right-0 p-1.5 text-emerald-500 hover:text-emerald-400 transition-all overflow-hidden"
                 style={{ zIndex: 20 }}
                 aria-label="Buy guesses"
               >
@@ -1994,14 +2238,22 @@ function GameContent() {
                     e.currentTarget.style.backgroundColor = '#2D68C7'; // Reset if mouse leaves while pressed
                   }
                 }}
-                className={`w-full py-4 px-6 rounded-xl font-bold text-white text-lg transition-all shadow-lg tracking-wider ${
-                  isButtonDisabled
-                    ? 'bg-gray-300 cursor-not-allowed opacity-60'
-                    : 'active:scale-95'
+                className={`w-full py-4 px-6 rounded-xl font-bold text-white transition-all shadow-lg ${
+                  isSpectatingSuperguesser
+                    ? 'text-xs tracking-wide cursor-not-allowed opacity-80'
+                    : isButtonDisabled
+                    ? 'text-lg tracking-wider bg-gray-300 cursor-not-allowed opacity-60'
+                    : 'text-lg tracking-wider active:scale-95'
                 }`}
-                style={!isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}}
+                style={
+                  isSpectatingSuperguesser
+                    ? { backgroundColor: 'rgba(74, 222, 128, 0.15)', color: '#6B7280' } // faint green bg, gray-500 text
+                    : !isButtonDisabled ? { backgroundColor: '#2D68C7' } : {}
+                }
               >
-                {isLoading ? 'SUBMITTING...' : 'GUESS'}
+                {superguessActive && !isSuperguessing && superguessState?.username
+                  ? `WATCHING @${(superguessState.username.length > 10 ? superguessState.username.slice(0, 10) + '\u2026' : superguessState.username).toUpperCase()} GUESS LIVE`
+                  : isLoading ? 'SUBMITTING...' : 'GUESS'}
               </button>
 
           </div>
@@ -2063,7 +2315,7 @@ function GameContent() {
         <GameKeyboard
           onLetter={handleLetter}
           onBackspace={handleBackspace}
-          disabled={isLoading || !hasActiveRound}
+          disabled={isLoading || !hasActiveRound || (superguessActive && !isSuperguessing)}
         />
       </div>
 
@@ -2131,6 +2383,9 @@ function GameContent() {
             // If user closed without purchasing and out of guesses, no modal - just can't play
           }}
           onPurchaseSuccess={handlePackPurchaseSuccess}
+          onSuperguess={() => setShowSuperguessModal(true)}
+          superguessEligible={superguessEligible}
+          superguessActive={superguessActive || isSuperguessing}
         />
       )}
 
@@ -2206,6 +2461,21 @@ function GameContent() {
       {effectiveFid && !isClientDevMode() && (
         <OnboardingManager fid={effectiveFid} />
       )}
+
+      {/* Milestone 15: Superguess Purchase Modal */}
+      <SuperguessPurchaseModal
+        isOpen={showSuperguessModal}
+        onClose={() => setShowSuperguessModal(false)}
+        onPurchaseComplete={() => {
+          setIsSuperguessing(true);
+          setSuperguessActive(false);
+          setUserStateKey(prev => prev + 1); // Refresh user state
+        }}
+        fid={effectiveFid}
+        devFid={isClientDevMode() ? effectiveFid ?? undefined : undefined}
+        authToken={authToken}
+        preview={hasSuperguessPreview}
+      />
     </div>
   );
 }

@@ -428,6 +428,35 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       };
     }
 
+    // Milestone 15: Include Superguess data if any sessions exist
+    try {
+      const { superguessSessions } = await import('../db/schema');
+      const sgSessions = await db
+        .select()
+        .from(superguessSessions)
+        .where(eq(superguessSessions.roundId, roundId));
+
+      if (sgSessions.length > 0) {
+        // Use the most significant session (won > exhausted > expired > cancelled)
+        const priorityOrder = ['won', 'exhausted', 'expired', 'cancelled', 'active'];
+        const sorted = sgSessions.sort((a, b) =>
+          priorityOrder.indexOf(a.status) - priorityOrder.indexOf(b.status)
+        );
+        const sg = sorted[0];
+        payoutsJson.superguess = {
+          buyerFid: sg.fid,
+          tier: sg.tier,
+          outcome: sg.status,
+          guessesUsed: sg.guessesUsed,
+          wordAmountPaid: sg.wordAmountPaid,
+          usdEquivalent: sg.usdEquivalent,
+        };
+        console.log(`[archive] Superguess data: FID ${sg.fid}, ${sg.status}, ${sg.guessesUsed} guesses`);
+      }
+    } catch (err) {
+      console.warn(`[archive] Failed to fetch Superguess data for round ${roundId}:`, err);
+    }
+
     console.log(`[archive] Step 8: Building archive data for round ${roundId}`);
     // Log types of all fields being inserted to debug Date issue
     console.log(`[archive] Field types: targetWord=${typeof targetWord}, seedEth=${typeof seedEth}, finalJackpotEth=${typeof round.prizePoolEth}, salt=${typeof round.salt}`);

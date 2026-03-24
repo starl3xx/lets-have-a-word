@@ -306,6 +306,17 @@ export async function enableKillSwitch(params: {
       },
     });
 
+    // Milestone 15: Cancel any active Superguess session for this round
+    try {
+      const { forceCancel } = await import('./superguess');
+      const cancelled = await forceCancel(activeRoundId);
+      if (cancelled) {
+        console.log(`[Ops] Superguess session force-cancelled as part of kill switch`);
+      }
+    } catch (sgErr) {
+      console.error('[Ops] Failed to cancel Superguess during kill switch:', sgErr);
+    }
+
     console.log(`[Ops] Kill switch ENABLED by FID ${params.adminFid} for round ${activeRoundId}: ${params.reason}`);
 
     return { success: true, roundId: activeRoundId };

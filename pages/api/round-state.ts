@@ -14,6 +14,12 @@ import {
   RateLimiters,
 } from '../../src/lib/redis';
 import { getActiveRound } from '../../src/lib/rounds';
+import {
+  isSuperguessFeatureEnabled,
+  isSuperguessActive,
+  hasUsedSuperguessThisRound,
+  SUPERGUESS_MIN_GUESS_COUNT,
+} from '../../src/lib/superguess';
 
 /**
  * GET /api/round-state
@@ -75,6 +81,13 @@ export default async function handler(
       // Get Top-10 lock status based on display guess count and round ID
       const top10Status = getTop10LockStatus(devStatus.globalGuessCount, devStatus.roundId);
 
+      // Milestone 15: Superguess eligibility in dev mode
+      const { ensureDevRound } = await import('../../src/lib/devGameState');
+      const devRoundId = await ensureDevRound();
+      const devRoundUsed = await hasUsedSuperguessThisRound(devRoundId);
+      const sgEligible = isSuperguessFeatureEnabled() &&
+        devStatus.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT && !devRoundUsed;
+
       // Return dev round status with actual prize pool, random display values for round/guesses
       const syntheticStatus: RoundStatus = {
         roundId: devStatus.roundId, // Random 5-300
@@ -87,6 +100,9 @@ export default async function handler(
         top10LockAfterGuesses: top10Status.top10LockAfterGuesses,
         top10GuessesRemaining: top10Status.top10GuessesRemaining,
         top10Locked: top10Status.top10Locked,
+        // Milestone 15
+        superguessActive: false,
+        superguessEligible: sgEligible,
       };
 
       return res.status(200).json(syntheticStatus);
@@ -116,10 +132,25 @@ export default async function handler(
       }
     );
 
+    // Milestone 15: Append Superguess status (not cached — fast Redis check)
+    // Spread to avoid mutating the cached object
+    const response = { ...roundStatus };
+    if (isSuperguessFeatureEnabled()) {
+      const sgActive = await isSuperguessActive(activeRound.id);
+      response.superguessActive = sgActive;
+      if (!sgActive) {
+        const alreadyUsed = await hasUsedSuperguessThisRound(activeRound.id);
+        response.superguessEligible =
+          response.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT && !alreadyUsed;
+      } else {
+        response.superguessEligible = false;
+      }
+    }
+
     // Set cache headers for client-side caching
     res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=10');
 
-    return res.status(200).json(roundStatus);
+    return res.status(200).json(response);
   } catch (error: any) {
     console.error('Error in /api/round-state:', error);
     Sentry.captureException(error, {

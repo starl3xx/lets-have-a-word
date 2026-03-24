@@ -209,6 +209,19 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-03-24 (Milestone 15: Superguess)
+
+- **Superguess mechanic**: After guess #850, any player can purchase a Superguess with $WORD tokens for an exclusive 25-guess, 10-minute window. All other players are paused and watch live as spectators. 50% of payment is burned via the WordManager contract, 50% is sent to the staking rewards address. One Superguess per round.
+- **Spectator live view**: Spectators see the Superguesser's guesses replayed in their letter boxes within 3 seconds. Wheel polling speeds up to 3s during active sessions. TopTicker turns red. Guess button shows "WATCHING @USER GUESS LIVE". Bonus/burn/win modals shown to spectators.
+- **Superguess in purchase modal**: The guess pack purchase modal now shows 1-pack, 3-pack, and Superguess options. Superguess option grayed out before 850 guesses.
+- **$WORD wallet balance check**: Superguess purchase modal checks the user's $WORD balance and shows a "Buy $WORD" button (opens Farcaster swap UI) when insufficient.
+- **Onchain tx verification**: Purchase endpoint verifies the ERC-20 Transfer event on Base, validates minimum payment against live $WORD price (80% tolerance), and rejects if oracle is unavailable.
+- **SHOWSTOPPER Wordmark**: Awarded on Superguess purchase. Added to Wordmarks list in FAQ and Stats.
+- **Announcer integration**: Farcaster casts for Superguess activated, won, and failed (includes bonus/burn words found during the attempt). Push notification on purchase.
+- **Pack pricing update**: 1-pack base price increased to 0.0004 ETH, 3-pack to 0.0012 ETH (same stage-based scaling). 2-pack option removed.
+- **Dev safety**: `getActiveRound()` filters `is_dev_test_round=false` in production. `ensureDevRound()` only resolves dev test rounds. Prevents dev mode from affecting live rounds.
+- **Admin tooling**: Trigger, cancel, and status endpoints for Superguess sessions. Debug state available via `/api/admin/operational/superguess-status`.
+
 ### 2026-03-05 (after Round 14)
 
 - **Pashov audit safeguard: pre-flight ETH receive check**: Before round resolution, each payout recipient is now tested with a 1-wei `eth_call` simulation to verify they can accept ETH. If a contract recipient has a reverting `receive()` function, the payout is redirected to the operator wallet to prevent bricking resolution. Substitutions are logged for manual follow-up.

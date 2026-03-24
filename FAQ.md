@@ -47,6 +47,14 @@ Each round has **5 hidden burn words**, randomly selected from the full word lis
 
 Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word against its committed hash before executing the burn.
 
+## What is a Superguess?
+
+Superguess is a high-stakes late-game mechanic. After the round reaches **850 guesses**, any player can purchase a Superguess with $WORD tokens for an **exclusive 25-guess, 10-minute window**.
+
+During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, normal play resumes immediately.
+
+50% of the $WORD payment is burned, and 50% goes to staking rewards. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
+
 ## What are wordmarks?
 
 Wordmarks are **collectible badges** displayed on your profile. You earn them by hitting specific milestones or achievements during gameplay. Once earned, they're yours permanently.
@@ -62,6 +70,7 @@ Here's the full list:
 - **Quickdraw** — Placed in the Top 10 Early Guessers
 - **Encyclopedic** — Guessed words starting with every letter A–Z
 - **Baker's Dozen** — Guessed words starting with 13 different letters, on 13 different days (only the first guess of each day counts)
+- **Showstopper** — Purchased a Superguess
 
 ---
 
@@ -125,12 +134,12 @@ Paid guesses:
 
 ## How much do guess packs cost?
 
-Each pack contains **3 guesses**. Pricing has two components:
+Each pack contains **3 guesses**, available in 1-pack and 3-pack sizes. Pricing has two components:
 
 **Stage-based pricing** (based on total guesses in round):
-- 0–849 guesses (early): 0.00030 ETH base
-- 850–1249 guesses (mid): 0.00045 ETH base
-- 1250+ guesses (late): 0.00060 ETH base
+- 0–849 guesses (early): 0.00040 ETH base
+- 850–1249 guesses (mid): 0.00060 ETH base
+- 1250+ guesses (late): 0.00080 ETH base
 
 **Volume-based multipliers** (based on daily purchases):
 - Packs 1–3: 1× base price

@@ -8,6 +8,8 @@ interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;
   adminFid?: number; // Pass admin FID to enable start round button
   onRoundStatusChange?: (hasActiveRound: boolean) => void; // Notify parent when round status changes
+  superguessLive?: boolean; // Milestone 15: Turns banner red during active Superguess
+  onSuperguessStatusChange?: (active: boolean, eligible: boolean) => void; // Milestone 15
 }
 
 /**
@@ -91,7 +93,7 @@ function getPercentageColor(guessCount: number, totalWords: number): string {
  *
  * Polls /api/round-state every 15 seconds for live updates.
  */
-export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange }: TopTickerProps) {
+export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange, superguessLive, onSuperguessStatusChange }: TopTickerProps) {
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +162,10 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
       const data: RoundStatus = await response.json();
       setStatus(data);
       setError(null);
+      // Milestone 15: Notify parent of Superguess status from round-state poll
+      if (onSuperguessStatusChange) {
+        onSuperguessStatusChange(!!data.superguessActive, !!data.superguessEligible);
+      }
     } catch (err) {
       console.error('Error fetching round status:', err);
       setError('Failed to load round status');
@@ -254,8 +260,10 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
   /**
    * Display round status
    */
+  const bannerBg = superguessLive ? 'bg-red-700' : 'bg-brand';
+
   return (
-    <div className="bg-brand text-white py-3 px-4 shadow-md">
+    <div className={`${bannerBg} text-white py-3 px-4 shadow-md transition-colors duration-500`}>
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-4 whitespace-nowrap overflow-visible">
         {/* Prize Pool */}
         <div>
@@ -315,6 +323,7 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange 
           </p>
         </div>
       </div>
+
     </div>
   );
 }

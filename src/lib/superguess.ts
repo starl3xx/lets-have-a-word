@@ -1,0 +1,539 @@
+/**
+ * Superguess — Core State Management
+ * Milestone 15: High-stakes late-game mechanic
+ *
+ * After guess #850, a player pays $WORD tokens for an exclusive 25-guess,
+ * 10-minute window. All other players are blocked and watch as spectators.
+ * 50% of payment is burned, 50% goes to staking rewards.
+ *
+ * Feature flag: NEXT_PUBLIC_SUPERGUESS_ENABLED
+ */
+
+import { db } from '../db';
+import { superguessSessions, users } from '../db/schema';
+import { eq, and, sql, desc } from 'drizzle-orm';
+import type { SuperguessSessionRow, SuperguessStatus } from '../db/schema';
+import {
+  redis,
+  cacheGet,
+  cacheSet,
+  cacheDel,
+  CACHE_PREFIX,
+} from './redis';
+
+// ============================================================
+// Configuration & Constants
+// ============================================================
+
+/** Superguess window duration in minutes */
+export const SUPERGUESS_DURATION_MINUTES = 10;
+
+/** No cooldown — play resumes immediately after Superguess ends */
+
+/** Maximum guesses per Superguess session */
+export const SUPERGUESS_MAX_GUESSES = 25;
+
+/** Minimum global guess count before Superguess is available */
+export const SUPERGUESS_MIN_GUESS_COUNT = 850;
+
+/**
+ * Pricing tiers based on remaining words in pool
+ * Pool size = total_dictionary_words - global_guess_count
+ */
+export const SUPERGUESS_TIERS = [
+  { id: 'tier_1', minRemaining: 3200, usdPrice: 20 },
+  { id: 'tier_2', minRemaining: 2600, usdPrice: 40 },
+  { id: 'tier_3', minRemaining: 2000, usdPrice: 60 },
+  { id: 'tier_4', minRemaining: 0, usdPrice: 90 },
+] as const;
+
+export type SuperguessTierId = typeof SUPERGUESS_TIERS[number]['id'];
+
+// ============================================================
+// Feature Flag
+// ============================================================
+
+/**
+ * Check if Superguess feature is enabled
+ * Gates ALL Superguess code paths
+ */
+export function isSuperguessFeatureEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_SUPERGUESS_ENABLED === 'true';
+}
+
+// ============================================================
+// Redis Cache Keys
+// ============================================================
+
+const SuperguessCacheKeys = {
+  /** Active session JSON, TTL = remaining window */
+  active: (roundId: number) => `${CACHE_PREFIX}superguess:active:${roundId}`,
+  /** State endpoint cache (2s TTL, invalidated on each guess) */
+  state: (roundId: number) => `${CACHE_PREFIX}superguess:state:${roundId}`,
+  /** Guess log (Redis list, appended on each guess) */
+  guessLog: (roundId: number) => `${CACHE_PREFIX}superguess:guesslog:${roundId}`,
+};
+
+// ============================================================
+// Core State Functions
+// ============================================================
+
+/**
+ * Get the active Superguess session for a round
+ * Uses Redis cache with 2s TTL, falls back to DB
+ * Implements lazy expiry: auto-expires if past expires_at
+ */
+export async function getActiveSuperguess(
+  roundId: number
+): Promise<SuperguessSessionRow | null> {
+  // Try Redis cache first
+  const cached = await cacheGet<SuperguessSessionRow>(
+    SuperguessCacheKeys.active(roundId)
+  );
+
+  if (cached) {
+    // Lazy expiry check
+    if (new Date(cached.expiresAt) < new Date()) {
+      await completeSuperguessSession(cached.id, 'expired');
+      return null;
+    }
+    return cached;
+  }
+
+  // DB fallback
+  const [session] = await db
+    .select()
+    .from(superguessSessions)
+    .where(
+      and(
+        eq(superguessSessions.roundId, roundId),
+        eq(superguessSessions.status, 'active')
+      )
+    )
+    .limit(1);
+
+  if (!session) return null;
+
+  // Lazy expiry check
+  if (new Date(session.expiresAt) < new Date()) {
+    await completeSuperguessSession(session.id, 'expired');
+    return null;
+  }
+
+  // Cache with TTL = remaining window time (max 2s for safety)
+  const remainingMs = new Date(session.expiresAt).getTime() - Date.now();
+  const ttlSeconds = Math.max(1, Math.min(2, Math.floor(remainingMs / 1000)));
+  await cacheSet(SuperguessCacheKeys.active(roundId), session, ttlSeconds);
+
+  return session;
+}
+
+/**
+ * Fast check if a Superguess is currently active for a round
+ * Delegates to getActiveSuperguess which handles lazy expiry
+ */
+export async function isSuperguessActive(roundId: number): Promise<boolean> {
+  const session = await getActiveSuperguess(roundId);
+  return session !== null;
+}
+
+/**
+ * Start a new Superguess session
+ * Atomic insert using partial unique index to prevent races
+ */
+export async function startSuperguessSession(params: {
+  roundId: number;
+  fid: number;
+  tier: string;
+  wordAmountPaid: string;
+  usdEquivalent: number;
+  burnedAmount: string;
+  stakingAmount: string;
+  burnTxHash?: string;
+  stakingTxHash?: string;
+}): Promise<SuperguessSessionRow> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SUPERGUESS_DURATION_MINUTES * 60 * 1000);
+
+  const [session] = await db
+    .insert(superguessSessions)
+    .values({
+      roundId: params.roundId,
+      fid: params.fid,
+      tier: params.tier,
+      wordAmountPaid: params.wordAmountPaid,
+      usdEquivalent: params.usdEquivalent.toFixed(2),
+      burnedAmount: params.burnedAmount,
+      stakingAmount: params.stakingAmount,
+      burnTxHash: params.burnTxHash,
+      stakingTxHash: params.stakingTxHash,
+      status: 'active',
+      guessesUsed: 0,
+      guessesAllowed: SUPERGUESS_MAX_GUESSES,
+      startedAt: now,
+      expiresAt,
+    })
+    .returning();
+
+  // Cache in Redis with TTL = session duration
+  const ttlSeconds = SUPERGUESS_DURATION_MINUTES * 60;
+  await cacheSet(SuperguessCacheKeys.active(params.roundId), session, ttlSeconds);
+
+
+  // Invalidate state cache
+  await cacheDel(SuperguessCacheKeys.state(params.roundId));
+
+  console.log(
+    `🔴 [Superguess] Session started: FID ${params.fid}, round ${params.roundId}, tier ${params.tier}, expires ${expiresAt.toISOString()}`
+  );
+
+  return session;
+}
+
+/**
+ * Record a guess in an active Superguess session
+ * Increments counter and invalidates cache
+ */
+export interface SuperguessGuessLogEntry {
+  word: string;
+  result: 'incorrect' | 'correct' | 'bonus_word' | 'burn_word' | 'already_guessed';
+  timestamp: string;
+}
+
+/**
+ * Record a guess in an active Superguess session
+ * Increments counter, appends to guess log in Redis, invalidates cache
+ */
+export async function recordSuperguessGuess(
+  sessionId: number,
+  roundId: number,
+  word: string,
+  result: SuperguessGuessLogEntry['result']
+): Promise<number> {
+  const updateResult = await db
+    .update(superguessSessions)
+    .set({
+      guessesUsed: sql`${superguessSessions.guessesUsed} + 1`,
+    })
+    .where(and(
+      eq(superguessSessions.id, sessionId),
+      eq(superguessSessions.status, 'active')
+    ))
+    .returning();
+
+  // If session already completed (race with exhaustion/expiry), bail out
+  if (updateResult.length === 0) {
+    console.log(`🔴 [Superguess] Session ${sessionId} already completed, skipping guess record`);
+    return -1;
+  }
+
+  const updated = updateResult[0];
+  const newCount = updated.guessesUsed;
+
+  // Append to guess log in Redis (spectators poll this)
+  const logEntry: SuperguessGuessLogEntry = {
+    word,
+    result,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (redis) {
+    const logKey = SuperguessCacheKeys.guessLog(roundId);
+    try {
+      await redis.rpush(logKey, JSON.stringify(logEntry));
+      // Set TTL to match session (in case it doesn't exist yet)
+      const remainingMs = new Date(updated.expiresAt).getTime() - Date.now();
+      if (remainingMs > 0) {
+        await redis.expire(logKey, Math.ceil(remainingMs / 1000) + 60);
+      }
+    } catch (err) {
+      console.error('[Superguess] Failed to append guess log:', err);
+    }
+  }
+
+  // Auto-complete if all guesses used (handles bonus/burn word edge case)
+  // Skip if result is 'correct' — the caller handles win completion separately
+  const shouldExhaust = newCount >= updated.guessesAllowed && updated.status === 'active' && result !== 'correct';
+
+  if (shouldExhaust) {
+    await completeSuperguessSession(sessionId, 'exhausted');
+    console.log(`🔴 [Superguess] Session ${sessionId} auto-exhausted after ${newCount} guesses`);
+  } else {
+    // Only invalidate+re-cache if session is still active (not just exhausted)
+    await Promise.all([
+      cacheDel(SuperguessCacheKeys.active(roundId)),
+      cacheDel(SuperguessCacheKeys.state(roundId)),
+    ]);
+    if (updated.status === 'active') {
+      const remainingMs = new Date(updated.expiresAt).getTime() - Date.now();
+      const ttl = Math.max(1, Math.min(2, Math.floor(remainingMs / 1000)));
+      await cacheSet(SuperguessCacheKeys.active(roundId), updated, ttl);
+    }
+  }
+
+  console.log(
+    `🔴 [Superguess] Guess ${newCount}/${updated.guessesAllowed} "${word}" (${result}) for session ${sessionId}`
+  );
+
+  return newCount;
+}
+
+/**
+ * Get the guess log for a Superguess session from Redis
+ */
+export async function getGuessLog(roundId: number): Promise<SuperguessGuessLogEntry[]> {
+  if (!redis) return [];
+
+  try {
+    const logKey = SuperguessCacheKeys.guessLog(roundId);
+    const entries = await redis.lrange(logKey, 0, -1);
+    return entries.map((e: string) => {
+      if (typeof e === 'string') return JSON.parse(e);
+      return e as unknown as SuperguessGuessLogEntry;
+    });
+  } catch (err) {
+    console.error('[Superguess] Failed to read guess log:', err);
+    return [];
+  }
+}
+
+/**
+ * Complete a Superguess session (won, exhausted, expired, or cancelled)
+ * Sets completed_at, cooldown_ends_at, clears Redis
+ */
+export async function completeSuperguessSession(
+  sessionId: number,
+  status: Exclude<SuperguessStatus, 'active'>
+): Promise<SuperguessSessionRow> {
+  const now = new Date();
+
+  // Only transition from active → terminal (prevents overwriting terminal states)
+  const result = await db
+    .update(superguessSessions)
+    .set({
+      status,
+      completedAt: now,
+    })
+    .where(and(
+      eq(superguessSessions.id, sessionId),
+      eq(superguessSessions.status, 'active')
+    ))
+    .returning();
+
+  // If no rows updated, session was already completed by another caller
+  if (result.length === 0) {
+    console.log(`🔴 [Superguess] Session ${sessionId} already completed, skipping ${status}`);
+    const [existing] = await db
+      .select()
+      .from(superguessSessions)
+      .where(eq(superguessSessions.id, sessionId))
+      .limit(1);
+    return existing;
+  }
+
+  const completed = result[0];
+
+  // Clear active/state caches — play resumes immediately
+  // Keep guess log for 30s so spectators can poll the final guess before it's gone
+  await Promise.all([
+    cacheDel(SuperguessCacheKeys.active(completed.roundId)),
+    cacheDel(SuperguessCacheKeys.state(completed.roundId)),
+    ...(status === 'cancelled'
+      ? [cacheDel(SuperguessCacheKeys.guessLog(completed.roundId))]
+      : redis ? [redis.expire(SuperguessCacheKeys.guessLog(completed.roundId), 30)] : []),
+  ]);
+
+  console.log(
+    `🔴 [Superguess] Session ${sessionId} completed: ${status}`
+  );
+
+  // Announce the result (fire-and-forget)
+  if (status !== 'cancelled') {
+    import('./announcer').then(({ announceSuperguessResult }) => {
+      announceSuperguessResult(
+        completed.roundId,
+        completed.fid,
+        status === 'won',
+        completed.guessesUsed,
+        completed.startedAt
+      ).catch(err => {
+        console.error('[Superguess] Failed to announce result:', err);
+      });
+    }).catch(() => {});
+  }
+
+  return completed;
+}
+
+/**
+ * Check if Superguess has already been used this round (by any player)
+ * One Superguess per round total.
+ * Optional fid param checks if a specific player used it (for UI messaging).
+ */
+export async function hasUsedSuperguessThisRound(
+  roundId: number,
+  fid?: number
+): Promise<boolean> {
+  const conditions = [
+    eq(superguessSessions.roundId, roundId),
+    sql`${superguessSessions.status} != 'cancelled'`, // Admin cancels don't count
+  ];
+  if (fid) conditions.push(eq(superguessSessions.fid, fid));
+
+  const [result] = await db
+    .select({ id: superguessSessions.id })
+    .from(superguessSessions)
+    .where(and(...conditions))
+    .limit(1);
+
+  return !!result;
+}
+
+/**
+ * Get the current Superguess tier based on remaining word pool size
+ */
+export function getSuperguessCurrentTier(
+  globalGuessCount: number,
+  totalDictionaryWords: number
+): typeof SUPERGUESS_TIERS[number] | null {
+  if (globalGuessCount < SUPERGUESS_MIN_GUESS_COUNT) return null;
+
+  const remaining = totalDictionaryWords - globalGuessCount;
+
+  for (const tier of SUPERGUESS_TIERS) {
+    if (remaining >= tier.minRemaining) {
+      return tier;
+    }
+  }
+
+  // Under 2000 remaining
+  return SUPERGUESS_TIERS[SUPERGUESS_TIERS.length - 1];
+}
+
+/**
+ * Get the username for a Superguess session's FID
+ */
+export async function getSuperguessUsername(fid: number): Promise<string> {
+  const [user] = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.fid, fid))
+    .limit(1);
+
+  return user?.username || `user-${fid}`;
+}
+
+// ============================================================
+// Dev/Test Helpers
+// ============================================================
+
+/**
+ * Create a dev/test Superguess session without payment
+ * Used by admin trigger endpoint and dev mode
+ */
+export async function createDevSession(params: {
+  roundId: number;
+  fid: number;
+  tier?: string;
+}): Promise<SuperguessSessionRow> {
+  return startSuperguessSession({
+    roundId: params.roundId,
+    fid: params.fid,
+    tier: params.tier || 'tier_1',
+    wordAmountPaid: '0',
+    usdEquivalent: 0,
+    burnedAmount: '0',
+    stakingAmount: '0',
+  });
+}
+
+/**
+ * Force-cancel an active Superguess session (admin only, no cooldown)
+ */
+export async function forceCancel(roundId: number): Promise<boolean> {
+  const session = await getActiveSuperguess(roundId);
+  if (!session) return false;
+
+  await completeSuperguessSession(session.id, 'cancelled');
+  return true;
+}
+
+/**
+ * Get full debug state for admin status endpoint
+ */
+export async function getDebugState(roundId: number): Promise<{
+  featureEnabled: boolean;
+  activeSession: SuperguessSessionRow | null;
+  recentSessions: SuperguessSessionRow[];
+}> {
+  const [activeSession, recentSessions] = await Promise.all([
+    getActiveSuperguess(roundId),
+    db
+      .select()
+      .from(superguessSessions)
+      .where(eq(superguessSessions.roundId, roundId))
+      .orderBy(desc(superguessSessions.createdAt))
+      .limit(10),
+  ]);
+
+  return {
+    featureEnabled: isSuperguessFeatureEnabled(),
+    activeSession,
+    recentSessions,
+  };
+}
+
+/**
+ * Get full state for the /api/superguess/state endpoint
+ * Combines active session, cooldown, and eligibility into one response
+ */
+export async function getSuperguessState(
+  roundId: number,
+  globalGuessCount: number,
+  totalDictionaryWords: number
+): Promise<{
+  active: boolean;
+  session?: {
+    id: number;
+    fid: number;
+    username: string;
+    guessesUsed: number;
+    guessesAllowed: number;
+    expiresAt: string;
+    startedAt: string;
+    tier: string;
+  };
+  guessLog?: SuperguessGuessLogEntry[];
+  eligible: boolean;
+}> {
+  const session = await getActiveSuperguess(roundId);
+
+  if (session) {
+    const [username, guessLog] = await Promise.all([
+      getSuperguessUsername(session.fid),
+      getGuessLog(roundId),
+    ]);
+    return {
+      active: true,
+      session: {
+        id: session.id,
+        fid: session.fid,
+        username,
+        guessesUsed: session.guessesUsed,
+        guessesAllowed: session.guessesAllowed,
+        expiresAt: typeof session.expiresAt === 'string' ? session.expiresAt : session.expiresAt.toISOString(),
+        startedAt: typeof session.startedAt === 'string' ? session.startedAt : session.startedAt.toISOString(),
+        tier: session.tier,
+      },
+      guessLog,
+      eligible: false,
+    };
+  }
+
+  const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
+  const alreadyUsed = await hasUsedSuperguessThisRound(roundId);
+  return {
+    active: false,
+    eligible: tier !== null && !alreadyUsed,
+  };
+}

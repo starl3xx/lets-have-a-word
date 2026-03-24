@@ -8,9 +8,9 @@
  * 2. Daily pack purchases (volume-based multipliers)
  *
  * Stage-based pricing (1 pack = 3 guesses):
- * - 0–849 guesses   → 0.00030 ETH (EARLY)
- * - 850–1249 guesses → 0.00045 ETH (MID)
- * - 1250+ guesses   → 0.00060 ETH (LATE, cap)
+ * - 0–849 guesses   → 0.00040 ETH (EARLY)
+ * - 850–1249 guesses → 0.00060 ETH (MID)
+ * - 1250+ guesses   → 0.00080 ETH (LATE, cap)
  *
  * Volume-based multipliers (per day):
  * - Packs 1-3:  1.0× (base price)
@@ -30,14 +30,14 @@ export const PRICE_RAMP_START_GUESSES = 850;
 /** Number of guesses per price step after ramp starts */
 export const PRICE_STEP_GUESSES = 400;
 
-/** Base pack price: 0.0003 ETH in wei */
-export const BASE_PACK_PRICE_WEI = 300000000000000n; // 0.0003 ETH
+/** Base pack price: 0.0004 ETH in wei */
+export const BASE_PACK_PRICE_WEI = 400000000000000n; // 0.0004 ETH
 
-/** Price increase per step: 0.00015 ETH in wei */
-export const PRICE_STEP_INCREASE_WEI = 150000000000000n; // 0.00015 ETH
+/** Price increase per step: 0.0002 ETH in wei */
+export const PRICE_STEP_INCREASE_WEI = 200000000000000n; // 0.0002 ETH
 
-/** Maximum pack price: 0.0006 ETH in wei (cap) */
-export const MAX_PACK_PRICE_WEI = 600000000000000n; // 0.0006 ETH
+/** Maximum pack price: 0.0008 ETH in wei (cap) */
+export const MAX_PACK_PRICE_WEI = 800000000000000n; // 0.0008 ETH
 
 // =============================================================================
 // Volume Tier Constants

@@ -36,6 +36,9 @@ export interface RoundStatus {
   top10Locked: boolean; // true if globalGuessCount >= threshold
   // Social proof
   packBuyerCount?: number; // Total packs purchased this round (sum of all pack purchases)
+  // Milestone 15: Superguess status
+  superguessActive?: boolean; // true if a Superguess session is currently active
+  superguessEligible?: boolean; // true if globalGuessCount >= 850 and no active session/cooldown
 }
 
 /**

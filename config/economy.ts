@@ -264,7 +264,7 @@ export const MAX_PACKS_PER_DAY = (() => {
  * Price per guess pack in ETH
  * Can be overridden via GUESS_PACK_PRICE_ETH env variable
  */
-export const GUESS_PACK_PRICE_ETH = process.env.GUESS_PACK_PRICE_ETH || '0.0003';
+export const GUESS_PACK_PRICE_ETH = process.env.GUESS_PACK_PRICE_ETH || '0.0004';
 
 /**
  * Get pack pricing info for display
@@ -290,11 +290,6 @@ export function getPackPricingInfo(): {
         packCount: 1,
         guessCount: GUESS_PACK_SIZE,
         totalPrice: GUESS_PACK_PRICE_ETH,
-      },
-      {
-        packCount: 2,
-        guessCount: GUESS_PACK_SIZE * 2,
-        totalPrice: (priceNum * 2).toFixed(4),
       },
       {
         packCount: 3,

@@ -378,6 +378,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [roundHealthLoading, setRoundHealthLoading] = useState(false)
   const [roundHealthError, setRoundHealthError] = useState<string | null>(null)
 
+  // Superguess monitoring state
+  const [superguessStatus, setSuperguessStatus] = useState<any>(null)
+  const [superguessLoading, setSuperguessLoading] = useState(false)
+
   const fetchStatus = useCallback(async () => {
     if (!user?.fid) return
 
@@ -399,11 +403,23 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }, [user?.fid])
 
+  const fetchSuperguessStatus = useCallback(async () => {
+    if (!user?.fid) return
+    try {
+      setSuperguessLoading(true)
+      const res = await fetch(`/api/admin/operational/superguess-status?devFid=${user.fid}`)
+      if (res.ok) setSuperguessStatus(await res.json())
+    } catch { /* silent */ } finally {
+      setSuperguessLoading(false)
+    }
+  }, [user?.fid])
+
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 30000)
+    fetchSuperguessStatus()
+    const interval = setInterval(() => { fetchStatus(); fetchSuperguessStatus() }, 30000)
     return () => clearInterval(interval)
-  }, [fetchStatus])
+  }, [fetchStatus, fetchSuperguessStatus])
 
 
   const fetchContractState = useCallback(async () => {
@@ -1383,6 +1399,124 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             </div>
           )}
 
+
+          {/* Superguess Card */}
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>
+              Superguess
+              {superguessStatus?.activeSession && (
+                <span style={{
+                  marginLeft: '12px',
+                  fontSize: '12px',
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  background: '#fef2f2',
+                  color: '#991b1b',
+                }}>
+                  LIVE
+                </span>
+              )}
+              {superguessStatus && !superguessStatus.activeSession && (
+                <span style={{
+                  marginLeft: '12px',
+                  fontSize: '12px',
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  background: '#f3f4f6',
+                  color: '#6b7280',
+                }}>
+                  {superguessStatus.featureEnabled ? 'IDLE' : 'DISABLED'}
+                </span>
+              )}
+            </h2>
+
+            {superguessLoading && !superguessStatus ? (
+              <p style={{ fontSize: '14px', color: '#6b7280' }}>Loading...</p>
+            ) : superguessStatus ? (
+              <div>
+                {superguessStatus.activeSession ? (
+                  <div style={{ background: '#fef2f2', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+                    <p style={{ fontWeight: 600, color: '#991b1b', marginBottom: '4px' }}>Active Session</p>
+                    <p style={{ fontSize: '14px', color: '#6b7280' }}>
+                      FID {superguessStatus.activeSession.fid} &middot; {superguessStatus.activeSession.tier} &middot;
+                      {superguessStatus.activeSession.guessesUsed}/{superguessStatus.activeSession.guessesAllowed} guesses
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#9ca3af' }}>
+                      Expires: {new Date(superguessStatus.activeSession.expiresAt).toLocaleTimeString()}
+                    </p>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Force-cancel this Superguess session?')) return
+                        try {
+                          const res = await fetch('/api/admin/operational/superguess-cancel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ devFid: user?.fid }),
+                          })
+                          const data = await res.json()
+                          if (data.success) {
+                            setSuccess('Superguess cancelled')
+                            fetchSuperguessStatus()
+                          } else {
+                            setError(data.error)
+                          }
+                        } catch (err: any) { setError(err.message) }
+                      }}
+                      style={{
+                        marginTop: '8px',
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        background: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Force Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>No active session</p>
+                )}
+
+                {superguessStatus.recentSessions?.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                      Recent Sessions (Round {superguessStatus.roundId})
+                    </p>
+                    {superguessStatus.recentSessions.map((s: any) => (
+                      <div key={s.id} style={{
+                        fontSize: '13px',
+                        color: '#6b7280',
+                        padding: '4px 0',
+                        borderBottom: '1px solid #f3f4f6',
+                      }}>
+                        FID {s.fid} &middot; {s.status} &middot; {s.guessesUsed}/{s.guessesAllowed} guesses &middot; {s.tier}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => fetchSuperguessStatus()}
+                  style={{
+                    marginTop: '12px',
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    background: '#f3f4f6',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Refresh
+                </button>
+              </div>
+            ) : (
+              <p style={{ fontSize: '14px', color: '#9ca3af' }}>Unable to load Superguess status</p>
+            )}
+          </div>
 
           {/* Start New Round Card */}
           {!status.killSwitch.enabled && (
