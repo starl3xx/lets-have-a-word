@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          paddingBottom: '80px',
+          paddingBottom: '130px',
           background: 'radial-gradient(ellipse at 50% 45%, #efe9ff 0%, #e5ddfb 50%, #dbd2f7 100%)',
           fontFamily: 'Soehne',
           position: 'relative',
@@ -83,10 +83,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         <img
           src={logoDataUri}
           style={{
-            width: '68px',
-            height: '68px',
-            marginBottom: '10px',
-            borderRadius: '12px',
+            width: '80px',
+            height: '80px',
+            marginBottom: '12px',
+            borderRadius: '14px',
           }}
         />
 
@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         >
           <span
             style={{
-              fontSize: '40px',
+              fontSize: '48px',
               fontWeight: 700,
               color: '#111827',
             }}
@@ -114,13 +114,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: '12px',
-            marginBottom: '22px',
+            gap: '14px',
+            marginBottom: '26px',
           }}
         >
           <span
             style={{
-              fontSize: '38px',
+              fontSize: '44px',
               fontWeight: 700,
               color: '#16a34a',
               lineHeight: '1',
@@ -130,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           </span>
           <span
             style={{
-              fontSize: '30px',
+              fontSize: '34px',
               fontWeight: 400,
               color: '#6b7280',
               lineHeight: '1',
@@ -145,11 +145,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         {/* ELIMINATED label */}
         <div
           style={{
-            fontSize: '36px',
+            fontSize: '40px',
             fontWeight: 700,
             color: '#ef4444',
-            letterSpacing: '6px',
-            marginBottom: '14px',
+            letterSpacing: '7px',
+            marginBottom: '16px',
           }}
         >
           ELIMINATED
@@ -159,24 +159,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         <div
           style={{
             display: 'flex',
-            gap: '16px',
-            marginBottom: '30px',
+            gap: '18px',
+            marginBottom: '34px',
           }}
         >
           {letters.map((letter, i) => (
             <div
               key={i}
               style={{
-                width: '120px',
-                height: '120px',
+                width: '135px',
+                height: '135px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: '#ffffff',
-                border: '7px solid #3b82f6',
-                borderRadius: '10px',
-                boxShadow: '0 0 0 4px rgba(147, 197, 253, 0.55), 0 6px 12px -2px rgba(0, 0, 0, 0.15), 0 3px 5px -2px rgba(0, 0, 0, 0.08)',
-                fontSize: '64px',
+                border: '9px solid #3b82f6',
+                borderRadius: '12px',
+                boxShadow: '0 0 0 5px rgba(147, 197, 253, 0.55), 0 6px 12px -2px rgba(0, 0, 0, 0.15), 0 3px 5px -2px rgba(0, 0, 0, 0.08)',
+                fontSize: '72px',
                 fontWeight: 700,
                 color: '#111827',
               }}
@@ -203,10 +203,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               padding: '10px 24px',
             }}
           >
-            <span style={{ fontSize: '26px', fontWeight: 700, color: '#111827' }}>
+            <span style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
               {parseInt(guesses).toLocaleString()}
             </span>
-            <span style={{ fontSize: '24px', fontWeight: 400, color: '#6b7280' }}>
+            <span style={{ fontSize: '26px', fontWeight: 400, color: '#6b7280' }}>
               guesses
             </span>
           </div>
@@ -220,10 +220,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               padding: '10px 24px',
             }}
           >
-            <span style={{ fontSize: '26px', fontWeight: 700, color: '#111827' }}>
+            <span style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
               {parseInt(players).toLocaleString()}
             </span>
-            <span style={{ fontSize: '24px', fontWeight: 400, color: '#6b7280' }}>
+            <span style={{ fontSize: '26px', fontWeight: 400, color: '#6b7280' }}>
               players
             </span>
           </div>
@@ -233,16 +233,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         <div
           style={{
             position: 'absolute',
-            bottom: '32px',
+            bottom: '44px',
             display: 'flex',
             alignItems: 'baseline',
             gap: '12px',
           }}
         >
-          <span style={{ fontSize: '38px', fontWeight: 700, color: '#459df8' }}>
+          <span style={{ fontSize: '42px', fontWeight: 700, color: '#459df8' }}>
             GUESS WORDS.
           </span>
-          <span style={{ fontSize: '38px', fontWeight: 700, color: '#386ac3' }}>
+          <span style={{ fontSize: '42px', fontWeight: 700, color: '#386ac3' }}>
             WIN CRYPTO.
           </span>
         </div>
