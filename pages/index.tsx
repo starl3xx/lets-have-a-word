@@ -2372,6 +2372,7 @@ function GameContent() {
           onPurchaseSuccess={handlePackPurchaseSuccess}
           onSuperguess={() => setShowSuperguessModal(true)}
           superguessEligible={superguessEligible}
+          superguessActive={superguessActive || isSuperguessing}
         />
       )}
 

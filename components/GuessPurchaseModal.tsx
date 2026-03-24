@@ -51,6 +51,7 @@ interface GuessPurchaseModalProps {
   onPurchaseSuccess: (packCount: number) => void;
   onSuperguess?: () => void; // Opens the Superguess purchase modal
   superguessEligible?: boolean; // Whether Superguess is available (guess count >= 850)
+  superguessActive?: boolean; // Whether a Superguess session is currently active
 }
 
 /**
@@ -94,6 +95,7 @@ export default function GuessPurchaseModal({
   onPurchaseSuccess,
   onSuperguess,
   superguessEligible,
+  superguessActive,
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
@@ -538,9 +540,9 @@ export default function GuessPurchaseModal({
                     onClose();
                     onSuperguess();
                   }}
-                  disabled={isPurchasing || !superguessEligible}
+                  disabled={isPurchasing || !superguessEligible || superguessActive}
                   className={`w-full p-4 rounded-btn border-2 transition-all duration-fast flex items-center justify-between ${
-                    superguessEligible
+                    superguessEligible && !superguessActive
                       ? 'border-red-300 bg-red-50 hover:border-red-400 hover:bg-red-100'
                       : 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
                   }`}
@@ -553,7 +555,7 @@ export default function GuessPurchaseModal({
                     <div className="text-left">
                       <p className="font-semibold text-gray-900">Superguess</p>
                       <p className="text-sm text-gray-600">
-                        {superguessEligible ? '25 exclusive guesses' : 'Available after 850 guesses'}
+                        {superguessActive ? 'In progress' : superguessEligible ? '25 exclusive guesses' : 'Available after 850 guesses'}
                       </p>
                     </div>
                   </div>
