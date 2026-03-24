@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-03-24
+
+- **CLAWD added to word list**: Added CLAWD as a valid guess word, bringing the total to 4,439 words.
+
 ### 2026-03-24 (Milestone 15: Superguess)
 
 - **Superguess mechanic**: After guess #850, any player can purchase a Superguess with $WORD tokens for an exclusive 25-guess, 10-minute window. All other players are paused and watch live as spectators. 50% of payment is burned via the WordManager contract, 50% is sent to the staking rewards address. One Superguess per round.
