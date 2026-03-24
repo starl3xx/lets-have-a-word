@@ -740,6 +740,11 @@ function GameContent() {
           // Milestone 6.3: Track pack purchases for modal decision logic
           setPaidPacksPurchased(data.paidPacksPurchased || 0);
           setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
+          // Milestone 15: Bootstrap Superguess state on page load/refresh
+          if (data.isSuperguessing) {
+            setIsSuperguessing(true);
+            setSuperguessActive(false);
+          }
           // Milestone 4.14 + dev mode: Set wheel start index ONLY on initial load
           // In dev mode, preserve the session's random position across refetches
           // (wheel should return to same position after guess, not get a new random)
@@ -1773,14 +1778,23 @@ function GameContent() {
             const wasSuperguessing = isSuperguessing;
             const wasSpectating = superguessActive && !isSuperguessing;
 
+            // Check if the session ended with a win (last guess was correct)
+            const lastGuess = superguessState?.guessLog?.[superguessState.guessLog.length - 1];
+            const endedWithWin = lastGuess?.result === 'correct';
+
             if (wasSuperguessing || wasSpectating) {
-              const msg = wasSuperguessing
+              const msg = endedWithWin
+                ? 'Superguess won! Round complete.'
+                : wasSuperguessing
                 ? 'Superguess complete — normal play resumed'
                 : 'Superguess ended — normal play resumed';
               setSuperguessEndedMessage(msg);
+
+              // Longer delay after a win so spectators can see the celebration
+              const delay = endedWithWin ? 8000 : 5000;
               setTimeout(() => {
                 setSuperguessEndedMessage(null);
-              }, 5000);
+              }, delay);
             }
 
             setSuperguessActive(false);
