@@ -17,6 +17,7 @@ import { getActiveRound } from '../../src/lib/rounds';
 import {
   isSuperguessFeatureEnabled,
   isSuperguessActive,
+  hasUsedSuperguessThisRound,
   SUPERGUESS_MIN_GUESS_COUNT,
 } from '../../src/lib/superguess';
 
@@ -135,8 +136,9 @@ export default async function handler(
       const sgActive = await isSuperguessActive(activeRound.id);
       response.superguessActive = sgActive;
       if (!sgActive) {
+        const alreadyUsed = await hasUsedSuperguessThisRound(activeRound.id);
         response.superguessEligible =
-          response.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT;
+          response.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT && !alreadyUsed;
       } else {
         response.superguessEligible = false;
       }

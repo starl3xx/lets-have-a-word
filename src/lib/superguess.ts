@@ -333,9 +333,12 @@ export async function completeSuperguessSession(
 
   const completed = result[0];
 
-  // Clear active cache — play resumes immediately
-  await cacheDel(SuperguessCacheKeys.active(completed.roundId));
-  await cacheDel(SuperguessCacheKeys.state(completed.roundId));
+  // Clear all Superguess caches — play resumes immediately
+  await Promise.all([
+    cacheDel(SuperguessCacheKeys.active(completed.roundId)),
+    cacheDel(SuperguessCacheKeys.state(completed.roundId)),
+    cacheDel(SuperguessCacheKeys.guessLog(completed.roundId)),
+  ]);
 
   console.log(
     `🔴 [Superguess] Session ${sessionId} completed: ${status}`

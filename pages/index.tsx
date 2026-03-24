@@ -298,6 +298,11 @@ function GameContent() {
   const [spectatorLastGuess, setSpectatorLastGuess] = useState<{ word: string; result: string } | null>(null);
   const lastSeenGuessCountRef = useRef(0);
   const lastGuessLogRef = useRef<Array<{ word: string; result: string }>>([]);
+  const isSuperguessActiveRef = useRef(false);
+  const isSuperguessingSelfRef = useRef(false);
+  // Keep refs in sync with state for use in polling closures
+  useEffect(() => { isSuperguessActiveRef.current = superguessActive; }, [superguessActive]);
+  useEffect(() => { isSuperguessingSelfRef.current = isSuperguessing; }, [isSuperguessing]);
   // Transition message shown for 5 seconds after Superguess ends
   const [superguessEndedMessage, setSuperguessEndedMessage] = useState<string | null>(null);
   const [canClaimShareBonus, setCanClaimShareBonus] = useState(true); // Whether user has already claimed share bonus today
@@ -1777,8 +1782,9 @@ function GameContent() {
             }
           } else {
             // Session ended — show transition message before reverting
-            const wasSuperguessing = isSuperguessing;
-            const wasSpectating = superguessActive && !isSuperguessing;
+            // Use refs to get current values (avoids stale closure)
+            const wasSuperguessing = isSuperguessingSelfRef.current;
+            const wasSpectating = isSuperguessActiveRef.current && !isSuperguessingSelfRef.current;
 
             // Check if the session ended with a win (use ref to avoid stale closure)
             const lastGuess = lastGuessLogRef.current[lastGuessLogRef.current.length - 1];

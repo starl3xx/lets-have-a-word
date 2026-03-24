@@ -234,10 +234,10 @@ export default async function handler(
       throw error;
     }
 
-    // 8. Execute 50% burn + 50% staking rewards (non-blocking, session already active)
+    // 8. Execute 50% burn + 50% staking rewards
+    // IMPORTANT: Must be awaited — Vercel serverless terminates after response
     if (!isDevMode && burnedAmount !== '0') {
-      (async () => {
-        try {
+      try {
           const { burnWordOnChain, getWordManagerAddress } = await import('../../../src/lib/word-manager');
           const { ethers } = await import('ethers');
           const { db } = await import('../../../src/db');
@@ -302,11 +302,10 @@ export default async function handler(
             amount: stakingAmount,
             txHash: stakingTxHash || undefined,
           });
-        } catch (err) {
-          console.error('[superguess/purchase] Burn/staking failed (session still active):', err);
-          // Session continues — burn/staking can be retried manually
-        }
-      })();
+      } catch (err) {
+        console.error('[superguess/purchase] Burn/staking failed (session still active):', err);
+        // Session continues — burn/staking can be retried manually
+      }
     }
 
     // 9. Award SHOWSTOPPER wordmark (on purchase, not win)

@@ -93,32 +93,17 @@ export default async function handler(
 
     // Milestone 9.6: Conservative rate limiting (8/10s burst, 30/60s sustained)
     // Runs BEFORE any DB operations to fail fast and cheap
-    // Milestone 15: Skip rate limiting for active Superguessers (paid for fast guessing)
-    let skipRateLimit = false;
-    if (rateLimitFid) {
-      try {
-        const { isSuperguessFeatureEnabled, getActiveSuperguess } = await import('../../src/lib/superguess');
-        const { getActiveRound } = await import('../../src/lib/rounds');
-        if (isSuperguessFeatureEnabled()) {
-          const activeRound = await getActiveRound();
-          if (activeRound) {
-            const sg = await getActiveSuperguess(activeRound.id);
-            if (sg && sg.fid === rateLimitFid) skipRateLimit = true;
-          }
-        }
-      } catch { /* fall through to normal rate limiting */ }
-    }
-    if (!skipRateLimit) {
-      const rateCheck = await checkGuessRateLimit(rateLimitFid, ip, userAgent);
-      if (!rateCheck.allowed) {
-        res.setHeader('Retry-After', rateCheck.retryAfterSeconds?.toString() || '10');
-        return res.status(429).json({
-          ok: false,
-          error: AppErrorCodes.RATE_LIMITED,
-          message: 'Too fast — try again in a moment',
-          retryAfterSeconds: rateCheck.retryAfterSeconds,
-        });
-      }
+    // Note: Superguessers are NOT exempt — 8/10s burst is generous enough
+    // for the ~1 guess/24s average pace of a 25-guess, 10-minute window
+    const rateCheck = await checkGuessRateLimit(rateLimitFid, ip, userAgent);
+    if (!rateCheck.allowed) {
+      res.setHeader('Retry-After', rateCheck.retryAfterSeconds?.toString() || '10');
+      return res.status(429).json({
+        ok: false,
+        error: AppErrorCodes.RATE_LIMITED,
+        message: 'Too fast — try again in a moment',
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      });
     }
 
     // Milestone 9.5: Check operational guard (kill switch / dead day)
