@@ -43,6 +43,7 @@
     "@tanstack/react-query": "^5.90.10",
     "@upstash/ratelimit": "^2.0.7",
     "@upstash/redis": "^1.35.8",
+    "@vercel/og": "^0.11.1",
     "autoprefixer": "^10.4.20",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^16.4.5",
@@ -67,6 +68,7 @@
     "drizzle-kit": "^0.24.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5"
+    "vitest": "^2.0.5",
+    "wawoff2": "^2.0.1"
   }
 }
