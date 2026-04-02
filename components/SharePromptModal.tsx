@@ -160,6 +160,23 @@ export default function SharePromptModal({
     return `https://letshaveaword.fun/share/${word.toUpperCase()}?${params}`;
   };
 
+  // Pre-warm the OG image on Vercel's CDN so it's cached before the crawler hits it
+  // (cold start + Satori render can take 2-3s, which may exceed crawler timeouts)
+  const embedUrl = getEmbedUrl();
+  useEffect(() => {
+    if (!roundStats || !guessResult || guessResult.status !== 'incorrect') return;
+    const word = guessResult.word;
+    if (!word) return;
+    const params = new URLSearchParams({
+      word: word.toUpperCase(),
+      round: String(roundStats.roundId),
+      jackpot: formatJackpotEth(prizePoolEth),
+      guesses: String(roundStats.guesses),
+      players: String(roundStats.players),
+    });
+    fetch(`/api/og/share?${params}`, { method: 'HEAD' }).catch(() => {});
+  }, [roundStats, guessResult, prizePoolEth]);
+
   // State for verification flow
   const [hasOpenedComposer, setHasOpenedComposer] = useState(false);
   const [verificationAttempts, setVerificationAttempts] = useState(0);
@@ -222,7 +239,7 @@ export default function SharePromptModal({
 
       await sdk.actions.composeCast({
         text: shareText,
-        embeds: [getEmbedUrl()],
+        embeds: [embedUrl],
       });
 
       console.log('[SharePromptModal] Composer opened');
