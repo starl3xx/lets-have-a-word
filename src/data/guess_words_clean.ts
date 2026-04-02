@@ -592,6 +592,7 @@ export const CORE_COMMON: string[] = [
   "CENTS",
   "CERES",
   "CHAAT",
+  "CHADS",
   "CHAFF",
   "CHAIN",
   "CHAIR",
@@ -873,6 +874,7 @@ export const CORE_COMMON: string[] = [
   "DEEDS",
   "DEEMS",
   "DEFER",
+  "DEGEN",
   "DEISM",
   "DEITY",
   "DELAY",
@@ -2130,6 +2132,7 @@ export const CORE_COMMON: string[] = [
   "NEGRO",
   "NERDS",
   "NERDY",
+  "NERFS",
   "NERVE",
   "NESTS",
   "NEURO",
@@ -2160,6 +2163,7 @@ export const CORE_COMMON: string[] = [
   "NOISY",
   "NOKIA",
   "NOMAD",
+  "NOOBS",
   "NOOKS",
   "NOONE",
   "NOOSE",
@@ -2484,6 +2488,7 @@ export const CORE_COMMON: string[] = [
   "PUSHA",
   "PUSHY",
   "PUTTY",
+  "PWNED",
   "PYGMY",
   "PYLON",
   "QUACK",
@@ -4497,6 +4502,7 @@ export const SLANG_ALLOWLIST: string[] = [
   "YEESH",
   "YEETS",
   "YOGIS",
+  "YOINK",
   "YUMMY",
 ];
 
@@ -4538,7 +4544,7 @@ export const BANNED_GUESSES: string[] = [
  * - No other word list is used at runtime
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4440 words
+ * Total: 4446 words
  */
 export const WORDS: string[] = [
   ...CORE_COMMON,
