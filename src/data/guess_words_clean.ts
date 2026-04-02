@@ -2489,7 +2489,6 @@ export const CORE_COMMON: string[] = [
   "PUSHY",
   "PUTTY",
   "PWNED",
-  "PYGMY",
   "PYLON",
   "QUACK",
   "QUADS",
@@ -4544,7 +4543,7 @@ export const BANNED_GUESSES: string[] = [
  * - No other word list is used at runtime
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4446 words
+ * Total: 4445 words
  */
 export const WORDS: string[] = [
   ...CORE_COMMON,
