@@ -4495,6 +4495,7 @@ export const SLANG_ALLOWLIST: string[] = [
   "VIBEY",
   "WANNA",
   "YEESH",
+  "YEETS",
   "YOGIS",
   "YUMMY",
 ];
@@ -4537,7 +4538,7 @@ export const BANNED_GUESSES: string[] = [
  * - No other word list is used at runtime
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4439 words
+ * Total: 4440 words
  */
 export const WORDS: string[] = [
   ...CORE_COMMON,

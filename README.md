@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-04-02
+
+- **YEETS added to word list**: 4,440 words.
+
 ### 2026-03-24
 
 - **CLAWD added to word list**: Added CLAWD as a valid guess word, bringing the total to 4,439 words.
