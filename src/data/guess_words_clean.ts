@@ -180,7 +180,6 @@ export const CORE_COMMON: string[] = [
   "ARSED",
   "ARSON",
   "ARTSY",
-  "ARYAN",
   "ASCII",
   "ASCOT",
   "ASHES",
@@ -1369,7 +1368,6 @@ export const CORE_COMMON: string[] = [
   "GIFTS",
   "GILLS",
   "GIMME",
-  "GIPSY",
   "GIRLS",
   "GIRLY",
   "GIRTH",
@@ -1590,7 +1588,6 @@ export const CORE_COMMON: string[] = [
   "HOMME",
   "HONEY",
   "HONKS",
-  "HONKY",
   "HONOR",
   "HOOCH",
   "HOODS",
@@ -1948,7 +1945,6 @@ export const CORE_COMMON: string[] = [
   "MAMBA",
   "MAMBO",
   "MAMMA",
-  "MAMMY",
   "MANGA",
   "MANGE",
   "MANGO",
@@ -2129,7 +2125,6 @@ export const CORE_COMMON: string[] = [
   "NECKS",
   "NEEDS",
   "NEEDY",
-  "NEGRO",
   "NERDS",
   "NERDY",
   "NERFS",
@@ -2758,7 +2753,6 @@ export const CORE_COMMON: string[] = [
   "SALVE",
   "SALVO",
   "SAMBA",
-  "SAMBO",
   "SANAA",
   "SANDI",
   "SANDS",
@@ -2958,7 +2952,6 @@ export const CORE_COMMON: string[] = [
   "SIXTH",
   "SIXTY",
   "SIZES",
-  "SKANK",
   "SKATE",
   "SKEET",
   "SKIDS",
@@ -3147,7 +3140,6 @@ export const CORE_COMMON: string[] = [
   "SPURT",
   "SQUAD",
   "SQUAT",
-  "SQUAW",
   "SQUID",
   "SRSLY",
   "STABS",
@@ -4543,7 +4535,7 @@ export const BANNED_GUESSES: string[] = [
  * - No other word list is used at runtime
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4445 words
+ * Total: 4437 words
  */
 export const WORDS: string[] = [
   ...CORE_COMMON,

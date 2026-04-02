@@ -211,7 +211,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-04-02
 
-- **Slang words added**: YEETS, DEGEN, YOINK, NOOBS, CHADS, PWNED, NERFS. Removed PYGMY (offensive). 4,445 words.
+- **Slang words added**: YEETS, DEGEN, YOINK, NOOBS, CHADS, PWNED, NERFS. Removed offensive terms: PYGMY, ARYAN, NEGRO, SAMBO, SQUAW, HONKY, SKANK, GIPSY, MAMMY. 4,437 words.
 
 ### 2026-03-24
 
