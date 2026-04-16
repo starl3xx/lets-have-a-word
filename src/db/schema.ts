@@ -813,3 +813,24 @@ export const superguessSessions = pgTable('superguess_sessions', {
 
 export type SuperguessSessionRow = typeof superguessSessions.$inferSelect;
 export type SuperguessSessionInsert = typeof superguessSessions.$inferInsert;
+
+/**
+ * Puzzle Crumbs Table
+ * Stores shorter words (4–8 letters) discovered by players during a round.
+ * Crumbs are permanent per puzzle per user — once found, they persist forever.
+ */
+export const puzzleCrumbs = pgTable('puzzle_crumbs', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  fid: integer('fid').notNull(), // FK to users.fid
+  word: varchar('word', { length: 10 }).notNull(), // Uppercase crumb word (4–8 letters)
+  foundAt: timestamp('found_at').defaultNow().notNull(),
+}, (table) => ({
+  // One occurrence of each word per user per round
+  roundFidWordUnique: unique('puzzle_crumbs_round_fid_word_unique').on(table.roundId, table.fid, table.word),
+  // Fast lookup: all crumbs for a user on a given round
+  roundFidIdx: index('puzzle_crumbs_round_fid_idx').on(table.roundId, table.fid),
+}));
+
+export type PuzzleCrumbRow = typeof puzzleCrumbs.$inferSelect;
+export type PuzzleCrumbInsert = typeof puzzleCrumbs.$inferInsert;

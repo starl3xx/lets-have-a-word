@@ -291,3 +291,43 @@ export interface GuessSourceState {
     canBuyMore: boolean;      // Whether more packs can be purchased
   };
 }
+
+/**
+ * Puzzle Crumb
+ * A shorter word (4–8 letters) discovered by a player during a round.
+ * Crumbs are permanent per puzzle per user.
+ */
+export interface PuzzleCrumb {
+  id: number;
+  roundId: number;
+  fid: number;
+  word: string;
+  foundAt: Date;
+}
+
+/**
+ * Crumbs API Response (GET)
+ */
+export interface CrumbsResponse {
+  roundId: number;
+  fid: number;
+  crumbs: string[];   // Sorted by foundAt ascending
+  count: number;
+}
+
+/**
+ * Save Crumb Request (POST body)
+ */
+export interface SaveCrumbRequest {
+  roundId: number;
+  word: string;
+  // Auth fields handled by frameMessage / devFid
+}
+
+/**
+ * Save Crumb Result
+ */
+export type SaveCrumbResult =
+  | { status: 'saved'; word: string; roundId: number }
+  | { status: 'duplicate'; word: string; roundId: number }
+  | { status: 'invalid_word'; reason: string };
