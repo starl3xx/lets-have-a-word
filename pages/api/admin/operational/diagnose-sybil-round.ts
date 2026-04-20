@@ -174,19 +174,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     // ---- Most-active guessers (top 25 by guess count) ----
+    // Group by g.fid (not u.fid) so unregistered sybil FIDs each get their own
+    // row; grouping by u.fid would collapse all NULL-joined rows into one.
     const topGuessers = rowsOf(
       await db.execute(sql`
         select
-          u.fid,
-          u.username,
-          u.user_score,
-          u.created_at as first_seen,
-          u.signer_wallet_address as wallet,
+          g.fid,
+          max(u.username) as username,
+          max(u.user_score) as user_score,
+          max(u.created_at) as first_seen,
+          max(u.signer_wallet_address) as wallet,
           count(g.id)::int as guesses
         from guesses g
         left join users u on u.fid = g.fid
         where g.round_id = ${roundId}
-        group by u.fid, u.username, u.user_score, u.created_at, u.signer_wallet_address
+        group by g.fid
         order by guesses desc
         limit 25
       `)
