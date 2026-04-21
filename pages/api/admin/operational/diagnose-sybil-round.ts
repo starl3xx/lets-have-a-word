@@ -60,6 +60,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const roundStart = round.startedAt;
     const roundEnd = round.resolvedAt ?? round.cancelledAt ?? new Date();
+    // postgres-js doesn't auto-serialize Date inside drizzle's sql`...`
+    // template for db.execute — use ISO strings for raw SQL interpolation.
+    const roundStartIso = roundStart.toISOString();
+    const roundEndIso = roundEnd.toISOString();
 
     // ---- Headline stats ----
     const [headline] = await db
@@ -111,8 +115,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         from guesses g
         join users u on u.fid = g.fid
         where g.round_id = ${roundId}
-          and u.created_at >= ${roundStart}
-          and u.created_at <= ${roundEnd}
+          and u.created_at >= ${roundStartIso}::timestamptz
+          and u.created_at <= ${roundEndIso}::timestamptz
       `)
     );
 
@@ -233,8 +237,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           date_trunc('minute', u.created_at) as minute,
           count(*)::int as new_users
         from users u
-        where u.created_at >= ${roundStart}
-          and u.created_at <= ${roundEnd}
+        where u.created_at >= ${roundStartIso}::timestamptz
+          and u.created_at <= ${roundEndIso}::timestamptz
           and exists (select 1 from guesses g where g.round_id = ${roundId} and g.fid = u.fid)
         group by minute
         order by new_users desc
