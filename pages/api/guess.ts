@@ -18,6 +18,11 @@ import {
   INSUFFICIENT_USER_SCORE_ERROR,
   MIN_USER_SCORE,
 } from '../../src/lib/user-quality';
+import {
+  checkAccountAge,
+  logBlockedAccountAgeAttempt,
+  ACCOUNT_TOO_NEW_ERROR,
+} from '../../src/lib/account-age';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
 import {
   checkGuessRateLimit,
@@ -370,6 +375,25 @@ export default async function handler(
           score: qualityCheck.score,
           minRequired: MIN_USER_SCORE,
           helpUrl: qualityCheck.helpUrl,
+        } as any);
+      }
+    }
+
+    // Post-Round-28 sybil defense: gate on Farcaster FID registration age.
+    // Quality score rubber-stamps normal-looking fresh accounts — age is the
+    // orthogonal signal that actually blocks coordinated farming ops.
+    if (process.env.ACCOUNT_AGE_GATING_ENABLED === 'true') {
+      const ageCheck = await checkAccountAge(fid);
+
+      if (!ageCheck.eligible) {
+        await logBlockedAccountAgeAttempt(fid, ageCheck, 'guess');
+
+        return res.status(403).json({
+          error: ageCheck.errorCode || ACCOUNT_TOO_NEW_ERROR,
+          message: ageCheck.reason || 'Account too new',
+          registeredAt: ageCheck.registeredAt?.toISOString() ?? null,
+          ageDays: ageCheck.ageDays,
+          daysUntilEligible: ageCheck.daysUntilEligible,
         } as any);
       }
     }

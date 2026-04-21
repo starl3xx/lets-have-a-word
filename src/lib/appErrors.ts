@@ -34,6 +34,7 @@ export const AppErrorCodes = {
   // User State Issues
   USER_STATE_UNAVAILABLE: 'USER_STATE_UNAVAILABLE',
   USER_QUALITY_BLOCKED: 'USER_QUALITY_BLOCKED',
+  ACCOUNT_TOO_NEW: 'ACCOUNT_TOO_NEW',
   FARCASTER_CONTEXT_MISSING: 'FARCASTER_CONTEXT_MISSING',
   AUTHENTICATION_REQUIRED: 'AUTHENTICATION_REQUIRED',
 
@@ -227,6 +228,14 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
     userBody: 'Your account needs a higher Neynar score to play.',
     primaryCtaLabel: 'Learn more',
     primaryCtaAction: 'open_help',
+    bannerVariant: 'warning',
+    logToAnalytics: true,
+  },
+  [AppErrorCodes.ACCOUNT_TOO_NEW]: {
+    userTitle: 'Account too new',
+    userBody: 'Your Farcaster account must be at least 14 days old to play. Come back soon!',
+    primaryCtaLabel: 'Dismiss',
+    primaryCtaAction: 'dismiss',
     bannerVariant: 'warning',
     logToAnalytics: true,
   },
