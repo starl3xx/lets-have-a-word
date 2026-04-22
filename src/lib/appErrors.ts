@@ -610,6 +610,9 @@ function mapLegacyErrorToCode(errorString: string): AppErrorCode {
   if (lowerError.includes('insufficient_user_score') || lowerError.includes('quality')) {
     return AppErrorCodes.USER_QUALITY_BLOCKED;
   }
+  if (lowerError.includes('account_too_new')) {
+    return AppErrorCodes.ACCOUNT_TOO_NEW;
+  }
   if (lowerError.includes('rate') || lowerError.includes('too many')) {
     return AppErrorCodes.RATE_LIMITED;
   }
