@@ -583,6 +583,11 @@ export default function WalletSection({ user }: WalletSectionProps) {
     transferTxHash?: string;
     notifyTxHash?: string;
   } | null>(null);
+  // Preserves a successful transfer across a partial-failure retry. If the
+  // transfer tx confirmed but the subsequent notifyRewardAmount call failed,
+  // a retry must NOT re-send tokens — it reuses this hash and skips straight
+  // to the notify step. Cleared on full success or modal cancel.
+  const [committedTransferTxHash, setCommittedTransferTxHash] = useState<string | null>(null);
 
   // Bonus distribution state
   const [bonusDistStatus, setBonusDistStatus] = useState<BonusDistributionStatus | null>(null);
@@ -1269,10 +1274,14 @@ export default function WalletSection({ user }: WalletSectionProps) {
     setActivateProgress(null);
 
     try {
-      let transferTxHash: string | undefined;
+      // If a prior attempt's transfer already confirmed, reuse it. This is
+      // the critical guard against double-spend: a retry must never sign a
+      // second transfer tx just because the notify step failed.
+      let transferTxHash: string | undefined = committedTransferTxHash ?? undefined;
 
-      // Step 1 (send mode only): transfer $WORD from connected wallet → WordManager
-      if (activateMode === 'send') {
+      // Step 1 (send mode only, and only if no prior transfer succeeded):
+      //   transfer $WORD from connected wallet → WordManager
+      if (activateMode === 'send' && !transferTxHash) {
         setActivateProgress('Awaiting wallet signature for transfer…');
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
@@ -1286,6 +1295,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
         transferTxHash = tx.hash;
         setActivateProgress(`Transfer submitted (${tx.hash.slice(0, 10)}…). Waiting for confirmation…`);
         await tx.wait();
+        // Persist the confirmed hash. From this point on, any failure in the
+        // notify step is a partial-success state; retries must skip Step 1.
+        // We also flip mode to 'existing' so the button label/copy makes sense
+        // on the next render.
+        setCommittedTransferTxHash(tx.hash);
+        setActivateMode('existing');
       }
 
       // Step 2: call notifyRewardAmount via the existing admin endpoint
@@ -1348,16 +1363,24 @@ export default function WalletSection({ user }: WalletSectionProps) {
       setActivateResult({ transferTxHash, notifyTxHash });
       setActivateProgress(null);
 
-      // Reset form
+      // Reset form — full success, so the partial-failure guard is no longer needed.
       setActivateAmount('');
       setActivateConfirmText('');
       setActivateMode(null);
+      setCommittedTransferTxHash(null);
 
       // Refresh balances so the dashboard flips to Active
       await Promise.all([fetchBalances(), fetchActions()]);
     } catch (err: any) {
       console.error('[ActivateStreaming] Error:', err);
-      setActivateError(err?.message || 'Activation failed');
+      // If the transfer already committed, surface that loudly so the admin
+      // knows the $WORD is in the contract even though streaming didn't start.
+      const baseMessage = err?.message || 'Activation failed';
+      setActivateError(
+        committedTransferTxHash
+          ? `${baseMessage} — your ${activateAmount} $WORD transfer already confirmed (${committedTransferTxHash.slice(0, 10)}…). Retry will call notifyRewardAmount without a second transfer, or cancel to activate later via "Activate with existing balance".`
+          : baseMessage
+      );
       setActivateProgress(null);
     } finally {
       setIsActivating(false);
@@ -2113,7 +2136,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                   )}
                   {activateResult.notifyTxHash && (
                     <>
-                      {' · '}
+                      {activateResult.transferTxHash ? ' · ' : ' '}
                       <a
                         href={`https://basescan.org/tx/${activateResult.notifyTxHash}`}
                         target="_blank"
@@ -3180,9 +3203,19 @@ export default function WalletSection({ user }: WalletSectionProps) {
           style={styles.modal}
           onClick={() => {
             if (isActivating) return;
+            // Backdrop close — warn loudly if a transfer is already committed.
+            if (
+              committedTransferTxHash &&
+              !window.confirm(
+                `Your $WORD transfer already confirmed but streaming is not yet active. Close anyway? You can activate later via "Activate with existing balance".`
+              )
+            ) {
+              return;
+            }
             setActivateMode(null);
             setActivateConfirmText('');
             setActivateError(null);
+            setCommittedTransferTxHash(null);
           }}
         >
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -3266,9 +3299,18 @@ export default function WalletSection({ user }: WalletSectionProps) {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
                 onClick={() => {
+                  if (
+                    committedTransferTxHash &&
+                    !window.confirm(
+                      `Your $WORD transfer already confirmed but streaming is not yet active. Cancel anyway? You can activate later via "Activate with existing balance".`
+                    )
+                  ) {
+                    return;
+                  }
                   setActivateMode(null);
                   setActivateConfirmText('');
                   setActivateError(null);
+                  setCommittedTransferTxHash(null);
                 }}
                 disabled={isActivating}
                 style={{
