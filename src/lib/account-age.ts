@@ -23,7 +23,11 @@ export const ACCOUNT_TOO_NEW_ERROR = 'ACCOUNT_TOO_NEW';
 
 const DEFAULT_MIN_DAYS = 14;
 const HUB_FETCH_TIMEOUT_MS = 3000;
-const REGISTER_EVENT_TYPE = 'EVENT_TYPE_REGISTER';
+// Farcaster Hub OnChainEventType enum: EVENT_TYPE_ID_REGISTER = 3 is the FID
+// registration event. The Hub HTTP API accepts either the enum name or the
+// int; we use the name for readability. Using the wrong value silently returns
+// zero events and fails the gate open.
+const REGISTER_EVENT_TYPE = 'EVENT_TYPE_ID_REGISTER';
 
 /**
  * How long to wait before retrying a Hub lookup that returned no result.
@@ -85,12 +89,20 @@ async function fetchFidRegisteredAtFromHub(fid: number): Promise<Date | null> {
     const response = await fetch(url, { headers, signal: controller.signal });
     if (!response.ok) {
       console.warn(`[AccountAge] Hub returned ${response.status} for FID ${fid}`);
+      Sentry.captureMessage(`[AccountAge] Hub returned non-200`, {
+        level: 'warning',
+        tags: { component: 'account-age', operation: 'hub_lookup', failure: 'http_error' },
+        extra: { fid, status: response.status, statusText: response.statusText },
+      });
       return null;
     }
 
     const body = (await response.json()) as { events?: Array<{ blockTimestamp?: number }> };
     const events = body.events ?? [];
     if (events.length === 0 || !events[0].blockTimestamp) {
+      // Not a Hub outage — the FID genuinely has no Register event visible
+      // (e.g. brand-new FID not yet propagated, or non-existent FID). Don't
+      // alert Sentry for this; `checked_at` cooldown prevents hammering.
       console.warn(`[AccountAge] No Register event found for FID ${fid}`);
       return null;
     }
@@ -100,10 +112,15 @@ async function fetchFidRegisteredAtFromHub(fid: number): Promise<Date | null> {
   } catch (error: any) {
     if (error?.name === 'AbortError') {
       console.warn(`[AccountAge] Hub lookup timed out (${HUB_FETCH_TIMEOUT_MS}ms) for FID ${fid}`);
+      Sentry.captureMessage(`[AccountAge] Hub lookup timed out`, {
+        level: 'warning',
+        tags: { component: 'account-age', operation: 'hub_lookup', failure: 'timeout' },
+        extra: { fid, timeoutMs: HUB_FETCH_TIMEOUT_MS },
+      });
     } else {
       console.error(`[AccountAge] Hub lookup failed for FID ${fid}:`, error);
       Sentry.captureException(error, {
-        tags: { component: 'account-age', operation: 'hub_lookup' },
+        tags: { component: 'account-age', operation: 'hub_lookup', failure: 'exception' },
         extra: { fid },
       });
     }

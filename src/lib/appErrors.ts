@@ -232,8 +232,12 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
     logToAnalytics: true,
   },
   [AppErrorCodes.ACCOUNT_TOO_NEW]: {
+    // The exact minimum-age threshold is configurable (ACCOUNT_AGE_MIN_DAYS).
+    // Keep this message generic; the API response carries `reason`,
+    // `daysUntilEligible`, and `registeredAt` for renderers that want
+    // specifics.
     userTitle: 'Account too new',
-    userBody: 'Your Farcaster account must be at least 14 days old to play. Come back soon!',
+    userBody: 'Your Farcaster account is too new to play. Come back soon!',
     primaryCtaLabel: 'Dismiss',
     primaryCtaAction: 'dismiss',
     bannerVariant: 'warning',
