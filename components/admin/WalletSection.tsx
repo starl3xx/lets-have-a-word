@@ -1303,15 +1303,19 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
       const notifyTxHash: string | undefined = data?.txHash ?? undefined;
 
-      // Audit log
+      // Audit log. The action table's amountEth/amountWei columns are varchar
+      // and the $WORD token is 18-decimal (same representation as ETH), so
+      // we reuse those fields and tag the unit in metadata.tokenSymbol.
       try {
-        await fetch('/api/admin/wallet/actions', {
+        const amountWei = ethers.parseUnits(activateAmount, 18).toString();
+        const logResponse = await fetch('/api/admin/wallet/actions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             devFid: user.fid,
             actionType: 'streaming_activation',
-            amountTokens: amount,
+            amountEth: String(amount), // whole-token amount
+            amountWei, // 18-decimal smallest-unit amount
             fromAddress: activateMode === 'send' ? connectedWallet.address : wordManagerAddress,
             toAddress: wordManagerAddress,
             txHash: notifyTxHash ?? transferTxHash ?? null,
@@ -1319,6 +1323,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
             initiatedByAddress: connectedWallet.address,
             note: `Streaming rewards activated (${activateMode === 'send' ? 'transfer + notify' : 'notify only'})`,
             metadata: {
+              tokenSymbol: '$WORD',
               mode: activateMode,
               chainId: connectedWallet.chainId,
               transferTxHash: transferTxHash ?? null,
@@ -1327,6 +1332,14 @@ export default function WalletSection({ user }: WalletSectionProps) {
             },
           }),
         });
+        // fetch doesn't throw on 4xx/5xx — check explicitly so a broken
+        // audit contract surfaces instead of failing silently.
+        if (!logResponse.ok) {
+          const text = await logResponse.text().catch(() => '');
+          console.warn(
+            `[ActivateStreaming] Action log returned HTTP ${logResponse.status}: ${text}`
+          );
+        }
       } catch (logErr) {
         // Non-fatal — don't break the UI if audit logging fails
         console.warn('[ActivateStreaming] Action log failed:', logErr);
