@@ -34,6 +34,7 @@ export const AppErrorCodes = {
   // User State Issues
   USER_STATE_UNAVAILABLE: 'USER_STATE_UNAVAILABLE',
   USER_QUALITY_BLOCKED: 'USER_QUALITY_BLOCKED',
+  ACCOUNT_TOO_NEW: 'ACCOUNT_TOO_NEW',
   FARCASTER_CONTEXT_MISSING: 'FARCASTER_CONTEXT_MISSING',
   AUTHENTICATION_REQUIRED: 'AUTHENTICATION_REQUIRED',
 
@@ -227,6 +228,18 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
     userBody: 'Your account needs a higher Neynar score to play.',
     primaryCtaLabel: 'Learn more',
     primaryCtaAction: 'open_help',
+    bannerVariant: 'warning',
+    logToAnalytics: true,
+  },
+  [AppErrorCodes.ACCOUNT_TOO_NEW]: {
+    // The exact minimum-age threshold is configurable (ACCOUNT_AGE_MIN_DAYS).
+    // Keep this message generic; the API response carries `reason`,
+    // `daysUntilEligible`, and `registeredAt` for renderers that want
+    // specifics.
+    userTitle: 'Account too new',
+    userBody: 'Your Farcaster account is too new to play. Come back soon!',
+    primaryCtaLabel: 'Dismiss',
+    primaryCtaAction: 'dismiss',
     bannerVariant: 'warning',
     logToAnalytics: true,
   },
@@ -596,6 +609,9 @@ function mapLegacyErrorToCode(errorString: string): AppErrorCode {
 
   if (lowerError.includes('insufficient_user_score') || lowerError.includes('quality')) {
     return AppErrorCodes.USER_QUALITY_BLOCKED;
+  }
+  if (lowerError.includes('account_too_new')) {
+    return AppErrorCodes.ACCOUNT_TOO_NEW;
   }
   if (lowerError.includes('rate') || lowerError.includes('too many')) {
     return AppErrorCodes.RATE_LIMITED;

@@ -27,6 +27,8 @@ export const users = pgTable('users', {
   spamScore: integer('spam_score'), // Neynar spam/trust score (higher = more trustworthy)
   userScore: decimal('user_score', { precision: 5, scale: 3 }), // Neynar user quality score (0.0-1.0) - Milestone 5.3
   userScoreUpdatedAt: timestamp('user_score_updated_at'), // Last time user score was fetched - Milestone 5.3
+  fidRegisteredAt: timestamp('fid_registered_at'), // Farcaster FID registration timestamp from Hub onChainEvents (immutable once set)
+  fidRegisteredAtCheckedAt: timestamp('fid_registered_at_checked_at'), // Last time we attempted to resolve fid_registered_at (null = never, lets us retry)
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
@@ -38,6 +40,7 @@ export const users = pgTable('users', {
   fidIdx: index('users_fid_idx').on(table.fid),
   walletIdx: index('users_wallet_idx').on(table.signerWalletAddress),
   userScoreUpdatedAtIdx: index('users_user_score_updated_at_idx').on(table.userScoreUpdatedAt),
+  fidRegisteredAtIdx: index('users_fid_registered_at_idx').on(table.fidRegisteredAt),
 }));
 
 /**

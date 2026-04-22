@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-04-21 (post-Round 28)
+
+- **Account-age gating for guessing**: Added a Farcaster FID-age gate that blocks guessing from accounts less than 14 days old. Source of truth is the Farcaster Hub `onChainEvents` Register event (immutable, cached on `users.fid_registered_at`). Quality-score gate rubber-stamped the Round 28 sybil farm — age is the orthogonal signal. Gated behind `ACCOUNT_AGE_GATING_ENABLED`; `ACCOUNT_AGE_MIN_DAYS` (default 14) and `ACCOUNT_AGE_ALLOWLIST` tunables. Hub failures fail open with Sentry alert. New `ACCOUNT_TOO_NEW` error code.
+
 ### 2026-04-02
 
 - **Slang words added**: YEETS, DEGEN, YOINK, NOOBS, CHADS, PWNED, NERFS. Removed offensive terms: PYGMY, ARYAN, NEGRO, SAMBO, SQUAW, HONKY, SKANK, GIPSY, MAMMY. 4,437 words.
