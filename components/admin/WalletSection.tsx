@@ -1273,12 +1273,15 @@ export default function WalletSection({ user }: WalletSectionProps) {
     setActivateResult(null);
     setActivateProgress(null);
 
-    try {
-      // If a prior attempt's transfer already confirmed, reuse it. This is
-      // the critical guard against double-spend: a retry must never sign a
-      // second transfer tx just because the notify step failed.
-      let transferTxHash: string | undefined = committedTransferTxHash ?? undefined;
+    // Hoisted above the try/catch so the catch branch can see the hash and
+    // so the audit log derives the flow shape from actual bytes moved —
+    // not from `activateMode`, which we flip to 'existing' after a
+    // successful transfer to keep the button copy honest on retry.
+    // React state updates are async; reading `committedTransferTxHash`
+    // in catch would see a stale null on the first partial-failure.
+    let transferTxHash: string | undefined = committedTransferTxHash ?? undefined;
 
+    try {
       // Step 1 (send mode only, and only if no prior transfer succeeded):
       //   transfer $WORD from connected wallet → WordManager
       if (activateMode === 'send' && !transferTxHash) {
@@ -1321,6 +1324,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
       // Audit log. The action table's amountEth/amountWei columns are varchar
       // and the $WORD token is 18-decimal (same representation as ETH), so
       // we reuse those fields and tag the unit in metadata.tokenSymbol.
+      //
+      // Derive the flow from whether a transfer actually happened, not from
+      // activateMode. On a retry after partial success, activateMode has been
+      // flipped to 'existing' for the UI — but the audit trail needs to show
+      // the connected wallet as the real source of the tokens.
+      const movedTokens = !!transferTxHash;
       try {
         const amountWei = ethers.parseUnits(activateAmount, 18).toString();
         const logResponse = await fetch('/api/admin/wallet/actions', {
@@ -1331,15 +1340,15 @@ export default function WalletSection({ user }: WalletSectionProps) {
             actionType: 'streaming_activation',
             amountEth: String(amount), // whole-token amount
             amountWei, // 18-decimal smallest-unit amount
-            fromAddress: activateMode === 'send' ? connectedWallet.address : wordManagerAddress,
+            fromAddress: movedTokens ? connectedWallet.address : wordManagerAddress,
             toAddress: wordManagerAddress,
             txHash: notifyTxHash ?? transferTxHash ?? null,
             initiatedByFid: user.fid,
             initiatedByAddress: connectedWallet.address,
-            note: `Streaming rewards activated (${activateMode === 'send' ? 'transfer + notify' : 'notify only'})`,
+            note: `Streaming rewards activated (${movedTokens ? 'transfer + notify' : 'notify only'})`,
             metadata: {
               tokenSymbol: '$WORD',
-              mode: activateMode,
+              mode: movedTokens ? 'send' : 'existing',
               chainId: connectedWallet.chainId,
               transferTxHash: transferTxHash ?? null,
               notifyTxHash: notifyTxHash ?? null,
@@ -1375,10 +1384,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
       console.error('[ActivateStreaming] Error:', err);
       // If the transfer already committed, surface that loudly so the admin
       // knows the $WORD is in the contract even though streaming didn't start.
+      // Must read from the local `transferTxHash`, not the state — state
+      // updates from this handler haven't flushed yet in this closure.
       const baseMessage = err?.message || 'Activation failed';
       setActivateError(
-        committedTransferTxHash
-          ? `${baseMessage} — your ${activateAmount} $WORD transfer already confirmed (${committedTransferTxHash.slice(0, 10)}…). Retry will call notifyRewardAmount without a second transfer, or cancel to activate later via "Activate with existing balance".`
+        transferTxHash
+          ? `${baseMessage} — your ${activateAmount} $WORD transfer already confirmed (${transferTxHash.slice(0, 10)}…). Retry will call notifyRewardAmount without a second transfer, or cancel to activate later via "Activate with existing balance".`
           : baseMessage
       );
       setActivateProgress(null);
