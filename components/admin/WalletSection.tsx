@@ -569,6 +569,26 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [isFundingOperator, setIsFundingOperator] = useState(false);
   const [showFundOperatorConfirm, setShowFundOperatorConfirm] = useState(false);
 
+  // Streaming rewards activation state
+  // Two modes:
+  //   'existing' — tokens are already in the contract; just call notifyRewardAmount
+  //   'send'     — transfer from connected wallet to the contract, then activate
+  const [activateAmount, setActivateAmount] = useState('');
+  const [activateMode, setActivateMode] = useState<'existing' | 'send' | null>(null);
+  const [activateConfirmText, setActivateConfirmText] = useState('');
+  const [isActivating, setIsActivating] = useState(false);
+  const [activateProgress, setActivateProgress] = useState<string | null>(null);
+  const [activateError, setActivateError] = useState<string | null>(null);
+  const [activateResult, setActivateResult] = useState<{
+    transferTxHash?: string;
+    notifyTxHash?: string;
+  } | null>(null);
+  // Preserves a successful transfer across a partial-failure retry. If the
+  // transfer tx confirmed but the subsequent notifyRewardAmount call failed,
+  // a retry must NOT re-send tokens — it reuses this hash and skips straight
+  // to the notify step. Cleared on full success or modal cancel.
+  const [committedTransferTxHash, setCommittedTransferTxHash] = useState<string | null>(null);
+
   // Bonus distribution state
   const [bonusDistStatus, setBonusDistStatus] = useState<BonusDistributionStatus | null>(null);
   const [bonusDistLoading, setBonusDistLoading] = useState(false);
@@ -1219,6 +1239,166 @@ export default function WalletSection({ user }: WalletSectionProps) {
   };
 
   // =============================================================================
+  // Activate Streaming Rewards Handler
+  // =============================================================================
+
+  const handleActivateStreaming = async () => {
+    if (!connectedWallet || !balances?.wordManager || !user) return;
+    if (connectedWallet.chainId !== BASE_CHAIN_ID) {
+      setActivateError('Please switch to Base network');
+      return;
+    }
+    if (activateConfirmText !== 'STREAM') {
+      setActivateError('Please type STREAM to confirm');
+      return;
+    }
+    if (!activateMode) {
+      setActivateError('Missing activation mode');
+      return;
+    }
+
+    const amount = parseFloat(activateAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setActivateError('Please enter a valid amount');
+      return;
+    }
+
+    const wordManagerAddress = balances.wordManager.address;
+    // Shared ERC-20 token address — already hardcoded across the client
+    // (WordBonusModal, BuyButton, etc.). Kept identical to avoid drift.
+    const WORD_TOKEN_ADDRESS = '0x304e649e69979298BD1AEE63e175ADf07885fb4b';
+
+    setIsActivating(true);
+    setActivateError(null);
+    setActivateResult(null);
+    setActivateProgress(null);
+
+    // Hoisted above the try/catch so the catch branch can see the hash and
+    // so the audit log derives the flow shape from actual bytes moved —
+    // not from `activateMode`, which we flip to 'existing' after a
+    // successful transfer to keep the button copy honest on retry.
+    // React state updates are async; reading `committedTransferTxHash`
+    // in catch would see a stale null on the first partial-failure.
+    let transferTxHash: string | undefined = committedTransferTxHash ?? undefined;
+
+    try {
+      // Step 1 (send mode only, and only if no prior transfer succeeded):
+      //   transfer $WORD from connected wallet → WordManager
+      if (activateMode === 'send' && !transferTxHash) {
+        setActivateProgress('Awaiting wallet signature for transfer…');
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const erc20 = new ethers.Contract(
+          WORD_TOKEN_ADDRESS,
+          ['function transfer(address to, uint256 amount) returns (bool)'],
+          signer
+        );
+        const amountWei = ethers.parseUnits(activateAmount, 18);
+        const tx = await erc20.transfer(wordManagerAddress, amountWei);
+        transferTxHash = tx.hash;
+        setActivateProgress(`Transfer submitted (${tx.hash.slice(0, 10)}…). Waiting for confirmation…`);
+        await tx.wait();
+        // Persist the confirmed hash. From this point on, any failure in the
+        // notify step is a partial-success state; retries must skip Step 1.
+        // We also flip mode to 'existing' so the button label/copy makes sense
+        // on the next render.
+        setCommittedTransferTxHash(tx.hash);
+        setActivateMode('existing');
+      }
+
+      // Step 2: call notifyRewardAmount via the existing admin endpoint
+      setActivateProgress('Starting reward period on WordManager…');
+      const response = await fetch('/api/admin/operational/fund-staking-pool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amountTokens: amount, fid: user.fid }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || `Activation failed (HTTP ${response.status})`);
+      }
+
+      const notifyTxHash: string | undefined = data?.txHash ?? undefined;
+
+      // Audit log. The action table's amountEth/amountWei columns are varchar
+      // and the $WORD token is 18-decimal (same representation as ETH), so
+      // we reuse those fields and tag the unit in metadata.tokenSymbol.
+      //
+      // Derive the flow from whether a transfer actually happened, not from
+      // activateMode. On a retry after partial success, activateMode has been
+      // flipped to 'existing' for the UI — but the audit trail needs to show
+      // the connected wallet as the real source of the tokens.
+      const movedTokens = !!transferTxHash;
+      try {
+        const amountWei = ethers.parseUnits(activateAmount, 18).toString();
+        const logResponse = await fetch('/api/admin/wallet/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            devFid: user.fid,
+            actionType: 'streaming_activation',
+            amountEth: String(amount), // whole-token amount
+            amountWei, // 18-decimal smallest-unit amount
+            fromAddress: movedTokens ? connectedWallet.address : wordManagerAddress,
+            toAddress: wordManagerAddress,
+            txHash: notifyTxHash ?? transferTxHash ?? null,
+            initiatedByFid: user.fid,
+            initiatedByAddress: connectedWallet.address,
+            note: `Streaming rewards activated (${movedTokens ? 'transfer + notify' : 'notify only'})`,
+            metadata: {
+              tokenSymbol: '$WORD',
+              mode: movedTokens ? 'send' : 'existing',
+              chainId: connectedWallet.chainId,
+              transferTxHash: transferTxHash ?? null,
+              notifyTxHash: notifyTxHash ?? null,
+              amountTokens: amount,
+            },
+          }),
+        });
+        // fetch doesn't throw on 4xx/5xx — check explicitly so a broken
+        // audit contract surfaces instead of failing silently.
+        if (!logResponse.ok) {
+          const text = await logResponse.text().catch(() => '');
+          console.warn(
+            `[ActivateStreaming] Action log returned HTTP ${logResponse.status}: ${text}`
+          );
+        }
+      } catch (logErr) {
+        // Non-fatal — don't break the UI if audit logging fails
+        console.warn('[ActivateStreaming] Action log failed:', logErr);
+      }
+
+      setActivateResult({ transferTxHash, notifyTxHash });
+      setActivateProgress(null);
+
+      // Reset form — full success, so the partial-failure guard is no longer needed.
+      setActivateAmount('');
+      setActivateConfirmText('');
+      setActivateMode(null);
+      setCommittedTransferTxHash(null);
+
+      // Refresh balances so the dashboard flips to Active
+      await Promise.all([fetchBalances(), fetchActions()]);
+    } catch (err: any) {
+      console.error('[ActivateStreaming] Error:', err);
+      // If the transfer already committed, surface that loudly so the admin
+      // knows the $WORD is in the contract even though streaming didn't start.
+      // Must read from the local `transferTxHash`, not the state — state
+      // updates from this handler haven't flushed yet in this closure.
+      const baseMessage = err?.message || 'Activation failed';
+      setActivateError(
+        transferTxHash
+          ? `${baseMessage} — your ${activateAmount} $WORD transfer already confirmed (${transferTxHash.slice(0, 10)}…). Retry will call notifyRewardAmount without a second transfer, or cancel to activate later via "Activate with existing balance".`
+          : baseMessage
+      );
+      setActivateProgress(null);
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  // =============================================================================
   // Safety Alerts
   // =============================================================================
 
@@ -1832,6 +2012,155 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 )}
               </span>
             </div>
+          </div>
+
+          {/* Streaming rewards activation */}
+          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px', fontFamily }}>
+              Activate streaming rewards
+            </div>
+            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px', fontFamily }}>
+              Call <code>notifyRewardAmount()</code> to start a 30-day streaming period. Choose one:
+              <br />
+              <strong>Activate with existing balance</strong> — use tokens already in the contract
+              (from the <em>Available for Games</em> bucket).
+              <br />
+              <strong>Send & Activate</strong> — transfer $WORD from your connected wallet to the
+              contract, then activate.
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="number"
+                placeholder="Amount in $WORD (e.g. 50000)"
+                value={activateAmount}
+                onChange={(e) => setActivateAmount(e.target.value)}
+                style={{ ...styles.input, flex: '1 1 220px', minWidth: '200px' }}
+                disabled={isActivating}
+              />
+              <button
+                onClick={() => {
+                  setActivateError(null);
+                  setActivateResult(null);
+                  setActivateMode('existing');
+                }}
+                disabled={
+                  !connectedWallet ||
+                  !isOnBase ||
+                  !activateAmount ||
+                  parseFloat(activateAmount) <= 0 ||
+                  isActivating
+                }
+                style={{
+                  ...styles.btnPrimary,
+                  ...((!connectedWallet ||
+                    !isOnBase ||
+                    !activateAmount ||
+                    parseFloat(activateAmount) <= 0 ||
+                    isActivating)
+                    ? styles.btnDisabled
+                    : {}),
+                }}
+                title="Tokens must already be in the WordManager contract"
+              >
+                Activate with existing balance
+              </button>
+              <button
+                onClick={() => {
+                  setActivateError(null);
+                  setActivateResult(null);
+                  setActivateMode('send');
+                }}
+                disabled={
+                  !connectedWallet ||
+                  !isOnBase ||
+                  !activateAmount ||
+                  parseFloat(activateAmount) <= 0 ||
+                  isActivating
+                }
+                style={{
+                  ...styles.btnSecondary,
+                  ...((!connectedWallet ||
+                    !isOnBase ||
+                    !activateAmount ||
+                    parseFloat(activateAmount) <= 0 ||
+                    isActivating)
+                    ? styles.btnDisabled
+                    : {}),
+                }}
+                title="Sign a transfer from your connected wallet, then activate"
+              >
+                Send & Activate
+              </button>
+            </div>
+
+            {/* Warn when amount exceeds non-staked (formatted strings, so strip commas) */}
+            {(() => {
+              const available = parseFloat(
+                (balances.wordManager.availableForGames || '0').replace(/,/g, '')
+              );
+              const entered = parseFloat(activateAmount || '0');
+              if (
+                activateMode === null &&
+                entered > 0 &&
+                Number.isFinite(available) &&
+                entered > available
+              ) {
+                return (
+                  <div style={{ ...styles.alert('warning'), marginTop: '8px', fontSize: '12px' }}>
+                    <span>⚠️</span>
+                    <div>
+                      Amount exceeds non-staked balance ({balances.wordManager.availableForGames}{' '}
+                      $WORD). Use <strong>Send & Activate</strong> to transfer the shortfall first,
+                      or the contract will revert with <code>RewardTooHigh</code>.
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {activateError && (
+              <div style={{ ...styles.alert('error'), marginTop: '8px', fontSize: '12px' }}>
+                <span>🚨</span>
+                <div>{activateError}</div>
+              </div>
+            )}
+
+            {activateResult && (
+              <div style={{ ...styles.alert('success'), marginTop: '8px', fontSize: '12px' }}>
+                <span>✅</span>
+                <div>
+                  Streaming rewards activated.
+                  {activateResult.transferTxHash && (
+                    <>
+                      {' '}
+                      <a
+                        href={`https://basescan.org/tx/${activateResult.transferTxHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        Transfer tx
+                      </a>
+                    </>
+                  )}
+                  {activateResult.notifyTxHash && (
+                    <>
+                      {activateResult.transferTxHash ? ' · ' : ' '}
+                      <a
+                        href={`https://basescan.org/tx/${activateResult.notifyTxHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        notifyRewardAmount tx
+                      </a>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2873,6 +3202,150 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 }}
               >
                 {isFundingOperator ? 'Processing...' : 'Confirm & Send ETH'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activate Streaming Rewards Confirmation Modal */}
+      {activateMode && balances?.wordManager && connectedWallet && (
+        <div
+          style={styles.modal}
+          onClick={() => {
+            if (isActivating) return;
+            // Backdrop close — warn loudly if a transfer is already committed.
+            if (
+              committedTransferTxHash &&
+              !window.confirm(
+                `Your $WORD transfer already confirmed but streaming is not yet active. Close anyway? You can activate later via "Activate with existing balance".`
+              )
+            ) {
+              return;
+            }
+            setActivateMode(null);
+            setActivateConfirmText('');
+            setActivateError(null);
+            setCommittedTransferTxHash(null);
+          }}
+        >
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>
+              {activateMode === 'send' ? '⚡ Send & Activate Streaming' : '⚡ Activate Streaming Rewards'}
+            </h3>
+
+            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
+              {activateMode === 'send' ? (
+                <>
+                  This will <strong>sign a $WORD transfer</strong> from your connected wallet and
+                  then call <code>notifyRewardAmount()</code>. Rolls into the current period if one
+                  is already active.
+                </>
+              ) : (
+                <>
+                  This will call <code>notifyRewardAmount()</code> with the specified amount. Tokens
+                  must already be in the WordManager contract (they are, if they show up in{' '}
+                  <em>Available for Games</em>). Rolls into the current period if one is already
+                  active.
+                </>
+              )}
+            </div>
+
+            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>Amount:</span>
+                <div style={{ fontWeight: 600, fontSize: '18px' }}>
+                  {parseFloat(activateAmount || '0').toLocaleString()} $WORD
+                </div>
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ color: '#6b7280' }}>
+                  {activateMode === 'send' ? 'From (connected wallet):' : 'Source:'}
+                </span>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px', wordBreak: 'break-all' }}>
+                  {activateMode === 'send'
+                    ? connectedWallet.address
+                    : 'Existing WordManager balance'}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: '#6b7280' }}>WordManager contract:</span>
+                <div style={{ fontFamily: 'monospace', fontSize: '13px', wordBreak: 'break-all' }}>
+                  {balances.wordManager.address}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Type &quot;STREAM&quot; to confirm:</label>
+              <input
+                type="text"
+                value={activateConfirmText}
+                onChange={(e) => setActivateConfirmText(e.target.value.toUpperCase())}
+                placeholder="STREAM"
+                disabled={isActivating}
+                style={{
+                  ...styles.input,
+                  ...(activateConfirmText && activateConfirmText !== 'STREAM'
+                    ? styles.inputError
+                    : {}),
+                }}
+              />
+            </div>
+
+            {activateProgress && (
+              <div style={{ ...styles.alert('info'), marginBottom: '12px', fontSize: '12px' }}>
+                <span>⏳</span>
+                <div>{activateProgress}</div>
+              </div>
+            )}
+
+            {activateError && (
+              <div style={{ ...styles.alert('error'), marginBottom: '12px', fontSize: '12px' }}>
+                <span>🚨</span>
+                <div>{activateError}</div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  if (
+                    committedTransferTxHash &&
+                    !window.confirm(
+                      `Your $WORD transfer already confirmed but streaming is not yet active. Cancel anyway? You can activate later via "Activate with existing balance".`
+                    )
+                  ) {
+                    return;
+                  }
+                  setActivateMode(null);
+                  setActivateConfirmText('');
+                  setActivateError(null);
+                  setCommittedTransferTxHash(null);
+                }}
+                disabled={isActivating}
+                style={{
+                  ...styles.btnSecondary,
+                  flex: 1,
+                  ...(isActivating ? styles.btnDisabled : {}),
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleActivateStreaming}
+                disabled={isActivating || activateConfirmText !== 'STREAM'}
+                style={{
+                  ...styles.btnPrimary,
+                  flex: 1,
+                  ...(isActivating || activateConfirmText !== 'STREAM' ? styles.btnDisabled : {}),
+                }}
+              >
+                {isActivating
+                  ? 'Processing…'
+                  : activateMode === 'send'
+                    ? 'Confirm, Send & Activate'
+                    : 'Confirm & Activate'}
               </button>
             </div>
           </div>

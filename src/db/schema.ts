@@ -525,7 +525,8 @@ export type AdminWalletActionType =
   | 'prize_pool_injection'
   | 'creator_pool_withdrawal'
   | 'refund_batch'
-  | 'operator_funding';
+  | 'operator_funding'
+  | 'streaming_activation';
 
 export const adminWalletActions = pgTable('admin_wallet_actions', {
   id: serial('id').primaryKey(),

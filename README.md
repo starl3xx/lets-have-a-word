@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-04-22
+
+- **Admin: activate streaming rewards from the UI**: Added controls inside the "WordManager funding" card to start/extend a 30-day Synthetix-style reward period without leaving the admin dashboard. Two modes: *Activate with existing balance* (calls `notifyRewardAmount()` against tokens already in the contract) and *Send & Activate* (signs a $WORD transfer from the connected wallet, then activates on confirmation). Typed "STREAM" confirmation, progress states, BaseScan links on success. Backed by the existing `POST /api/admin/operational/fund-staking-pool` endpoint; audit-logged via `/api/admin/wallet/actions` with `actionType: 'streaming_activation'`.
+
 ### 2026-04-21 (post-Round 28)
 
 - **Account-age gating for guessing**: Added a Farcaster FID-age gate that blocks guessing from accounts less than 14 days old. Source of truth is the Farcaster Hub `onChainEvents` Register event (immutable, cached on `users.fid_registered_at`). Quality-score gate rubber-stamped the Round 28 sybil farm — age is the orthogonal signal. Gated behind `ACCOUNT_AGE_GATING_ENABLED`; `ACCOUNT_AGE_MIN_DAYS` (default 14) and `ACCOUNT_AGE_ALLOWLIST` tunables. Hub failures fail open with Sentry alert. New `ACCOUNT_TOO_NEW` error code.
