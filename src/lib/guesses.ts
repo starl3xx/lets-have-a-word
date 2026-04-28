@@ -590,12 +590,13 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // a payout is on the line.
     //
     // If the would-be winner fails: record the guess with
-    // is_ineligible_winner=true (audit only — does NOT lock the round, the
-    // word is NOT exposed to the wrong-words wheel since the wheel filters
-    // on isCorrect=false), and return the response shape of an incorrect
-    // guess so a bot script cannot tell from the API alone whether they
-    // actually landed the answer. The round continues; an eligible user
-    // can still win.
+    // is_ineligible_winner=true (audit only — does NOT lock the round). The
+    // ineligible row is filtered out of the wheel SELECT in wheel.ts and the
+    // archive winner lookup in archive.ts so the secret word never surfaces
+    // through those paths. The API returns the response shape of an
+    // incorrect guess so a bot script cannot tell from the API alone whether
+    // they actually landed the answer. The round continues; an eligible
+    // user can still win.
     if (
       process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
       process.env.ACCOUNT_AGE_GATING_ENABLED === 'true'

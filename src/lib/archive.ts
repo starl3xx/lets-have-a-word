@@ -200,13 +200,22 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       .where(eq(guesses.roundId, roundId));
     const uniquePlayers = uniquePlayersResult?.count ?? 0;
 
-    // Get winner's guess number (which guess won)
+    // Get winner's guess number (which guess won).
+    // Exclude ineligible-winner audit rows — those are correct-word guesses
+    // that failed winner-eligibility and must never be picked as "the real
+    // winner" of the round.
     let winnerGuessNumber: number | null = null;
     if (round.winnerFid) {
       const winningGuess = await db
         .select()
         .from(guesses)
-        .where(and(eq(guesses.roundId, roundId), eq(guesses.isCorrect, true)))
+        .where(
+          and(
+            eq(guesses.roundId, roundId),
+            eq(guesses.isCorrect, true),
+            eq(guesses.isIneligibleWinner, false)
+          )
+        )
         .limit(1);
 
       if (winningGuess.length > 0) {

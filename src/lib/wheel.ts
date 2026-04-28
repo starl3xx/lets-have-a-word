@@ -83,20 +83,38 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
   const allGuessWords = getGuessWords();
   console.log(`[getWheelWordsForRound] Total GUESS_WORDS: ${allGuessWords.length}`);
 
-  // Get all guesses for this round (both correct and incorrect)
+  // Get all guesses for this round (both correct and incorrect).
+  //
+  // CRITICAL: filter out is_ineligible_winner rows. Those are correct-word
+  // guesses by accounts that failed winner-eligibility (post-Round-29
+  // anti-bot defense in submitGuess). They live in the table for audit but
+  // must NEVER mark the secret word as "winner" on the wheel — doing so
+  // would expose the answer to every other player while the round is
+  // still active.
   const allGuessesData = await db
-    .select({ word: guesses.word, isCorrect: guesses.isCorrect })
+    .select({
+      word: guesses.word,
+      isCorrect: guesses.isCorrect,
+      isIneligibleWinner: guesses.isIneligibleWinner,
+    })
     .from(guesses)
-    .where(eq(guesses.roundId, roundId));
+    .where(
+      and(
+        eq(guesses.roundId, roundId),
+        eq(guesses.isIneligibleWinner, false)
+      )
+    );
 
   // Build sets for O(1) lookup
   const wrongGuessSet = new Set<string>();
   let winnerWord: string | null = null;
 
   for (const guess of allGuessesData) {
-    if (guess.isCorrect) {
+    // Defense in depth: even if the SQL filter changes, never expose an
+    // ineligible-winner row as the wheel's winnerWord.
+    if (guess.isCorrect && !guess.isIneligibleWinner) {
       winnerWord = guess.word.toUpperCase();
-    } else {
+    } else if (!guess.isCorrect) {
       wrongGuessSet.add(guess.word.toUpperCase());
     }
   }
