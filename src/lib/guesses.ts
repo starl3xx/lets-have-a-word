@@ -633,6 +633,14 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           `🚫 Ineligible winner: FID ${fid} guessed correctly in round ${round.id} but failed eligibility (${eligibility.reasons.join('; ')}). Round continues.`
         );
 
+        // Paid guesses still consume credit on this path, so apply the same
+        // prize-pool / seed / creator economics that the regular wrong-guess
+        // path applies. Without this, a paid ineligible-winner guess would
+        // skip the onchain prize-pool sync and create accounting drift.
+        if (isPaidGuess) {
+          await applyPaidGuessEconomicEffects(round.id, DAILY_LIMITS_RULES.paidGuessPackPriceEth);
+        }
+
         logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
           userId: fid.toString(),
           roundId: round.id.toString(),
