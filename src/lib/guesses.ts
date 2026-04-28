@@ -1,5 +1,5 @@
 import { db, guesses, users, rounds, roundBonusWords, roundBurnWords, bonusWordClaims, userBadges, xpEvents, wordRewards } from '../db';
-import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
+import { eq, and, or, desc, sql, count, isNull } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
@@ -56,6 +56,16 @@ function validateWordFormat(word: string): { valid: boolean; reason?: 'not_5_let
 /**
  * Check if a word has already been guessed incorrectly in this round
  * (Global deduplication - prevent anyone from re-guessing wrong words)
+ *
+ * Includes is_ineligible_winner=true rows so a sybil's correct guess is
+ * observably indistinguishable from a regular wrong guess: a bot using a
+ * second account to retest the same word receives `already_guessed_word`
+ * exactly as they would for a normal duplicate. Without this, the bot
+ * could compare responses (`already_guessed_word` vs `incorrect`) to
+ * identify the answer. Side effect: once an ineligible-winner row exists
+ * for a word, that word can no longer be won this round — operators can
+ * audit `WHERE is_ineligible_winner = true` and cancel the round if
+ * needed.
  */
 async function hasBeenGuessedIncorrectly(roundId: number, word: string): Promise<boolean> {
   const result = await db
@@ -65,7 +75,10 @@ async function hasBeenGuessedIncorrectly(roundId: number, word: string): Promise
       and(
         eq(guesses.roundId, roundId),
         eq(guesses.word, word),
-        eq(guesses.isCorrect, false)
+        or(
+          eq(guesses.isCorrect, false),
+          eq(guesses.isIneligibleWinner, true)
+        )
       )
     )
     .limit(1);
@@ -119,8 +132,11 @@ async function getNextGuessIndexInRound(roundId: number, tx?: typeof db): Promis
 }
 
 /**
- * Get all wrong words for a round (for wheel UI)
- * Returns alphabetically sorted list of incorrect guesses
+ * Get all wrong words for a round (for wheel UI).
+ * Returns alphabetically sorted list of incorrect guesses, with
+ * ineligible-winner correct guesses included so they appear on the wheel
+ * identically to wrong guesses (no side channel — see
+ * hasBeenGuessedIncorrectly for full rationale).
  */
 export async function getWrongWordsForRound(roundId: number): Promise<string[]> {
   const result = await db
@@ -129,7 +145,10 @@ export async function getWrongWordsForRound(roundId: number): Promise<string[]> 
     .where(
       and(
         eq(guesses.roundId, roundId),
-        eq(guesses.isCorrect, false)
+        or(
+          eq(guesses.isCorrect, false),
+          eq(guesses.isIneligibleWinner, true)
+        )
       )
     )
     .orderBy(guesses.word);
@@ -659,11 +678,12 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           },
         });
 
-        // Invalidate caches after the insert so the user's own guess count
-        // and the round-level total reflect this guess. The wheel query in
-        // wheel.ts filters out is_ineligible_winner rows, so this guess
-        // does NOT surface as the winnerWord — but the global guess count
-        // and top-guesser rankings still need to refresh.
+        // Invalidate caches after the insert so the user's own guess count,
+        // the wheel state, and the round-level total reflect this guess.
+        // wheel.ts now treats ineligible-winner rows as wrong guesses on
+        // the wheel (the word will appear as "wrong" alongside every other
+        // wrong guess) — never as the winnerWord. Cache must refresh so
+        // the wheel actually shows the new "wrong" word.
         Promise.all([
           invalidateRoundCaches(round.id),
           invalidateTopGuessersCache(round.id),

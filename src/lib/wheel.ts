@@ -85,12 +85,13 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
 
   // Get all guesses for this round (both correct and incorrect).
   //
-  // CRITICAL: filter out is_ineligible_winner rows. Those are correct-word
-  // guesses by accounts that failed winner-eligibility (post-Round-29
-  // anti-bot defense in submitGuess). They live in the table for audit but
-  // must NEVER mark the secret word as "winner" on the wheel — doing so
-  // would expose the answer to every other player while the round is
-  // still active.
+  // CRITICAL: ineligible-winner rows must be observably indistinguishable
+  // from regular wrong guesses on the wheel. The original Round-29-anti-bot
+  // approach excluded them entirely, which created a side channel — the
+  // bot's correct word stayed "unguessed" while every real wrong guess
+  // turned "wrong," letting an attacker compare wheel states to identify
+  // the answer. So we DO fetch them, treat them as wrong on the wheel, but
+  // never let them set winnerWord.
   const allGuessesData = await db
     .select({
       word: guesses.word,
@@ -98,23 +99,21 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
       isIneligibleWinner: guesses.isIneligibleWinner,
     })
     .from(guesses)
-    .where(
-      and(
-        eq(guesses.roundId, roundId),
-        eq(guesses.isIneligibleWinner, false)
-      )
-    );
+    .where(eq(guesses.roundId, roundId));
 
   // Build sets for O(1) lookup
   const wrongGuessSet = new Set<string>();
   let winnerWord: string | null = null;
 
   for (const guess of allGuessesData) {
-    // Defense in depth: even if the SQL filter changes, never expose an
-    // ineligible-winner row as the wheel's winnerWord.
+    // Only ELIGIBLE correct guesses set the winner. Ineligible-winner rows
+    // fall through to the wrong bucket so the wheel renders them like any
+    // other wrong guess.
     if (guess.isCorrect && !guess.isIneligibleWinner) {
       winnerWord = guess.word.toUpperCase();
-    } else if (!guess.isCorrect) {
+    } else {
+      // Covers regular wrong guesses (isCorrect=false) and ineligible
+      // correct guesses (isCorrect=true, isIneligibleWinner=true).
       wrongGuessSet.add(guess.word.toUpperCase());
     }
   }
