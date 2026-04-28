@@ -209,6 +209,14 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-04-28 (post-Round 29)
+
+- **Wallet-history gate + winner-eligibility check**: Round 29 was botted again. Diagnostic showed all 27 bonus/burn finders across Rounds 28–29 were `.base.eth` accounts at score 0.60 with wallets clustered at **8–12 outgoing Base txs and ~$0.01 ETH** — the cost-floor footprint of a Coinbase Smart Wallet that was deployed, registered a basename, added a Farcaster signer, and was never used for anything else. Legit comparison wallet sat at 3,447 txs (300× separation).
+  - **New gate at guess submission**: blocks accounts whose connected wallet has fewer than `WALLET_HISTORY_MIN_TXS` (default 20) outgoing txs on Base. Cached on `users.wallet_tx_count`; counts are monotonic so a passing wallet stays passing. Behind `WALLET_HISTORY_GATING_ENABLED`. New `WALLET_TOO_FRESH` error code. RPC failures fail open with Sentry alert.
+  - **Winner-eligibility re-check at win-time**: defense-in-depth. Even if guess-time gates fail open or are misconfigured, when someone guesses the secret word we re-run wallet-history + account-age with `forceRefresh: true` before locking the round. An ineligible correct guess is recorded with `is_ineligible_winner=true` for audit, the round continues without locking, and the API returns the same shape as a wrong guess so a bot script can't tell from the response alone whether they actually landed the answer. Word doesn't appear on the wrong-words wheel either.
+  - **FAQ updated** with the four-layer bot-prevention model (quality score, FID age, wallet history, winner re-check).
+  - Migration: `0020_wallet_history_gate_and_winner_eligibility.sql` — apply BEFORE the deploy lands or full-row reads of `users`/`guesses` will break (lesson from Round 29's "column does not exist" outage).
+
 ### 2026-04-22
 
 - **Admin: activate streaming rewards from the UI**: Added controls inside the "WordManager funding" card to start/extend a 30-day Synthetix-style reward period without leaving the admin dashboard. Two modes: *Activate with existing balance* (calls `notifyRewardAmount()` against tokens already in the contract) and *Send & Activate* (signs a $WORD transfer from the connected wallet, then activates on confirmation). Typed "STREAM" confirmation, progress states, BaseScan links on success. Backed by the existing `POST /api/admin/operational/fund-staking-pool` endpoint; audit-logged via `/api/admin/wallet/actions` with `actionType: 'streaming_activation'`.

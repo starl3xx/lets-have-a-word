@@ -582,6 +582,80 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
   if (isCorrect) {
     // CORRECT GUESS - This user wins!
 
+    // Post-Round-29 winner-eligibility check (defense-in-depth).
+    //
+    // Even if guess-time gates were bypassed, misconfigured, or fail-opened
+    // during a Hub/RPC outage, we re-run the same checks here BEFORE locking
+    // the round. Force a fresh fetch so we don't trust a stale cache when
+    // a payout is on the line.
+    //
+    // If the would-be winner fails: record the guess with
+    // is_ineligible_winner=true (audit only — does NOT lock the round, the
+    // word is NOT exposed to the wrong-words wheel since the wheel filters
+    // on isCorrect=false), and return the response shape of an incorrect
+    // guess so a bot script cannot tell from the API alone whether they
+    // actually landed the answer. The round continues; an eligible user
+    // can still win.
+    if (
+      process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
+      process.env.ACCOUNT_AGE_GATING_ENABLED === 'true'
+    ) {
+      const { checkWinnerEligibility } = await import('./winner-eligibility');
+      const eligibility = await checkWinnerEligibility(fid);
+      if (!eligibility.eligible) {
+        // Audit row: correct word, but flagged as ineligible.
+        const guessIndexInRound = await getNextGuessIndexInRound(round.id);
+        await db.insert(guesses).values({
+          roundId: round.id,
+          fid,
+          word,
+          isPaid: isPaidGuess,
+          isCorrect: true,
+          isIneligibleWinner: true,
+          guessIndexInRound,
+          createdAt: new Date(),
+        });
+
+        Sentry.captureMessage('[Guess] Ineligible winner blocked', {
+          level: 'warning',
+          tags: { type: 'ineligible_winner' },
+          extra: {
+            roundId: round.id,
+            fid,
+            word,
+            guessIndexInRound,
+            reasons: eligibility.reasons,
+          },
+        });
+
+        console.warn(
+          `🚫 Ineligible winner: FID ${fid} guessed correctly in round ${round.id} but failed eligibility (${eligibility.reasons.join('; ')}). Round continues.`
+        );
+
+        logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
+          userId: fid.toString(),
+          roundId: round.id.toString(),
+          data: {
+            word,
+            is_correct: true, // for analytics truth
+            is_ineligible_winner: true,
+            guess_number: guessIndexInRound,
+            is_paid: isPaidGuess,
+          },
+        });
+
+        // Return the same shape as an incorrect guess. Do NOT include the
+        // word in the wrong-words wheel response — the existing wheel query
+        // filters on isCorrect=false so this row won't show up there.
+        const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
+        return {
+          status: 'incorrect',
+          word,
+          totalGuessesForUserThisRound: totalGuesses,
+        };
+      }
+    }
+
     // Get user's referrer (if any) for round resolution
     let referrerFid: number | null = null;
     try {

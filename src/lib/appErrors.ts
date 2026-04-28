@@ -35,6 +35,7 @@ export const AppErrorCodes = {
   USER_STATE_UNAVAILABLE: 'USER_STATE_UNAVAILABLE',
   USER_QUALITY_BLOCKED: 'USER_QUALITY_BLOCKED',
   ACCOUNT_TOO_NEW: 'ACCOUNT_TOO_NEW',
+  WALLET_TOO_FRESH: 'WALLET_TOO_FRESH',
   FARCASTER_CONTEXT_MISSING: 'FARCASTER_CONTEXT_MISSING',
   AUTHENTICATION_REQUIRED: 'AUTHENTICATION_REQUIRED',
 
@@ -240,6 +241,18 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
     userBody: 'Your Farcaster account is too new to play. Come back soon!',
     primaryCtaLabel: 'Dismiss',
     primaryCtaAction: 'dismiss',
+    bannerVariant: 'warning',
+    logToAnalytics: true,
+  },
+  [AppErrorCodes.WALLET_TOO_FRESH]: {
+    // Threshold (WALLET_HISTORY_MIN_TXS) is configurable; keep copy generic.
+    // Response payload carries `txCount` and `minTxs` for renderers that
+    // want specifics.
+    userTitle: 'Wallet not eligible yet',
+    userBody:
+      'Your connected wallet doesn’t have enough onchain activity to play. Use a wallet you actively use on Base.',
+    primaryCtaLabel: 'Learn more',
+    primaryCtaAction: 'open_help',
     bannerVariant: 'warning',
     logToAnalytics: true,
   },
@@ -612,6 +625,9 @@ function mapLegacyErrorToCode(errorString: string): AppErrorCode {
   }
   if (lowerError.includes('account_too_new')) {
     return AppErrorCodes.ACCOUNT_TOO_NEW;
+  }
+  if (lowerError.includes('wallet_too_fresh')) {
+    return AppErrorCodes.WALLET_TOO_FRESH;
   }
   if (lowerError.includes('rate') || lowerError.includes('too many')) {
     return AppErrorCodes.RATE_LIMITED;

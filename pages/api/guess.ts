@@ -23,6 +23,11 @@ import {
   logBlockedAccountAgeAttempt,
   ACCOUNT_TOO_NEW_ERROR,
 } from '../../src/lib/account-age';
+import {
+  checkWalletHistory,
+  logBlockedWalletHistoryAttempt,
+  WALLET_TOO_FRESH_ERROR,
+} from '../../src/lib/wallet-history';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
 import {
   checkGuessRateLimit,
@@ -394,6 +399,26 @@ export default async function handler(
           registeredAt: ageCheck.registeredAt?.toISOString() ?? null,
           ageDays: ageCheck.ageDays,
           daysUntilEligible: ageCheck.daysUntilEligible,
+        } as any);
+      }
+    }
+
+    // Post-Round-29 sybil defense: gate on connected-wallet onchain activity.
+    // Round 28/29 farming wallets all clustered at 8–12 Base txs and ~$0.01
+    // ETH — the cost-floor footprint of a Coinbase Smart Wallet that was
+    // deployed, registered a basename, and added a Farcaster signer, never
+    // used for anything else. Real player wallets sit at hundreds-to-thousands
+    // of txs. Two-orders-of-magnitude separation makes this a clean filter.
+    if (process.env.WALLET_HISTORY_GATING_ENABLED === 'true') {
+      const walletCheck = await checkWalletHistory(fid);
+
+      if (!walletCheck.eligible) {
+        await logBlockedWalletHistoryAttempt(fid, walletCheck, 'guess');
+
+        return res.status(403).json({
+          error: walletCheck.errorCode || WALLET_TOO_FRESH_ERROR,
+          message: walletCheck.reason || 'Wallet too fresh',
+          txCount: walletCheck.txCount,
         } as any);
       }
     }

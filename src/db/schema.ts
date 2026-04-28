@@ -29,6 +29,8 @@ export const users = pgTable('users', {
   userScoreUpdatedAt: timestamp('user_score_updated_at'), // Last time user score was fetched - Milestone 5.3
   fidRegisteredAt: timestamp('fid_registered_at'), // Farcaster FID registration timestamp from Hub onChainEvents (immutable once set)
   fidRegisteredAtCheckedAt: timestamp('fid_registered_at_checked_at'), // Last time we attempted to resolve fid_registered_at (null = never, lets us retry)
+  walletTxCount: integer('wallet_tx_count'), // eth_getTransactionCount on signer_wallet_address (Base) — outgoing tx count, monotonic
+  walletTxCountCheckedAt: timestamp('wallet_tx_count_checked_at'), // Last RPC call timestamp; null = never checked
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
@@ -41,6 +43,7 @@ export const users = pgTable('users', {
   walletIdx: index('users_wallet_idx').on(table.signerWalletAddress),
   userScoreUpdatedAtIdx: index('users_user_score_updated_at_idx').on(table.userScoreUpdatedAt),
   fidRegisteredAtIdx: index('users_fid_registered_at_idx').on(table.fidRegisteredAt),
+  walletTxCountIdx: index('users_wallet_tx_count_idx').on(table.walletTxCount),
 }));
 
 /**
@@ -96,6 +99,7 @@ export const guesses = pgTable('guesses', {
   isCorrect: boolean('is_correct').default(false).notNull(), // True if this guess won the round
   isBonusWord: boolean('is_bonus_word').default(false).notNull(), // True if this guess was a bonus word (still counts as incorrect)
   isBurnWord: boolean('is_burn_word').default(false).notNull(), // Milestone 14: True if this guess was a burn word
+  isIneligibleWinner: boolean('is_ineligible_winner').default(false).notNull(), // Correct guess that failed winner-eligibility (post-Round-29 anti-bot defense). Recorded for audit but does NOT lock the round; word is NOT exposed via the wrong-word wheel.
   guessIndexInRound: integer('guess_index_in_round'), // 1-based index within round (Milestone 7.x: Top-10 lock)
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
