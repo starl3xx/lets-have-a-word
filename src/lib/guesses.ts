@@ -659,9 +659,21 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           },
         });
 
-        // Return the same shape as an incorrect guess. Do NOT include the
-        // word in the wrong-words wheel response — the existing wheel query
-        // filters on isCorrect=false so this row won't show up there.
+        // Invalidate caches after the insert so the user's own guess count
+        // and the round-level total reflect this guess. The wheel query in
+        // wheel.ts filters out is_ineligible_winner rows, so this guess
+        // does NOT surface as the winnerWord — but the global guess count
+        // and top-guesser rankings still need to refresh.
+        Promise.all([
+          invalidateRoundCaches(round.id),
+          invalidateTopGuessersCache(round.id),
+          invalidateUserCaches(fid, round.id),
+        ]).catch((err) => {
+          console.error('[Cache] Failed to invalidate after ineligible-winner guess:', err);
+        });
+
+        // Return the same shape as an incorrect guess so a bot can't tell
+        // from the API response whether they actually landed the answer.
         const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
         return {
           status: 'incorrect',
