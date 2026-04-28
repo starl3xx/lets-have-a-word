@@ -174,11 +174,13 @@ async function resolveWalletTxCount(
     return cached;
   }
 
-  // Cooldown for failures: prevent hammering the RPC for a wallet that's
-  // genuinely sparse but might earn txs over time.
+  // Cooldown: don't hammer the RPC. Apply to BOTH failed lookups (cached=null)
+  // and sparse-but-not-zero counts (cached < minTxs). Without this, a wallet
+  // whose RPC call always fails would re-fire a 3s timeout request on every
+  // single guess submission. The check is only on `checkedAt` because the
+  // 'never tried' state has checkedAt=null and falls through to the fetch.
   if (
     !forceRefresh &&
-    cached !== null &&
     checkedAt &&
     Date.now() - checkedAt.getTime() < WALLET_RETRY_COOLDOWN_MS
   ) {

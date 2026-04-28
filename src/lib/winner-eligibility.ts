@@ -27,9 +27,11 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
   let ageCheck: AccountAgeCheckResult | undefined;
   let walletCheck: WalletHistoryCheckResult | undefined;
 
-  // Account-age check
+  // Account-age check. Force-refresh so we don't trust a Hub-outage-era
+  // cached null when a payout is on the line; if Hub was down at guess
+  // time, we want the win-time check to actually retry.
   if (process.env.ACCOUNT_AGE_GATING_ENABLED === 'true') {
-    ageCheck = await checkAccountAge(fid);
+    ageCheck = await checkAccountAge(fid, /* forceRefresh */ true);
     if (!ageCheck.eligible) {
       reasons.push(`account_too_new (ageDays=${ageCheck.ageDays?.toFixed(2) ?? '?'})`);
     }
