@@ -605,16 +605,22 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       const eligibility = await checkWinnerEligibility(fid);
       if (!eligibility.eligible) {
         // Audit row: correct word, but flagged as ineligible.
-        const guessIndexInRound = await getNextGuessIndexInRound(round.id);
-        await db.insert(guesses).values({
-          roundId: round.id,
-          fid,
-          word,
-          isPaid: isPaidGuess,
-          isCorrect: true,
-          isIneligibleWinner: true,
-          guessIndexInRound,
-          createdAt: new Date(),
+        // Wrap index-fetch + insert in a transaction so concurrent guesses
+        // can't observe the same count and produce duplicate
+        // guessIndexInRound values — same pattern as the wrong-guess path.
+        let guessIndexInRound: number;
+        await db.transaction(async (tx) => {
+          guessIndexInRound = await getNextGuessIndexInRound(round.id, tx);
+          await tx.insert(guesses).values({
+            roundId: round.id,
+            fid,
+            word,
+            isPaid: isPaidGuess,
+            isCorrect: true,
+            isIneligibleWinner: true,
+            guessIndexInRound,
+            createdAt: new Date(),
+          });
         });
 
         Sentry.captureMessage('[Guess] Ineligible winner blocked', {
@@ -624,7 +630,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
             roundId: round.id,
             fid,
             word,
-            guessIndexInRound,
+            guessIndexInRound: guessIndexInRound!,
             reasons: eligibility.reasons,
           },
         });
@@ -648,7 +654,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
             word,
             is_correct: true, // for analytics truth
             is_ineligible_winner: true,
-            guess_number: guessIndexInRound,
+            guess_number: guessIndexInRound!,
             is_paid: isPaidGuess,
           },
         });

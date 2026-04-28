@@ -130,10 +130,6 @@ async function fetchTxCount(wallet: string): Promise<number | null> {
 }
 
 /**
- * Resolve and cache the tx count for a FID's wallet.
- * Returns null when RPC is unreachable.
- */
-/**
  * Read user record for the gate: cached tx count, checked-at, and the wallet
  * address itself. Wallet is loaded from DB rather than passed in because the
  * QuickAuth code path doesn't have it locally (it's preserved across upserts).
