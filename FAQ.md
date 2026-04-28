@@ -237,7 +237,7 @@ Your connected wallet needs a meaningful number of outgoing transactions on Base
 
 **4. Winner-eligibility re-check**
 
-Even if a guess somehow gets through the gates above, when a player guesses the secret word the eligibility checks run a second time before the round resolves. If the would-be winner doesn't pass, the round simply continues — no jackpot is paid out, and another player can still win.
+Even if a guess somehow gets through the gates above, when a player guesses the secret word the eligibility checks run a second time before the round resolves. If the would-be winner doesn't pass, the round does not pay out the jackpot. The bot's guess is treated identically to a wrong guess in every visible way (no observable difference for a script), and operators receive an alert to investigate.
 
 If you can't play and you're a real human, the most common cause is a brand-new Farcaster account or a wallet you've never used outside this game. Activity on Farcaster and Base over time will fix both.
 

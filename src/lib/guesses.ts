@@ -609,13 +609,25 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // a payout is on the line.
     //
     // If the would-be winner fails: record the guess with
-    // is_ineligible_winner=true (audit only — does NOT lock the round). The
-    // ineligible row is filtered out of the wheel SELECT in wheel.ts and the
-    // archive winner lookup in archive.ts so the secret word never surfaces
-    // through those paths. The API returns the response shape of an
-    // incorrect guess so a bot script cannot tell from the API alone whether
-    // they actually landed the answer. The round continues; an eligible
-    // user can still win.
+    // is_ineligible_winner=true (audit), do NOT lock the round, do NOT pay
+    // out, and return the response shape of an incorrect guess so a bot can't
+    // tell from the API whether they landed the answer.
+    //
+    // BEHAVIORAL NOTE — round becomes unwinnable for that word.
+    // To close the side channels bugbot found in this same PR
+    // (wrong-guess dedup + wheel "unguessed" status revealing the answer),
+    // ineligible-winner rows now appear identical to wrong guesses in
+    // hasBeenGuessedIncorrectly, getWrongWordsForRound, and the wheel
+    // visualization. That means once a bot lands on the answer, the global
+    // dedup blocks every subsequent attempt at the same word — including
+    // legitimate players. The round will not auto-resolve.
+    //
+    // Operators see a Sentry warning ('[Guess] Ineligible winner blocked')
+    // and can audit `WHERE is_ineligible_winner = true` to detect the
+    // condition, then use the kill-switch to cancel + refund + restart.
+    // Auto-cancel is the right next step but is out of scope here — it
+    // requires daily-guess-credit refunds on cancellation, which the
+    // current refund flow doesn't cover.
     if (
       process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
       process.env.ACCOUNT_AGE_GATING_ENABLED === 'true'
