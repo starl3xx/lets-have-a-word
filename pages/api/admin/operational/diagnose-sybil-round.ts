@@ -66,12 +66,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const roundEndIso = roundEnd.toISOString();
 
     // ---- Headline stats ----
+    // `correct` counts only real (eligible) winning guesses.
+    // `correctIneligible` counts bot guesses that hit the answer but were
+    // blocked by the winner-eligibility check — useful sybil signal.
     const [headline] = await db
       .select({
         totalGuesses: sql<number>`count(*)::int`,
         uniqueFids: sql<number>`count(distinct ${guesses.fid})::int`,
         paid: sql<number>`count(*) filter (where ${guesses.isPaid})::int`,
-        correct: sql<number>`count(*) filter (where ${guesses.isCorrect})::int`,
+        correct: sql<number>`count(*) filter (where ${guesses.isCorrect} and not ${guesses.isIneligibleWinner})::int`,
+        correctIneligible: sql<number>`count(*) filter (where ${guesses.isCorrect} and ${guesses.isIneligibleWinner})::int`,
       })
       .from(guesses)
       .where(eq(guesses.roundId, roundId));
@@ -148,7 +152,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             u.custody_address,
             (select count(*)::int from guesses g where g.round_id = ${roundId} and g.fid = u.fid) as guess_count,
             (select g2.guess_index_in_round from guesses g2
-               where g2.round_id = ${roundId} and g2.fid = u.fid and g2.is_correct = true limit 1
+               where g2.round_id = ${roundId} and g2.fid = u.fid
+                 and g2.is_correct = true
+                 and g2.is_ineligible_winner = false
+               limit 1
             ) as winning_guess_index
           from users u
           where u.fid = ${round.winnerFid}

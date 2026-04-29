@@ -67,12 +67,17 @@ export default async function handler(
       uniquePlayers: sql<number>`COUNT(DISTINCT fid)::int`,
     }).from(guesses).where(eq(guesses.roundId, roundId));
 
-    // Get the winning guess
+    // Get the winning guess. Exclude ineligible-winner audit rows so this
+    // never picks an anti-bot-rejected correct guess as "the winner."
     const [winningGuess] = await db.select({
       fid: guesses.fid,
       guessIndexInRound: guesses.guessIndexInRound,
     }).from(guesses)
-      .where(and(eq(guesses.roundId, roundId), eq(guesses.isCorrect, true)))
+      .where(and(
+        eq(guesses.roundId, roundId),
+        eq(guesses.isCorrect, true),
+        eq(guesses.isIneligibleWinner, false)
+      ))
       .limit(1);
 
     // Get payouts from round_payouts table (column is 'role' not 'payout_type')

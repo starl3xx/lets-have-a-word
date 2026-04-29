@@ -77,10 +77,20 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
       shouldUpdateUsername;
 
     if (needsUpdate) {
+      // The wallet-history gate caches wallet_tx_count keyed on FID, but the
+      // value is specific to whichever signer_wallet_address it was fetched
+      // for. If the wallet swaps under a FID, that cached count is stale and
+      // would be returned by the gate's fast path — letting a fresh bot
+      // wallet inherit a real wallet's pass. Clear the cache on swap so the
+      // gate re-fetches against the new address.
       const updated = await db
         .update(users)
         .set({
-          ...(shouldUpdateWallet && { signerWalletAddress: signerWallet }),
+          ...(shouldUpdateWallet && {
+            signerWalletAddress: signerWallet,
+            walletTxCount: null,
+            walletTxCountCheckedAt: null,
+          }),
           ...(shouldUpdateSpamScore && { spamScore }),
           ...(username && { username }),
           ...(shouldBackfillReferrer && { referrerFid: validReferrerFid }),
@@ -89,7 +99,7 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
         .where(eq(users.fid, fid))
         .returning();
 
-      console.log(`✅ Updated user FID ${fid}${shouldBackfillReferrer ? ` with backfilled referrer ${validReferrerFid}` : ''}`);
+      console.log(`✅ Updated user FID ${fid}${shouldBackfillReferrer ? ` with backfilled referrer ${validReferrerFid}` : ''}${shouldUpdateWallet ? ' (wallet swapped — wallet-history cache cleared)' : ''}`);
       return updated[0];
     }
 

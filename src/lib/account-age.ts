@@ -133,8 +133,17 @@ async function fetchFidRegisteredAtFromHub(fid: number): Promise<Date | null> {
 /**
  * Resolve the registration date for a FID, caching it on the users row.
  * Returns null when the Hub can't resolve the FID within the timeout.
+ *
+ * `forceRefresh: true` is used by the win-time eligibility re-check —
+ * if the Hub was down at guess time and we cached a null with checkedAt,
+ * the cooldown would otherwise prevent us from re-trying the Hub before
+ * paying out the jackpot. We don't want a stale fail-open to lock in a
+ * payout to an account whose age was never resolved.
  */
-async function resolveFidRegisteredAt(fid: number): Promise<Date | null> {
+async function resolveFidRegisteredAt(
+  fid: number,
+  forceRefresh = false
+): Promise<Date | null> {
   const [user] = await db
     .select({
       fidRegisteredAt: users.fidRegisteredAt,
@@ -150,9 +159,13 @@ async function resolveFidRegisteredAt(fid: number): Promise<Date | null> {
   }
 
   // Back off if we checked recently and got nothing — prevents hammering the Hub
-  // on every request for a FID it can't resolve.
+  // on every request for a FID it can't resolve. Skipped on forceRefresh.
   const lastCheckedAt = user?.fidRegisteredAtCheckedAt;
-  if (lastCheckedAt && Date.now() - lastCheckedAt.getTime() < HUB_RETRY_COOLDOWN_MS) {
+  if (
+    !forceRefresh &&
+    lastCheckedAt &&
+    Date.now() - lastCheckedAt.getTime() < HUB_RETRY_COOLDOWN_MS
+  ) {
     return null;
   }
 
@@ -180,8 +193,14 @@ async function resolveFidRegisteredAt(fid: number): Promise<Date | null> {
  * - Missing dates are fetched from the Hub and cached.
  * - Hub failures fail OPEN with a Sentry alert — a Hub outage should not
  *   lock every legitimate user out. Sybil attackers can't trigger Hub outages.
+ *
+ * `forceRefresh: true` bypasses the retry cooldown and is used by the
+ * win-time eligibility re-check.
  */
-export async function checkAccountAge(fid: number): Promise<AccountAgeCheckResult> {
+export async function checkAccountAge(
+  fid: number,
+  forceRefresh = false
+): Promise<AccountAgeCheckResult> {
   const allowlist = getAllowlistedFids();
   if (allowlist.has(fid)) {
     return {
@@ -195,7 +214,7 @@ export async function checkAccountAge(fid: number): Promise<AccountAgeCheckResul
   const minDays = getMinAccountAgeDays();
 
   try {
-    const registeredAt = await resolveFidRegisteredAt(fid);
+    const registeredAt = await resolveFidRegisteredAt(fid, forceRefresh);
 
     if (!registeredAt) {
       // Fail open. The memo is explicit: Hub outages should not brick gameplay.

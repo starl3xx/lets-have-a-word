@@ -1,5 +1,5 @@
 import { db, guesses, users, rounds, roundBonusWords, roundBurnWords, bonusWordClaims, userBadges, xpEvents, wordRewards } from '../db';
-import { eq, and, desc, sql, count, isNull } from 'drizzle-orm';
+import { eq, and, or, desc, sql, count, isNull } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
@@ -56,6 +56,16 @@ function validateWordFormat(word: string): { valid: boolean; reason?: 'not_5_let
 /**
  * Check if a word has already been guessed incorrectly in this round
  * (Global deduplication - prevent anyone from re-guessing wrong words)
+ *
+ * Includes is_ineligible_winner=true rows so a sybil's correct guess is
+ * observably indistinguishable from a regular wrong guess: a bot using a
+ * second account to retest the same word receives `already_guessed_word`
+ * exactly as they would for a normal duplicate. Without this, the bot
+ * could compare responses (`already_guessed_word` vs `incorrect`) to
+ * identify the answer. Side effect: once an ineligible-winner row exists
+ * for a word, that word can no longer be won this round — operators can
+ * audit `WHERE is_ineligible_winner = true` and cancel the round if
+ * needed.
  */
 async function hasBeenGuessedIncorrectly(roundId: number, word: string): Promise<boolean> {
   const result = await db
@@ -65,7 +75,10 @@ async function hasBeenGuessedIncorrectly(roundId: number, word: string): Promise
       and(
         eq(guesses.roundId, roundId),
         eq(guesses.word, word),
-        eq(guesses.isCorrect, false)
+        or(
+          eq(guesses.isCorrect, false),
+          eq(guesses.isIneligibleWinner, true)
+        )
       )
     )
     .limit(1);
@@ -119,8 +132,11 @@ async function getNextGuessIndexInRound(roundId: number, tx?: typeof db): Promis
 }
 
 /**
- * Get all wrong words for a round (for wheel UI)
- * Returns alphabetically sorted list of incorrect guesses
+ * Get all wrong words for a round (for wheel UI).
+ * Returns alphabetically sorted list of incorrect guesses, with
+ * ineligible-winner correct guesses included so they appear on the wheel
+ * identically to wrong guesses (no side channel — see
+ * hasBeenGuessedIncorrectly for full rationale).
  */
 export async function getWrongWordsForRound(roundId: number): Promise<string[]> {
   const result = await db
@@ -129,7 +145,10 @@ export async function getWrongWordsForRound(roundId: number): Promise<string[]> 
     .where(
       and(
         eq(guesses.roundId, roundId),
-        eq(guesses.isCorrect, false)
+        or(
+          eq(guesses.isCorrect, false),
+          eq(guesses.isIneligibleWinner, true)
+        )
       )
     )
     .orderBy(guesses.word);
@@ -581,6 +600,167 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
 
   if (isCorrect) {
     // CORRECT GUESS - This user wins!
+
+    // Post-Round-29 winner-eligibility check (defense-in-depth).
+    //
+    // Even if guess-time gates were bypassed, misconfigured, or fail-opened
+    // during a Hub/RPC outage, we re-run the same checks here BEFORE locking
+    // the round. Force a fresh fetch so we don't trust a stale cache when
+    // a payout is on the line.
+    //
+    // If the would-be winner fails: record the guess with
+    // is_ineligible_winner=true (audit), do NOT lock the round, do NOT pay
+    // out, and return the response shape of an incorrect guess so a bot can't
+    // tell from the API whether they landed the answer.
+    //
+    // BEHAVIORAL NOTE — round becomes unwinnable for that word.
+    // To close the side channels bugbot found in this same PR
+    // (wrong-guess dedup + wheel "unguessed" status revealing the answer),
+    // ineligible-winner rows now appear identical to wrong guesses in
+    // hasBeenGuessedIncorrectly, getWrongWordsForRound, and the wheel
+    // visualization. That means once a bot lands on the answer, the global
+    // dedup blocks every subsequent attempt at the same word — including
+    // legitimate players. The round will not auto-resolve.
+    //
+    // Operators see a Sentry warning ('[Guess] Ineligible winner blocked')
+    // and can audit `WHERE is_ineligible_winner = true` to detect the
+    // condition, then use the kill-switch to cancel + refund + restart.
+    // Auto-cancel is the right next step but is out of scope here — it
+    // requires daily-guess-credit refunds on cancellation, which the
+    // current refund flow doesn't cover.
+    if (
+      process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
+      process.env.ACCOUNT_AGE_GATING_ENABLED === 'true'
+    ) {
+      const { checkWinnerEligibility } = await import('./winner-eligibility');
+      const eligibility = await checkWinnerEligibility(fid);
+      if (!eligibility.eligible) {
+        // Audit row: correct word, but flagged as ineligible.
+        // Wrap index-fetch + insert in a transaction so concurrent guesses
+        // can't observe the same count and produce duplicate
+        // guessIndexInRound values — same pattern as the wrong-guess path.
+        let guessIndexInRound: number;
+        await db.transaction(async (tx) => {
+          guessIndexInRound = await getNextGuessIndexInRound(round.id, tx);
+          await tx.insert(guesses).values({
+            roundId: round.id,
+            fid,
+            word,
+            isPaid: isPaidGuess,
+            isCorrect: true,
+            isIneligibleWinner: true,
+            guessIndexInRound,
+            createdAt: new Date(),
+          });
+        });
+
+        Sentry.captureMessage('[Guess] Ineligible winner blocked', {
+          level: 'warning',
+          tags: { type: 'ineligible_winner' },
+          extra: {
+            roundId: round.id,
+            fid,
+            word,
+            guessIndexInRound: guessIndexInRound!,
+            reasons: eligibility.reasons,
+          },
+        });
+
+        console.warn(
+          `🚫 Ineligible winner: FID ${fid} guessed correctly in round ${round.id} but failed eligibility (${eligibility.reasons.join('; ')}). Round continues.`
+        );
+
+        // Paid guesses still consume credit on this path, so apply the same
+        // prize-pool / seed / creator economics that the regular wrong-guess
+        // path applies. Without this, a paid ineligible-winner guess would
+        // skip the onchain prize-pool sync and create accounting drift.
+        if (isPaidGuess) {
+          await applyPaidGuessEconomicEffects(round.id, DAILY_LIMITS_RULES.paidGuessPackPriceEth);
+        }
+
+        logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
+          userId: fid.toString(),
+          roundId: round.id.toString(),
+          data: {
+            word,
+            is_correct: true, // for analytics truth
+            is_ineligible_winner: true,
+            guess_number: guessIndexInRound!,
+            is_paid: isPaidGuess,
+          },
+        });
+
+        // Invalidate caches after the insert so the user's own guess count,
+        // the wheel state, and the round-level total reflect this guess.
+        // wheel.ts now treats ineligible-winner rows as wrong guesses on
+        // the wheel (the word will appear as "wrong" alongside every other
+        // wrong guess) — never as the winnerWord. Cache must refresh so
+        // the wheel actually shows the new "wrong" word.
+        Promise.all([
+          invalidateRoundCaches(round.id),
+          invalidateTopGuessersCache(round.id),
+          invalidateUserCaches(fid, round.id),
+        ]).catch((err) => {
+          console.error('[Cache] Failed to invalidate after ineligible-winner guess:', err);
+        });
+
+        // Track Superguess session if this FID is the active Superguesser.
+        // Mirrors the wrong-guess and correct-guess paths so the session's
+        // guess count and exhaustion logic stay in sync. Recorded as
+        // 'incorrect' to match the shape of the response we're returning;
+        // no leak there since the audit row already captures the truth.
+        if (isSuperguessFeatureEnabled()) {
+          const activeSession = await getActiveSuperguess(round.id);
+          if (activeSession && activeSession.fid === fid) {
+            await recordSuperguessGuess(activeSession.id, round.id, word, 'incorrect');
+          }
+        }
+
+        // Edge-case detection: if the secret answer ALSO happens to be a
+        // committed bonus or burn word (a round-generation misconfiguration
+        // that should never happen, but isn't structurally prevented), the
+        // dedup we just added will permanently lock that bonus/burn out for
+        // the round — no eligible player can claim it because every guess
+        // of the word now returns already_guessed_word. Fire a Sentry alert
+        // so operators can decide whether to kill-switch the round.
+        // We don't try to process the bonus/burn claim here — the would-be
+        // winner is ineligible by definition, so they shouldn't receive the
+        // reward, and processing-without-paying is more complexity than
+        // this edge case warrants. Auto-cancel (the planned follow-up to
+        // the unwinnable-round tradeoff) would also resolve this since it
+        // would discard the round entirely.
+        try {
+          const [bonusOverlap, burnOverlap] = await Promise.all([
+            checkBonusWordMatch(round.id, word),
+            checkBurnWordMatch(round.id, word),
+          ]);
+          if (bonusOverlap || burnOverlap) {
+            Sentry.captureMessage('[Guess] Answer overlaps committed bonus/burn word', {
+              level: 'warning',
+              tags: { type: 'answer_bonus_burn_overlap' },
+              extra: {
+                roundId: round.id,
+                word,
+                bonusWordIndex: bonusOverlap?.wordIndex ?? null,
+                burnWordIndex: burnOverlap?.wordIndex ?? null,
+                note: 'Round-generation misconfiguration: secret answer matches a committed bonus or burn word. The bonus/burn becomes unclaimable now that an ineligible-winner row exists. Consider kill-switching this round.',
+              },
+            });
+          }
+        } catch (overlapErr) {
+          console.warn('[guesses] Bonus/burn overlap check failed for ineligible winner:', overlapErr);
+        }
+
+        // Return the same shape as an incorrect guess so a bot can't tell
+        // from the API response whether they actually landed the answer.
+        const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
+        return {
+          status: 'incorrect',
+          word,
+          totalGuessesForUserThisRound: totalGuesses,
+        };
+      }
+    }
 
     // Get user's referrer (if any) for round resolution
     let referrerFid: number | null = null;

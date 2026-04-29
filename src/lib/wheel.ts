@@ -83,9 +83,21 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
   const allGuessWords = getGuessWords();
   console.log(`[getWheelWordsForRound] Total GUESS_WORDS: ${allGuessWords.length}`);
 
-  // Get all guesses for this round (both correct and incorrect)
+  // Get all guesses for this round (both correct and incorrect).
+  //
+  // CRITICAL: ineligible-winner rows must be observably indistinguishable
+  // from regular wrong guesses on the wheel. The original Round-29-anti-bot
+  // approach excluded them entirely, which created a side channel — the
+  // bot's correct word stayed "unguessed" while every real wrong guess
+  // turned "wrong," letting an attacker compare wheel states to identify
+  // the answer. So we DO fetch them, treat them as wrong on the wheel, but
+  // never let them set winnerWord.
   const allGuessesData = await db
-    .select({ word: guesses.word, isCorrect: guesses.isCorrect })
+    .select({
+      word: guesses.word,
+      isCorrect: guesses.isCorrect,
+      isIneligibleWinner: guesses.isIneligibleWinner,
+    })
     .from(guesses)
     .where(eq(guesses.roundId, roundId));
 
@@ -94,9 +106,14 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
   let winnerWord: string | null = null;
 
   for (const guess of allGuessesData) {
-    if (guess.isCorrect) {
+    // Only ELIGIBLE correct guesses set the winner. Ineligible-winner rows
+    // fall through to the wrong bucket so the wheel renders them like any
+    // other wrong guess.
+    if (guess.isCorrect && !guess.isIneligibleWinner) {
       winnerWord = guess.word.toUpperCase();
     } else {
+      // Covers regular wrong guesses (isCorrect=false) and ineligible
+      // correct guesses (isCorrect=true, isIneligibleWinner=true).
       wrongGuessSet.add(guess.word.toUpperCase());
     }
   }

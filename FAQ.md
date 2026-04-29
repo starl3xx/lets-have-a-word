@@ -220,12 +220,26 @@ Together, these contracts ensure that both ETH prizes and $WORD token mechanics 
 
 ## Why can't I play? / What are the eligibility requirements?
 
-To prevent bot abuse, players must meet a minimum **Neynar user score of 0.55 or higher**. This score reflects account authenticity based on factors like onchain activity, social connections, and account history.
+Let's Have A Word has multiple layers of bot prevention. To play, your account needs to clear all of them. They exist because — like any game with real ETH payouts — coordinated bot farms try to flood guesses to win the jackpot by chance. Each layer below targets a different sybil signal, so a real player passes all of them while an attacker has to defeat each one.
 
-If your score is below the required threshold, you won't be able to submit guesses or purchase packs, and you'll see a message explaining the restriction.
+**1. Neynar user quality score ≥ 0.55**
 
-Learn more about Neynar user scores and how to improve them:
-https://docs.neynar.com/docs/neynar-user-quality-score#faqs
+A score from Farcaster's reputation system reflecting account authenticity (onchain activity, social connections, account history). Below 0.55, you can't submit guesses or buy packs.
+Learn more: https://docs.neynar.com/docs/neynar-user-quality-score#faqs
+
+**2. Farcaster account age ≥ 14 days**
+
+Your FID (the underlying Farcaster account ID) must have been registered at least 14 days before the round you're playing in. Source of truth is the Farcaster Hub's onchain registry — we don't trust self-reported timestamps.
+
+**3. Connected wallet has real onchain history**
+
+Your connected wallet needs a meaningful number of outgoing transactions on Base. A wallet that was just deployed and never used for anything else won't qualify. If you're using a brand-new wallet, transact on Base for a bit (a few token swaps, NFT mints, anything genuine) and try again.
+
+**4. Winner-eligibility re-check**
+
+Even if a guess somehow gets through the gates above, when a player guesses the secret word the eligibility checks run a second time before the round resolves. If the would-be winner doesn't pass, the round does not pay out the jackpot. The bot's guess is treated identically to a wrong guess in every visible way (no observable difference for a script), and operators receive an alert to investigate.
+
+If you can't play and you're a real human, the most common cause is a brand-new Farcaster account or a wallet you've never used outside this game. Activity on Farcaster and Base over time will fix both.
 
 ## How many possible words are there?
 
