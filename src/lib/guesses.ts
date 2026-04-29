@@ -630,7 +630,8 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // current refund flow doesn't cover.
     if (
       process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
-      process.env.ACCOUNT_AGE_GATING_ENABLED === 'true'
+      process.env.ACCOUNT_AGE_GATING_ENABLED === 'true' ||
+      process.env.WALLET_CLUSTER_GATING_ENABLED === 'true'
     ) {
       const { checkWinnerEligibility } = await import('./winner-eligibility');
       const eligibility = await checkWinnerEligibility(fid);

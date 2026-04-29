@@ -14,12 +14,17 @@ import {
   checkWalletHistory,
   type WalletHistoryCheckResult,
 } from './wallet-history';
+import {
+  checkWalletCluster,
+  type WalletClusterCheckResult,
+} from './wallet-cluster';
 
 export interface WinnerEligibilityResult {
   eligible: boolean;
   reasons: string[];
   ageCheck?: AccountAgeCheckResult;
   walletCheck?: WalletHistoryCheckResult;
+  clusterCheck?: WalletClusterCheckResult;
 }
 
 export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibilityResult> {
@@ -34,14 +39,18 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
   // having a 3s network timeout, sequential = up to 6s; parallel = up to 3s.
   const ageEnabled = process.env.ACCOUNT_AGE_GATING_ENABLED === 'true';
   const walletEnabled = process.env.WALLET_HISTORY_GATING_ENABLED === 'true';
+  const clusterEnabled = process.env.WALLET_CLUSTER_GATING_ENABLED === 'true';
 
-  const [ageCheck, walletCheck] = await Promise.all([
+  const [ageCheck, walletCheck, clusterCheck] = await Promise.all([
     ageEnabled
       ? checkAccountAge(fid, /* forceRefresh */ true)
       : (undefined as AccountAgeCheckResult | undefined),
     walletEnabled
       ? checkWalletHistory(fid, /* forceRefresh */ true)
       : (undefined as WalletHistoryCheckResult | undefined),
+    clusterEnabled
+      ? checkWalletCluster(fid, /* forceRefresh */ true)
+      : (undefined as WalletClusterCheckResult | undefined),
   ]);
 
   if (ageCheck && !ageCheck.eligible) {
@@ -50,11 +59,15 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
   if (walletCheck && !walletCheck.eligible) {
     reasons.push(`wallet_too_fresh (txCount=${walletCheck.txCount ?? '?'})`);
   }
+  if (clusterCheck && !clusterCheck.eligible) {
+    reasons.push(`wallet_in_bot_cluster (clusterSize=${clusterCheck.clusterSize ?? '?'})`);
+  }
 
   return {
     eligible: reasons.length === 0,
     reasons,
     ageCheck,
     walletCheck,
+    clusterCheck,
   };
 }

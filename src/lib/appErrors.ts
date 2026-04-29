@@ -36,6 +36,7 @@ export const AppErrorCodes = {
   USER_QUALITY_BLOCKED: 'USER_QUALITY_BLOCKED',
   ACCOUNT_TOO_NEW: 'ACCOUNT_TOO_NEW',
   WALLET_TOO_FRESH: 'WALLET_TOO_FRESH',
+  WALLET_IN_BOT_CLUSTER: 'WALLET_IN_BOT_CLUSTER',
   FARCASTER_CONTEXT_MISSING: 'FARCASTER_CONTEXT_MISSING',
   AUTHENTICATION_REQUIRED: 'AUTHENTICATION_REQUIRED',
 
@@ -251,6 +252,19 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
     userTitle: 'Wallet not eligible yet',
     userBody:
       'Your connected wallet doesn’t have enough onchain activity to play. Use a wallet you actively use on Base.',
+    primaryCtaLabel: 'Learn more',
+    primaryCtaAction: 'open_help',
+    bannerVariant: 'warning',
+    logToAnalytics: true,
+  },
+  [AppErrorCodes.WALLET_IN_BOT_CLUSTER]: {
+    // Wallet co-deployed in a tight time window with other suspect accounts.
+    // We deliberately don't say "bot cluster" in the user copy — a real
+    // user who landed in this state should be able to contact support
+    // for review without first being labeled a bot.
+    userTitle: 'Account flagged for review',
+    userBody:
+      'Your account couldn’t be verified for play. If you think this is a mistake, reach out to support.',
     primaryCtaLabel: 'Learn more',
     primaryCtaAction: 'open_help',
     bannerVariant: 'warning',
@@ -628,6 +642,9 @@ function mapLegacyErrorToCode(errorString: string): AppErrorCode {
   }
   if (lowerError.includes('wallet_too_fresh')) {
     return AppErrorCodes.WALLET_TOO_FRESH;
+  }
+  if (lowerError.includes('wallet_in_bot_cluster')) {
+    return AppErrorCodes.WALLET_IN_BOT_CLUSTER;
   }
   if (lowerError.includes('rate') || lowerError.includes('too many')) {
     return AppErrorCodes.RATE_LIMITED;
