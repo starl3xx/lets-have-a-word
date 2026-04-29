@@ -211,15 +211,26 @@ export async function checkWalletCluster(
     return { eligible: true, walletFirstTxAt: null, clusterSize: null, reason: 'Not a .base.eth user' };
   }
 
-  // Filter 2: high-score users bypass.
+  // Filter 2: bypass unless we have a score AND it's below scoreMax.
+  // A null score is NOT verifiably below threshold — fail open in that
+  // case to match the rest of the gate's policy. Without this, a
+  // .base.eth user whose score was never fetched (e.g. USER_QUALITY_
+  // GATING_ENABLED is off) would be evaluated on cluster size alone,
+  // turning the documented compound gate into a 2-of-3 gate. The "ONLY
+  // when all" promise in the docstring requires explicit confirmation
+  // of the low-score condition, not just absence of evidence to the
+  // contrary.
   const score = user.score ? parseFloat(user.score) : null;
   const scoreMax = getScoreMax();
-  if (score !== null && score >= scoreMax) {
+  if (score === null || score >= scoreMax) {
     return {
       eligible: true,
       walletFirstTxAt: user.walletFirstTxAt ?? null,
       clusterSize: user.walletClusterSize ?? null,
-      reason: `score ${score} >= ${scoreMax}`,
+      reason:
+        score === null
+          ? 'No user score on file — failing open'
+          : `score ${score} >= ${scoreMax}`,
     };
   }
 
