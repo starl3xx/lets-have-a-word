@@ -704,6 +704,18 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           console.error('[Cache] Failed to invalidate after ineligible-winner guess:', err);
         });
 
+        // Track Superguess session if this FID is the active Superguesser.
+        // Mirrors the wrong-guess and correct-guess paths so the session's
+        // guess count and exhaustion logic stay in sync. Recorded as
+        // 'incorrect' to match the shape of the response we're returning;
+        // no leak there since the audit row already captures the truth.
+        if (isSuperguessFeatureEnabled()) {
+          const activeSession = await getActiveSuperguess(round.id);
+          if (activeSession && activeSession.fid === fid) {
+            await recordSuperguessGuess(activeSession.id, round.id, word, 'incorrect');
+          }
+        }
+
         // Return the same shape as an incorrect guess so a bot can't tell
         // from the API response whether they actually landed the answer.
         const totalGuesses = await getGuessCountForUserInRound(fid, round.id);

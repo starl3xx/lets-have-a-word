@@ -92,7 +92,7 @@ export default async function handler(
           r.id as round_id,
           r.answer,
           COUNT(g.id) as guess_count,
-          MAX(CASE WHEN g.is_correct = true THEN 1 ELSE 0 END) as was_solved
+          MAX(CASE WHEN g.is_correct = true AND g.is_ineligible_winner = false THEN 1 ELSE 0 END) as was_solved
         FROM rounds r
         LEFT JOIN guesses g ON g.round_id = r.id
         WHERE r.started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
@@ -142,7 +142,7 @@ export default async function handler(
           r.id as round_id,
           r.answer as word,
           COUNT(g.id) as guess_count,
-          MAX(CASE WHEN g.is_correct = true THEN 1 ELSE 0 END) as was_solved
+          MAX(CASE WHEN g.is_correct = true AND g.is_ineligible_winner = false THEN 1 ELSE 0 END) as was_solved
         FROM rounds r
         LEFT JOIN guesses g ON g.round_id = r.id
         WHERE r.started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
