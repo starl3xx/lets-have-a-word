@@ -24,26 +24,31 @@ export interface WinnerEligibilityResult {
 
 export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibilityResult> {
   const reasons: string[] = [];
-  let ageCheck: AccountAgeCheckResult | undefined;
-  let walletCheck: WalletHistoryCheckResult | undefined;
 
-  // Account-age check. Force-refresh so we don't trust a Hub-outage-era
-  // cached null when a payout is on the line; if Hub was down at guess
-  // time, we want the win-time check to actually retry.
-  if (process.env.ACCOUNT_AGE_GATING_ENABLED === 'true') {
-    ageCheck = await checkAccountAge(fid, /* forceRefresh */ true);
-    if (!ageCheck.eligible) {
-      reasons.push(`account_too_new (ageDays=${ageCheck.ageDays?.toFixed(2) ?? '?'})`);
-    }
+  // Run the two checks in parallel. They write to different column groups on
+  // the same users row (fid_registered_at* vs wallet_tx_count*), each manages
+  // its own DB update, and both fail-open internally — so concurrent execution
+  // is safe and halves worst-case latency on the win path. Latency matters
+  // here: this runs BEFORE the round-lock transaction, and every second of
+  // delay widens the race window for a competing winner. With each gate
+  // having a 3s network timeout, sequential = up to 6s; parallel = up to 3s.
+  const ageEnabled = process.env.ACCOUNT_AGE_GATING_ENABLED === 'true';
+  const walletEnabled = process.env.WALLET_HISTORY_GATING_ENABLED === 'true';
+
+  const [ageCheck, walletCheck] = await Promise.all([
+    ageEnabled
+      ? checkAccountAge(fid, /* forceRefresh */ true)
+      : (undefined as AccountAgeCheckResult | undefined),
+    walletEnabled
+      ? checkWalletHistory(fid, /* forceRefresh */ true)
+      : (undefined as WalletHistoryCheckResult | undefined),
+  ]);
+
+  if (ageCheck && !ageCheck.eligible) {
+    reasons.push(`account_too_new (ageDays=${ageCheck.ageDays?.toFixed(2) ?? '?'})`);
   }
-
-  // Wallet-history check, force-refresh because counts are monotonic and a
-  // win is the moment to confirm the wallet is genuinely active.
-  if (process.env.WALLET_HISTORY_GATING_ENABLED === 'true') {
-    walletCheck = await checkWalletHistory(fid, /* forceRefresh */ true);
-    if (!walletCheck.eligible) {
-      reasons.push(`wallet_too_fresh (txCount=${walletCheck.txCount ?? '?'})`);
-    }
+  if (walletCheck && !walletCheck.eligible) {
+    reasons.push(`wallet_too_fresh (txCount=${walletCheck.txCount ?? '?'})`);
   }
 
   return {

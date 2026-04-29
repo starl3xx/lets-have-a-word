@@ -716,6 +716,41 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           }
         }
 
+        // Edge-case detection: if the secret answer ALSO happens to be a
+        // committed bonus or burn word (a round-generation misconfiguration
+        // that should never happen, but isn't structurally prevented), the
+        // dedup we just added will permanently lock that bonus/burn out for
+        // the round — no eligible player can claim it because every guess
+        // of the word now returns already_guessed_word. Fire a Sentry alert
+        // so operators can decide whether to kill-switch the round.
+        // We don't try to process the bonus/burn claim here — the would-be
+        // winner is ineligible by definition, so they shouldn't receive the
+        // reward, and processing-without-paying is more complexity than
+        // this edge case warrants. Auto-cancel (the planned follow-up to
+        // the unwinnable-round tradeoff) would also resolve this since it
+        // would discard the round entirely.
+        try {
+          const [bonusOverlap, burnOverlap] = await Promise.all([
+            checkBonusWordMatch(round.id, word),
+            checkBurnWordMatch(round.id, word),
+          ]);
+          if (bonusOverlap || burnOverlap) {
+            Sentry.captureMessage('[Guess] Answer overlaps committed bonus/burn word', {
+              level: 'warning',
+              tags: { type: 'answer_bonus_burn_overlap' },
+              extra: {
+                roundId: round.id,
+                word,
+                bonusWordIndex: bonusOverlap?.wordIndex ?? null,
+                burnWordIndex: burnOverlap?.wordIndex ?? null,
+                note: 'Round-generation misconfiguration: secret answer matches a committed bonus or burn word. The bonus/burn becomes unclaimable now that an ineligible-winner row exists. Consider kill-switching this round.',
+              },
+            });
+          }
+        } catch (overlapErr) {
+          console.warn('[guesses] Bonus/burn overlap check failed for ineligible winner:', overlapErr);
+        }
+
         // Return the same shape as an incorrect guess so a bot can't tell
         // from the API response whether they actually landed the answer.
         const totalGuesses = await getGuessCountForUserInRound(fid, round.id);
