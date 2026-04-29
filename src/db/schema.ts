@@ -31,6 +31,9 @@ export const users = pgTable('users', {
   fidRegisteredAtCheckedAt: timestamp('fid_registered_at_checked_at'), // Last time we attempted to resolve fid_registered_at (null = never, lets us retry)
   walletTxCount: integer('wallet_tx_count'), // eth_getTransactionCount on signer_wallet_address (Base) — outgoing tx count, monotonic
   walletTxCountCheckedAt: timestamp('wallet_tx_count_checked_at'), // Last RPC call timestamp; null = never checked
+  walletFirstTxAt: timestamp('wallet_first_tx_at'), // Timestamp of the wallet's earliest tx on Base (post-Round-29 cluster gate)
+  walletFirstTxCheckedAt: timestamp('wallet_first_tx_checked_at'), // Last attempt to resolve wallet_first_tx_at via Blockscout
+  walletClusterSize: integer('wallet_cluster_size'), // Count of LHAW users with wallet_first_tx_at within ±1h of this user's; updated on each lazy fetch. >=5 indicates a coordinated mint batch
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
@@ -44,6 +47,8 @@ export const users = pgTable('users', {
   userScoreUpdatedAtIdx: index('users_user_score_updated_at_idx').on(table.userScoreUpdatedAt),
   fidRegisteredAtIdx: index('users_fid_registered_at_idx').on(table.fidRegisteredAt),
   walletTxCountIdx: index('users_wallet_tx_count_idx').on(table.walletTxCount),
+  walletFirstTxAtIdx: index('users_wallet_first_tx_at_idx').on(table.walletFirstTxAt),
+  walletClusterSizeIdx: index('users_wallet_cluster_size_idx').on(table.walletClusterSize),
 }));
 
 /**

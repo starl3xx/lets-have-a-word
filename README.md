@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-04-29 (post-Round 29 follow-up)
+
+- **Wallet-cluster gate (third sybil-defense layer)**: Investigated the wallet-history gate's effectiveness against the actual Round 28/29 attack surface. Two findings flipped the design: (1) all bot wallets are Coinbase Smart Wallets — for which `eth_getTransactionCount` doesn't reflect activity (ERC-4337 hides it through the EntryPoint), so the prior gate's threshold was tuned against the wrong signal; (2) bot wallets *do* show a clean fingerprint at deployment time — 22 wallets co-minted within a 3-hour window on 2026-03-15, vs. real users' wallet first-tx dates spread across months (cluster size of 2 is the legit max in a 168-user sample). New compound gate blocks ONLY when `.base.eth` + `user_score < 0.70` + `wallet_cluster_size >= 5` (within ±1h via Blockscout); pure Farcaster/Warpcast users are unaffected. Behind `WALLET_CLUSTER_GATING_ENABLED`. New `WALLET_IN_BOT_CLUSTER` error code; new `wallet_first_tx_at`, `wallet_first_tx_checked_at`, `wallet_cluster_size` columns. Operator-facing audit endpoint at `/api/admin/operational/wallet-cluster-report` lists detected clusters for review (passive, no auto-action). Sanity-check sample also surfaced a previously-undetected 9-wallet cluster from 2025-09-14 — earlier sybil wave or batch onboarding, worth investigating retroactively. Migration: `0021_wallet_cluster_gate.sql` — apply BEFORE deploy.
+
 ### 2026-04-28 (post-Round 29)
 
 - **Wallet-history gate + winner-eligibility check**: Round 29 was botted again. Diagnostic showed all 27 bonus/burn finders across Rounds 28–29 were `.base.eth` accounts at score 0.60 with wallets clustered at **8–12 outgoing Base txs and ~$0.01 ETH** — the cost-floor footprint of a Coinbase Smart Wallet that was deployed, registered a basename, added a Farcaster signer, and was never used for anything else. Legit comparison wallet sat at 3,447 txs (300× separation).
