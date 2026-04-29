@@ -194,7 +194,12 @@ async function resolveWalletTxCount(
     })
     .where(eq(users.fid, fid));
 
-  return fetched;
+  // Tx counts are monotonic — a cached value is a guaranteed LOWER BOUND of
+  // the true count. On RPC failure, prefer cached over null so a bot with a
+  // known-low cached count (e.g. 5) doesn't sneak through the win-time
+  // re-check via fail-open just because Base RPC happened to blip. Without
+  // this, forceRefresh + RPC outage = ineligible bot wins the jackpot.
+  return fetched ?? cached;
 }
 
 /**
