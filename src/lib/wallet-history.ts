@@ -202,21 +202,29 @@ async function resolveWalletTxCount(
 
   const fetched = await fetchTxCount(wallet);
 
+  // Tx counts are monotonic — they only go up. The rest of the gate relies
+  // on this. But a load-balanced RPC backend serving a lagging node, or a
+  // brief L2 reorg, can return a value lower than what we cached earlier.
+  // Take the max of fetched and cached so a real user who already passed
+  // never gets downgraded into a fail (especially dangerous on the
+  // forceRefresh=true win-time path — would block a legitimate winner).
+  // Also covers the RPC-failure case (fetched=null) since `cached` wins
+  // through the same Math.max via nullish-coalescing default.
+  const effective =
+    fetched !== null
+      ? Math.max(fetched, cached ?? 0)
+      : cached;
+
   await db
     .update(users)
     .set({
-      walletTxCount: fetched ?? undefined,
+      walletTxCount: effective ?? undefined,
       walletTxCountCheckedAt: new Date(),
       updatedAt: new Date(),
     })
     .where(eq(users.fid, fid));
 
-  // Tx counts are monotonic — a cached value is a guaranteed LOWER BOUND of
-  // the true count. On RPC failure, prefer cached over null so a bot with a
-  // known-low cached count (e.g. 5) doesn't sneak through the win-time
-  // re-check via fail-open just because Base RPC happened to blip. Without
-  // this, forceRefresh + RPC outage = ineligible bot wins the jackpot.
-  return fetched ?? cached;
+  return effective;
 }
 
 /**
