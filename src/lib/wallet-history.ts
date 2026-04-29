@@ -107,7 +107,24 @@ async function fetchTxCount(wallet: string): Promise<number | null> {
     if (!body.result) {
       return null;
     }
-    return parseInt(body.result, 16);
+    // parseInt("0x", 16) → NaN. NaN is a number so it passes the typeof
+    // guard above and propagates through `fetched ?? undefined` /
+    // `fetched ?? cached` (nullish-coalescing only catches null/undefined).
+    // If we let NaN through it either crashes the DB integer write
+    // (breaking cooldown so we re-RPC in a hot loop) or makes the gate
+    // block users with a "NaN Base txs" message. Treat malformed responses
+    // as RPC failure.
+    const txCount = parseInt(body.result, 16);
+    if (!Number.isFinite(txCount)) {
+      console.warn(`[WalletHistory] RPC returned non-numeric result "${body.result}" for ${wallet}`);
+      Sentry.captureMessage('[WalletHistory] RPC malformed result', {
+        level: 'warning',
+        tags: { component: 'wallet-history', failure: 'malformed_result' },
+        extra: { wallet, result: body.result },
+      });
+      return null;
+    }
+    return txCount;
   } catch (error: any) {
     if (error?.name === 'AbortError') {
       console.warn(`[WalletHistory] RPC timed out (${RPC_FETCH_TIMEOUT_MS}ms) for ${wallet}`);
