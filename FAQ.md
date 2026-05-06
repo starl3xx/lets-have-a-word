@@ -233,9 +233,13 @@ Your FID (the underlying Farcaster account ID) must have been registered at leas
 
 **3. Connected wallet has real onchain history**
 
-Your connected wallet needs a meaningful number of outgoing transactions on Base. A wallet that was just deployed and never used for anything else won't qualify. If you're using a brand-new wallet, transact on Base for a bit (a few token swaps, NFT mints, anything genuine) and try again.
+Your connected wallet needs a meaningful number of outgoing transactions on Base. A wallet that was just deployed and never used for anything else won't qualify. If you're using a brand-new wallet, transact on Base for a bit (a few token swaps, NFT mints, anything genuine) and try again. (Note: this layer applies to standard Ethereum-style wallets; Coinbase Smart Wallet users are evaluated by layer 4 below instead, since their tx counts don't reflect activity.)
 
-**4. Winner-eligibility re-check**
+**4. Coordinated mint detection (`.base.eth` users only)**
+
+If you signed up via Coinbase Wallet (a `.base.eth` username), we additionally look at *when* your wallet first appeared on Base. Coordinated bot farms tend to deploy thousands of `.base.eth` wallets in single tight time windows (we observed 22 wallets in a 3-hour window during the most recent attack). Real Coinbase Wallet users land alone or in pairs, never in batches of 5+. If your wallet was deployed at the same moment as 4 or more other accounts that try to play, your account is flagged for review.
+
+**5. Winner-eligibility re-check**
 
 Even if a guess somehow gets through the gates above, when a player guesses the secret word the eligibility checks run a second time before the round resolves. If the would-be winner doesn't pass, the round does not pay out the jackpot. The bot's guess is treated identically to a wrong guess in every visible way (no observable difference for a script), and operators receive an alert to investigate.
 

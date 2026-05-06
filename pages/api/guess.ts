@@ -28,6 +28,11 @@ import {
   logBlockedWalletHistoryAttempt,
   WALLET_TOO_FRESH_ERROR,
 } from '../../src/lib/wallet-history';
+import {
+  checkWalletCluster,
+  logBlockedWalletClusterAttempt,
+  WALLET_IN_BOT_CLUSTER_ERROR,
+} from '../../src/lib/wallet-cluster';
 import { applyGameplayGuard } from '../../src/lib/operational-guard';
 import {
   checkGuessRateLimit,
@@ -419,6 +424,27 @@ export default async function handler(
           error: walletCheck.errorCode || WALLET_TOO_FRESH_ERROR,
           message: walletCheck.reason || 'Wallet too fresh',
           txCount: walletCheck.txCount,
+        } as any);
+      }
+    }
+
+    // Wallet-cluster gate: catches the R28/R29 fingerprint of `.base.eth`
+    // wallets co-deployed in tight time windows. Per the empirical 168-user
+    // sample, real LHAW players have wallet-deployment timestamps spread
+    // across months; bot batches show 5–22 wallets within a 1-hour window.
+    // Scoped to `.base.eth` users with low score so the signal doesn't
+    // touch pure Farcaster/Warpcast users (who have no Base activity by
+    // design) or established/high-score users.
+    if (process.env.WALLET_CLUSTER_GATING_ENABLED === 'true') {
+      const clusterCheck = await checkWalletCluster(fid);
+
+      if (!clusterCheck.eligible) {
+        await logBlockedWalletClusterAttempt(fid, clusterCheck, 'guess');
+
+        return res.status(403).json({
+          error: clusterCheck.errorCode || WALLET_IN_BOT_CLUSTER_ERROR,
+          message: clusterCheck.reason || 'Account flagged for review',
+          clusterSize: clusterCheck.clusterSize,
         } as any);
       }
     }
