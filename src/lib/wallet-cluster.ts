@@ -78,8 +78,13 @@ export interface WalletClusterCheckResult {
  * Returns null on error or no-history. Caps pagination so a high-activity
  * wallet doesn't block the gate — for our purposes, "first tx is older
  * than what we can see in the first 5 pages" is well-aged enough.
+ *
+ * Exported so the admin backfill endpoint can reuse the same logic
+ * (including timeout handling, pagination, Sentry alerts) instead of
+ * forking it. Single source of truth for "ask Blockscout for a wallet's
+ * first Base tx".
  */
-async function fetchWalletFirstTx(wallet: string, maxPages = 5): Promise<Date | null> {
+export async function fetchWalletFirstTx(wallet: string, maxPages = 5): Promise<Date | null> {
   const baseUrl = getBlockscoutBase();
   let url = `${baseUrl}/api/v2/addresses/${wallet}/transactions`;
   let oldest: string | null = null;

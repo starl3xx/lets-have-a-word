@@ -25,51 +25,9 @@ import { isAdminFid } from '../me';
 import { db } from '../../../../src/db';
 import { users } from '../../../../src/db/schema';
 import { and, eq, isNull, isNotNull, sql } from 'drizzle-orm';
+import { fetchWalletFirstTx } from '../../../../src/lib/wallet-cluster';
 
-const BLOCKSCOUT_TIMEOUT_MS = 5000;
 const SLEEP_MS = 250;
-
-function getBlockscoutBase(): string {
-  return (process.env.BASE_BLOCKSCOUT_URL || 'https://base.blockscout.com').replace(/\/$/, '');
-}
-
-async function fetchFirstTx(wallet: string): Promise<Date | null> {
-  const baseUrl = getBlockscoutBase();
-  let url = `${baseUrl}/api/v2/addresses/${wallet}/transactions`;
-  let oldest: string | null = null;
-  const maxPages = 5;
-
-  for (let i = 0; i < maxPages; i++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), BLOCKSCOUT_TIMEOUT_MS);
-    try {
-      const r = await fetch(url, {
-        headers: { accept: 'application/json' },
-        signal: controller.signal,
-      });
-      if (!r.ok) return oldest ? new Date(oldest) : null;
-      const body = (await r.json()) as {
-        items?: Array<{ timestamp?: string }>;
-        next_page_params?: Record<string, string | number> | null;
-      };
-      const items = body.items ?? [];
-      if (items.length === 0) break;
-      const last = items[items.length - 1].timestamp;
-      if (last) oldest = last;
-      const npp = body.next_page_params;
-      if (!npp) break;
-      const qs = new URLSearchParams(
-        Object.entries(npp).map(([k, v]) => [k, String(v)])
-      ).toString();
-      url = `${baseUrl}/api/v2/addresses/${wallet}/transactions?${qs}`;
-    } catch {
-      return oldest ? new Date(oldest) : null;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-  return oldest ? new Date(oldest) : null;
-}
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -129,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const c of candidates) {
       try {
-        const firstTx = await fetchFirstTx(c.wallet as string);
+        const firstTx = await fetchWalletFirstTx(c.wallet as string);
         await db
           .update(users)
           .set({
