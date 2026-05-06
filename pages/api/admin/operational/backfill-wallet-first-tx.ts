@@ -26,12 +26,9 @@ import { db } from '../../../../src/db';
 import { users } from '../../../../src/db/schema';
 import { and, eq, isNull, isNotNull, sql } from 'drizzle-orm';
 import { fetchWalletFirstTx } from '../../../../src/lib/wallet-cluster';
+import { sleep } from '../../../../src/lib/appErrors';
 
 const SLEEP_MS = 250;
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -83,21 +80,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let updated = 0;
     let foundFirstTx = 0;
+    let unverified = 0;
     let errors = 0;
 
     for (const c of candidates) {
       try {
-        const firstTx = await fetchWalletFirstTx(c.wallet as string);
-        await db
-          .update(users)
-          .set({
-            walletFirstTxAt: firstTx ?? undefined,
-            walletFirstTxCheckedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.fid, c.fid));
-        updated++;
-        if (firstTx) foundFirstTx++;
+        const result = await fetchWalletFirstTx(c.wallet as string);
+        if (!result.verified) {
+          // Blockscout failed; do NOT mark this user as checked, leaving
+          // them as a candidate for the next backfill run. Otherwise an
+          // outage during backfill would permanently exclude users from
+          // ever getting a real lookup.
+          unverified++;
+        } else {
+          await db
+            .update(users)
+            .set({
+              walletFirstTxAt: result.firstTxAt ?? undefined,
+              walletFirstTxCheckedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(users.fid, c.fid));
+          updated++;
+          if (result.firstTxAt) foundFirstTx++;
+        }
       } catch (err) {
         errors++;
         console.warn(`[backfill] Failed FID ${c.fid}:`, err);
@@ -116,12 +122,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       processed: candidates.length,
       updated,
       foundFirstTx,
+      unverified,
       errors,
       remaining,
       message:
         remaining === 0
           ? 'Backfill complete. Now hit /api/admin/operational/wallet-cluster-report to see clusters.'
-          : `Run this endpoint again to continue (${remaining} users remaining).`,
+          : `Run this endpoint again to continue (${remaining} users remaining${unverified ? `; ${unverified} unverified this batch — Blockscout may be degraded` : ''}).`,
     });
   } catch (error: any) {
     console.error('[backfill-wallet-first-tx] Error:', error);

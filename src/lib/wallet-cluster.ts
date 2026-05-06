@@ -74,17 +74,36 @@ export interface WalletClusterCheckResult {
 }
 
 /**
+ * Result of a Blockscout first-tx lookup.
+ *
+ * `verified=true` means we successfully reached Blockscout and can trust
+ * `firstTxAt` (which may be null if the wallet genuinely has no Base
+ * activity). `verified=false` means we couldn't complete the lookup —
+ * the caller should NOT cache the absence as ground truth.
+ *
+ * The two states must stay distinguishable. The earlier API returned
+ * `Date | null` and conflated "no history" with "couldn't reach
+ * Blockscout"; the backfill endpoint then marked users as permanently
+ * checked during outages.
+ */
+export interface FirstTxResult {
+  firstTxAt: Date | null;
+  verified: boolean;
+}
+
+/**
  * Walk Blockscout pages descending to find the wallet's earliest tx.
- * Returns null on error or no-history. Caps pagination so a high-activity
+ * Returns a {firstTxAt, verified} result. Caps pagination so a high-activity
  * wallet doesn't block the gate — for our purposes, "first tx is older
- * than what we can see in the first 5 pages" is well-aged enough.
+ * than what we can see in the first 5 pages" is well-aged enough; a
+ * partial walk that found at least one tx is still `verified=true`.
  *
  * Exported so the admin backfill endpoint can reuse the same logic
  * (including timeout handling, pagination, Sentry alerts) instead of
  * forking it. Single source of truth for "ask Blockscout for a wallet's
  * first Base tx".
  */
-export async function fetchWalletFirstTx(wallet: string, maxPages = 5): Promise<Date | null> {
+export async function fetchWalletFirstTx(wallet: string, maxPages = 5): Promise<FirstTxResult> {
   const baseUrl = getBlockscoutBase();
   let url = `${baseUrl}/api/v2/addresses/${wallet}/transactions`;
   let oldest: string | null = null;
@@ -104,7 +123,10 @@ export async function fetchWalletFirstTx(wallet: string, maxPages = 5): Promise<
           tags: { component: 'wallet-cluster', failure: 'http_error' },
           extra: { wallet, status: response.status, page: i },
         });
-        return oldest ? new Date(oldest) : null;
+        // Partial result if we already found something on a prior page;
+        // verified=true because the prior page completed cleanly. Otherwise
+        // the lookup is unverified.
+        return { firstTxAt: oldest ? new Date(oldest) : null, verified: oldest !== null };
       }
 
       const body = (await response.json()) as {
@@ -138,13 +160,15 @@ export async function fetchWalletFirstTx(wallet: string, maxPages = 5): Promise<
           extra: { wallet, page: i },
         });
       }
-      return oldest ? new Date(oldest) : null;
+      // Same partial-result logic as the non-200 branch.
+      return { firstTxAt: oldest ? new Date(oldest) : null, verified: oldest !== null };
     } finally {
       clearTimeout(timeoutId);
     }
   }
 
-  return oldest ? new Date(oldest) : null;
+  // Loop completed normally — every page we walked succeeded.
+  return { firstTxAt: oldest ? new Date(oldest) : null, verified: true };
 }
 
 /**
@@ -256,16 +280,19 @@ export async function checkWalletCluster(
 
     if (!cooledDown) {
       try {
-        const fetched = await fetchWalletFirstTx(user.wallet);
+        const result = await fetchWalletFirstTx(user.wallet);
+        // Always stamp checked_at — the cooldown logic depends on it. The
+        // gate uses cached negative result + cooldown to limit Blockscout
+        // load during outages; lazy-fetch will retry every 6h.
         await db
           .update(users)
           .set({
-            walletFirstTxAt: fetched ?? undefined,
+            walletFirstTxAt: result.firstTxAt ?? undefined,
             walletFirstTxCheckedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(users.fid, fid));
-        firstTx = fetched;
+        firstTx = result.firstTxAt;
       } catch (err) {
         Sentry.captureException(err, {
           tags: { component: 'wallet-cluster', operation: 'resolve_first_tx' },
