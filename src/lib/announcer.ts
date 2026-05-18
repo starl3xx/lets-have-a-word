@@ -231,11 +231,18 @@ function getRoundNumber(round: RoundRow): number {
 }
 
 /**
- * Announce that a new round has started
+ * Build the round-started announcement text and metadata.
  *
- * @param round - The newly created round
+ * Shared by announceRoundStarted() and the admin re-announce endpoint so the
+ * cast/notification copy lives in exactly one place.
+ *
+ * @param round - The round to announce
  */
-export async function announceRoundStarted(round: RoundRow) {
+export async function buildRoundStartedAnnouncement(round: RoundRow): Promise<{
+  roundNumber: number;
+  jackpotEth: string;
+  text: string;
+}> {
   const roundNumber = getRoundNumber(round);
 
   // Read prize pool from onchain contract (source of truth)
@@ -257,6 +264,17 @@ The secret word, bonus words, and burn words are locked onchain 🔒
 
 Happy hunting 🕵️‍♂️
 letshaveaword.fun`;
+
+  return { roundNumber, jackpotEth, text };
+}
+
+/**
+ * Announce that a new round has started
+ *
+ * @param round - The newly created round
+ */
+export async function announceRoundStarted(round: RoundRow) {
+  const { roundNumber, jackpotEth, text } = await buildRoundStartedAnnouncement(round);
 
   // Send push notification to mini app users (with jackpot data for template)
   const notification = await notifyRoundStarted(roundNumber, jackpotEth);
