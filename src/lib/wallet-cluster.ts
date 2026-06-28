@@ -14,9 +14,16 @@
  *
  * The "co-mint cluster" is harder to forge — an attacker would have to
  * stagger wallet deployments over hours-to-days each, which 10x's the
- * operational cost of the farm. The .base.eth filter scopes the signal to
- * Coinbase Wallet flow users (who SHOULD have Base activity), so pure
- * Farcaster/Warpcast users with zero Base txs aren't affected.
+ * operational cost of the farm.
+ *
+ * SCOPE (June 2026): the gate evaluates ALL users by wallet co-mint
+ * clustering. It originally fired only on `.base.eth` usernames, but the
+ * farm adapted — Rounds 31/32 were won by placeholder-username accounts
+ * (no basename) carrying the same co-mint + low-score fingerprint, which the
+ * username scope waved through. Pure Farcaster/Warpcast users with zero Base
+ * txs stay unaffected: they have no resolvable first-tx and fail open below.
+ * Set WALLET_CLUSTER_REQUIRE_BASE_ETH=true to restore the original narrow
+ * `.base.eth`-only scope if a legitimately batch-onboarded cohort ever trips it.
  */
 import * as Sentry from '@sentry/nextjs';
 import { db } from '../db';
@@ -63,6 +70,17 @@ function getAllowlist(): Set<number> {
 
 function getBlockscoutBase(): string {
   return (process.env.BASE_BLOCKSCOUT_URL || 'https://base.blockscout.com').replace(/\/$/, '');
+}
+
+/**
+ * Whether to scope the cluster gate to `.base.eth` (Coinbase-flow) usernames only.
+ * Default FALSE: evaluate EVERY user by wallet co-mint clustering. The R28/R29/R31/R32
+ * farm evades a username-suffix scope by winning with placeholder (non-.base.eth)
+ * handles, so keying the gate on the username is a free bypass. Flip this to 'true'
+ * only as a rollback if a genuinely batch-onboarded real cohort starts tripping it.
+ */
+function getRequireBaseEth(): boolean {
+  return process.env.WALLET_CLUSTER_REQUIRE_BASE_ETH === 'true';
 }
 
 export interface WalletClusterCheckResult {
@@ -197,14 +215,19 @@ async function computeClusterSize(timestamp: Date, windowHours: number): Promise
  * Check whether a FID's wallet matches the bot-cluster fingerprint.
  *
  * Eligibility conditions (block ONLY if all are true):
- * 1. username matches `*.base.eth`
- * 2. user_score < scoreMax (default 0.70)
- * 3. wallet_first_tx_at clusters with ≥minCohort other LHAW wallets
+ * 1. user_score < scoreMax (default 0.70)
+ * 2. wallet_first_tx_at clusters with ≥minCohort other LHAW wallets
+ * (+ optional scope: if WALLET_CLUSTER_REQUIRE_BASE_ETH=true, username must be `*.base.eth`)
  *
  * Anyone who fails ANY of those filters passes the gate. In particular:
  * - High-score users (≥ 0.70) pass automatically
- * - Non-`.base.eth` users (Warpcast, custom usernames) pass
+ * - Users with no resolvable Base first-tx pass (fail-open) — this is where
+ *   pure Farcaster/Warpcast wallets with zero Base activity fall out
  * - Solo wallets (cluster size 1–4) pass
+ *
+ * SCOPE (June 2026): no longer `.base.eth`-only — the gate evaluates every
+ * user by co-mint clustering, because the farm won Rounds 31/32 with
+ * placeholder-username accounts that the old username scope exempted.
  *
  * Fail-open on Blockscout errors with Sentry alert. RPC outages should
  * not lock users out.
@@ -235,20 +258,24 @@ export async function checkWalletCluster(
     return { eligible: true, walletFirstTxAt: null, clusterSize: null, reason: 'No user record' };
   }
 
-  // Filter 1: only Coinbase-flow users are subject to this gate.
-  if (!user.username || !user.username.toLowerCase().endsWith('.base.eth')) {
-    return { eligible: true, walletFirstTxAt: null, clusterSize: null, reason: 'Not a .base.eth user' };
+  // Filter 1 (optional scope): the gate evaluates ALL users by default. The
+  // farm evaded a `.base.eth`-only scope by winning with placeholder usernames
+  // (Rounds 31/32), so username suffix is not a safe gating key. Pure
+  // Farcaster/Warpcast users with no Base activity still pass — they fail open
+  // at the "No Base tx history" check below. WALLET_CLUSTER_REQUIRE_BASE_ETH=true
+  // restores the legacy narrow scope as a rollback lever.
+  if (getRequireBaseEth() && (!user.username || !user.username.toLowerCase().endsWith('.base.eth'))) {
+    return { eligible: true, walletFirstTxAt: null, clusterSize: null, reason: 'Not a .base.eth user (narrow scope)' };
   }
 
   // Filter 2: bypass unless we have a score AND it's below scoreMax.
   // A null score is NOT verifiably below threshold — fail open in that
-  // case to match the rest of the gate's policy. Without this, a
-  // .base.eth user whose score was never fetched (e.g. USER_QUALITY_
-  // GATING_ENABLED is off) would be evaluated on cluster size alone,
-  // turning the documented compound gate into a 2-of-3 gate. The "ONLY
-  // when all" promise in the docstring requires explicit confirmation
-  // of the low-score condition, not just absence of evidence to the
-  // contrary.
+  // case to match the rest of the gate's policy. Without this, a user
+  // whose score was never fetched (e.g. USER_QUALITY_GATING_ENABLED is
+  // off) would be evaluated on cluster size alone, turning the documented
+  // compound gate into a 1-of-2 gate. The "ONLY when all" promise in the
+  // docstring requires explicit confirmation of the low-score condition,
+  // not just absence of evidence to the contrary.
   const score = user.score ? parseFloat(user.score) : null;
   const scoreMax = getScoreMax();
   if (score === null || score >= scoreMax) {
