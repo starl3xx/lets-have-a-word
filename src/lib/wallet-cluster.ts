@@ -36,7 +36,17 @@ export const WALLET_IN_BOT_CLUSTER_ERROR = 'WALLET_IN_BOT_CLUSTER';
 const DEFAULT_MIN_COHORT = 5;
 const DEFAULT_WINDOW_HOURS = 1;
 const DEFAULT_SCORE_MAX = 0.70;
-const BLOCKSCOUT_TIMEOUT_MS = 5000;
+// Per-page Blockscout fetch timeout. High-activity wallets return a large
+// first transactions page (~50 items / ~200KB) that can take ~6s to serve;
+// a 5s budget aborted page 1 before any data was read, which returns
+// `verified=false` and leaves the wallet PERMANENTLY unverified (every
+// retry hits the same slow page). That misclassifies legitimate
+// high-activity wallets as "no Base history" and stalls the backfill on
+// them. 10s clears the observed ~6.3s worst case with margin. Latency is
+// bounded: the gate caches the result and only re-fetches after
+// RETRY_COOLDOWN_MS, and page-2+ timeouts still degrade to a verified
+// partial result, so this only affects the rare uncached slow first page.
+const BLOCKSCOUT_TIMEOUT_MS = 10000;
 const RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 function getMinCohort(): number {
