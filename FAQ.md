@@ -235,9 +235,9 @@ Your FID (the underlying Farcaster account ID) must have been registered at leas
 
 Your connected wallet needs a meaningful number of outgoing transactions on Base. A wallet that was just deployed and never used for anything else won't qualify. If you're using a brand-new wallet, transact on Base for a bit (a few token swaps, NFT mints, anything genuine) and try again. (Note: this layer applies to standard Ethereum-style wallets; Coinbase Smart Wallet users are evaluated by layer 4 below instead, since their tx counts don't reflect activity.)
 
-**4. Coordinated mint detection (`.base.eth` users only)**
+**4. Coordinated mint detection**
 
-If you signed up via Coinbase Wallet (a `.base.eth` username), we additionally look at *when* your wallet first appeared on Base. Coordinated bot farms tend to deploy thousands of `.base.eth` wallets in single tight time windows (we observed 22 wallets in a 3-hour window during the most recent attack). Real Coinbase Wallet users land alone or in pairs, never in batches of 5+. If your wallet was deployed at the same moment as 4 or more other accounts that try to play, your account is flagged for review.
+If your connected wallet has Base activity, we also look at *when* it first appeared on Base. Coordinated bot farms tend to deploy wallets in single tight time windows (we observed 22 wallets in a 3-hour window during one attack). Real users land alone or in pairs, never in batches of 5+. If your wallet was deployed at the same moment as 4 or more other low-quality accounts that try to play, your account is flagged for review. (This used to apply only to `.base.eth` Coinbase Wallet usernames; it now considers any wallet with Base activity, because farms began playing from accounts without a basename. Wallets with no Base activity at all — e.g. pure Farcaster/Warpcast users — are unaffected.)
 
 **5. Winner-eligibility re-check**
 
