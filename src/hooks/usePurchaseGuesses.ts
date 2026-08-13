@@ -115,7 +115,7 @@ export interface UsePurchaseGuessesReturn {
  * purchaseGuesses({
  *   playerAddress: '0x...',
  *   quantity: 3, // 1 pack = 3 guesses
- *   totalPriceEth: '0.0003',
+ *   totalPriceEth: '0.0004',
  * });
  * ```
  */

@@ -7,13 +7,17 @@ export interface GameRulesConfig {
   wordBonusGuesses: number;
   shareBonusGuesses: number;
   paidGuessPackSize: number; // Number of guesses per pack (e.g., 3)
-  paidGuessPackPriceEth: string; // Price per pack (e.g., "0.0003")
+  paidGuessPackPriceEth: string; // Base price per pack (e.g., "0.0004")
   maxPaidPacksPerDay: number; // Max packs purchasable per day (e.g., 3)
   maxPaidGuessesPerDay: number; // Derived: packSize × maxPacks (e.g., 9)
+  // Documentation-in-data: the live split is the bps constants in
+  // src/lib/prize-split.ts, which is what actually pays. Kept in sync so the
+  // seeded ruleset row does not describe an economy the game stopped running.
   jackpotSplit: {
-    winner: number; // 0.8 = 80%
-    referrer: number; // 0.1 = 10%
-    top10: number; // 0.1 = 10%
+    winner: number; // 0.80
+    referrer: number; // 0.05 (re-split 2.5/2.5 to top10 and seed when absent)
+    top10: number; // 0.10
+    seed: number; // 0.05
   };
   seedCapEth: string; // e.g. "0.02"
   wordThreshold: string; // e.g. "100000000"

@@ -21,32 +21,32 @@ import {
 describe('Pack Pricing', () => {
   describe('getPackPriceWei', () => {
     // Test cases from spec
-    it('returns 0.0003 ETH for 0 guesses', () => {
-      expect(getPackPriceWei(0)).toBe(300000000000000n);
+    it('returns 0.0004 ETH for 0 guesses', () => {
+      expect(getPackPriceWei(0)).toBe(400000000000000n);
     });
 
-    it('returns 0.0003 ETH for 849 guesses', () => {
-      expect(getPackPriceWei(849)).toBe(300000000000000n);
+    it('returns 0.0004 ETH for 849 guesses', () => {
+      expect(getPackPriceWei(849)).toBe(400000000000000n);
     });
 
-    it('returns 0.00045 ETH for 850 guesses', () => {
-      expect(getPackPriceWei(850)).toBe(450000000000000n);
+    it('returns 0.0006 ETH for 850 guesses', () => {
+      expect(getPackPriceWei(850)).toBe(600000000000000n);
     });
 
-    it('returns 0.00045 ETH for 1249 guesses', () => {
-      expect(getPackPriceWei(1249)).toBe(450000000000000n);
+    it('returns 0.0006 ETH for 1249 guesses', () => {
+      expect(getPackPriceWei(1249)).toBe(600000000000000n);
     });
 
-    it('returns 0.0006 ETH for 1250 guesses', () => {
-      expect(getPackPriceWei(1250)).toBe(600000000000000n);
+    it('returns 0.0008 ETH for 1250 guesses', () => {
+      expect(getPackPriceWei(1250)).toBe(800000000000000n);
     });
 
-    it('returns 0.0006 ETH for 2000 guesses (cap)', () => {
-      expect(getPackPriceWei(2000)).toBe(600000000000000n);
+    it('returns 0.0008 ETH for 2000 guesses (cap)', () => {
+      expect(getPackPriceWei(2000)).toBe(800000000000000n);
     });
 
-    it('returns 0.0006 ETH for very large guess counts (cap)', () => {
-      expect(getPackPriceWei(10000)).toBe(600000000000000n);
+    it('returns 0.0008 ETH for very large guess counts (cap)', () => {
+      expect(getPackPriceWei(10000)).toBe(800000000000000n);
     });
 
     it('throws error for negative guess counts', () => {
@@ -83,37 +83,37 @@ describe('Pack Pricing', () => {
   describe('getTotalPackCostWei', () => {
     it('calculates 1 pack cost at base price', () => {
       const cost = getTotalPackCostWei(0, 1);
-      expect(cost).toBe(300000000000000n);
+      expect(cost).toBe(400000000000000n);
     });
 
     it('calculates 2 packs cost at base price', () => {
       const cost = getTotalPackCostWei(0, 2);
-      expect(cost).toBe(600000000000000n);
+      expect(cost).toBe(800000000000000n);
     });
 
     it('calculates 3 packs cost at base price', () => {
       const cost = getTotalPackCostWei(0, 3);
-      expect(cost).toBe(900000000000000n);
+      expect(cost).toBe(1200000000000000n);
     });
 
     it('calculates 1 pack cost at MID price', () => {
       const cost = getTotalPackCostWei(850, 1);
-      expect(cost).toBe(450000000000000n);
+      expect(cost).toBe(600000000000000n);
     });
 
     it('calculates 3 packs cost at MID price', () => {
       const cost = getTotalPackCostWei(850, 3);
-      expect(cost).toBe(1350000000000000n);
+      expect(cost).toBe(1800000000000000n);
     });
 
     it('calculates 1 pack cost at LATE price', () => {
       const cost = getTotalPackCostWei(1250, 1);
-      expect(cost).toBe(600000000000000n);
+      expect(cost).toBe(800000000000000n);
     });
 
     it('calculates 3 packs cost at LATE price', () => {
       const cost = getTotalPackCostWei(1250, 3);
-      expect(cost).toBe(1800000000000000n);
+      expect(cost).toBe(2400000000000000n);
     });
 
     it('throws error for packCount < 1', () => {
@@ -122,16 +122,16 @@ describe('Pack Pricing', () => {
   });
 
   describe('weiToEthString', () => {
-    it('converts EARLY price to 0.0003', () => {
-      expect(weiToEthString(300000000000000n)).toBe('0.00030');
+    it('converts EARLY price to 0.00040', () => {
+      expect(weiToEthString(400000000000000n)).toBe('0.00040');
     });
 
-    it('converts MID price to 0.00045', () => {
-      expect(weiToEthString(450000000000000n)).toBe('0.00045');
-    });
-
-    it('converts LATE price to 0.0006', () => {
+    it('converts MID price to 0.00060', () => {
       expect(weiToEthString(600000000000000n)).toBe('0.00060');
+    });
+
+    it('converts LATE price to 0.00080', () => {
+      expect(weiToEthString(800000000000000n)).toBe('0.00080');
     });
 
     it('converts 1 ETH correctly', () => {
@@ -144,12 +144,12 @@ describe('Pack Pricing', () => {
   });
 
   describe('Constants', () => {
-    it('BASE_PACK_PRICE_WEI is 0.0003 ETH', () => {
-      expect(BASE_PACK_PRICE_WEI).toBe(300000000000000n);
+    it('BASE_PACK_PRICE_WEI is 0.0004 ETH', () => {
+      expect(BASE_PACK_PRICE_WEI).toBe(400000000000000n);
     });
 
-    it('MAX_PACK_PRICE_WEI is 0.0006 ETH', () => {
-      expect(MAX_PACK_PRICE_WEI).toBe(600000000000000n);
+    it('MAX_PACK_PRICE_WEI is 0.0008 ETH', () => {
+      expect(MAX_PACK_PRICE_WEI).toBe(800000000000000n);
     });
 
     it('PRICE_RAMP_START_GUESSES is 850', () => {
@@ -160,25 +160,25 @@ describe('Pack Pricing', () => {
       expect(PRICE_STEP_GUESSES).toBe(400);
     });
 
-    it('PRICE_STEP_INCREASE_WEI is 0.00015 ETH', () => {
-      expect(PRICE_STEP_INCREASE_WEI).toBe(150000000000000n);
+    it('PRICE_STEP_INCREASE_WEI is 0.0002 ETH', () => {
+      expect(PRICE_STEP_INCREASE_WEI).toBe(200000000000000n);
     });
   });
 
   describe('Price schedule verification', () => {
     // Verify the complete price schedule from the spec
     const priceSchedule = [
-      { guesses: 0, expectedWei: 300000000000000n, phase: 'EARLY' },
-      { guesses: 100, expectedWei: 300000000000000n, phase: 'EARLY' },
-      { guesses: 500, expectedWei: 300000000000000n, phase: 'EARLY' },
-      { guesses: 849, expectedWei: 300000000000000n, phase: 'EARLY' },
-      { guesses: 850, expectedWei: 450000000000000n, phase: 'MID' },
-      { guesses: 1000, expectedWei: 450000000000000n, phase: 'MID' },
-      { guesses: 1249, expectedWei: 450000000000000n, phase: 'MID' },
-      { guesses: 1250, expectedWei: 600000000000000n, phase: 'LATE' },
-      { guesses: 1500, expectedWei: 600000000000000n, phase: 'LATE' },
-      { guesses: 2000, expectedWei: 600000000000000n, phase: 'LATE' },
-      { guesses: 5000, expectedWei: 600000000000000n, phase: 'LATE' },
+      { guesses: 0, expectedWei: 400000000000000n, phase: 'EARLY' },
+      { guesses: 100, expectedWei: 400000000000000n, phase: 'EARLY' },
+      { guesses: 500, expectedWei: 400000000000000n, phase: 'EARLY' },
+      { guesses: 849, expectedWei: 400000000000000n, phase: 'EARLY' },
+      { guesses: 850, expectedWei: 600000000000000n, phase: 'MID' },
+      { guesses: 1000, expectedWei: 600000000000000n, phase: 'MID' },
+      { guesses: 1249, expectedWei: 600000000000000n, phase: 'MID' },
+      { guesses: 1250, expectedWei: 800000000000000n, phase: 'LATE' },
+      { guesses: 1500, expectedWei: 800000000000000n, phase: 'LATE' },
+      { guesses: 2000, expectedWei: 800000000000000n, phase: 'LATE' },
+      { guesses: 5000, expectedWei: 800000000000000n, phase: 'LATE' },
     ];
 
     it.each(priceSchedule)(

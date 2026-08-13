@@ -28,7 +28,7 @@ import { ethers } from 'ethers';
 import { setSepoliaSimulationMode, setSkipOnchainResolution } from '../../../../src/lib/economics';
 import { isDevModeEnabled, getDevFixedSolution } from '../../../../src/lib/devGameState';
 
-// Base pack price for simulation (0.0003 ETH)
+// Base pack price for simulation (0.0004 ETH)
 const SIM_PACK_PRICE_ETH = '0.0003';
 
 // =============================================================================
