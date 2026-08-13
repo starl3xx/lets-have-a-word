@@ -794,7 +794,11 @@
             }
           ]
         }
-      }
+      },
+      "allAddresses": [
+        "0xBc195527158409fF64037073EF4F81eDE3cE45FF",
+        "0x1156cA0543B7bFC07A6d835f3d5F0E135a85173a"
+      ]
     }
   }
 }
