@@ -212,6 +212,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 ### 2026-08-12 (after Round 33)
 
 - **GeckoTerminal added as market cap oracle source**: DexScreener delisted $WORD (~Aug 11), leaving the oracle with no working source — the browser landing page showed “$WORD · $0” and onchain market cap updates went stale. The oracle now falls back DexScreener → GeckoTerminal → CoinGecko, and the landing page hides the market cap when no live value is available.
+- **Token links repointed to GeckoTerminal**: every “view/buy $WORD” link still went to dexscreener.com, which no longer resolves for this token. The splash-page contract link, the `BuyButton` fallback (rendered in the $WORD sheet and holdings panel), and the Superguess “Buy $WORD” fallback now share a single `WORD_POOL_URL` constant in `config/economy.ts` instead of three hardcoded URLs. The `NEXT_PUBLIC_DEXSCREENER_POOL_ADDRESS` env var is renamed `NEXT_PUBLIC_WORD_POOL_ADDRESS` (it was unset, so no deployment change is required) and the pool address now has a hardcoded default. FAQ copy updated to match.
 
 ### 2026-06-28 (post-Round 32)
 
@@ -490,7 +491,7 @@ Production-hardened game operations with onchain pack purchases, comprehensive e
 - **$WORD Mid-Day Tier Upgrade** (`src/lib/word-token.ts`, `src/lib/daily-limits.ts`)
   - When market cap crosses $250K, holders get +1 guess (2→3)
   - Upgrade detected and applied mid-day, not just at daily reset
-  - Market cap fetched from DexScreener with CoinGecko fallback
+  - Market cap fetched from DexScreener, then GeckoTerminal, then CoinGecko
 
 - **Leaderboard Lock at 850 Guesses** (`src/lib/top10-lock.ts`)
   - Top-10 rankings only count guesses 1-850 (was 750 for rounds 1-3)

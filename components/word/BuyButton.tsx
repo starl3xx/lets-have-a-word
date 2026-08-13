@@ -1,9 +1,10 @@
 /**
  * BuyButton Component
- * Milestone 14: Opens Farcaster wallet swap or DexScreener fallback
+ * Milestone 14: Opens Farcaster wallet swap or GeckoTerminal fallback
  */
 
 import sdk from '@farcaster/miniapp-sdk';
+import { WORD_POOL_URL } from '../../config/economy';
 
 // Client-safe constant (cannot import from word-token.ts — server-only module)
 const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
@@ -21,13 +22,8 @@ export default function BuyButton({ className, size = 'md' }: BuyButtonProps) {
         token: `eip155:8453/erc20:${WORD_TOKEN_ADDRESS}`,
       });
     } catch (error) {
-      // Fallback: open DexScreener
-      const poolAddress = process.env.NEXT_PUBLIC_DEXSCREENER_POOL_ADDRESS;
-      if (poolAddress) {
-        window.open(`https://dexscreener.com/base/${poolAddress}`, '_blank');
-      } else {
-        window.open(`https://dexscreener.com/base/${WORD_TOKEN_ADDRESS}`, '_blank');
-      }
+      // Fallback: open the public pool page
+      window.open(WORD_POOL_URL, '_blank');
     }
   };
 

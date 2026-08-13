@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSuperguessPayment, type SuperguessPaymentPhase } from '../src/hooks/useSuperguessPayment';
 import { formatUnits } from 'viem';
 import sdk from '@farcaster/miniapp-sdk';
+import { WORD_POOL_URL } from '../config/economy';
 
 interface SuperguessStatusData {
   available: boolean;
@@ -287,13 +288,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
                                 token: 'eip155:8453/erc20:0x304e649e69979298bd1aee63e175adf07885fb4b',
                               });
                             } catch {
-                              const poolAddress = process.env.NEXT_PUBLIC_DEXSCREENER_POOL_ADDRESS;
-                              window.open(
-                                poolAddress
-                                  ? `https://dexscreener.com/base/${poolAddress}`
-                                  : 'https://dexscreener.com/base/0x304e649e69979298bd1aee63e175adf07885fb4b',
-                                '_blank'
-                              );
+                              window.open(WORD_POOL_URL, '_blank');
                             }
                           }}
                           className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white font-bold py-3 rounded-xl transition-colors"

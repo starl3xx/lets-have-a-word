@@ -291,7 +291,7 @@ View the full tokenomics breakdown in the $WORD sheet.
 
 ## How do I buy $WORD?
 
-Tap the **Buy $WORD** button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens DexScreener where you can swap on Base.
+Tap the **Buy $WORD** button in the $WORD sheet. If you're playing in a Farcaster client, this opens the native token swap interface. Otherwise, it opens GeckoTerminal where you can swap on Base.
 
 $WORD is an ERC-20 token on Base (address: 0x304e649e69979298BD1AEE63e175ADf07885fb4b).
 
