@@ -196,21 +196,31 @@ export default async function handler(
     // this is a guard, not a re-routing of credit.
     if (verification.player) {
       const payer = verification.player.toLowerCase();
-      const [owner] = await db
+
+      // Collect EVERY user the paying wallet is associated with, not just one.
+      // Neither wallet column is unique — `users_wallet_idx` is a plain index —
+      // so a wallet can legitimately appear on several rows (a custody address
+      // recorded against one account and as a signer on another, or stale rows
+      // left by a wallet change). Taking a single arbitrary row would reject
+      // the real payer whenever the query happened to return a different one.
+      const owners = await db
         .select({ fid: users.fid })
         .from(users)
         .where(
           sql`lower(${users.signerWalletAddress}) = ${payer} OR lower(${users.custodyAddress}) = ${payer}`
         )
-        .limit(1);
+        .limit(10);
 
-      if (owner && owner.fid !== fid) {
+      // Allow when the caller is among the wallet's owners. Reject only when
+      // the wallet is known and the caller is not one of them.
+      if (owners.length > 0 && !owners.some((o) => o.fid === fid)) {
+        const payerFids = owners.map((o) => o.fid);
         console.error(`[purchase-guess-pack] Purchase claimed by a different FID than the payer`, {
-          txHash, requestingFid: fid, payerFid: owner.fid, payer,
+          txHash, requestingFid: fid, payerFids, payer,
         });
         Sentry.captureMessage('[purchase-guess-pack] Purchase claimed by non-payer', {
           level: 'error',
-          extra: { txHash, requestingFid: fid, payerFid: owner.fid, payer },
+          extra: { txHash, requestingFid: fid, payerFids, payer },
         });
         return res.status(403).json({
           error: 'This transaction was paid by a different account',
