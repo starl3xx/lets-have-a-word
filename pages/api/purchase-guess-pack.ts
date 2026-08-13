@@ -32,6 +32,16 @@ import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState'
 import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
 
 /**
+ * Minimum share of the quoted price a purchase must actually pay, in bps.
+ *
+ * 40% clears the widest legitimate quote-vs-confirm gap: a pricing-tier step
+ * (0.0004 -> 0.0006 ETH) combined with a volume-multiplier step (1x -> 1.5x)
+ * leaves an honest payment at ~44% of the recomputed quote. It still rejects
+ * the underpayment case by eleven orders of magnitude.
+ */
+const MIN_PAYMENT_BPS = 4000n;
+
+/**
  * POST /api/purchase-guess-pack
  * Milestone 6.3, Updated Milestone 6.4, 7.1
  *
@@ -154,6 +164,7 @@ export default async function handler(
 
     // Milestone 6.4: Verify onchain transaction before awarding packs
     const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
+
     const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
 
     if (!verification.valid) {
@@ -165,6 +176,66 @@ export default async function handler(
       });
       return res.status(400).json({
         error: `Transaction verification failed: ${verification.error}`,
+      });
+    }
+
+    // NOTE: there is deliberately no payer check here.
+    //
+    // Three versions were tried and all were unsound, because every one of them
+    // ultimately trusts `users.signerWalletAddress` — and that column is
+    // written from an unauthenticated client query parameter
+    // (`user-state.ts:76` reads `req.query.walletAddress`, `:194` writes it,
+    // and `:92` takes the FID from `req.query.devFid` with no environment
+    // guard). An attacker can therefore attach any wallet to their own FID
+    // before claiming a purchase, which defeats any ownership test built on it.
+    //
+    // Binding the payer needs an authenticated caller, the way
+    // `pages/api/guess.ts:274` verifies a Farcaster QuickAuth JWT. That is a
+    // coordinated client and server change and is tracked separately. Adding a
+    // wallet heuristic in the meantime would carry a real false-reject risk —
+    // taking ETH from someone who paid — in exchange for no security.
+    //
+    // The amount check below is the defence that actually works.
+
+    // The contract accepts any non-zero msg.value and treats `quantity` as a
+    // caller-supplied label, so price is enforced here or nowhere. Without this
+    // a 1-wei transaction claiming quantity=3 buys a full pack.
+    //
+    // The floor is deliberately below the quoted price rather than exact: the
+    // quote is recomputed at request time, so a round crossing a pricing tier
+    // (or a concurrent purchase moving the volume multiplier) between signing
+    // and confirming can make an honest payment look short. Rejecting then
+    // would take the user's ETH and give nothing back. Anything under the floor
+    // is not a tier race, and any shortfall at all is reported.
+    const paidWei = BigInt(verification.weiAmount ?? '0');
+    const minAcceptableWei = (expectedCostWei * MIN_PAYMENT_BPS) / 10000n;
+
+    if (paidWei < minAcceptableWei) {
+      console.error(`[purchase-guess-pack] Underpayment rejected`, {
+        txHash, fid, packCount,
+        paidWei: paidWei.toString(),
+        expectedCostWei: expectedCostWei.toString(),
+        minAcceptableWei: minAcceptableWei.toString(),
+      });
+      Sentry.captureMessage('[purchase-guess-pack] Underpayment rejected', {
+        level: 'error',
+        extra: { fid, txHash, paidWei: paidWei.toString(), expectedCostWei: expectedCostWei.toString() },
+      });
+      return res.status(400).json({
+        error: 'Payment below the quoted pack price',
+        code: AppErrorCodes.PURCHASE_FAILED,
+      });
+    }
+
+    if (paidWei < expectedCostWei) {
+      console.warn(`[purchase-guess-pack] Accepted short payment within tier-race tolerance`, {
+        txHash, fid,
+        paidWei: paidWei.toString(),
+        expectedCostWei: expectedCostWei.toString(),
+      });
+      Sentry.captureMessage('[purchase-guess-pack] Short payment accepted within tolerance', {
+        level: 'warning',
+        extra: { fid, txHash, paidWei: paidWei.toString(), expectedCostWei: expectedCostWei.toString() },
       });
     }
 
