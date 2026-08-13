@@ -49,10 +49,14 @@ export default async function handler(
 
   try {
     const [bonusStats, burnStats] = await Promise.all([
-      // Bonus words: count total and found (finderFid is set when found)
+      // Bonus words: count total and found. The column is `claimedByFid` here
+      // — only round_burn_words calls it `finderFid`. The two tables name the
+      // same idea differently, and this read the burn table's name off the
+      // bonus table, so the expression counted an undefined column and every
+      // round reported zero bonus words found with all of them remaining.
       db.select({
         total: sql<number>`count(*)`,
-        found: sql<number>`count(${roundBonusWords.finderFid})`,
+        found: sql<number>`count(${roundBonusWords.claimedByFid})`,
       }).from(roundBonusWords).where(eq(roundBonusWords.roundId, roundId)),
 
       // Burn words: count total and found (finderFid is set when found)

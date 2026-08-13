@@ -105,7 +105,11 @@ export default async function handler(
     const valueUsd = effectiveBalance * tokenPrice;
 
     // XP staking tier
-    const currentMarketCap = liveMarketData?.marketCap ?? WORD_MARKET_CAP_USD;
+    // `marketCapUsd` — MarketCapData has no `marketCap`, so this always read
+    // undefined and fell through to the static env value. The endpoint fetched
+    // a live market cap and then quoted the staking threshold off a stale
+    // constant, while the price two lines up correctly used the live figure.
+    const currentMarketCap = liveMarketData?.marketCapUsd ?? WORD_MARKET_CAP_USD;
     const xpTier = getXpStakingTier(totalXp);
     const nextTierIndex = xpTier.tier + 1;
     const nextTier = nextTierIndex < XP_STAKING_TIERS.length ? XP_STAKING_TIERS[nextTierIndex] : null;

@@ -637,13 +637,18 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             fontSize: '12px',
             fontWeight: 500,
             fontFamily,
-            background: (summary.packPurchasesToday || 0) > 0 ? '#dcfce7' :
-                        summary.packPurchases7dAvg > 0 ? '#fef3c7' : '#fee2e2',
-            color: (summary.packPurchasesToday || 0) > 0 ? '#166534' :
-                   summary.packPurchases7dAvg > 0 ? '#92400e' : '#991b1b',
+            // `today.packPurchases` / `avg7d.packPurchases`. This read flat
+            // `packPurchasesToday` and `packPurchases7dAvg`, which the endpoint
+            // has never sent — both were undefined, so every comparison was
+            // false and the badge showed a red "Revenue: Low" no matter how
+            // many packs had sold.
+            background: summary.today.packPurchases > 0 ? '#dcfce7' :
+                        summary.avg7d.packPurchases > 0 ? '#fef3c7' : '#fee2e2',
+            color: summary.today.packPurchases > 0 ? '#166534' :
+                   summary.avg7d.packPurchases > 0 ? '#92400e' : '#991b1b',
           }}>
-            <span>{(summary.packPurchasesToday || 0) > 0 ? '🟢' : summary.packPurchases7dAvg > 0 ? '🟡' : '🔴'}</span>
-            <span>Revenue: {(summary.packPurchasesToday || 0) > 0 ? 'Active' : 'Low'}</span>
+            <span>{summary.today.packPurchases > 0 ? '🟢' : summary.avg7d.packPurchases > 0 ? '🟡' : '🔴'}</span>
+            <span>Revenue: {summary.today.packPurchases > 0 ? 'Active' : 'Low'}</span>
           </div>
         )}
 
@@ -683,7 +688,9 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             color: '#374151',
           }}>
             <span>👥</span>
-            <span>DAU: {summary.dauToday}</span>
+            {/* `today.dau` — flat `dauToday` is not part of the response and
+                rendered as blank. */}
+            <span>DAU: {summary.today.dau}</span>
           </div>
         )}
       </div>

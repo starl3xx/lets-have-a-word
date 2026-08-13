@@ -19,6 +19,9 @@ import {
   getMainnetContractBalance,
   getContractConfig,
 } from '../src/lib/jackpot-contract';
+import { isEncryptedAnswer } from '../src/lib/encryption';
+import { computePrizeSplit } from '../src/lib/prize-split';
+import { SEED_CAP_WEI } from '../src/lib/economics';
 
 const DIVIDER = '═'.repeat(60);
 const SECTION = '─'.repeat(40);
@@ -70,12 +73,17 @@ async function checkDatabaseState() {
       return { ok: false };
     }
 
+    // Column names, not invented ones. This block read `committedHash`,
+    // `answerEncrypted`, `jackpotEth` and `globalGuessCount` — none of which
+    // exist on `rounds`. Every one came back undefined, so the check printed
+    // "❌ MISSING" for the commitment and the encrypted answer on every run and
+    // returned ok:false unconditionally. A pre-resolution safety check that
+    // always cries failure is worse than none: it trains you to ignore it.
     console.log(`Round ID:            ${activeRound.id}`);
     console.log(`Status:              ${activeRound.status === 'active' ? '✅ active' : activeRound.status}`);
-    console.log(`Committed Hash:      ${activeRound.committedHash ? '✅ ' + activeRound.committedHash.slice(0, 20) + '...' : '❌ MISSING'}`);
-    console.log(`Answer Encrypted:    ${activeRound.answerEncrypted ? '✅ Present' : '❌ MISSING'}`);
-    console.log(`Jackpot ETH (DB):    ${activeRound.jackpotEth} ETH`);
-    console.log(`Global Guess Count:  ${activeRound.globalGuessCount}`);
+    console.log(`Commit Hash:         ${activeRound.commitHash ? '✅ ' + activeRound.commitHash.slice(0, 20) + '...' : '❌ MISSING'}`);
+    console.log(`Answer Encrypted:    ${isEncryptedAnswer(activeRound.answer) ? '✅ Present' : '❌ STORED AS PLAINTEXT'}`);
+    console.log(`Prize Pool (DB):     ${activeRound.prizePoolEth} ETH`);
     console.log(`Started At:          ${activeRound.startedAt}`);
 
     // Get guess count from guesses table
@@ -87,9 +95,9 @@ async function checkDatabaseState() {
     console.log(`Guesses (verified):  ${guessCount[0]?.count || 0}`);
 
     return {
-      ok: !!activeRound.committedHash && !!activeRound.answerEncrypted,
+      ok: !!activeRound.commitHash && isEncryptedAnswer(activeRound.answer),
       roundId: activeRound.id,
-      jackpotEth: activeRound.jackpotEth,
+      jackpotEth: activeRound.prizePoolEth,
     };
   } catch (error) {
     console.log(`❌ ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -166,24 +174,30 @@ async function checkPayoutCalculation() {
       return { ok: false };
     }
 
-    const jackpot = parseFloat(activeRound.jackpotEth || '0');
+    // Computed with the same function resolution uses, rather than percentages
+    // written out by hand. The hardcoded ones here were the pre-2026 split
+    // (80 / 17.5 / 2.5), so this preview had been describing a division of the
+    // prize pool the game stopped performing some time ago — on the screen you
+    // consult immediately before resolving a round.
+    const jackpotWei = ethers.parseEther(activeRound.prizePoolEth || '0');
+    const fmt = (wei: bigint) => parseFloat(ethers.formatEther(wei)).toFixed(6);
 
-    // Assuming no referrer for preview
-    const winnerShare = jackpot * 0.80;
-    const top10Share = jackpot * 0.175; // 10% + 7.5% if no referrer
-    const seedShare = jackpot * 0.025;
+    console.log(`Total Prize Pool:    ${fmt(jackpotWei)} ETH`);
 
-    console.log(`Total Prize Pool:    ${jackpot.toFixed(6)} ETH`);
-    console.log('');
-    console.log('If winner has NO referrer:');
-    console.log(`  Winner (80%):      ${winnerShare.toFixed(6)} ETH`);
-    console.log(`  Top 10 (17.5%):    ${top10Share.toFixed(6)} ETH`);
-    console.log(`  Next Round (2.5%): ${seedShare.toFixed(6)} ETH`);
-    console.log('');
-    console.log('If winner HAS referrer:');
-    console.log(`  Winner (80%):      ${winnerShare.toFixed(6)} ETH`);
-    console.log(`  Referrer (10%):    ${(jackpot * 0.10).toFixed(6)} ETH`);
-    console.log(`  Top 10 (10%):      ${(jackpot * 0.10).toFixed(6)} ETH`);
+    for (const hasReferrer of [false, true]) {
+      const split = computePrizeSplit({ jackpotWei, hasReferrer, seedCapWei: SEED_CAP_WEI });
+      console.log('');
+      console.log(hasReferrer ? 'If winner HAS referrer:' : 'If winner has NO referrer:');
+      console.log(`  Winner:            ${fmt(split.toWinnerWei)} ETH`);
+      console.log(`  Top 10:            ${fmt(split.toTopGuessersWei)} ETH`);
+      if (hasReferrer) {
+        console.log(`  Referrer:          ${fmt(split.toReferrerWei)} ETH`);
+      }
+      console.log(`  Next Round (seed): ${fmt(split.seedForNextRoundWei)} ETH${split.seedWasCapped ? ' (at cap)' : ''}`);
+      if (split.toCreatorOverflowWei > 0n) {
+        console.log(`  Creator (overflow):${fmt(split.toCreatorOverflowWei)} ETH`);
+      }
+    }
 
     return { ok: true };
   } catch (error) {
