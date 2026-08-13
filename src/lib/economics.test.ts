@@ -5,8 +5,16 @@ import {
   createNextRoundFromSeed,
 } from './economics';
 import { db } from '../db';
-import { rounds, systemState, roundPayouts, guesses, users } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  rounds,
+  systemState,
+  roundPayouts,
+  guesses,
+  users,
+  announcerEvents,
+  wordRewards,
+} from '../db/schema';
+import { eq, inArray } from 'drizzle-orm';
 
 /**
  * Comprehensive tests for Milestone 3.1 - Economics Module
@@ -16,6 +24,19 @@ import { eq } from 'drizzle-orm';
  * - resolveRoundAndCreatePayouts: 80/10/10 jackpot split
  * - createNextRoundFromSeed: round creation with seed initialization
  */
+
+/**
+ * ETH amount of a payout row.
+ *
+ * `amount_eth` became nullable when $WORD payouts arrived — a $WORD row
+ * carries `amount_word` and leaves this null. Every round in this file is an
+ * ETH round, so a null here means the row was written in the wrong currency,
+ * which is worth failing on rather than quietly reading as NaN.
+ */
+function ethAmount(payout: { amountEth: string | null }): number {
+  expect(payout.amountEth).not.toBeNull();
+  return parseFloat(payout.amountEth!);
+}
 
 describe('Economics Module - Milestone 3.1', () => {
   describe('applyPaidGuessEconomicEffects', () => {
@@ -160,13 +181,25 @@ describe('Economics Module - Milestone 3.1', () => {
   });
 
   describe('resolveRoundAndCreatePayouts', () => {
-    it('should create payouts with 80% winner, 10% referrer, 10% top guessers', async () => {
-      // Create test users (use unique FIDs to avoid conflicts)
+    it('should create payouts with 80% winner, 5% referrer, 10% top guessers, 5% seed', async () => {
+      // Create test users (use unique FIDs to avoid conflicts).
+      //
+      // Every FID that can receive a payout needs a wallet: resolveRound calls
+      // getWinnerPayoutAddress for the winner, the referrer AND each top
+      // guesser, and it throws rather than silently skipping someone who has
+      // no address. That is correct — you cannot pay an account you cannot
+      // identify — so the test has to supply them.
+      // Clear first, not only at the end: these tests clean up on their last
+      // line, so any failure leaves the rows behind and every later run dies
+      // on the unique FID constraint instead of on its own assertion.
+      await db.delete(users).where(inArray(users.fid, [88888, 77777, 11111, 22222]));
+
       const [winner] = await db
         .insert(users)
         .values({
           fid: 88888,
           referrerFid: 77777,
+          signerWalletAddress: '0x1111111111111111111111111111111111111111',
           xp: 0,
         })
         .returning();
@@ -175,9 +208,15 @@ describe('Economics Module - Milestone 3.1', () => {
         .insert(users)
         .values({
           fid: 77777,
+          signerWalletAddress: '0x2222222222222222222222222222222222222222',
           xp: 0,
         })
         .returning();
+
+      await db.insert(users).values([
+        { fid: 11111, signerWalletAddress: '0x3333333333333333333333333333333333333333', xp: 0 },
+        { fid: 22222, signerWalletAddress: '0x4444444444444444444444444444444444444444', xp: 0 },
+      ]);
 
       // Create test round with 1 ETH jackpot
       const [round] = await db
@@ -208,27 +247,42 @@ describe('Economics Module - Milestone 3.1', () => {
         .from(roundPayouts)
         .where(eq(roundPayouts.roundId, round.id));
 
-      // Should have 4 payouts: winner, referrer, and 2 top guessers
-      expect(payouts.length).toBe(4);
+      // winner, referrer, 2 top guessers, seed, and the creator overflow the
+      // capped seed produces on a pool this large.
+      expect(payouts.length).toBe(6);
 
       // Check winner payout (80%)
       const winnerPayout = payouts.find((p) => p.role === 'winner');
       expect(winnerPayout).toBeDefined();
       expect(winnerPayout!.fid).toBe(winner.fid);
-      expect(parseFloat(winnerPayout!.amountEth)).toBeCloseTo(0.8, 6);
+      expect(ethAmount(winnerPayout!)).toBeCloseTo(0.8, 6);
 
-      // Check referrer payout (10%)
+      // Check referrer payout (5%)
       const referrerPayout = payouts.find((p) => p.role === 'referrer');
       expect(referrerPayout).toBeDefined();
       expect(referrerPayout!.fid).toBe(referrer.fid);
-      expect(parseFloat(referrerPayout!.amountEth)).toBeCloseTo(0.1, 6);
+      expect(ethAmount(referrerPayout!)).toBeCloseTo(0.05, 6);
 
-      // Check top guesser payouts (10% / 2 = 0.05 each)
+      // Top guessers share 10%, tiered rather than split evenly (Milestone
+      // 6.9b): with two of them the 1900/1600 bps weights renormalise to
+      // 5428/4571 of the bucket, and the rounding dust goes to rank 1.
       const topGuessersPayouts = payouts.filter((p) => p.role === 'top_guesser');
       expect(topGuessersPayouts.length).toBe(2);
-      topGuessersPayouts.forEach((p) => {
-        expect(parseFloat(p.amountEth)).toBeCloseTo(0.05, 6);
-      });
+      const topGuesserAmounts = topGuessersPayouts
+        .map(ethAmount)
+        .sort((a, b) => b - a);
+      expect(topGuesserAmounts[0]).toBeCloseTo(0.05429, 5);
+      expect(topGuesserAmounts[1]).toBeCloseTo(0.04571, 5);
+      expect(topGuesserAmounts[0] + topGuesserAmounts[1]).toBeCloseTo(0.1, 6);
+
+      // Seed is 5%, capped at 0.02 ETH; the 0.03 above the cap goes to the
+      // creator, so the six payouts still sum to the whole pool.
+      const seedPayout = payouts.find((p) => p.role === 'seed');
+      expect(ethAmount(seedPayout!)).toBeCloseTo(0.02, 6);
+      const creatorPayout = payouts.find((p) => p.role === 'creator');
+      expect(ethAmount(creatorPayout!)).toBeCloseTo(0.03, 6);
+      const total = payouts.reduce((sum, p) => sum + ethAmount(p), 0);
+      expect(total).toBeCloseTo(1.0, 6);
 
       // Check round is marked as resolved
       const [resolvedRound] = await db
@@ -238,21 +292,30 @@ describe('Economics Module - Milestone 3.1', () => {
       expect(resolvedRound.resolvedAt).not.toBeNull();
       expect(resolvedRound.winnerFid).toBe(winner.fid);
 
-      // Clean up
+      // Clean up. announcer_events and word_rewards both have a FK to rounds
+      // and resolution writes into them, so the round cannot be deleted until
+      // those rows go first.
+      await db.delete(announcerEvents).where(eq(announcerEvents.roundId, round.id));
+      await db.delete(wordRewards).where(eq(wordRewards.roundId, round.id));
       await db.delete(roundPayouts).where(eq(roundPayouts.roundId, round.id));
       await db.delete(guesses).where(eq(guesses.roundId, round.id));
       await db.delete(rounds).where(eq(rounds.id, round.id));
       await db.delete(users).where(eq(users.fid, winner.fid));
       await db.delete(users).where(eq(users.fid, referrer.fid));
+      await db.delete(users).where(eq(users.fid, 11111));
+      await db.delete(users).where(eq(users.fid, 22222));
     });
 
     it('should allocate referrer share to seed + creator when no referrer exists (Milestone 4.9)', async () => {
+      await db.delete(users).where(eq(users.fid, 99999));
+
       // Create winner without referrer (use unique FID to avoid conflicts)
       const [winner] = await db
         .insert(users)
         .values({
           fid: 99999,
           referrerFid: null,
+          signerWalletAddress: '0x5555555555555555555555555555555555555555',
           xp: 0,
         })
         .returning();
@@ -297,16 +360,23 @@ describe('Economics Module - Milestone 3.1', () => {
       const seedPayout = payouts.find((p) => p.role === 'seed');
       const creatorPayout = payouts.find((p) => p.role === 'creator');
 
-      // 10% = 0.1 ETH referrer share
-      // Seed can take 0.01 (to reach 0.02 cap from 0.01)
-      // Creator gets remaining 0.09
+      // The referrer's 5% is halved: 2.5% to the top 10 and 2.5% to the seed,
+      // giving an uncapped seed of 7.5% = 0.075 ETH. That is over the 0.02 cap,
+      // so the seed takes 0.02 and the creator takes the remaining 0.055.
       expect(seedPayout).toBeDefined();
       expect(seedPayout!.fid).toBeNull();
-      expect(parseFloat(seedPayout!.amountEth)).toBeCloseTo(0.01, 6);
+      expect(ethAmount(seedPayout!)).toBeCloseTo(0.02, 6);
 
       expect(creatorPayout).toBeDefined();
       expect(creatorPayout!.fid).toBeNull();
-      expect(parseFloat(creatorPayout!.amountEth)).toBeCloseTo(0.09, 6);
+      expect(ethAmount(creatorPayout!)).toBeCloseTo(0.055, 6);
+
+      // Nobody else guessed, so the winner also takes the 12.5% top-10 bucket
+      // as a second row rather than it being left unallocated.
+      const winnerTopTen = payouts.find((p) => p.role === 'top_guesser');
+      expect(winnerTopTen).toBeDefined();
+      expect(winnerTopTen!.fid).toBe(winner.fid);
+      expect(ethAmount(winnerTopTen!)).toBeCloseTo(0.125, 6);
 
       // Check round seed was updated
       const [updatedRound] = await db
@@ -318,11 +388,15 @@ describe('Economics Module - Milestone 3.1', () => {
       // Check creator balance was updated
       const [updatedState] = await db.select().from(systemState).limit(1);
       expect(parseFloat(updatedState.creatorBalanceEth)).toBeCloseTo(
-        initialCreatorBalance + 0.09,
+        initialCreatorBalance + 0.055,
         6
       );
 
-      // Clean up
+      // Clean up. announcer_events and word_rewards both have a FK to rounds
+      // and resolution writes into them, so the round cannot be deleted until
+      // those rows go first.
+      await db.delete(announcerEvents).where(eq(announcerEvents.roundId, round.id));
+      await db.delete(wordRewards).where(eq(wordRewards.roundId, round.id));
       await db.delete(roundPayouts).where(eq(roundPayouts.roundId, round.id));
       await db.delete(rounds).where(eq(rounds.id, round.id));
       await db.delete(users).where(eq(users.fid, winner.fid));

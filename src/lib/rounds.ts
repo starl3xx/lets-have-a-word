@@ -527,16 +527,21 @@ export async function getRoundById(roundId: number): Promise<Round | null> {
 /**
  * Resolve a round (mark as complete with winner)
  *
+ * The referrer is not a parameter. It is read from the winner's own user
+ * record inside resolveRoundAndCreatePayouts, which is the only place it can
+ * be trusted from — the referrer share is 5% of the prize pool, and taking the
+ * recipient from an argument would let any caller point that money at an FID
+ * of its choosing. This function used to accept a `referrerFid` and pass it
+ * nowhere, so callers supplying one got no error and no effect.
+ *
  * @param roundId Round to resolve
  * @param winnerFid FID of winning user
- * @param referrerFid Optional FID of winner's referrer
  * @returns The resolved round
  * @throws Error if round not found or already resolved
  */
 export async function resolveRound(
   roundId: number,
-  winnerFid: number,
-  referrerFid?: number | null
+  winnerFid: number
 ): Promise<Round> {
   // First, check if the round exists and is not already resolved
   const existingRound = await getRoundById(roundId);

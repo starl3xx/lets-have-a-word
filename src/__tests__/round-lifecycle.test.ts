@@ -10,6 +10,9 @@ import {
   type CreateRoundOptions,
 } from '../lib/rounds';
 import { computeCommitHash } from '../lib/commit-reveal';
+import { db } from '../db';
+import { users } from '../db/schema';
+import { inArray } from 'drizzle-orm';
 
 /**
  * Note: These tests require a running PostgreSQL database
@@ -133,7 +136,9 @@ describe('Round Lifecycle', () => {
         await resolveRound(active.id, 12345);
       }
 
-      const ensured = await ensureActiveRound();
+      // ensureActiveRound forwards its options straight to createRound, so the
+      // auto-create branch is reachable here without a deployed contract.
+      const ensured = await ensureActiveRound({ skipOnChainCommitment: true });
 
       expect(ensured).toBeDefined();
       expect(ensured.resolvedAt).toBeNull();
@@ -149,7 +154,7 @@ describe('Round Lifecycle', () => {
         await resolveRound(active.id, 12345);
       }
 
-      const opts: CreateRoundOptions = { forceAnswer: 'house' };
+      const opts: CreateRoundOptions = { forceAnswer: 'house', skipOnChainCommitment: true };
       const ensured = await ensureActiveRound(opts);
 
       expect(ensured.answer).toBe('HOUSE');
@@ -191,16 +196,29 @@ describe('Round Lifecycle', () => {
       expect(resolved.resolvedAt).not.toBeNull();
     });
 
-    it('should resolve a round with winner and referrer', async () => {
-      const created = await createTestRound();
+    it('should take the referrer from the winner’s user record, not from the caller', async () => {
       const winnerFid = 12345;
       const referrerFid = 67890;
 
-      const resolved = await resolveRound(created.id, winnerFid, referrerFid);
+      await db.delete(users).where(inArray(users.fid, [winnerFid, referrerFid]));
+      await db.insert(users).values([
+        { fid: referrerFid, xp: 0 },
+        { fid: winnerFid, referrerFid, xp: 0 },
+      ]);
+
+      const created = await createTestRound();
+      const resolved = await resolveRound(created.id, winnerFid);
 
       expect(resolved.winnerFid).toBe(winnerFid);
-      expect(resolved.referrerFid).toBe(referrerFid);
       expect(resolved.resolvedAt).not.toBeNull();
+
+      // Recorded from the winner's user record. The previous version of this
+      // test passed 67890 as a third argument to resolveRound and expected it
+      // back; that argument was never used for anything and has been removed,
+      // so the only way this can be right is if the lookup happened.
+      expect(resolved.referrerFid).toBe(referrerFid);
+
+      await db.delete(users).where(inArray(users.fid, [winnerFid, referrerFid]));
     });
 
     it('should throw error when resolving non-existent round', async () => {
@@ -271,11 +289,9 @@ describe('Round Lifecycle', () => {
 
       // 4. Resolve round
       const winnerFid = 555;
-      const referrerFid = 777;
-      const resolved = await resolveRound(created.id, winnerFid, referrerFid);
+      const resolved = await resolveRound(created.id, winnerFid);
 
       expect(resolved.winnerFid).toBe(winnerFid);
-      expect(resolved.referrerFid).toBe(referrerFid);
       expect(resolved.resolvedAt).not.toBeNull();
 
       // 5. Verify no longer active
