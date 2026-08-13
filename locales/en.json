@@ -86,7 +86,7 @@
     "stats": {
       "title": "Your referral stats",
       "referrals": "Referrals",
-      "ethEarned": "ETH earned",
+      "ethEarned": "Earned",
       "ethEarnedHelper": "Paid only when a referred player wins a jackpot"
     },
     "howItWorks": {

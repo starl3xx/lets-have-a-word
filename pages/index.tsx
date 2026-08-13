@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
+import { formatPrize } from '../src/lib/prize-display';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
@@ -259,6 +260,10 @@ function GameContent() {
   const [browserFallbackStats, setBrowserFallbackStats] = useState<{
     roundId: number;
     prizePoolEth: string;
+    // From /api/round-state. Optional because a payload cached from before the
+    // field shipped arrives without it, and those rounds are ETH.
+    prizeCurrency?: 'eth' | 'word';
+    prizePoolWord?: string;
     globalGuessCount: number;
     playerCount: number;
   } | null>(null);
@@ -473,6 +478,8 @@ function GameContent() {
           setBrowserFallbackStats({
             roundId: roundData.roundId,
             prizePoolEth: roundData.prizePoolEth,
+            prizeCurrency: roundData.prizeCurrency,
+            prizePoolWord: roundData.prizePoolWord,
             globalGuessCount: roundData.globalGuessCount,
             playerCount: guessersData.uniqueGuessersCount || 0,
           });
@@ -1837,7 +1844,7 @@ function GameContent() {
 
           {/* Value Proposition */}
           <p className="text-lg text-gray-700 font-medium">
-            A global word hunt with real ETH prizes
+            A global word hunt with real onchain prizes
           </p>
 
           {/* Explanation Card */}
@@ -1868,7 +1875,13 @@ function GameContent() {
                 </span>
                 <span className="font-semibold text-gray-900">Round #{browserFallbackStats.roundId}</span>
                 <span className="text-gray-400">·</span>
-                <span className="font-semibold text-green-600">{parseFloat(browserFallbackStats.prizePoolEth).toFixed(4)} ETH</span>
+                <span className="font-semibold text-green-600">
+                  {formatPrize({
+                    currency: browserFallbackStats.prizeCurrency ?? 'eth',
+                    eth: parseFloat(browserFallbackStats.prizePoolEth).toFixed(4),
+                    word: browserFallbackStats.prizePoolWord,
+                  })}
+                </span>
                 <span className="text-sm text-gray-400 font-normal">prize pool</span>
               </div>
               <div className="flex justify-center items-center gap-2 text-xs text-gray-500">
