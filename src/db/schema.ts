@@ -70,6 +70,15 @@ export const rounds = pgTable('rounds', {
   bonusWordsCommitHash: varchar('bonus_words_commit_hash', { length: 64 }), // H(salt||bonus words) - Bonus Words feature
   prizePoolEth: decimal('prize_pool_eth', { precision: 20, scale: 18 }).default('0').notNull(),
   seedNextRoundEth: decimal('seed_next_round_eth', { precision: 20, scale: 18 }).default('0').notNull(),
+  // $WORD economy (migration 0022). Parallel to the ETH columns above rather
+  // than replacing them: numeric(20,18) maxes out at 99.99..., so a ~78M-token
+  // seed cannot physically be stored there.
+  prizeCurrency: varchar('prize_currency', { length: 8 }).default('eth').notNull(), // 'eth' (rounds 1-33) | 'word' (34+)
+  prizePoolWord: numeric('prize_pool_word', { precision: 78, scale: 0 }).default('0').notNull(),
+  seedNextRoundWord: numeric('seed_next_round_word', { precision: 78, scale: 0 }).default('0').notNull(),
+  seedUsdCents: integer('seed_usd_cents'), // USD target the seed was priced at
+  seedPriceE18: numeric('seed_price_e18', { precision: 78, scale: 0 }), // price snapshot at seed time
+  jackpotContractAddress: varchar('jackpot_contract_address', { length: 42 }),
   winnerFid: integer('winner_fid'), // FK to users.fid
   referrerFid: integer('referrer_fid'), // FK to users.fid (winner's referrer)
   txHash: varchar('tx_hash', { length: 66 }), // Resolve round transaction hash
@@ -196,6 +205,7 @@ export type RoundSeedWordInsert = typeof roundSeedWords.$inferInsert;
 export const systemState = pgTable('system_state', {
   id: serial('id').primaryKey(),
   creatorBalanceEth: decimal('creator_balance_eth', { precision: 20, scale: 18 }).default('0').notNull(),
+  creatorBalanceWord: numeric('creator_balance_word', { precision: 78, scale: 0 }).default('0').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -214,8 +224,9 @@ export const roundPayouts = pgTable('round_payouts', {
   roundId: integer('round_id').notNull().references(() => rounds.id),
   fid: integer('fid'), // FK to users.fid - recipient of payout (null for seed/creator)
   walletAddress: varchar('wallet_address', { length: 66 }), // Resolved wallet address at time of payout (for audit trail)
-  amountEth: decimal('amount_eth', { precision: 20, scale: 18 }).notNull(),
+  amountEth: decimal('amount_eth', { precision: 20, scale: 18 }), // nullable since 0022 — a $WORD payout has no ETH amount
   amountWord: varchar('amount_word', { length: 78 }), // Milestone 14: $WORD token amount (nullable, for top10_word payouts)
+  currency: varchar('currency', { length: 8 }).default('eth').notNull(),
   role: varchar('role', { length: 50 }).notNull(), // 'winner', 'referrer', 'top_guesser', 'seed', 'creator', 'top10_word'
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
@@ -287,8 +298,13 @@ export const roundArchive = pgTable('round_archive', {
   id: serial('id').primaryKey(),
   roundNumber: integer('round_number').notNull().unique(), // Maps to rounds.id
   targetWord: varchar('target_word', { length: 100 }).notNull(), // Plaintext answer (revealed after round ends)
-  seedEth: decimal('seed_eth', { precision: 20, scale: 18 }).notNull(), // Starting prize pool (seed from previous round)
-  finalJackpotEth: decimal('final_jackpot_eth', { precision: 20, scale: 18 }).notNull(),
+  seedEth: decimal('seed_eth', { precision: 20, scale: 18 }), // nullable since 0022 — $WORD rounds use seed_word
+  finalJackpotEth: decimal('final_jackpot_eth', { precision: 20, scale: 18 }),
+  currency: varchar('currency', { length: 8 }).default('eth').notNull(),
+  seedWord: numeric('seed_word', { precision: 78, scale: 0 }),
+  finalJackpotWord: numeric('final_jackpot_word', { precision: 78, scale: 0 }),
+  seedUsdCents: integer('seed_usd_cents'),
+  finalJackpotUsdCents: integer('final_jackpot_usd_cents'), // snapshot: never re-price history
   totalGuesses: integer('total_guesses').notNull(),
   uniquePlayers: integer('unique_players').notNull(),
   winnerFid: integer('winner_fid'), // FK to users.fid - nullable if round has no winner
@@ -394,6 +410,8 @@ export const packPurchases = pgTable('pack_purchases', {
   roundId: integer('round_id').notNull().references(() => rounds.id),
   fid: integer('fid').notNull(),
   packCount: integer('pack_count').default(1).notNull(),
+  wordCredited: numeric('word_credited', { precision: 78, scale: 0 }), // $WORD credited to the pool for this purchase (0022)
+  salesContractAddress: varchar('sales_contract_address', { length: 42 }),
   totalPriceEth: decimal('total_price_eth', { precision: 20, scale: 18 }).notNull(),
   totalPriceWei: varchar('total_price_wei', { length: 78 }).notNull(),
   pricingPhase: varchar('pricing_phase', { length: 20 }).notNull(), // 'BASE', 'LATE_1', 'LATE_2'
@@ -542,6 +560,8 @@ export const adminWalletActions = pgTable('admin_wallet_actions', {
   actionType: varchar('action_type', { length: 50 }).notNull().$type<AdminWalletActionType>(),
   amountEth: varchar('amount_eth', { length: 50 }).notNull(),
   amountWei: varchar('amount_wei', { length: 78 }).notNull(),
+  currency: varchar('currency', { length: 8 }).default('eth').notNull(),
+  amountWord: numeric('amount_word', { precision: 78, scale: 0 }),
   fromAddress: varchar('from_address', { length: 42 }).notNull(),
   toAddress: varchar('to_address', { length: 42 }).notNull(),
   txHash: varchar('tx_hash', { length: 66 }),
@@ -826,3 +846,30 @@ export const superguessSessions = pgTable('superguess_sessions', {
 
 export type SuperguessSessionRow = typeof superguessSessions.$inferSelect;
 export type SuperguessSessionInsert = typeof superguessSessions.$inferInsert;
+
+
+/**
+ * Treasury ETH -> $WORD batch conversions (migration 0022).
+ *
+ * The operation the $WORD economy depends on, and previously untracked.
+ * Without a record there is no way to reconcile player ETH taken against
+ * $WORD credited to the pool — the invariant that reveals whether the
+ * pre-funded tranche is draining faster than revenue replaces it.
+ */
+export const wordConversions = pgTable('word_conversions', {
+  id: serial('id').primaryKey(),
+  ethAmountWei: numeric('eth_amount_wei', { precision: 78, scale: 0 }).notNull(),
+  wordAmountWei: numeric('word_amount_wei', { precision: 78, scale: 0 }).notNull(),
+  ethUsdPrice: decimal('eth_usd_price', { precision: 20, scale: 8 }),
+  wordUsdPriceE18: numeric('word_usd_price_e18', { precision: 78, scale: 0 }),
+  swapTxHash: varchar('swap_tx_hash', { length: 66 }),
+  fundTxHash: varchar('fund_tx_hash', { length: 66 }),
+  initiatedByFid: integer('initiated_by_fid').notNull(),
+  note: varchar('note', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  createdAtIdx: index('word_conversions_created_at_idx').on(table.createdAt),
+}));
+
+export type WordConversionRow = typeof wordConversions.$inferSelect;
+export type WordConversionInsert = typeof wordConversions.$inferInsert;
