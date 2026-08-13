@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { rounds, systemState, roundPayouts, guesses, users } from '../db/schema';
-import { eq, and, desc, count, lte, isNotNull } from 'drizzle-orm';
+import { eq, and, desc, count, lte, isNotNull, sql } from 'drizzle-orm';
 import type { RoundPayoutInsert } from '../db/schema';
 import { announceRoundResolved, announceReferralWin } from './announcer';
 import { archiveRound } from './archive';
@@ -518,6 +518,28 @@ export async function resolveRoundAndCreatePayouts(
   // the exact wei, since a $WORD pool has no meaningful float representation.
   if (isWordRound ? jackpotWei === 0n : jackpotEth === 0) {
     console.log(`⚠️  Round ${roundId} has zero jackpot, no payouts created`);
+
+    // Still close the round. This used to return here outright, which skipped
+    // the update at the end of this function that records the winner and marks
+    // the round resolved — so a round won while its pool was empty stayed
+    // `active` with a null `winnerFid` forever. Everything downstream keys off
+    // that: getActiveRound kept handing back a finished round, resolveRound's
+    // already-resolved guard never fired so it could be run again and again,
+    // and no new round could start because one was still active. A pool can be
+    // empty in normal play — the seed carries nothing and the winner spends a
+    // free guess before anyone buys a pack — so this was reachable without
+    // anything else going wrong.
+    //
+    // There are no payouts to make, only the round to close.
+    await db
+      .update(rounds)
+      .set({
+        resolvedAt: new Date(),
+        winnerFid,
+        status: 'resolved',
+      })
+      .where(eq(rounds.id, roundId));
+
     return;
   }
 
@@ -1004,12 +1026,24 @@ export async function resolveRoundAndCreatePayouts(
       txHash: resolveTxHash,
       // Record what actually carried forward so the next round's seed and the
       // archive read the same number the contract holds.
+      //
+      // Both currencies, not just $WORD. During a round `seed_next_round_eth`
+      // accumulates 20% of each paid guess; at resolution the carry is instead
+      // 5% of the final pool (capped), and that is the figure handed to the
+      // contract. Nothing was writing it back, so the column kept the
+      // accumulator — and `archiveRound` derives a round's seed from the
+      // *previous* round's copy of it, meaning the permanent record showed a
+      // number the contract never carried. The Milestone 4.9 helper that used
+      // to reconcile this, `allocateToSeedAndCreator`, is still defined but no
+      // longer called by anything.
       ...(isWordRound
         ? {
             prizePoolWord: jackpotWei.toString(),
             seedNextRoundWord: seedForNextRoundWei.toString(),
           }
-        : {}),
+        : {
+            seedNextRoundEth: ethers.formatEther(seedForNextRoundWei),
+          }),
     })
     .where(eq(rounds.id, roundId));
 

@@ -13,9 +13,28 @@
  * test is still the real logic.
  */
 
-import { beforeAll } from 'vitest';
+import { beforeAll, beforeEach } from 'vitest';
 import { setSkipOnchainResolution } from '../lib/economics';
+import { retireActiveRounds } from './helpers/rounds';
 
 beforeAll(() => {
   setSkipOnchainResolution(true);
+});
+
+/**
+ * Retire any round left active by an earlier test — including one left by a
+ * different *file*.
+ *
+ * The whole suite shares one database and runs with --no-file-parallelism, so
+ * a file that ends with an active round poisons the next file's first
+ * `createRound`, which refuses to run while one is active. That is not a
+ * hypothetical: daily-limits failed all 22 of its cases this way while passing
+ * 16 of them when run alone, and the error it reported ("Round 389 is still
+ * active") named a round it had never created.
+ *
+ * Hooks from setupFiles are outermost, so this runs before each file's own
+ * beforeEach and cleans up before that file creates anything of its own.
+ */
+beforeEach(async () => {
+  await retireActiveRounds();
 });
