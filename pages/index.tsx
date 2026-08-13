@@ -99,6 +99,7 @@ import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
+import { WORD_POOL_URL } from '../config/economy';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -1901,7 +1902,7 @@ function GameContent() {
               )}
             </div>
             <a
-              href="https://dexscreener.com/base/0xc5db937916d2c6f96142a6886ba8b5b74e14949c9cc1080a676ab2a5eb1ea275"
+              href={WORD_POOL_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-gray-400 hover:text-purple-600 font-mono break-all"

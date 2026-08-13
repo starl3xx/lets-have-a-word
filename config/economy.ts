@@ -61,6 +61,21 @@ export const WORD_MARKET_CAP_USD = Number(
 );
 
 /**
+ * Public chart/pool page for $WORD, used by every "view the token" link.
+ *
+ * GeckoTerminal rather than DexScreener: DexScreener stopped indexing $WORD in
+ * Aug 2026, so its pages no longer resolve for this token.
+ * Override with NEXT_PUBLIC_WORD_POOL_ADDRESS if the pool ever moves.
+ * Uses || not ?? so a blank env var (the .env.example default) falls through
+ * to the hardcoded id rather than building a pool URL with no id.
+ */
+export const WORD_POOL_ADDRESS =
+  process.env.NEXT_PUBLIC_WORD_POOL_ADDRESS?.trim() ||
+  '0xc5db937916d2c6f96142a6886ba8b5b74e14949c9cc1080a676ab2a5eb1ea275';
+
+export const WORD_POOL_URL = `https://www.geckoterminal.com/base/pools/${WORD_POOL_ADDRESS}`;
+
+/**
  * @deprecated Use getHolderTierThresholds() — kept for backward compat during migration
  */
 export const WORD_HOLDER_THRESHOLD = 100_000_000;
