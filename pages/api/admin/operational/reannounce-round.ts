@@ -109,12 +109,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const { roundNumber, jackpotEth, text } = await buildRoundStartedAnnouncement(round);
+    const { roundNumber, jackpotEth, prize, text } = await buildRoundStartedAnnouncement(round);
 
     // Push notification (no idempotency — calling this twice double-sends it)
     let notification = null;
     if (!skipNotification) {
-      notification = await notifyRoundStarted(roundNumber, jackpotEth);
+      notification = await notifyRoundStarted(roundNumber, prize);
     }
 
     // Farcaster cast

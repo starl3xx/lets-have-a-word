@@ -53,16 +53,15 @@ export default async function handler(
 
     const roundNumber = activeRound.id;
 
-    // Read jackpot from onchain contract
-    let jackpotEth: string;
-    try {
-      jackpotEth = formatEth(await getCurrentJackpotOnChain());
-    } catch (err) {
-      console.error('[CRON] Failed to read jackpot from contract, using DB value:', err);
-      jackpotEth = formatEth(activeRound.prizePoolEth);
-    }
+    // Reads WordJackpot for a $WORD round and JackpotManagerV3 otherwise, and
+    // returns the amount with its unit attached. The old path read the ETH
+    // contract unconditionally and fell back to prizePoolEth, which is 0 on a
+    // $WORD round — so a $WORD round would have pushed "0 ETH" to every player.
+    const { getRoundPrize } = await import('../../../src/lib/round-prize');
+    const prize = await getRoundPrize(activeRound);
+    const jackpotEth = prize.display;
 
-    const result = await notifyDailyReset(roundNumber, jackpotEth);
+    const result = await notifyDailyReset(roundNumber, prize.display);
 
     console.log('[CRON] Daily notify result:', result);
 

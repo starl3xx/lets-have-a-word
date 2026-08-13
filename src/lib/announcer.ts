@@ -30,6 +30,20 @@ const NODE_ENV = process.env.NODE_ENV;
 
 // Milestone thresholds
 export const JACKPOT_MILESTONES = [0.1, 0.25, 0.5, 1.0]; // ETH
+
+/**
+ * Milestones for $WORD rounds, in USD cents.
+ *
+ * A token count cannot be compared against the ETH thresholds above: a $20 seed
+ * is ~78,000,000 $WORD, which clears 0.1, 0.25, 0.5 AND 1.0 the instant a round
+ * starts — four milestone casts fired before anyone has guessed.
+ *
+ * USD also travels better across a price move: the point of a milestone is that
+ * the prize got meaningfully bigger, not that the token went up. These are set
+ * for a $20-seeded round rather than converted from the ETH figures, whose USD
+ * equivalents (~$190 to ~$1,900) no round would ever reach.
+ */
+export const JACKPOT_MILESTONES_USD_CENTS = [5000, 10000, 25000, 50000]; // $50 / $100 / $250 / $500
 export const GUESS_MILESTONES = [1000, 2000, 3000, 4000];
 
 // Startup validation (fail fast in production if misconfigured)
@@ -241,11 +255,17 @@ function getRoundNumber(round: RoundRow): number {
 export async function buildRoundStartedAnnouncement(round: RoundRow): Promise<{
   roundNumber: number;
   jackpotEth: string;
+  prize: string;
   text: string;
 }> {
   const roundNumber = getRoundNumber(round);
 
   // Read prize pool from onchain contract (source of truth)
+  // getRoundPrize reads WordJackpot for a $WORD round and JackpotManagerV3
+  // otherwise, and returns the amount with its unit already attached.
+  const { getRoundPrize } = await import('./round-prize');
+  const prize = (await getRoundPrize(round)).display;
+
   let jackpotEth: string;
   try {
     jackpotEth = formatEth(await getCurrentJackpotOnChain());
@@ -256,7 +276,7 @@ export async function buildRoundStartedAnnouncement(round: RoundRow): Promise<{
 
   const text = `🔵 Round #${roundNumber} is live in @letshaveaword
 
-Starting prize pool: ${jackpotEth} ETH 🎯
+Starting prize pool: ${prize} 🎯
 
 The secret word, bonus words, and burn words are locked onchain 🔒
 
@@ -265,7 +285,7 @@ The secret word, bonus words, and burn words are locked onchain 🔒
 Happy hunting 🕵️‍♂️
 letshaveaword.fun`;
 
-  return { roundNumber, jackpotEth, text };
+  return { roundNumber, jackpotEth, prize, text };
 }
 
 /**
@@ -274,10 +294,10 @@ letshaveaword.fun`;
  * @param round - The newly created round
  */
 export async function announceRoundStarted(round: RoundRow) {
-  const { roundNumber, jackpotEth, text } = await buildRoundStartedAnnouncement(round);
+  const { roundNumber, jackpotEth, prize, text } = await buildRoundStartedAnnouncement(round);
 
   // Send push notification to mini app users (with jackpot data for template)
-  const notification = await notifyRoundStarted(roundNumber, jackpotEth);
+  const notification = await notifyRoundStarted(roundNumber, prize);
 
   const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_started',
@@ -402,6 +422,8 @@ export async function announceRoundResolved(
   const answer = getPlaintextAnswer(round.answer).toUpperCase(); // Decrypt and uppercase
   const commitHash = round.commitHash;
   const jackpotEth = formatEth(round.prizePoolEth);
+  const { getRoundPrize: getResolvedPrize } = await import('./round-prize');
+  const prize = (await getResolvedPrize(round)).display;
 
   // Shorten hash for display: first 10 chars + last 4 chars
   const shortHash = commitHash.length > 16
@@ -415,8 +437,9 @@ export async function announceRoundResolved(
 
   // Find top 10 guessers payouts and fetch usernames
   const topTenPayouts = payouts.filter(p => p.role === 'top_guesser');
-  const topTenTotal = topTenPayouts.reduce((sum, p) => sum + parseFloat(p.amountEth), 0);
-  const topTenPayoutEth = formatEth(topTenTotal);
+  const { formatPayoutAmount, formatPayoutTotal } = await import('./round-prize');
+  const payoutCurrency: 'eth' | 'word' = round.prizeCurrency === 'word' ? 'word' : 'eth';
+  const topTenPayoutText = formatPayoutTotal(topTenPayouts, payoutCurrency);
 
   // Get top 10 FIDs in order (sorted by payout amount desc as a proxy for volume ranking)
   const topTenFids = topTenPayouts
@@ -429,20 +452,20 @@ export async function announceRoundResolved(
 
   // Find referrer payout if exists
   const referrerPayout = payouts.find(p => p.role === 'referrer');
-  const referrerPayoutEth = referrerPayout ? formatEth(referrerPayout.amountEth) : null;
+  const referrerPayoutText = referrerPayout ? formatPayoutAmount(referrerPayout, payoutCurrency) : null;
   const referrerUsername = await getUsernameByFid(referrerPayout?.fid);
 
   // Build referrer line (only if referrer exists and was paid)
   let referrerLine = '';
-  if (referrerPayoutEth && referrerUsername) {
-    referrerLine = `\n\n${winnerMention}'s referrer ${referrerUsername} earned ${referrerPayoutEth} ETH for bringing them into the game. 🫂`;
+  if (referrerPayoutText && referrerUsername) {
+    referrerLine = `\n\n${winnerMention}'s referrer ${referrerUsername} earned ${referrerPayoutText} for bringing them into the game. 🫂`;
   }
 
   const text = `🎉 Round #${roundNumber} is complete in Let's Have A Word!
 
-After ${totalGuesses.toLocaleString()} global guesses, ${winnerMention} found the secret word ${answer} and won the ${jackpotEth} ETH jackpot! 🏆 Congrats!${referrerLine}
+After ${totalGuesses.toLocaleString()} global guesses, ${winnerMention} found the secret word ${answer} and won the ${prize} jackpot! 🏆 Congrats!${referrerLine}
 
-Top 10 early guessers also shared ${topTenPayoutEth} ETH:
+Top 10 early guessers also shared ${topTenPayoutText}:
 ${topTenMentions} 🙌
 
 Provably fair:
@@ -454,7 +477,7 @@ letshaveaword.fun`;
 
   // Send push notification to mini app users
   const winnerUsernameClean = winnerUsername?.replace('@', '');
-  const notification = await notifyRoundResolved(roundNumber, winnerUsernameClean, jackpotEth);
+  const notification = await notifyRoundResolved(roundNumber, winnerUsernameClean, prize);
 
   const result = await recordAndCastAnnouncerEvent({
     eventType: 'round_resolved',
@@ -471,7 +494,84 @@ letshaveaword.fun`;
  *
  * @param round - The current round
  */
+/**
+ * Milestone announcements for a $WORD round.
+ *
+ * Reads the pool from WordJackpot rather than JackpotManagerV3 — the ETH path
+ * above reads the wrong contract for these rounds, and its DB fallback column
+ * (prizePoolEth) is 0 on a $WORD round, so it would silently announce nothing.
+ *
+ * Values the pool at the round's seed-time price snapshot, matching what the UI
+ * shows. A live quote would let a thin market push a round past a milestone and
+ * back again, casting each time.
+ */
+async function checkWordJackpotMilestones(round: RoundRow, roundNumber: number) {
+  const priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+  if (priceE18 <= 0n) {
+    console.warn(`[announcer] Round ${roundNumber} has no seed price — skipping $WORD milestones`);
+    return;
+  }
+
+  let poolWei: bigint;
+  try {
+    const { getWordJackpotSolvency } = await import('./word-jackpot-contract');
+    poolWei = (await getWordJackpotSolvency()).poolWei;
+  } catch (err) {
+    console.error('[announcer] Failed to read WordJackpot pool, using database value:', err);
+    try {
+      poolWei = BigInt(round.prizePoolWord ?? '0');
+    } catch {
+      poolWei = 0n;
+    }
+  }
+  if (poolWei <= 0n) return;
+
+  const { usdCentsForTokens, formatWordAmount } = await import('./word-amounts');
+  const poolCents = usdCentsForTokens(poolWei, priceE18);
+
+  for (const milestoneCents of JACKPOT_MILESTONES_USD_CENTS) {
+    if (poolCents < BigInt(milestoneCents)) continue;
+
+    const milestoneUsd = (milestoneCents / 100).toFixed(0);
+    const poolWord = formatWordAmount(poolWei);
+
+    const text = milestoneCents >= 25000
+      ? `🚨 Prize pool just crossed $${milestoneUsd} in Let's Have A Word!
+
+Round #${roundNumber} is getting serious 👀 ${poolWord} $WORD on the line
+
+One correct guess is all it takes ↓
+letshaveaword.fun`
+      : `🔥 Jackpot milestone in Let's Have A Word!
+
+Round #${roundNumber} prize pool just passed $${milestoneUsd} — ${poolWord} $WORD 🎯
+
+One secret word. One winner.
+Every wrong guess narrows the field 👀
+
+Play now ↓
+letshaveaword.fun`;
+
+    await recordAndCastAnnouncerEvent({
+      eventType: 'jackpot_milestone',
+      roundId: round.id,
+      milestoneKey: `jackpot_usd_${milestoneCents}`,
+      text,
+    });
+  }
+}
+
 export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
+  const roundNumber = getRoundNumber(round);
+
+  // A $WORD round is measured in USD, not in tokens — see
+  // JACKPOT_MILESTONES_USD_CENTS for why comparing token counts to the ETH
+  // thresholds would fire every milestone at once.
+  if (round.prizeCurrency === 'word') {
+    await checkWordJackpotMilestones(round, roundNumber);
+    return;
+  }
+
   // Read prize pool from onchain contract (source of truth)
   let jackpotEth: number;
   try {
@@ -480,7 +580,6 @@ export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
     console.error('[announcer] Failed to read jackpot from contract, using database value:', err);
     jackpotEth = parseFloat(round.prizePoolEth);
   }
-  const roundNumber = getRoundNumber(round);
 
   for (const milestone of JACKPOT_MILESTONES) {
     if (jackpotEth >= milestone) {
@@ -566,7 +665,11 @@ export async function announceReferralWin(
   resolvedCastHash?: string
 ) {
   const roundNumber = getRoundNumber(round);
-  const referrerPayoutEth = formatEth(referrerPayout.amountEth);
+  const { formatPayoutAmount: fmtPayout } = await import('./round-prize');
+  const referrerPayoutText = fmtPayout(
+    referrerPayout,
+    round.prizeCurrency === 'word' ? 'word' : 'eth'
+  );
 
   // Fetch usernames for winner and referrer
   const [winnerUsername, referrerUsername] = await Promise.all([
@@ -581,7 +684,7 @@ export async function announceReferralWin(
 
 In Round #${roundNumber}, ${winnerMention} hit the jackpot!
 
-${referrerMention} earned ${referrerPayoutEth} ETH for referring them to play!
+${referrerMention} earned ${referrerPayoutText} for referring them to play!
 
 Share your link. You can win even when your friends do 👀
 letshaveaword.fun`;
