@@ -9,7 +9,7 @@ import { useTranslation } from '../src/hooks/useTranslation';
 async function generateShareCardImage(
   winnerWord: string,
   roundId: number,
-  jackpotEth: string
+  prizeDisplay: string
 ): Promise<void> {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -99,10 +99,9 @@ async function generateShareCardImage(
   ctx.fillStyle = '#713f12'; // yellow-900
   ctx.fillText('Jackpot Won', width / 2, 525);
 
-  // Jackpot amount
-  const jackpotDisplay = parseFloat(jackpotEth).toFixed(4);
+  // Jackpot amount, already carrying its own unit ("0.0216 ETH" / "62,500,000 $WORD")
   ctx.font = 'bold 48px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${jackpotDisplay} ETH`, width / 2, 575);
+  ctx.fillText(prizeDisplay, width / 2, 575);
 
   // Branding footer
   ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
@@ -159,7 +158,8 @@ function roundedRect(
 interface WinnerShareCardProps {
   winnerWord: string;
   roundId: number;
-  jackpotEth?: string; // Milestone 6.3: Jackpot amount
+  /** Prize INCLUDING its unit, e.g. "0.0216 ETH" or "62,500,000 $WORD". */
+  prizeDisplay?: string;
   onClose: () => void;
 }
 
@@ -181,15 +181,14 @@ interface WinnerShareCardProps {
 export default function WinnerShareCard({
   winnerWord,
   roundId,
-  jackpotEth = '0.00',
+  prizeDisplay = 'the jackpot',
   onClose,
 }: WinnerShareCardProps) {
   const { t } = useTranslation();
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const jackpotDisplay = parseFloat(jackpotEth).toFixed(4);
-  const shareText = `I just hit the ${jackpotDisplay} ETH jackpot on Let's Have A Word! 🎉🟩\n\nI found the winning word "${winnerWord}" in round #${roundId}!\n\n@letshaveaword`;
+  const shareText = `I just hit the ${prizeDisplay} jackpot on Let's Have A Word! 🎉🟩\n\nI found the winning word "${winnerWord}" in round #${roundId}!\n\n@letshaveaword`;
 
   /**
    * Share to Farcaster
@@ -247,7 +246,7 @@ export default function WinnerShareCard({
 
     try {
       console.log('[WinnerShareCard] Generating share card image...');
-      await generateShareCardImage(winnerWord, roundId, jackpotEth);
+      await generateShareCardImage(winnerWord, roundId, prizeDisplay);
       console.log('[WinnerShareCard] Share card downloaded successfully');
     } catch (err) {
       console.error('[WinnerShareCard] Error generating share card:', err);
@@ -313,7 +312,7 @@ export default function WinnerShareCard({
             <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-4 shadow-lg">
               <p className="text-yellow-900 text-sm font-medium mb-1">Jackpot Won</p>
               <p className="text-3xl font-bold text-yellow-900">
-                {jackpotDisplay} ETH
+                {prizeDisplay}
               </p>
             </div>
           </div>
