@@ -12,13 +12,14 @@ export const DEFAULT_RULES_CONFIG: GameRulesConfig = {
   wordBonusGuesses: getWordHolderBonusGuesses(), // Dynamic: 2 if mcap < $250k, 3 if >= $250k
   shareBonusGuesses: 1,
   paidGuessPackSize: 3, // Buy 3 guesses at a time
-  paidGuessPackPriceEth: '0.0003', // 0.0003 ETH per pack of 3
+  paidGuessPackPriceEth: '0.0004', // 0.0004 ETH base per pack of 3 (stage/volume multipliers apply — see pack-pricing.ts)
   maxPaidPacksPerDay: 3, // Max 3 packs per day
   maxPaidGuessesPerDay: 9, // 3 packs × 3 guesses = 9 total
   jackpotSplit: {
     winner: 0.8,
-    referrer: 0.1,
+    referrer: 0.05,
     top10: 0.1,
+    seed: 0.05,
   },
   seedCapEth: '0.02', // Updated from 0.03 in seed cap reduction
   wordThreshold: '100000000',

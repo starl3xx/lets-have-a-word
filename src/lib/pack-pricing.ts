@@ -140,10 +140,12 @@ export function getNextTierMultiplier(packsPurchasedToday: number): number | nul
  * @returns Base pack price in wei as bigint (before volume multiplier)
  *
  * @example
- * getBasePackPriceWei(0)    // 300000000000000n (0.0003 ETH)
- * getBasePackPriceWei(849)  // 300000000000000n (0.0003 ETH)
- * getBasePackPriceWei(850)  // 450000000000000n (0.00045 ETH)
- * getBasePackPriceWei(1250) // 600000000000000n (0.0006 ETH)
+ * getBasePackPriceWei(0)    // 400000000000000n  (0.0004 ETH, EARLY)
+ * getBasePackPriceWei(849)  // 400000000000000n  (0.0004 ETH, EARLY)
+ * getBasePackPriceWei(850)  // 600000000000000n  (0.0006 ETH, MID)
+ * getBasePackPriceWei(1249) // 600000000000000n  (0.0006 ETH, MID)
+ * getBasePackPriceWei(1250) // 800000000000000n  (0.0008 ETH, LATE)
+ * getBasePackPriceWei(5000) // 800000000000000n  (0.0008 ETH, capped)
  */
 export function getBasePackPriceWei(totalGuessesInRound: number): bigint {
   // Validate input
@@ -175,15 +177,23 @@ export function getBasePackPriceWei(totalGuessesInRound: number): bigint {
  * @param packsPurchasedToday - Packs already purchased today (before this purchase)
  * @returns Final pack price in wei as bigint
  *
+ * Examples below are computed from the constants above, not written by hand —
+ * the previous set predated the 0.0003 -> 0.0004 base price change and had
+ * drifted on every line, including one that claimed a 2x multiplier while
+ * showing a 1.5x result.
+ *
  * @example
- * // At stage EARLY (0-849 guesses), buying first pack (1× multiplier)
- * getPackPriceWithMultiplier(100, 0)  // 300000000000000n (0.0003 ETH)
+ * // Stage EARLY (0-849 guesses), first pack (1x multiplier)
+ * getPackPriceWithMultiplier(100, 0)   // 400000000000000n (0.0004 ETH)
  *
- * // At stage EARLY, buying 4th pack (1.5× multiplier)
- * getPackPriceWithMultiplier(100, 3)  // 450000000000000n (0.00045 ETH)
+ * // Stage EARLY, 4th pack of the day (1.5x multiplier)
+ * getPackPriceWithMultiplier(100, 3)   // 600000000000000n (0.0006 ETH)
  *
- * // At stage MID (850-1249 guesses), buying 7th pack (2× multiplier)
- * getPackPriceWithMultiplier(900, 6)  // 900000000000000n (0.0009 ETH)
+ * // Stage MID (850-1249 guesses), 7th pack of the day (2x multiplier)
+ * getPackPriceWithMultiplier(900, 6)   // 1200000000000000n (0.0012 ETH)
+ *
+ * // Stage LATE (1250+ guesses), first pack — the price cap, un-multiplied
+ * getPackPriceWithMultiplier(1300, 0)  // 800000000000000n (0.0008 ETH)
  */
 export function getPackPriceWithMultiplier(
   totalGuessesInRound: number,

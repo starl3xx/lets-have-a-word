@@ -41,7 +41,7 @@ async function ensureDevGameRule(): Promise<number> {
         config: {
           freeGuessesPerDay: 1,
           paidGuessPackSize: 3,
-          paidGuessPackPriceEth: '0.0003',
+          paidGuessPackPriceEth: '0.0004',
           maxPaidPacksPerDay: 3,
           wordBonusGuesses: 2,
           wordThreshold: 100000000,
