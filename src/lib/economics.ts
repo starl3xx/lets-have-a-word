@@ -22,6 +22,7 @@ import { getBaseProvider } from './word-token';
 import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+import { computePrizeSplit } from './prize-split';
 
 // Global flag for Sepolia simulation mode
 // When true, contract queries use Sepolia RPC instead of mainnet
@@ -494,38 +495,23 @@ export async function resolveRoundAndCreatePayouts(
   // - Any overflow beyond cap routes to creator
   // ============================================================================
 
-  const toWinnerWei = (jackpotWei * 8000n) / 10000n; // 80%
-  let toTopGuessersWei = (jackpotWei * 1000n) / 10000n; // 10% base
-  const baseSeedWei = (jackpotWei * 500n) / 10000n; // 5%
-  const referrerShareWei = (jackpotWei * 500n) / 10000n; // 5%
+  // The arithmetic itself lives in prize-split.ts: it is currency-agnostic, so
+  // the $WORD path reuses it rather than forking a second copy of the rule that
+  // decides how a prize pool is divided.
+  const split = computePrizeSplit({
+    jackpotWei,
+    hasReferrer,
+    seedCapWei: SEED_CAP_WEI,
+  });
 
-  let toReferrerWei = 0n;
-  let seedForNextRoundWei = baseSeedWei;
-  let toCreatorOverflowWei = 0n;
+  const toWinnerWei = split.toWinnerWei;
+  const toTopGuessersWei = split.toTopGuessersWei;
+  const toReferrerWei = split.toReferrerWei;
+  const seedForNextRoundWei = split.seedForNextRoundWei;
+  const toCreatorOverflowWei = split.toCreatorOverflowWei;
 
-  if (hasReferrer) {
-    // Winner has referrer: 80% winner, 10% top guessers, 5% seed, 5% referrer
-    toReferrerWei = referrerShareWei;
-    // Seed is just the base 5%
-    seedForNextRoundWei = baseSeedWei;
-  } else {
-    // No referrer: split the 5% referrer share as 2.5% to top guessers, 2.5% to seed
-    const halfReferrerShareWei = referrerShareWei / 2n; // 2.5%
-
-    // Add 2.5% to top guessers (total 12.5%)
-    toTopGuessersWei = toTopGuessersWei + halfReferrerShareWei;
-
-    // Add 2.5% to seed (total 7.5%), with cap
-    const totalSeedWei = baseSeedWei + halfReferrerShareWei;
-
-    // Apply seed cap (0.02 ETH)
-    if (totalSeedWei > SEED_CAP_WEI) {
-      seedForNextRoundWei = SEED_CAP_WEI;
-      toCreatorOverflowWei = totalSeedWei - SEED_CAP_WEI;
-      console.log(`[economics] Seed capped at ${ethers.formatEther(SEED_CAP_WEI)} ETH, overflow ${ethers.formatEther(toCreatorOverflowWei)} ETH → creator`);
-    } else {
-      seedForNextRoundWei = totalSeedWei;
-    }
+  if (split.seedWasCapped) {
+    console.log(`[economics] Seed capped at ${ethers.formatEther(SEED_CAP_WEI)} ETH, overflow ${ethers.formatEther(toCreatorOverflowWei)} ETH → creator`);
   }
 
   // Note: For Sepolia simulation, seed is handled by the contract.
@@ -682,7 +668,7 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Seed for next round (5%): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
   } else {
     console.log(`  - Top guessers (12.5%): ${ethers.formatEther(toTopGuessersWei)} ETH tiered among ${topGuesserFids.length || 1}`);
-    const seedPercent = seedForNextRoundWei === SEED_CAP_WEI ? 'capped' : '7.5%';
+    const seedPercent = split.seedWasCapped ? 'capped' : '7.5%';
     console.log(`  - Seed for next round (${seedPercent}): ${ethers.formatEther(seedForNextRoundWei)} ETH`);
     if (toCreatorOverflowWei > 0n) {
       console.log(`  - Creator overflow: ${ethers.formatEther(toCreatorOverflowWei)} ETH (seed cap exceeded)`);
