@@ -14,7 +14,7 @@ import { eq, sql, desc } from 'drizzle-orm';
 import { SEED_CAP_ETH } from '../../../../src/lib/economics';
 import { FEE_RECIPIENTS, WETH_ADDRESS_BASE, USDC_ADDRESS_BASE, WORD_ADDRESS_BASE } from '../../../../src/lib/fee-recipients';
 import { getWordManagerAddress, getRewardInfo } from '../../../../src/lib/word-manager';
-import { getTop10WordAmounts, BONUS_WORDS_PER_ROUND, BURN_WORDS_PER_ROUND, getBonusWordRewardAmount, BURN_WORD_AMOUNT } from '../../../../config/economy';
+import { getTop10WordAmounts, getTop10WordAmountsWei, BONUS_WORDS_PER_ROUND, BURN_WORDS_PER_ROUND, getBonusWordRewardAmount, getBonusWordRewardWei, BURN_WORD_AMOUNT } from '../../../../config/economy';
 
 // Minimum seed target for next round
 // Treasury funds below this threshold prioritize seeding rounds
@@ -231,9 +231,21 @@ export default async function handler(
         const availableForGames = totalBalanceBig > unavailable ? totalBalanceBig - unavailable : 0n;
 
         // Compute per-round cost: sum of top-10 amounts + bonus words + burn words
-        const top10Amounts = getTop10WordAmounts();
+        //
+        // Priced the same way the payouts actually are, or this projection —
+        // which is what roundsAvailable and the top-up alert are built on —
+        // reports a burn rate the game does not have. The legacy tier-stepped
+        // amounts remain the fallback, matching the payout paths exactly.
+        const { getRewardPriceE18 } = await import('../../../../src/lib/word-jackpot-contract');
+        const rewardPriceE18 = await getRewardPriceE18().catch(() => null);
+
+        const top10Amounts = rewardPriceE18
+          ? getTop10WordAmountsWei(rewardPriceE18).map((w) => w.toString())
+          : getTop10WordAmounts();
         const top10Total = top10Amounts.reduce((sum, a) => sum + BigInt(a), 0n);
-        const bonusRewardWei = BigInt(getBonusWordRewardAmount());
+        const bonusRewardWei = rewardPriceE18
+          ? getBonusWordRewardWei(rewardPriceE18)
+          : BigInt(getBonusWordRewardAmount());
         const bonusTotal = bonusRewardWei * BigInt(BONUS_WORDS_PER_ROUND);
         const burnTotal = BigInt(BURN_WORD_AMOUNT) * BigInt(BURN_WORDS_PER_ROUND);
         const perRoundCost = top10Total + bonusTotal + burnTotal;

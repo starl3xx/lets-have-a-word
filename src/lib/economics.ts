@@ -890,11 +890,24 @@ export async function resolveRoundAndCreatePayouts(
   if (topGuesserFids.length > 0) {
     (async () => {
       try {
-        const { getTop10WordAmounts, WORD_MARKET_CAP_USD } = await import('../../config/economy');
+        const { getTop10WordAmounts, getTop10WordAmountsWei, WORD_MARKET_CAP_USD } =
+          await import('../../config/economy');
+        const { getRewardPriceE18 } = await import('./word-jackpot-contract');
         const { distributeTop10RewardsOnChain } = await import('./word-manager');
         const { wordRewards: wordRewardsTable, roundPayouts: roundPayoutsTable } = await import('../db/schema');
 
-        const wordAmounts = getTop10WordAmounts(WORD_MARKET_CAP_USD);
+        // Oracle-priced at $3.00 for first place when a price is available;
+        // the legacy tier-stepped token amounts are the fallback so a dead
+        // oracle costs players nothing.
+        const rewardPriceE18 = await getRewardPriceE18();
+        const wordAmounts = rewardPriceE18
+          ? getTop10WordAmountsWei(rewardPriceE18).map((w) => w.toString())
+          : getTop10WordAmounts(WORD_MARKET_CAP_USD);
+        console.log(
+          `[economics] Top-10 $WORD rewards priced ${
+            rewardPriceE18 ? `by oracle (${rewardPriceE18} e18)` : 'from the legacy fixed tiers'
+          }`
+        );
         const playerAmounts = wordAmounts.slice(0, topGuesserFids.length);
 
         // Look up wallet addresses for top guessers

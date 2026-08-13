@@ -185,8 +185,37 @@ export async function getTopGuessersForRound(roundId: number, limit: number = 10
 
 /**
  * BONUS WORD REWARD AMOUNT (5M $WORD with 18 decimals)
+ *
+ * Fallback only. The reward is oracle-priced at $1.50 via
+ * resolveBonusWordRewardAmount() below; this is what pays out when no price is
+ * available, and it is what rounds 1-33 paid.
  */
 const BONUS_WORD_TOKEN_AMOUNT = '5000000000000000000000000'; // 5M * 10^18
+
+/**
+ * $WORD wei for one bonus word find, priced at $1.50 when a price is available.
+ *
+ * Never throws and never blocks the claim: a player who found the word has
+ * earned the reward, so a missing oracle degrades to the legacy fixed amount
+ * rather than denying it. This is the opposite posture to round seeding, which
+ * refuses to proceed without a fresh price — a mispriced seed is a large
+ * irreversible commitment, a mispriced $1.50 reward is not.
+ */
+async function resolveBonusWordRewardAmount(): Promise<string> {
+  try {
+    const { getRewardPriceE18 } = await import('./word-jackpot-contract');
+    const { getBonusWordRewardWei } = await import('../../config/economy');
+    const priceE18 = await getRewardPriceE18();
+    if (priceE18) {
+      const amount = getBonusWordRewardWei(priceE18).toString();
+      console.log(`[guesses] Bonus word reward priced by oracle: ${amount} wei`);
+      return amount;
+    }
+  } catch (error) {
+    console.warn('[guesses] Bonus word reward pricing failed, using fixed amount:', error);
+  }
+  return BONUS_WORD_TOKEN_AMOUNT;
+}
 
 /**
  * Check if a word is an unclaimed bonus word for a round
@@ -382,6 +411,7 @@ async function handleBonusWordWin(
   // 5. Distribute $WORD tokens via verified claim (commit-reveal pattern)
   // Contract verifies keccak256(abi.encodePacked(word, salt)) matches stored hash
   let txHash: string | undefined;
+  const bonusRewardAmount = await resolveBonusWordRewardAmount();
   if (walletAddress) {
     try {
       console.log(`[guesses] Claiming verified bonus reward for "${word}" to ${walletAddress}...`);
@@ -394,7 +424,7 @@ async function handleBonusWordWin(
         word,
         contractSalt,
         walletAddress,
-        BONUS_WORD_TOKEN_AMOUNT
+        bonusRewardAmount
       );
       txHash = claimResult ?? undefined;
       console.log(`[guesses] ✅ Verified bonus reward claimed: ${txHash}`);
@@ -410,7 +440,7 @@ async function handleBonusWordWin(
         bonusWordId: bonusWord.id,
         fid,
         guessId: guessId!,
-        clanktonAmount: BONUS_WORD_TOKEN_AMOUNT, // Legacy column name
+        clanktonAmount: bonusRewardAmount, // Legacy column name
         walletAddress,
         txHash,
         txStatus: 'confirmed',
@@ -422,7 +452,7 @@ async function handleBonusWordWin(
         roundId,
         fid,
         rewardType: 'bonus_word',
-        amount: BONUS_WORD_TOKEN_AMOUNT,
+        amount: bonusRewardAmount,
         word,
         txHash,
       });
@@ -434,7 +464,7 @@ async function handleBonusWordWin(
         bonusWordId: bonusWord.id,
         fid,
         guessId: guessId!,
-        clanktonAmount: BONUS_WORD_TOKEN_AMOUNT, // Legacy column name
+        clanktonAmount: bonusRewardAmount, // Legacy column name
         walletAddress,
         txStatus: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -448,7 +478,7 @@ async function handleBonusWordWin(
       bonusWordId: bonusWord.id,
       fid,
       guessId: guessId!,
-      clanktonAmount: BONUS_WORD_TOKEN_AMOUNT, // Legacy column name
+      clanktonAmount: bonusRewardAmount, // Legacy column name
       walletAddress: null,
       txStatus: 'pending',
       errorMessage: 'User had no wallet address at time of guess',

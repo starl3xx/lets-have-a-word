@@ -232,6 +232,83 @@ export function getTop10WordAmounts(marketCapUsd: number = WORD_MARKET_CAP_USD):
 }
 
 // =============================================================================
+// Oracle-priced $WORD rewards (round 34+)
+// =============================================================================
+
+/**
+ * USD value of a bonus word find and of first place in the top 10.
+ *
+ * The tier-stepped token amounts above are what rounds 1-33 paid: a fixed
+ * number of tokens with one crude step at $150K market cap. That makes the
+ * reward's real value drift with the price — 5M tokens was worth $1.28 at the
+ * time of writing and would be worth $2.56 after a 2x. Pricing in USD keeps
+ * what a player earns stable and moves the price exposure onto the treasury,
+ * which is the party that can absorb it.
+ */
+export const BONUS_WORD_USD_CENTS = 150; // $1.50
+export const TOP10_FIRST_PLACE_USD_CENTS = 300; // $3.00
+
+/**
+ * Implied USD value of the whole top-10 pool.
+ *
+ * First place takes 19% (TOP10_WORD_PERCENTAGES[0]), so a $3.00 first place
+ * means a $15.79 pool. Derived rather than hardcoded so the two can never
+ * drift apart.
+ */
+export const TOP10_POOL_USD_CENTS = Math.round((TOP10_FIRST_PLACE_USD_CENTS * 100) / 19);
+
+/**
+ * Hard ceilings on what a single reward may cost in tokens.
+ *
+ * A USD-pegged reward costs more tokens as the price falls, without limit — a
+ * 100x-too-low oracle reading would pay 100x the tokens. These bind only after
+ * roughly a 50% price collapse from the level at the time of writing
+ * (~$0.000000256), so they should never fire in normal conditions; they exist
+ * so a bad price cannot drain the tranche in a single round.
+ */
+export const BONUS_WORD_MAX_TOKENS_WEI = 12_000_000n * 10n ** 18n;
+export const TOP10_FIRST_PLACE_MAX_TOKENS_WEI = 24_000_000n * 10n ** 18n;
+
+/**
+ * Convert a USD amount to $WORD wei at a 1e18-scaled price, capped.
+ *
+ * Mirrors WordJackpot.seedTokensFor: tokensWei = usdCents * 1e34 / priceE18,
+ * with the same truncating division.
+ */
+export function usdCentsToWordWei(
+  usdCents: number,
+  priceE18: bigint,
+  maxTokensWei: bigint
+): bigint {
+  if (priceE18 <= 0n) {
+    throw new Error('Cannot price a $WORD reward with a zero price');
+  }
+  const uncapped = (BigInt(usdCents) * 10n ** 34n) / priceE18;
+  return uncapped > maxTokensWei ? maxTokensWei : uncapped;
+}
+
+/** $WORD wei for one bonus word find at the given price. */
+export function getBonusWordRewardWei(priceE18: bigint): bigint {
+  return usdCentsToWordWei(BONUS_WORD_USD_CENTS, priceE18, BONUS_WORD_MAX_TOKENS_WEI);
+}
+
+/**
+ * $WORD wei for each of the top 10 at the given price.
+ *
+ * The cap is applied to the pool via first place, then split by rank, so the
+ * rank ratios hold whether or not the cap binds. Capping each rank separately
+ * would flatten the curve at exactly the moment the tranche is under stress.
+ *
+ * Two truncating divisions mean a capped first place can land 1 wei under the
+ * ceiling. That is the safe direction, and 1 wei of $WORD is ~2.5e-25 dollars.
+ */
+export function getTop10WordAmountsWei(priceE18: bigint): bigint[] {
+  const poolCapWei = (TOP10_FIRST_PLACE_MAX_TOKENS_WEI * 10000n) / 1900n;
+  const poolWei = usdCentsToWordWei(TOP10_POOL_USD_CENTS, priceE18, poolCapWei);
+  return TOP10_WORD_PERCENTAGES.map((pct) => (poolWei * BigInt(pct)) / 100n);
+}
+
+// =============================================================================
 // Staking Reward Period Configuration
 // =============================================================================
 
