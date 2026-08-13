@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { formatPrize } from '../src/lib/prize-display';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -32,6 +33,8 @@ export default function SharePromptModal({
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
+  const [prizeCurrency, setPrizeCurrency] = useState<'eth' | 'word'>('eth');
+  const [prizePoolWord, setPrizePoolWord] = useState<string | undefined>(undefined);
   const [roundStats, setRoundStats] = useState<{
     roundId: number;
     guesses: number;
@@ -56,6 +59,8 @@ export default function SharePromptModal({
         if (roundRes.ok) {
           const data = await roundRes.json();
           if (data.prizePoolEth) setPrizePoolEth(data.prizePoolEth);
+          if (data.prizeCurrency) setPrizeCurrency(data.prizeCurrency);
+          if (data.prizePoolWord) setPrizePoolWord(data.prizePoolWord);
           if (data.roundId) {
             setRoundStats(prev => ({
               roundId: data.roundId,
@@ -111,15 +116,18 @@ export default function SharePromptModal({
   };
 
   /**
-   * Format jackpot ETH for display in share text
-   * Shows 4 decimal places for consistency
+   * The prize with its unit, e.g. "0.0216 ETH" or "78,125,000 $WORD".
+   *
+   * The unit is part of the value rather than hardcoded in the templates,
+   * because the share text is public — a $WORD round advertising an ETH prize
+   * would be wrong on nine different casts.
    */
-  const formatJackpotEth = (eth: string | undefined): string => {
-    if (!eth) return '0.0000';
-    const num = parseFloat(eth);
-    if (isNaN(num)) return '0.0000';
-    return num.toFixed(4);
-  };
+  const formatJackpot = (): string =>
+    formatPrize({
+      currency: prizeCurrency,
+      eth: prizePoolEth ? parseFloat(prizePoolEth).toFixed(4) : '0.0000',
+      word: prizePoolWord,
+    });
 
   /**
    * Get the share text using selected template
@@ -127,7 +135,7 @@ export default function SharePromptModal({
    */
   const getShareText = (): string => {
     const word = getGuessedWord();
-    const jackpot = formatJackpotEth(prizePoolEth);
+    const jackpot = formatJackpot();
 
     // If we have a word (incorrect guess), use the rotating template
     if (word) {
@@ -139,7 +147,7 @@ export default function SharePromptModal({
   };
 
   // Memoize the share text so it doesn't change during the modal session
-  const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
+  const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth, prizeCurrency, prizePoolWord]);
 
   /**
    * Build the dynamic embed URL with word + round stats for OG image
@@ -153,7 +161,7 @@ export default function SharePromptModal({
 
     const params = new URLSearchParams({
       round: String(roundStats.roundId),
-      jackpot: formatJackpotEth(prizePoolEth),
+      jackpot: formatJackpot(),
       guesses: String(roundStats.guesses),
       players: String(roundStats.players),
     });
@@ -170,7 +178,7 @@ export default function SharePromptModal({
     const params = new URLSearchParams({
       word: word.toUpperCase(),
       round: String(roundStats.roundId),
-      jackpot: formatJackpotEth(prizePoolEth),
+      jackpot: formatJackpot(),
       guesses: String(roundStats.guesses),
       players: String(roundStats.players),
     });

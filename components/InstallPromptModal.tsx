@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { formatPrize } from '../src/lib/prize-display';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -53,6 +54,8 @@ export default function InstallPromptModal({
   const [isInstalling, setIsInstalling] = useState(false);
   const [hasSharedSuccessfully, setHasSharedSuccessfully] = useState(false);
   const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
+  const [prizeCurrency, setPrizeCurrency] = useState<'eth' | 'word'>('eth');
+  const [prizePoolWord, setPrizePoolWord] = useState<string | undefined>(undefined);
 
   // Get random interjection once when modal mounts
   const interjection = useMemo(() => getRandomInterjection(), [getRandomInterjection]);
@@ -70,6 +73,8 @@ export default function InstallPromptModal({
           if (data.prizePoolEth) {
             setPrizePoolEth(data.prizePoolEth);
           }
+          if (data.prizeCurrency) setPrizeCurrency(data.prizeCurrency);
+          if (data.prizePoolWord) setPrizePoolWord(data.prizePoolWord);
         }
       } catch (err) {
         console.error('[InstallPromptModal] Error fetching prize pool:', err);
@@ -90,21 +95,25 @@ export default function InstallPromptModal({
   };
 
   /**
-   * Format jackpot ETH for display
+   * The prize with its unit, e.g. "0.0216 ETH" or "78,125,000 $WORD".
+   *
+   * The unit is part of the value rather than hardcoded in the templates,
+   * because the share text is public — a $WORD round advertising an ETH prize
+   * would be wrong on nine different casts.
    */
-  const formatJackpotEth = (eth: string | undefined): string => {
-    if (!eth) return '0.0000';
-    const num = parseFloat(eth);
-    if (isNaN(num)) return '0.0000';
-    return num.toFixed(4);
-  };
+  const formatJackpot = (): string =>
+    formatPrize({
+      currency: prizeCurrency,
+      eth: prizePoolEth ? parseFloat(prizePoolEth).toFixed(4) : '0.0000',
+      word: prizePoolWord,
+    });
 
   /**
    * Get the share text using selected template
    */
   const getShareText = (): string => {
     const word = getGuessedWord();
-    const jackpot = formatJackpotEth(prizePoolEth);
+    const jackpot = formatJackpot();
 
     if (word) {
       return renderShareTemplate(selectedTemplate, word, jackpot);
@@ -113,7 +122,7 @@ export default function InstallPromptModal({
     return `I'm playing Let's Have A Word!\n\nDaily jackpot-based word puzzle on Base.\n\n@letshaveaword`;
   };
 
-  const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth]);
+  const shareText = useMemo(() => getShareText(), [selectedTemplate, guessResult, prizePoolEth, prizeCurrency, prizePoolWord]);
 
   /**
    * Handle share action - opens composer, then transitions to success state
