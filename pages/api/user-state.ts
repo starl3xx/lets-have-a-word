@@ -9,7 +9,34 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
 import type { GuessSourceState } from '../../src/types';
-import { verifyFrameMessage, getUserByFid } from '../../src/lib/farcaster';
+import { verifyFrameMessage, getUserByFid, type FarcasterContext } from '../../src/lib/farcaster';
+
+/**
+ * Is `wallet` an address Neynar says this FID actually owns?
+ *
+ * The FID reaching this endpoint is asserted by the caller and not
+ * authenticated, so a client-supplied wallet cannot be trusted on its own.
+ * Neynar's verified-address list (plus the custody address) is the
+ * authoritative answer to "does this account own this wallet", and it is not
+ * something a caller can influence.
+ *
+ * Returns false when Neynar data is unavailable — failing closed here only
+ * means a wallet is not updated, whereas failing open would leave the
+ * payout-redirect hole open whenever the lookup happens to error.
+ */
+function isWalletOwnedByFid(
+  wallet: string | null,
+  user: FarcasterContext | null
+): boolean {
+  if (!wallet || !user) return false;
+  const w = wallet.toLowerCase();
+  return (
+    user.primaryWallet?.toLowerCase() === w ||
+    user.signerWallet?.toLowerCase() === w ||
+    user.custodyAddress?.toLowerCase() === w ||
+    (user.verifiedAddresses ?? []).includes(w)
+  );
+}
 import { hasWordTokenBonus, getWordBonusTier } from '../../src/lib/word-token';
 import { getGuessWords } from '../../src/lib/word-lists';
 import { db } from '../../src/db';
@@ -160,10 +187,30 @@ export default async function handler(
         farcasterUser = null;
       }
 
-      // Create user record
-      // If Neynar data available, use it; otherwise create minimal record
-      // Priority: SDK wallet > Neynar primary wallet > Neynar signer wallet
-      const userWallet = walletAddress || farcasterUser?.primaryWallet || farcasterUser?.signerWallet || null;
+      // Create user record.
+      //
+      // Prefer a wallet Neynar confirms this FID owns, then Neynar's own
+      // primary/signer address, and only then the unverified client-supplied
+      // one. Unlike the update path below this stays permissive on purpose:
+      // a brand-new record has no winnings to redirect, and refusing outright
+      // would leave users with no verified Farcaster address unable to be paid
+      // at all. If a record is ever pre-created with the wrong wallet, the
+      // owner's next visit overwrites it via the verified path below.
+      const verifiedClientWallet = isWalletOwnedByFid(walletAddress, farcasterUser)
+        ? walletAddress
+        : null;
+      const userWallet =
+        verifiedClientWallet ||
+        farcasterUser?.primaryWallet ||
+        farcasterUser?.signerWallet ||
+        walletAddress ||
+        null;
+
+      if (walletAddress && !verifiedClientWallet) {
+        console.warn(
+          `[user-state] New FID ${fid}: ${walletAddress} is not Neynar-verified; preferring Neynar address if present`
+        );
+      }
       const username = farcasterUser?.username || `user-${fid}`;
 
       // Validate referrer (cannot refer yourself)
@@ -192,17 +239,46 @@ export default async function handler(
         throw new Error(`Database insert error: ${insertError instanceof Error ? insertError.message : 'Unknown'}`);
       }
     } else if (walletAddress && existingUser[0].signerWalletAddress !== walletAddress) {
-      // Update wallet address if different from what's in database
-      console.log(`[user-state] Updating wallet for user ${fid} to ${walletAddress}`);
+      // SECURITY: signer_wallet_address decides where money is sent —
+      // getWinnerPayoutAddress() resolves through it for the ETH jackpot and
+      // economics.ts reads it for top-10 $WORD rewards. The FID here is
+      // asserted by the caller (req.query.devFid) and is not authenticated, so
+      // an unverified overwrite would let anyone redirect another user's
+      // winnings to a wallet of their choosing.
+      //
+      // Only accept a wallet Neynar confirms this FID has verified. Neynar is
+      // the authority on account ownership and is not client-controlled.
+      let neynarUser: Awaited<ReturnType<typeof getUserByFid>> = null;
       try {
-        await db
-          .update(users)
-          .set({ signerWalletAddress: walletAddress })
-          .where(eq(users.fid, fid));
-        console.log(`[user-state] Wallet address updated successfully`);
-      } catch (updateError) {
-        console.error('[user-state] Wallet update failed:', updateError);
-        throw new Error(`Database update error: ${updateError instanceof Error ? updateError.message : 'Unknown'}`);
+        neynarUser = await getUserByFid(fid);
+      } catch (lookupError) {
+        console.error(`[user-state] Neynar lookup failed for FID ${fid}`, lookupError);
+      }
+
+      if (!isWalletOwnedByFid(walletAddress, neynarUser)) {
+        console.warn(
+          `[user-state] Refusing wallet change for FID ${fid}: ${walletAddress} is not a verified address for that account`
+        );
+        Sentry.captureMessage('[user-state] Unverified wallet change refused', {
+          level: 'warning',
+          extra: {
+            fid,
+            attemptedWallet: walletAddress,
+            currentWallet: existingUser[0].signerWalletAddress,
+          },
+        });
+      } else {
+        console.log(`[user-state] Updating wallet for user ${fid} to ${walletAddress}`);
+        try {
+          await db
+            .update(users)
+            .set({ signerWalletAddress: walletAddress })
+            .where(eq(users.fid, fid));
+          console.log(`[user-state] Wallet address updated successfully`);
+        } catch (updateError) {
+          console.error('[user-state] Wallet update failed:', updateError);
+          throw new Error(`Database update error: ${updateError instanceof Error ? updateError.message : 'Unknown'}`);
+        }
       }
     }
 

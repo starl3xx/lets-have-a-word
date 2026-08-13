@@ -37,6 +37,15 @@ export interface FarcasterContext {
   custodyAddress: string | null;
   spamScore: number | null;
   username: string | null;
+  /**
+   * Every ETH address this FID has verified on Farcaster, lowercased.
+   *
+   * Neynar is the authority on which addresses an account actually owns, so
+   * this is the only trustworthy basis for deciding whether a client-supplied
+   * wallet may be recorded against a user. Optional because not every
+   * construction path fetches it.
+   */
+  verifiedAddresses?: string[];
 }
 
 /**
@@ -263,6 +272,9 @@ export async function getUserByFid(fid: number): Promise<FarcasterContext | null
       custodyAddress: user.custody_address || null,
       spamScore: user.follower_count || null,
       username: isRealFcUsername(user.username) ? user.username : null,
+      verifiedAddresses: (user.verified_addresses?.eth_addresses || []).map((a) =>
+        a.toLowerCase()
+      ),
     };
   } catch (error) {
     console.error(`Failed to fetch user data for FID ${fid}:`, error);
