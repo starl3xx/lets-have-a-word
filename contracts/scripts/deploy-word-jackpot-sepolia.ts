@@ -117,7 +117,11 @@ async function main() {
   console.log("round 34 started, pool:", hre.ethers.formatUnits(startedPool, 18));
 
   // --- Simulate pack revenue --------------------------------------------
-  const poolBefore: bigint = await jackpot.pool();
+  // Reuse the value readUntil already confirmed rather than reading again: a
+  // fresh read here can be served by a lagging node and return the pre-seed
+  // value, which would make the wait below poll for the wrong total and time
+  // out even though the top-up landed.
+  const poolBefore: bigint = startedPool;
   const topUp = 20_000_000n * E18;
   await (await jackpot.topUpPool(topUp)).wait(2);
 
