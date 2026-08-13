@@ -34,6 +34,14 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
     testFid = Math.floor(Math.random() * 1000000) + 100000;
     testDate = getTodayUTC();
 
+    // Keep the suite off the network. getOrCreateDailyState resolves the user's
+    // $WORD tier from their wallet balance, and getBaseProvider falls back to
+    // https://mainnet.base.org when BASE_RPC_URL is unset — so a test user with
+    // a wallet turns every case in this file into a live mainnet call. That is
+    // both slow (this file took 6.9s of mostly RPC) and an outage away from a
+    // red build. The tier tests override this with the value they need.
+    vi.spyOn(wordToken, 'getWordBonusTier').mockResolvedValue(0);
+
     // Both the player and the dummy winner these tests resolve with need to be
     // real users with wallets. That is free while the prize pool is empty, but
     // a test that buys a pack puts ETH in the pool, and resolution then goes
