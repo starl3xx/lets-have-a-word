@@ -30,6 +30,11 @@ import {
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
+import {
+  isWordEconomyConfigured,
+  verifyPackPurchaseTransaction,
+  getWordJackpotConfig,
+} from '../../src/lib/word-jackpot-contract';
 
 /**
  * Minimum share of the quoted price a purchase must actually pay, in bps.
@@ -165,7 +170,44 @@ export default async function handler(
     // Milestone 6.4: Verify onchain transaction before awarding packs
     const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
 
-    const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
+    // Two rails. From round 34 packs are bought through WordPackSales, whose
+    // PacksPurchased event records the payer as msg.sender. JackpotManagerV3
+    // remains the rail for anything bought before the cutover, and is still
+    // tried as a fallback so a transaction confirmed moments before the switch
+    // can still be claimed.
+    let verification: {
+      valid: boolean;
+      error?: string;
+      weiAmount?: string;
+      payer?: string;
+      rail: 'word_pack_sales' | 'jackpot_manager';
+      salesContractAddress?: string;
+    };
+
+    if (isWordEconomyConfigured()) {
+      const packSales = await verifyPackPurchaseTransaction(txHash);
+      if (packSales.valid) {
+        verification = {
+          ...packSales,
+          rail: 'word_pack_sales',
+          salesContractAddress: getWordJackpotConfig().wordPackSalesAddress,
+        };
+      } else {
+        const legacy = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
+        verification = legacy.valid
+          ? { ...legacy, payer: legacy.player, rail: 'jackpot_manager' }
+          : {
+              valid: false,
+              // Report the WordPackSales failure: it is the rail the client
+              // should have used, so its error is the actionable one.
+              error: packSales.error,
+              rail: 'word_pack_sales',
+            };
+      }
+    } else {
+      const legacy = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
+      verification = { ...legacy, payer: legacy.player, rail: 'jackpot_manager' };
+    }
 
     if (!verification.valid) {
       console.error(`[purchase-guess-pack] Onchain verification failed: ${verification.error}`, {
@@ -179,23 +221,36 @@ export default async function handler(
       });
     }
 
-    // NOTE: there is deliberately no payer check here.
+    // NOTE: there is still deliberately no payer check here, but the reasoning
+    // has changed and is worth restating, because two of the three obstacles
+    // are now gone.
     //
-    // Three versions were tried and all were unsound, because every one of them
-    // ultimately trusts `users.signerWalletAddress` — and that column is
-    // written from an unauthenticated client query parameter
-    // (`user-state.ts:76` reads `req.query.walletAddress`, `:194` writes it,
-    // and `:92` takes the FID from `req.query.devFid` with no environment
-    // guard). An attacker can therefore attach any wallet to their own FID
-    // before claiming a purchase, which defeats any ownership test built on it.
+    // FIXED (#157): the onchain half. JackpotManagerV3.purchaseGuesses takes
+    // `player` as an argument, so its event recorded whatever the caller passed.
+    // WordPackSales derives the payer from msg.sender, so on that rail
+    // `verification.payer` is not forgeable.
     //
-    // Binding the payer needs an authenticated caller, the way
-    // `pages/api/guess.ts:274` verifies a Farcaster QuickAuth JWT. That is a
-    // coordinated client and server change and is tracked separately. Adding a
-    // wallet heuristic in the meantime would carry a real false-reject risk —
-    // taking ETH from someone who paid — in exchange for no security.
+    // FIXED (#152): the database half, almost. `users.signerWalletAddress` used
+    // to be written straight from `req.query.walletAddress`. It now only accepts
+    // a wallet Neynar confirms belongs to that FID — the insert path falls back
+    // to primary/signer/custody otherwise (`user-state.ts:199-219`) and the
+    // update path refuses outright (`:270`).
     //
-    // The amount check below is the defence that actually works.
+    // STILL OPEN: that verification has one gap. When Neynar has no record of an
+    // FID at all, the insert path accepts the client-supplied wallet
+    // (`user-state.ts:218`). So an attacker holding a Neynar-unknown FID can
+    // still plant a victim's address and race them to claim their txHash.
+    // `pack_purchases.tx_hash` is unique, so it is a front-run rather than a
+    // duplicate credit — but enforcing a binding on top of that gap would reject
+    // honest buyers without closing it.
+    //
+    // Closing it properly needs an authenticated caller, the way
+    // `pages/api/guess.ts:274` verifies a Farcaster QuickAuth JWT. Tracked
+    // separately; it is a coordinated client and server change.
+    //
+    // In the meantime the payer IS recorded below, so a disputed purchase can be
+    // reconciled against who actually paid. The amount check remains the defence
+    // that does the work.
 
     // The contract accepts any non-zero msg.value and treats `quantity` as a
     // caller-supplied label, so price is enforced here or nowhere. Without this
@@ -240,10 +295,9 @@ export default async function handler(
     }
 
     console.log(`[purchase-guess-pack] Onchain verification passed for txHash ${txHash}`, {
-      player: verification.player,
-      quantity: verification.quantity,
-      ethAmount: verification.ethAmount,
-      roundNumber: verification.roundNumber,
+      payer: verification.payer,
+      rail: verification.rail,
+      weiAmount: verification.weiAmount,
     });
 
     // Award packs one by one (for proper tracking)
@@ -269,7 +323,8 @@ export default async function handler(
         expected_cost_eth: expectedCostEth,
         total_guesses_in_round: totalGuessesInRound,
         tx_hash: txHash, // Milestone 6.4
-        verified_eth_amount: verification.ethAmount,
+        verified_wei_amount: verification.weiAmount,
+        rail: verification.rail,
       },
     });
 
@@ -280,7 +335,8 @@ export default async function handler(
           roundId: activeRound.id,
           fid,
           packCount,
-          totalPriceEth: verification.ethAmount || expectedCostEth, // Use actual from tx
+          totalPriceEth: weiToEthString(paidWei) || expectedCostEth, // Use actual from tx
+          salesContractAddress: verification.salesContractAddress ?? null,
           totalPriceWei: expectedCostWei.toString(),
           pricingPhase,
           totalGuessesAtPurchase: totalGuessesInRound,
@@ -326,7 +382,7 @@ export default async function handler(
     const nextTierMult = getNextTierMultiplier(updatedState.paidPacksPurchased);
 
     console.log(
-      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${verification.ethAmount || expectedCostEth} ETH (${pricingPhase}, ${volumeTier} ${volumeMultiplier}×). ` +
+      `[purchase-guess-pack] FID ${fid} purchased ${packCount} pack(s) @ ${weiToEthString(paidWei) || expectedCostEth} ETH (${pricingPhase}, ${volumeTier} ${volumeMultiplier}×). ` +
       `Total today: ${updatedState.paidPacksPurchased} (unlimited). ` +
       `Credits: ${updatedState.paidGuessCredits}. ` +
       `Next tier: ${newVolumeTier} (${newVolumeMultiplier}×). ` +
@@ -350,7 +406,7 @@ export default async function handler(
       paidGuessesExpireAt: getNextResetTime(),
       // Milestone 6.4: Include verified transaction info
       txHash,
-      verifiedEthAmount: verification.ethAmount,
+      verifiedEthAmount: weiToEthString(paidWei),
     });
   } catch (error) {
     console.error('[purchase-guess-pack] Error:', error);
