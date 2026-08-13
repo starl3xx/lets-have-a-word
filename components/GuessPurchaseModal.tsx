@@ -404,6 +404,7 @@ export default function GuessPurchaseModal({
       purchaseGuesses({
         playerAddress: walletAddress as `0x${string}`,
         quantity: totalGuesses,
+        packCount: selectedPackCount,
         totalPriceEth: selectedOption.totalPriceEth,
       });
       // Transaction handling continues in useEffect hooks above
