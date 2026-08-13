@@ -831,6 +831,12 @@ export interface PurchaseVerificationResult {
   player?: string;
   quantity?: number;
   ethAmount?: string;
+  /**
+   * Exact wei paid, as a decimal string. Compare against expected cost using
+   * this, never `ethAmount` — that one is formatted for display and parsing it
+   * back loses precision.
+   */
+  weiAmount?: string;
   toJackpot?: string;
   toCreator?: string;
   roundNumber?: number;
@@ -904,6 +910,7 @@ export async function verifyPurchaseTransaction(
     const roundNumber = Number(purchaseEvent.args.roundNumber);
     const player = purchaseEvent.args.player;
     const quantity = Number(purchaseEvent.args.quantity);
+    const weiAmount = purchaseEvent.args.ethAmount.toString();
     const ethAmount = ethers.formatEther(purchaseEvent.args.ethAmount);
     const toJackpot = ethers.formatEther(purchaseEvent.args.toJackpot);
     const toCreator = ethers.formatEther(purchaseEvent.args.toCreator);
@@ -936,6 +943,7 @@ export async function verifyPurchaseTransaction(
       player,
       quantity,
       ethAmount,
+      weiAmount,
       toJackpot,
       toCreator,
       roundNumber,

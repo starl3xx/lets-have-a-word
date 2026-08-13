@@ -30,6 +30,17 @@ import {
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
+import { getGuessPurchaseWallet } from '../../src/lib/wallet-identity';
+
+/**
+ * Minimum share of the quoted price a purchase must actually pay, in bps.
+ *
+ * 40% clears the widest legitimate quote-vs-confirm gap: a pricing-tier step
+ * (0.0004 -> 0.0006 ETH) combined with a volume-multiplier step (1x -> 1.5x)
+ * leaves an honest payment at ~44% of the recomputed quote. It still rejects
+ * the underpayment case by eleven orders of magnitude.
+ */
+const MIN_PAYMENT_BPS = 4000n;
 
 /**
  * POST /api/purchase-guess-pack
@@ -154,7 +165,24 @@ export default async function handler(
 
     // Milestone 6.4: Verify onchain transaction before awarding packs
     const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
-    const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
+
+    // Bind the transaction to a wallet this FID actually controls, so one user
+    // cannot claim another user's purchase by submitting their txHash first.
+    // If the wallet can't be resolved we continue without the binding rather
+    // than reject — a paying user would otherwise lose their ETH and get
+    // nothing — but the gap is surfaced so it doesn't stay invisible.
+    let expectedPlayer: string | undefined;
+    try {
+      expectedPlayer = await getGuessPurchaseWallet(fid);
+    } catch (error) {
+      console.warn(`[purchase-guess-pack] Could not resolve wallet for FID ${fid}; skipping payer binding`, error);
+      Sentry.captureMessage('[purchase-guess-pack] Payer binding skipped — wallet unresolved', {
+        level: 'warning',
+        extra: { fid, txHash },
+      });
+    }
+
+    const verification = await verifyPurchaseTransaction(txHash, expectedPlayer, totalGuesses);
 
     if (!verification.valid) {
       console.error(`[purchase-guess-pack] Onchain verification failed: ${verification.error}`, {
@@ -165,6 +193,48 @@ export default async function handler(
       });
       return res.status(400).json({
         error: `Transaction verification failed: ${verification.error}`,
+      });
+    }
+
+    // The contract accepts any non-zero msg.value and treats `quantity` as a
+    // caller-supplied label, so price is enforced here or nowhere. Without this
+    // a 1-wei transaction claiming quantity=3 buys a full pack.
+    //
+    // The floor is deliberately below the quoted price rather than exact: the
+    // quote is recomputed at request time, so a round crossing a pricing tier
+    // (or a concurrent purchase moving the volume multiplier) between signing
+    // and confirming can make an honest payment look short. Rejecting then
+    // would take the user's ETH and give nothing back. Anything under the floor
+    // is not a tier race, and any shortfall at all is reported.
+    const paidWei = BigInt(verification.weiAmount ?? '0');
+    const minAcceptableWei = (expectedCostWei * MIN_PAYMENT_BPS) / 10000n;
+
+    if (paidWei < minAcceptableWei) {
+      console.error(`[purchase-guess-pack] Underpayment rejected`, {
+        txHash, fid, packCount,
+        paidWei: paidWei.toString(),
+        expectedCostWei: expectedCostWei.toString(),
+        minAcceptableWei: minAcceptableWei.toString(),
+      });
+      Sentry.captureMessage('[purchase-guess-pack] Underpayment rejected', {
+        level: 'error',
+        extra: { fid, txHash, paidWei: paidWei.toString(), expectedCostWei: expectedCostWei.toString() },
+      });
+      return res.status(400).json({
+        error: 'Payment below the quoted pack price',
+        code: AppErrorCodes.PURCHASE_FAILED,
+      });
+    }
+
+    if (paidWei < expectedCostWei) {
+      console.warn(`[purchase-guess-pack] Accepted short payment within tier-race tolerance`, {
+        txHash, fid,
+        paidWei: paidWei.toString(),
+        expectedCostWei: expectedCostWei.toString(),
+      });
+      Sentry.captureMessage('[purchase-guess-pack] Short payment accepted within tolerance', {
+        level: 'warning',
+        extra: { fid, txHash, paidWei: paidWei.toString(), expectedCostWei: expectedCostWei.toString() },
       });
     }
 
