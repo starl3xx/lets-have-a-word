@@ -78,8 +78,11 @@ describe('Rate Limiting - Milestone 9.6', () => {
     });
 
     it('should have short window for duplicate detection', () => {
-      // 10 seconds
-      expect(RateLimitConfig.duplicateGuess.windowSeconds).toBeLessThanOrEqual(15);
+      // 30s by default. Deliberately wider than the original 10s: the frontend
+      // times out at 12s, and a user retrying after that was being charged
+      // twice (see rateLimit.ts:45). Still short enough to only catch retries.
+      expect(RateLimitConfig.duplicateGuess.windowSeconds).toBeLessThanOrEqual(30);
+      expect(RateLimitConfig.duplicateGuess.windowSeconds).toBeGreaterThan(12);
     });
   });
 
