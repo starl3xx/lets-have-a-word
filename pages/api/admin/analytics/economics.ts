@@ -157,6 +157,7 @@ interface EconomicsData {
       winner: number;
       top10Total: number;
       referrer: number;
+      seed: number;
     } | null;
   };
 
@@ -537,11 +538,16 @@ async function computeEconomicsData(compareMode?: string): Promise<EconomicsData
         toReferrals: Math.round(ethToReferrals * 10000) / 10000,
         toNextRoundSeed: Math.round(ethToSeed * 10000) / 10000,
       },
+      // 80/10/5/5 — the referrer leg has been 5% since January 2026, with the
+      // other 5% seeding the next round. This still modelled the pre-2026
+      // 80/10/10 split, so the example payout overstated referrer earnings 2x
+      // and showed no seed at all.
       examplePayout: medianPool !== null ? {
         poolSize: medianPool,
         winner: Math.round(medianPool * 0.8 * 10000) / 10000,
         top10Total: Math.round(medianPool * 0.1 * 10000) / 10000,
-        referrer: Math.round(medianPool * 0.1 * 10000) / 10000,
+        referrer: Math.round(medianPool * 0.05 * 10000) / 10000,
+        seed: Math.round(medianPool * 0.05 * 10000) / 10000,
       } : null,
     },
     growthCurve,

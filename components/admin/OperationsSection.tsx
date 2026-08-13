@@ -893,7 +893,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
         throw new Error('Server returned success but no round ID')
       }
 
-      setSuccess(`Round ${data.roundId} started! Prize pool: ${data.prizePoolEth} ETH`)
+      setSuccess(`Round ${data.roundId} started! Prize pool: ${data.prizeDisplay ?? `${data.prizePoolEth} ETH`}`)
       await fetchStatus()
     } catch (err: any) {
       setError(err.message)
@@ -2016,7 +2016,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     </div>
                     <div style={styles.infoRow}>
                       <span style={styles.infoLabel}>Prize Pool</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.round.prizePoolEth} ETH</span>
+                      <span style={styles.infoValue}>
+                        {recoverDiagnosis.round.prizeCurrency === 'word'
+                          ? `${recoverDiagnosis.round.prizePoolWord ?? '0'} $WORD (wei)`
+                          : `${recoverDiagnosis.round.prizePoolEth} ETH`}
+                      </span>
                     </div>
                     <div style={styles.infoRow}>
                       <span style={styles.infoLabel}>Resolved At</span>

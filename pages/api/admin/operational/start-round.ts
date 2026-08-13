@@ -8,6 +8,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { formatPrize } from '../../../../src/lib/prize-display';
 import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
 import { createRound, getActiveRound } from '../../../../src/lib/rounds';
@@ -19,6 +20,8 @@ interface StartRoundResponse {
   roundId?: number;
   commitHash?: string;
   prizePoolEth?: string;
+  /** Prize INCLUDING its unit ("0.0216 ETH" / "78,125,000 $WORD"). */
+  prizeDisplay?: string;
   startedAt?: string;
   error?: string;
   seedingPerformed?: boolean;
@@ -83,6 +86,11 @@ export default async function handler(
         message: `Round ${existingRound.id} is already active. Resolve it first before starting a new round.`,
         roundId: existingRound.id,
         prizePoolEth: existingRound.prizePoolEth,
+        prizeDisplay: formatPrize({
+          currency: existingRound.prizeCurrency === 'word' ? 'word' : 'eth',
+          eth: existingRound.prizePoolEth,
+          word: existingRound.prizePoolWord,
+        }),
         startedAt: existingRound.startedAt.toISOString(),
       });
     }
@@ -240,6 +248,13 @@ export default async function handler(
       roundId: round.id,
       commitHash: round.commitHash,
       prizePoolEth: round.prizePoolEth,
+      // prizePoolEth is '0' on a $WORD round, so the admin would otherwise see
+      // "Prize pool: 0 ETH" on the very first round 34 start.
+      prizeDisplay: formatPrize({
+        currency: round.prizeCurrency === 'word' ? 'word' : 'eth',
+        eth: round.prizePoolEth,
+        word: round.prizePoolWord,
+      }),
       startedAt: round.startedAt.toISOString(),
       seedingPerformed,
       seedingTxHash,

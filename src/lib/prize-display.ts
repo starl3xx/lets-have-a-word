@@ -98,3 +98,75 @@ export function wordUsdValue(
     return null;
   }
 }
+
+/**
+ * The shape every archive surface receives — the public archive page, the
+ * in-game archive modal, and the admin archive table all read the same row from
+ * /api/archive/*. Fields are optional because a payload cached from before the
+ * $WORD columns shipped arrives without them, and those rounds are ETH.
+ */
+export interface ArchiveRoundAmounts {
+  currency?: string | null;
+  finalJackpotEth?: string | null;
+  finalJackpotWord?: string | null;
+  seedEth?: string | null;
+  seedWord?: string | null;
+  finalJackpotUsdCents?: number | null;
+}
+
+/** Narrow an archive row's currency field, defaulting to the pre-34 asset. */
+export function archiveCurrency(round: { currency?: string | null }): PrizeCurrency {
+  return round.currency === 'word' ? 'word' : 'eth';
+}
+
+/**
+ * Final prize pool for an archived round, with its unit.
+ *
+ * The ETH columns are NULL on a $WORD archive row, so anything reading
+ * finalJackpotEth unconditionally renders "NaN ETH" from round 34 on.
+ */
+export function formatArchiveJackpot(round: ArchiveRoundAmounts): string {
+  return formatPrize({
+    currency: archiveCurrency(round),
+    eth: round.finalJackpotEth,
+    word: round.finalJackpotWord,
+  });
+}
+
+/** Seed for an archived round, with its unit. */
+export function formatArchiveSeed(round: ArchiveRoundAmounts): string {
+  return formatPrize({
+    currency: archiveCurrency(round),
+    eth: round.seedEth,
+    word: round.seedWord,
+  });
+}
+
+/**
+ * A share of the pool (e.g. the winner's 80%), in the round's currency.
+ *
+ * $WORD is split in bigint wei — a pool is ~1e26 wei, far past
+ * Number.MAX_SAFE_INTEGER, so the float path used for ETH loses precision.
+ */
+export function formatArchiveShare(round: ArchiveRoundAmounts, bps: number): string {
+  if (archiveCurrency(round) === 'word') {
+    let wei = 0n;
+    try {
+      wei = BigInt(round.finalJackpotWord ?? '0');
+    } catch {
+      wei = 0n;
+    }
+    return formatPrize({ currency: 'word', word: ((wei * BigInt(bps)) / 10000n).toString() });
+  }
+  const eth = parseFloat(round.finalJackpotEth ?? '0') || 0;
+  return formatPrize({ currency: 'eth', eth: ((eth * bps) / 10000).toFixed(4) });
+}
+
+/** One payoutsJson entry, in the round's currency. */
+export function formatArchivePayoutEntry(
+  entry: { amountEth?: string | null; amountWord?: string | null } | undefined,
+  currency: PrizeCurrency
+): string {
+  if (!entry) return formatPrize({ currency, eth: '0', word: '0' });
+  return formatPrize({ currency, eth: entry.amountEth, word: entry.amountWord });
+}

@@ -229,7 +229,7 @@ export default function SplashPage() {
         />
         {/* Open Graph meta tags for rich embeds */}
         <meta property="og:title" content="Let's Have A Word!" />
-        <meta property="og:description" content="A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot" />
+        <meta property="og:description" content="A global word hunt where everyone eliminates wrong answers until one player hits the jackpot" />
         <meta property="og:image" content="https://letshaveaword.fun/LHAW-hero3.png" />
         <meta property="og:url" content="https://letshaveaword.fun" />
         <meta property="og:type" content="website" />
@@ -514,7 +514,7 @@ function ChecklistState({
       {/* Launch Info Callout */}
       <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 text-sm text-gray-600">
         <p>
-          Let's Have A Word! is set to launch <strong>very soon</strong> with a Round #1 prize pool starting at 0.1 ETH.{' '}
+          Let's Have A Word! is set to launch <strong>very soon</strong> with a Round #1 prize pool.{' '}
           <button
             onClick={() => sdk.actions.openUrl('https://farcaster.xyz/starl3xx.eth/0xac8dac1b')}
             className="text-purple-600 hover:text-purple-700 underline"
