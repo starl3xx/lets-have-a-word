@@ -499,7 +499,7 @@
       }
     },
     "63a395d283049fae4e6683a5e48b37ec32aa63c38d0d65fa4141e4e323d304fc": {
-      "address": "0xBc195527158409fF64037073EF4F81eDE3cE45FF",
+      "address": "0x1156cA0543B7bFC07A6d835f3d5F0E135a85173a",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -794,11 +794,7 @@
             }
           ]
         }
-      },
-      "allAddresses": [
-        "0xBc195527158409fF64037073EF4F81eDE3cE45FF",
-        "0x1156cA0543B7bFC07A6d835f3d5F0E135a85173a"
-      ]
+      }
     }
   }
 }
