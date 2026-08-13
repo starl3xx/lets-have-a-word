@@ -344,6 +344,13 @@ contract WordManagerV3 is
      * game winners and stakers discovered it when withdraw() reverted. Failing
      * loudly here is strictly better — a reverted reward is re-runnable once the
      * contract is topped up, an eaten deposit is not.
+     *
+     * This covers BURNS as well as transfers. burn() reduces this contract's
+     * balance exactly as a transfer does, so an unguarded burn destroys staked
+     * principal just as surely as an unguarded payout hands it away — and
+     * irreversibly, since burned tokens cannot be recovered even in principle.
+     * At 5 burn words x 5M per round that is 25M tokens against an
+     * availableForGames of ~218M: roughly nine rounds.
      */
     modifier gameSolvent(uint256 amount) {
         uint256 available = availableForGames();
@@ -486,7 +493,7 @@ contract WordManagerV3 is
         string calldata word,
         bytes32 salt,
         uint256 amount
-    ) external onlyOperator {
+    ) external onlyOperator gameSolvent(amount) {
         if (roundCommitments[roundId].committedAt == 0) {
             revert RoundNotCommitted(roundId);
         }
@@ -521,7 +528,11 @@ contract WordManagerV3 is
         totalDistributed += amount;
     }
 
-    function burnWord(uint256, address, uint256 amount) external onlyOperator {
+    function burnWord(uint256, address, uint256 amount)
+        external
+        onlyOperator
+        gameSolvent(amount)
+    {
         IERC20Burnable(address(wordToken)).burn(amount);
         totalBurned += amount;
     }

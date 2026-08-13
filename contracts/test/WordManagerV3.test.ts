@@ -272,6 +272,94 @@ describe("WordManagerV3 — staker solvency", function () {
     });
   });
 
+  describe("burn words", function () {
+    async function committedBurn(ctx: any) {
+      const word = "EMBER";
+      const salt = hre.ethers.id("burnsalt");
+      const hash = hre.ethers.solidityPackedKeccak256(["string", "bytes32"], [word, salt]);
+      const burnHashes = [...ZERO_HASHES_5];
+      burnHashes[0] = hash;
+      await ctx.manager
+        .connect(ctx.operator)
+        .commitRound(2, hre.ethers.ZeroHash, ZERO_HASHES_10, burnHashes);
+      return { word, salt };
+    }
+
+    it("burns within game funds and reduces total supply", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 30n * E18);
+      const { word, salt } = await committedBurn(ctx);
+
+      const supplyBefore = await ctx.token.totalSupply();
+      await ctx.manager.connect(ctx.operator).claimBurnWord(2, 0, word, salt, 25n * E18);
+
+      // A burn must reduce supply, not park tokens at a dead address.
+      expect(await ctx.token.totalSupply()).to.equal(supplyBefore - 25n * E18);
+      expect(await ctx.manager.totalBurned()).to.equal(25n * E18);
+    });
+
+    it("refuses a burn that would destroy staked principal", async function () {
+      // The case this guard exists for. A burn is worse than a bad transfer:
+      // transferred tokens still exist somewhere, burned ones do not.
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 20n * E18);
+      const { word, salt } = await committedBurn(ctx);
+
+      await expect(
+        ctx.manager.connect(ctx.operator).claimBurnWord(2, 0, word, salt, 21n * E18)
+      )
+        .to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds")
+        .withArgs(21n * E18, 20n * E18);
+    });
+
+    it("leaves the staker whole after a refused burn", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 20n * E18);
+      const { word, salt } = await committedBurn(ctx);
+
+      await expect(
+        ctx.manager.connect(ctx.operator).claimBurnWord(2, 0, word, salt, 90n * E18)
+      ).to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds");
+
+      await ctx.manager.connect(ctx.staker).withdraw(100n * E18);
+      expect(await ctx.token.balanceOf(ctx.staker.address)).to.equal(100n * E18);
+    });
+
+    it("does not consume the burn slot when it reverts for insolvency", async function () {
+      // The modifier runs before the body, so burnWordClaimed is never set.
+      // If it were, topping up afterwards could not recover the burn — the
+      // word would be permanently unburnable.
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 10n * E18);
+      const { word, salt } = await committedBurn(ctx);
+
+      await expect(
+        ctx.manager.connect(ctx.operator).claimBurnWord(2, 0, word, salt, 50n * E18)
+      ).to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds");
+
+      await fundGames(ctx, 100n * E18);
+      await ctx.manager.connect(ctx.operator).claimBurnWord(2, 0, word, salt, 50n * E18);
+      expect(await ctx.manager.totalBurned()).to.equal(50n * E18);
+    });
+
+    it("guards the legacy burnWord path too", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 10n * E18);
+
+      await expect(
+        ctx.manager.connect(ctx.operator).burnWord(2, ctx.player.address, 11n * E18)
+      ).to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds");
+
+      await ctx.manager.connect(ctx.operator).burnWord(2, ctx.player.address, 10n * E18);
+      expect(await ctx.manager.totalBurned()).to.equal(10n * E18);
+    });
+  });
+
   describe("staking is unaffected", function () {
     it("lets a staker withdraw principal even with zero game funds", async function () {
       // The guard must never apply to staker-facing paths — they are the
