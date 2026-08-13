@@ -72,7 +72,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       answer: (
         <>
           Every <strong>Let's Have A Word!</strong> player worldwide is hunting the same secret 5-letter word. Every incorrect guess helps everyone else by removing that word from play.
-          <p className="mt-2">The <strong>prize pool</strong> is the total ETH collected during a round as players purchase guess packs. When someone guesses correctly, the round ends and the <strong>jackpot</strong> — the winner's share of the prize pool — is paid out automatically onchain. A new round then starts with a new secret word.</p>
+          <p className="mt-2">The <strong>prize pool</strong> grows as players purchase guess packs. When someone guesses correctly, the round ends and the <strong>jackpot</strong> — the winner's share of the prize pool — is paid out automatically onchain. A new round then starts with a new secret word.<br /><br />From round 34 the prize pool is denominated in <WordTokenLink>$WORD</WordTokenLink> rather than ETH. Guess packs are still bought with ETH; the prize is what changed.</p>
         </>
       ),
     },
@@ -173,7 +173,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           <ul className="list-disc list-inside mt-1 space-y-1">
             <li><strong>2.5%</strong> of the referrer share is added to the Top 10 pool</li>
             <li><strong>2.5%</strong> is added to the next round seed</li>
-            <li>Next round seed is capped at 0.02 ETH</li>
+            <li>Part of each pool seeds the next round, so a round never starts empty</li>
             <li>Any overflow above the cap goes to the treasury</li>
           </ul>
           <p className="mt-2">Self-referrals are blocked. Null or zero referrers are treated as "no referrer."</p>
@@ -216,8 +216,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Do top 10 players earn $WORD too?",
       answer: (
         <>
-          <strong>Yes!</strong> In addition to ETH payouts, the Top 10 Early Guessers receive <WordTokenLink>$WORD</WordTokenLink> token rewards distributed automatically.
-          <p className="mt-2">The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.</p>
+          <strong>Yes!</strong> On top of their share of the prize pool, the Top 10 Early Guessers receive a separate <WordTokenLink>$WORD</WordTokenLink> reward, distributed automatically.
+          <p className="mt-2">It follows the same ranking percentages as the prize pool (19% for #1, 16% for #2, etc.), and is priced in USD — first place is worth $3.00 of $WORD — so what you earn stays steady as the token moves.</p>
         </>
       ),
     },
@@ -405,10 +405,10 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         <>
           Let's Have A Word uses <strong>smart contracts on Base</strong> to handle the game's core mechanics:
           <ul className="list-disc list-inside mt-2 space-y-2">
-            <li><strong>ETH prize pools</strong> — Jackpot payouts, Top 10 rewards, referrer shares, and next-round seeding are all handled in a single atomic transaction when a round is won.</li>
+            <li><strong>Prize pools</strong> — Jackpot payouts, Top 10 shares, referrer shares, and next-round seeding are all handled in a single atomic transaction when a round is won.</li>
             <li><strong>$WORD token mechanics</strong> — Bonus word rewards, burn word destruction, word commitments, and streaming staking rewards are all managed onchain. All 15 bonus and burn words are committed before a round starts, and each guess is verified against the committed hash before tokens are released or burned.</li>
           </ul>
-          <p className="mt-2">This ensures that both ETH prizes and $WORD token mechanics are handled transparently onchain.</p>
+          <p className="mt-2">This ensures that prizes and $WORD token mechanics alike are handled transparently onchain.</p>
         </>
       ),
     },

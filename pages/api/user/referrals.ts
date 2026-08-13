@@ -7,6 +7,9 @@ export interface UserReferralsResponse {
   referralLink: string;
   referralsCount: number;
   referralEthEarned: string;
+  /** Referral earnings from $WORD rounds, in wei. Separate because ETH and
+   *  $WORD cannot be summed into one figure. */
+  referralWordEarned: string;
 }
 
 export default async function handler(
@@ -36,10 +39,15 @@ export default async function handler(
 
     const referralsCount = Number(referralsResult[0]?.count || 0);
 
-    // Get ETH earned from referrals - payouts with role='referrer'
+    // Earnings from referrals - payouts with role='referrer'.
+    //
+    // Two sums, not one: amount_eth is NULL on a $WORD payout, so summing only
+    // that column would show a referrer who earned in round 34+ a flat 0.
+    // amount_word is varchar(78), hence the cast and the nullif('') guard.
     const payoutsResult = await db
       .select({
         total: sql<string>`coalesce(sum(${roundPayouts.amountEth}), '0')`,
+        totalWord: sql<string>`coalesce(sum(cast(nullif(${roundPayouts.amountWord}, '') as numeric)), 0)::text`,
       })
       .from(roundPayouts)
       .where(
@@ -50,6 +58,7 @@ export default async function handler(
       );
 
     const referralEthEarned = payoutsResult[0]?.total || '0';
+    const referralWordEarned = payoutsResult[0]?.totalWord || '0';
 
     // Generate referral link
     // Use NEXT_PUBLIC_APP_URL if available, otherwise construct from request headers
@@ -62,6 +71,7 @@ export default async function handler(
       referralLink,
       referralsCount,
       referralEthEarned,
+      referralWordEarned,
     });
   } catch (error) {
     console.error('[user/referrals] Error fetching referral data:', error);

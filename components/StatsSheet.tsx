@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatWordAmount } from '../src/lib/word-amounts';
 import type { UserStatsResponse } from '../pages/api/user/stats';
 import type { UserProfileResponse } from '../pages/api/user/profile';
 import type { UserWordmarksResponse } from '../pages/api/user/wordmarks';
@@ -23,6 +24,45 @@ interface StatsSheetProps {
  * - Consistent typography and spacing
  * - Uses new design token classes
  */
+/**
+ * One earnings figure, with its $WORD counterpart underneath when there is one.
+ *
+ * Rounds 1-33 paid ETH and 34+ pay $WORD, and the two cannot be summed into a
+ * single number. Showing them stacked keeps both truthful; the $WORD line is
+ * omitted entirely when zero, so a player whose history is all pre-34 sees
+ * exactly what they saw before.
+ */
+function EarningsStat({
+  label,
+  eth,
+  word,
+}: {
+  label: string;
+  eth: string;
+  word?: string;
+}) {
+  let wordWei = 0n;
+  try {
+    wordWei = BigInt(word ?? '0');
+  } catch {
+    wordWei = 0n;
+  }
+
+  return (
+    <div>
+      <p className="text-sm text-success-700">{label}</p>
+      <p className="text-2xl font-bold text-success-900 tabular-nums">
+        {parseFloat(eth || '0').toFixed(4)}
+      </p>
+      {wordWei > 0n && (
+        <p className="text-sm font-semibold text-success-800 tabular-nums">
+          {formatWordAmount(wordWei)} $WORD
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const { t } = useTranslation();
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
@@ -95,7 +135,19 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
     if (!stats) return;
 
     try {
-      const totalWordEarned = Number(stats.totalWordEarned || '0').toLocaleString();
+      // Two sources of $WORD, both "earned from playing" to a player: the
+      // reward economy (bonus words, top 10, staking) counted in whole tokens,
+      // and jackpot payouts counted in wei. Combined for the cast; kept apart
+      // in the panel above, where the ETH/$WORD distinction is the point.
+      let combinedWordWei = 0n;
+      try {
+        combinedWordWei =
+          BigInt(Math.trunc(Number(stats.totalWordEarned || '0'))) * 10n ** 18n +
+          BigInt(stats.totalWordWon || '0');
+      } catch {
+        combinedWordWei = 0n;
+      }
+      const totalWordEarned = formatWordAmount(combinedWordWei);
     const castText = `My Let's Have A Word! stats:\n\n` +
         `🎯 ${stats.guessesAllTime} total guesses (${stats.paidGuessesAllTime} paid)\n` +
         `🏆 ${stats.jackpotsWon} jackpots won\n` +
@@ -329,28 +381,25 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-sm text-success-700">Top 10 placements</p>
                   <p className="text-2xl font-bold text-success-900 tabular-nums">{stats.topGuesserPlacements}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-success-700">ETH from top 10</p>
-                  <p className="text-2xl font-bold text-success-900 tabular-nums">
-                    {parseFloat(stats.topGuesserEthWon).toFixed(4)}
-                  </p>
-                </div>
+                <EarningsStat
+                  label="ETH from top 10"
+                  eth={stats.topGuesserEthWon}
+                  word={stats.topGuesserWordWon}
+                />
                 <div>
                   <p className="text-sm text-success-700">Referral wins</p>
                   <p className="text-2xl font-bold text-success-900 tabular-nums">{stats.referralWins}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-success-700">ETH from referrals</p>
-                  <p className="text-2xl font-bold text-success-900 tabular-nums">
-                    {parseFloat(stats.referralEthWon).toFixed(4)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-success-700">All-time ETH won</p>
-                  <p className="text-2xl font-bold text-success-900 tabular-nums">
-                    {parseFloat(stats.totalEthWon).toFixed(4)}
-                  </p>
-                </div>
+                <EarningsStat
+                  label="ETH from referrals"
+                  eth={stats.referralEthWon}
+                  word={stats.referralWordWon}
+                />
+                <EarningsStat
+                  label="All-time ETH won"
+                  eth={stats.totalEthWon}
+                  word={stats.totalWordWon}
+                />
               </div>
             </div>
 
