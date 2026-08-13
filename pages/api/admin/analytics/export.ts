@@ -162,6 +162,10 @@ export default async function handler(
             roundId: roundPayouts.roundId,
             fid: roundPayouts.fid,
             amountEth: roundPayouts.amountEth,
+            // NULL on a $WORD payout — exporting only amountEth produced rows
+            // with a blank amount for every round 34+ payout.
+            amountWord: roundPayouts.amountWord,
+            currency: roundPayouts.currency,
             role: roundPayouts.role,
             createdAt: roundPayouts.createdAt,
           })

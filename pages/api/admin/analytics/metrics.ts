@@ -25,6 +25,8 @@ export interface AdditionalMetrics {
   // Revenue metrics
   creatorRevenuePerRound: number;
   creatorRevenueTotalEth: number;
+  /** Creator revenue from $WORD rounds, in wei. Separate: the two cannot be summed. */
+  creatorRevenueTotalWord: string;
 
   // Time-based
   timeRange: string;
@@ -133,11 +135,19 @@ export default async function handler(
     );
 
     // Query 5: Creator revenue
-    const revenueMetrics = await db.execute<{ revenue_per_round: number; total_revenue: number }>(
+    // amount_eth is NULL on a $WORD payout, so the ETH aggregates below are a
+    // correct ETH figure that silently excludes round 34+. The parallel $WORD
+    // sum keeps creator revenue visible rather than appearing to collapse.
+    const revenueMetrics = await db.execute<{
+      revenue_per_round: number;
+      total_revenue: number;
+      total_revenue_word: string;
+    }>(
       sql`
         SELECT
           AVG(CAST(amount_eth AS NUMERIC)) as revenue_per_round,
-          SUM(CAST(amount_eth AS NUMERIC)) as total_revenue
+          SUM(CAST(amount_eth AS NUMERIC)) as total_revenue,
+          COALESCE(SUM(CAST(NULLIF(amount_word, '') AS NUMERIC)), 0)::text as total_revenue_word
         FROM round_payouts
         WHERE role = 'creator'
           AND created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
@@ -158,6 +168,7 @@ export default async function handler(
       avgGuessesPerDayPerUser: Number(userGuessData?.avg_guesses_per_day_per_user) || 0,
       wordTokenGuessesPerUser: Number(wordTokenData?.word_token_guesses_per_user) || 0,
       creatorRevenuePerRound: Number(revenueData?.revenue_per_round) || 0,
+      creatorRevenueTotalWord: String(revenueData?.total_revenue_word ?? '0'),
       creatorRevenueTotalEth: Number(revenueData?.total_revenue) || 0,
       timeRange
     };

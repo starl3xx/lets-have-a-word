@@ -442,8 +442,27 @@ export async function announceRoundResolved(
   const topTenPayoutText = formatPayoutTotal(topTenPayouts, payoutCurrency);
 
   // Get top 10 FIDs in order (sorted by payout amount desc as a proxy for volume ranking)
-  const topTenFids = topTenPayouts
-    .sort((a, b) => parseFloat(b.amountEth) - parseFloat(a.amountEth))
+  //
+  // Sorted in the round's own currency. amountEth is NULL on a $WORD payout, so
+  // parseFloat gives NaN, every comparison returns NaN, and the comparator is
+  // inconsistent — the ten names would be listed in whatever order the rows
+  // arrived, silently misreporting the ranking in a public cast.
+  const payoutRank = (p: { amountEth?: string | null; amountWord?: string | null }): bigint => {
+    if (payoutCurrency === 'word') {
+      try {
+        return BigInt(p.amountWord ?? '0');
+      } catch {
+        return 0n;
+      }
+    }
+    // Scale to wei so both branches compare as integers.
+    return BigInt(Math.round((parseFloat(p.amountEth ?? '0') || 0) * 1e18));
+  };
+  const topTenFids = [...topTenPayouts]
+    .sort((a, b) => {
+      const diff = payoutRank(b) - payoutRank(a);
+      return diff > 0n ? 1 : diff < 0n ? -1 : 0;
+    })
     .map(p => p.fid)
     .filter((fid): fid is number => fid !== null);
 

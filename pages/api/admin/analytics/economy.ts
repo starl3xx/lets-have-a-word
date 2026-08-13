@@ -138,9 +138,14 @@ export default async function handler(
         ),
         payout_data AS (
           SELECT
+            -- ETH aggregates exclude round 34+, where amount_eth is NULL.
+            -- The _word columns carry those, in wei; the two are not summable.
             AVG(CAST(amount_eth AS NUMERIC)) FILTER (WHERE role = 'winner') as avg_payout,
             SUM(CAST(amount_eth AS NUMERIC)) FILTER (WHERE role = 'creator') as total_creator_rev,
-            SUM(CAST(amount_eth AS NUMERIC)) FILTER (WHERE role = 'seed') as total_seed
+            SUM(CAST(amount_eth AS NUMERIC)) FILTER (WHERE role = 'seed') as total_seed,
+            AVG(CAST(NULLIF(amount_word, '') AS NUMERIC)) FILTER (WHERE role = 'winner') as avg_payout_word,
+            COALESCE(SUM(CAST(NULLIF(amount_word, '') AS NUMERIC)), 0) FILTER (WHERE role = 'creator') as total_creator_rev_word,
+            COALESCE(SUM(CAST(NULLIF(amount_word, '') AS NUMERIC)), 0) FILTER (WHERE role = 'seed') as total_seed_word
           FROM round_payouts
           WHERE created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
         )
@@ -191,7 +196,8 @@ export default async function handler(
           DATE(r.started_at) as day,
           AVG(CAST(r.prize_pool_eth AS NUMERIC)) as avg_jackpot,
           COUNT(DISTINCT r.winner_fid) as winners,
-          COALESCE(SUM(CAST(rp.amount_eth AS NUMERIC)) FILTER (WHERE rp.role = 'winner'), 0) as total_payout
+          COALESCE(SUM(CAST(rp.amount_eth AS NUMERIC)) FILTER (WHERE rp.role = 'winner'), 0) as total_payout,
+          COALESCE(SUM(CAST(NULLIF(rp.amount_word, '') AS NUMERIC)) FILTER (WHERE rp.role = 'winner'), 0)::text as total_payout_word
         FROM rounds r
         LEFT JOIN round_payouts rp ON rp.round_id = r.id
         WHERE r.started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'

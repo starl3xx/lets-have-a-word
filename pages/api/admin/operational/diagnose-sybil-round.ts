@@ -227,13 +227,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           p.fid,
           p.wallet_address,
           p.amount_eth,
+          p.amount_word,
           u.username,
           u.user_score,
           u.created_at as user_first_seen
         from round_payouts p
         left join users u on u.fid = p.fid
         where p.round_id = ${roundId}
-        order by p.amount_eth desc
+        -- Order by whichever column the round actually used. Sorting on
+        -- amount_eth alone puts every $WORD payout in an arbitrary order,
+        -- since they are all NULL.
+        order by coalesce(cast(nullif(p.amount_word, '') as numeric) / 1e18,
+                          cast(p.amount_eth as numeric)) desc nulls last
       `)
     );
 

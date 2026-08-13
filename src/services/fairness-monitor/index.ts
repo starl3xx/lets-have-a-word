@@ -167,7 +167,27 @@ export async function validateRoundPayouts(roundId: number): Promise<FairnessVal
     return result;
   }
 
-  const jackpot = parseFloat(round.prizePoolEth);
+  // Audit in the round's own currency. prizePoolEth is '0' on a $WORD round, so
+  // reading it unconditionally made this bail with "zero jackpot" and skip the
+  // fairness check entirely from round 34 on — the payout audit would have
+  // quietly stopped auditing anything.
+  //
+  // $WORD is measured in whole tokens rather than wei: a pool is ~7.8e7, which
+  // a double represents exactly, while wei (~7.8e25) does not.
+  const auditIsWord = round.prizeCurrency === 'word';
+  const toUnits = (wei: string | null | undefined): number => {
+    try {
+      return Number(BigInt(wei ?? '0') / 10n ** 12n) / 1e6;
+    } catch {
+      return 0;
+    }
+  };
+  const jackpot = auditIsWord
+    ? toUnits(round.prizePoolWord)
+    : parseFloat(round.prizePoolEth);
+  // One whole token of slack for $WORD, where amounts are ~1e8 and float noise
+  // is larger in absolute terms than the 1e-6 an ETH amount needs.
+  const tolerance = auditIsWord ? 1 : 0.000001;
 
   if (jackpot === 0) {
     result.warnings.push('Round has zero jackpot - no payouts expected');
@@ -195,13 +215,15 @@ export async function validateRoundPayouts(roundId: number): Promise<FairnessVal
   };
 
   for (const payout of payouts) {
-    const amount = parseFloat(payout.amountEth);
+    const amount = auditIsWord
+      ? toUnits(payout.amountWord)
+      : parseFloat(payout.amountEth ?? '0') || 0;
     actualPayouts[payout.role] = (actualPayouts[payout.role] || 0) + amount;
   }
 
   // Validate winner payout (80%)
   const winnerDiff = Math.abs(actualPayouts.winner - expectedWinner);
-  if (winnerDiff > 0.000001) { // Allow tiny floating point variance
+  if (winnerDiff > tolerance) { // Allow tiny floating point variance
     result.isValid = false;
     result.payoutValid = false;
     result.errors.push(
@@ -212,7 +234,7 @@ export async function validateRoundPayouts(roundId: number): Promise<FairnessVal
   // Validate referrer/seed+creator payout (10%)
   const referrerOrSeedCreator = actualPayouts.referrer + actualPayouts.seed + actualPayouts.creator;
   const referrerDiff = Math.abs(referrerOrSeedCreator - expectedReferrer);
-  if (referrerDiff > 0.000001) {
+  if (referrerDiff > tolerance) {
     result.isValid = false;
     result.payoutValid = false;
     result.errors.push(
@@ -222,7 +244,7 @@ export async function validateRoundPayouts(roundId: number): Promise<FairnessVal
 
   // Validate top guessers payout (10%)
   const topGuesserDiff = Math.abs(actualPayouts.top_guesser - expectedTopGuessers);
-  if (topGuesserDiff > 0.000001) {
+  if (topGuesserDiff > tolerance) {
     result.isValid = false;
     result.payoutValid = false;
     result.errors.push(

@@ -335,12 +335,20 @@ export const roundArchive = pgTable('round_archive', {
 /**
  * Payout structure for round archive
  */
+/**
+ * Archived payout breakdown.
+ *
+ * amountEth is kept on every entry for rounds 1-33 and for anything reading the
+ * archive that predates the $WORD economy. amountWord is populated instead on a
+ * round 34+ archive, where round_payouts.amount_eth is NULL — writing
+ * parseFloat(null) into these produced "NaN" in a permanent record.
+ */
 export interface RoundArchivePayouts {
-  winner?: { fid: number; amountEth: string };
-  referrer?: { fid: number; amountEth: string };
-  topGuessers: Array<{ fid: number; amountEth: string; rank: number }>;
-  seed?: { amountEth: string };
-  creator?: { amountEth: string };
+  winner?: { fid: number; amountEth: string; amountWord?: string };
+  referrer?: { fid: number; amountEth: string; amountWord?: string };
+  topGuessers: Array<{ fid: number; amountEth: string; amountWord?: string; rank: number }>;
+  seed?: { amountEth: string; amountWord?: string };
+  creator?: { amountEth: string; amountWord?: string };
   bonusWordWinners?: Array<{
     fid: number;
     word: string;

@@ -170,6 +170,10 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       commitHash: rawRound.commit_hash,
       prizePoolEth: rawRound.prize_pool_eth,
       seedNextRoundEth: rawRound.seed_next_round_eth,
+      // Decides which amount column the payout rows carry.
+      prizeCurrency: rawRound.prize_currency,
+      prizePoolWord: rawRound.prize_pool_word,
+      seedPriceE18: rawRound.seed_price_e18,
       winnerFid: rawRound.winner_fid,
       referrerFid: rawRound.referrer_fid,
       startedAt: rawRound.started_at instanceof Date ? rawRound.started_at : new Date(rawRound.started_at),
@@ -265,29 +269,48 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       topGuessers: [],
     };
 
-    // Get winner, referrer, seed payouts from DB
+    // Get winner, referrer, seed payouts from DB.
+    //
+    // A $WORD round carries its amounts in amount_word, with amount_eth NULL.
+    // Reading amountEth unconditionally wrote "NaN" and "null" into an archive
+    // row that is never recomputed — the one place a bad value is permanent.
+    const archiveIsWord = round.prizeCurrency === 'word';
+    const amt = (p: { amountEth: string | null; amountWord: string | null }) => ({
+      amountEth: p.amountEth ?? '0',
+      ...(archiveIsWord ? { amountWord: p.amountWord ?? '0' } : {}),
+    });
+
     let topGuesserPoolEth = 0;
+    let topGuesserPoolWei = 0n;
     for (const payout of payoutRecords) {
       switch (payout.role) {
         case 'winner':
           if (payout.fid) {
-            payoutsJson.winner = { fid: payout.fid, amountEth: payout.amountEth };
+            payoutsJson.winner = { fid: payout.fid, ...amt(payout) };
           }
           break;
         case 'referrer':
           if (payout.fid) {
-            payoutsJson.referrer = { fid: payout.fid, amountEth: payout.amountEth };
+            payoutsJson.referrer = { fid: payout.fid, ...amt(payout) };
           }
           break;
         case 'top_guesser':
           // Sum up what was allocated to top guessers (for calculating individual amounts)
-          topGuesserPoolEth += parseFloat(payout.amountEth);
+          if (archiveIsWord) {
+            try {
+              topGuesserPoolWei += BigInt(payout.amountWord ?? '0');
+            } catch {
+              // Skip an unparseable row rather than poisoning the whole pool.
+            }
+          } else {
+            topGuesserPoolEth += parseFloat(payout.amountEth ?? '0') || 0;
+          }
           break;
         case 'seed':
-          payoutsJson.seed = { amountEth: payout.amountEth };
+          payoutsJson.seed = amt(payout);
           break;
         case 'creator':
-          payoutsJson.creator = { amountEth: payout.amountEth };
+          payoutsJson.creator = amt(payout);
           break;
       }
     }
@@ -341,6 +364,17 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
         payoutsJson.topGuessers.push({
           fid: guesser.fid,
           amountEth: amountEth.toFixed(18),
+          // Split in bigint wei: a top-10 bucket is ~1e25 wei, well past
+          // Number.MAX_SAFE_INTEGER, so the float path above would lose
+          // precision at the low end of every rank.
+          ...(archiveIsWord
+            ? {
+                amountWord: (
+                  (topGuesserPoolWei * BigInt(Math.round(normalizedBps))) /
+                  10000n
+                ).toString(),
+              }
+            : {}),
           rank: index + 1,
         });
       });

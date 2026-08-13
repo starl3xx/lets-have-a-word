@@ -32,6 +32,12 @@ export const ECONOMIC_RULES = {
 export interface PrizeAuditResult {
   roundId: number;
   status: 'valid' | 'anomaly' | 'error';
+  /**
+   * Which asset the audited amounts are in. auditRoundPayouts runs in a
+   * separate function from the round read, so this is how it learns whether to
+   * read amount_eth or amount_word.
+   */
+  currency: 'eth' | 'word';
   jackpot: number;
   paidGuessCount: number;
   expectedPrizePoolFromGuesses: number;
@@ -70,10 +76,30 @@ export interface PrizeAnomaly {
  * Audit prize pool growth for a round
  * Verifies that the prize pool matches expected value based on paid guesses
  */
+/** Wei -> whole tokens, exactly representable as a double (~1e8, not ~1e26). */
+function wordUnits(wei: string | null | undefined): number {
+  try {
+    return Number(BigInt(wei ?? '0') / 10n ** 12n) / 1e6;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Comparison slack. $WORD amounts are ~1e8 whole tokens, where float noise is
+ * larger in absolute terms than the 1e-6 an ETH amount needs.
+ */
+function auditTolerance(currency: 'eth' | 'word'): number {
+  return currency === 'word' ? 1 : 0.000001;
+}
+
 export async function auditPrizePoolGrowth(roundId: number): Promise<PrizeAuditResult> {
   const result: PrizeAuditResult = {
     roundId,
     status: 'valid',
+    // Overwritten from the round row below; 'eth' is the safe default because
+    // it is what every round before 34 was.
+    currency: 'eth',
     jackpot: 0,
     paidGuessCount: 0,
     expectedPrizePoolFromGuesses: 0,
@@ -116,7 +142,16 @@ export async function auditPrizePoolGrowth(roundId: number): Promise<PrizeAuditR
       return result;
     }
 
-    result.jackpot = parseFloat(round.prizePoolEth);
+    // Audited in the round's own currency — see fairness-monitor/index.ts for
+    // why reading prizePoolEth unconditionally silently disables the audit on a
+    // $WORD round. Whole tokens, not wei, so the values stay exactly
+    // representable as doubles.
+    result.currency = round.prizeCurrency === 'word' ? 'word' : 'eth';
+    const auditIsWord = result.currency === 'word';
+    const tolerance = auditTolerance(result.currency);
+    result.jackpot = auditIsWord
+      ? wordUnits(round.prizePoolWord)
+      : parseFloat(round.prizePoolEth);
     result.actualPrizePool = result.jackpot;
 
     // Count paid guesses for this round
@@ -140,7 +175,7 @@ export async function auditPrizePoolGrowth(roundId: number): Promise<PrizeAuditR
     result.prizePoolVariance = result.actualPrizePool - result.expectedPrizePoolFromGuesses;
 
     // Only flag negative variance as an anomaly (underpayment to pool)
-    if (result.prizePoolVariance < -0.000001) {
+    if (result.prizePoolVariance < -tolerance) {
       result.status = 'anomaly';
       result.anomalies.push({
         type: 'pool_mismatch',
@@ -179,6 +214,7 @@ export async function auditPrizePoolGrowth(roundId: number): Promise<PrizeAuditR
  * Audit payout distribution for a resolved round
  */
 async function auditRoundPayouts(result: PrizeAuditResult): Promise<void> {
+  const tolerance = auditTolerance(result.currency);
   // Fetch all payouts for this round
   const payouts = await db
     .select()
@@ -187,7 +223,10 @@ async function auditRoundPayouts(result: PrizeAuditResult): Promise<void> {
 
   // Calculate actual payout totals by role
   for (const payout of payouts) {
-    const amount = parseFloat(payout.amountEth);
+    const amount =
+      result.currency === 'word'
+        ? wordUnits(payout.amountWord)
+        : parseFloat(payout.amountEth ?? '0') || 0;
     switch (payout.role) {
       case 'winner':
         result.payoutBreakdown.winner += amount;
@@ -215,7 +254,7 @@ async function auditRoundPayouts(result: PrizeAuditResult): Promise<void> {
 
   // Check winner payout
   const winnerVariance = result.payoutBreakdown.winner - result.expectedPayouts.winner;
-  if (Math.abs(winnerVariance) > 0.000001) {
+  if (Math.abs(winnerVariance) > tolerance) {
     result.status = 'anomaly';
     result.anomalies.push({
       type: winnerVariance < 0 ? 'underpayment' : 'overpayment',
@@ -232,7 +271,7 @@ async function auditRoundPayouts(result: PrizeAuditResult): Promise<void> {
     result.payoutBreakdown.seed +
     result.payoutBreakdown.creator;
   const referrerVariance = referrerCombined - result.expectedPayouts.referrer;
-  if (Math.abs(referrerVariance) > 0.000001) {
+  if (Math.abs(referrerVariance) > tolerance) {
     result.status = 'anomaly';
     result.anomalies.push({
       type: referrerVariance < 0 ? 'underpayment' : 'overpayment',
@@ -246,7 +285,7 @@ async function auditRoundPayouts(result: PrizeAuditResult): Promise<void> {
 
   // Check top guessers payout
   const topGuessersVariance = result.payoutBreakdown.topGuessers - result.expectedPayouts.topGuessers;
-  if (Math.abs(topGuessersVariance) > 0.000001) {
+  if (Math.abs(topGuessersVariance) > tolerance) {
     result.status = 'anomaly';
     result.anomalies.push({
       type: topGuessersVariance < 0 ? 'underpayment' : 'overpayment',
@@ -259,7 +298,7 @@ async function auditRoundPayouts(result: PrizeAuditResult): Promise<void> {
   }
 
   // Check total payouts don't exceed jackpot
-  if (result.payoutBreakdown.total > result.jackpot + 0.000001) {
+  if (result.payoutBreakdown.total > result.jackpot + tolerance) {
     result.status = 'anomaly';
     result.anomalies.push({
       type: 'excess_payout',
