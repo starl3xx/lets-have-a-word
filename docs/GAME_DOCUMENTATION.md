@@ -25,7 +25,7 @@
 
 ## Game Overview
 
-**Let's Have A Word** is a social word-guessing game built on Farcaster where players compete to guess a secret 5-letter word. Every wrong guess helps narrow the field, and one correct guess wins the ETH jackpot.
+**Let's Have A Word** is a social word-guessing game built on Farcaster where players compete to guess a secret 5-letter word. Every wrong guess helps narrow the field, and one correct guess wins the jackpot.
 
 ### Core Concept
 - **Secret Word**: Each round has a hidden 5-letter word
@@ -37,7 +37,7 @@
 
 ### Key Differentiators
 - **Social Deduction**: Wrong guesses benefit everyone
-- **Real ETH Stakes**: Prize pool grows with paid guesses
+- **Real Onchain Stakes**: Prize pool grows with paid guesses
 - **Referral System**: Earn 10% of your referrals' winnings
 - **$WORD Bonus**: Token holders get +2-3 daily guesses (scales with market cap)
 - **$WORD Token Mechanics**: Bonus words reward $WORD tokens, burn words destroy them — every guess might trigger a token event
@@ -59,22 +59,26 @@ Each player gets a daily allocation of guesses:
 
 **Total Possible Daily Guesses**: Unlimited (1 base + up to 3 $WORD + 1 share + unlimited paid)
 
-### Prize Pool Economics (Updated January 2026)
+### Prize Pool Economics (Updated August 2026)
 
-**Jackpot Distribution** (when round is won):
+**Prize currency**: rounds 1–33 paid **ETH** from JackpotManagerV3. From round 34 the pool is denominated in **$WORD** and held by `WordJackpot`, seeded with ~$20 of $WORD (oracle-priced at round start) from a treasury tranche.
+
+Guess packs are still bought with **ETH** — only the prize changed. Each round reads its own currency from `rounds.prize_currency`, so the archive renders both eras side by side.
+
+**Jackpot Distribution** (when round is won) — identical in either currency:
 - **80%**: Winner (jackpot)
 - **10%**: Top 10 Early Guessers (guesses 1-850 only, weighted by rank)
-- **5%**: Next Round Seed (capped at 0.02 ETH, overflow → creator)
+- **5%**: Next Round Seed (ETH: capped at 0.02 ETH · $WORD: capped at 10 rounds' worth of seed, overflow → creator)
 - **5%**: Referrer (if winner has one)
 
 **When no referrer exists**:
 - Referrer's 5% is split: 2.5% → Top 10 pool (12.5% total), 2.5% → Seed (7.5% total)
 
 ### Round Lifecycle
-1. **Round Creation**: Answer selected (cryptographically random). 16 words committed onchain — 1 secret word + 10 bonus words + 5 burn words — via `WordManager.commitRound()` (keccak256). Secret word also committed to JackpotManager (SHA-256) for the ETH prize pool.
+1. **Round Creation**: Answer selected (cryptographically random). 16 words committed onchain — 1 secret word + 10 bonus words + 5 burn words — via `WordManager.commitRound()` (keccak256). Secret word also committed onchain for the prize pool — `WordJackpot.startRound()` for $WORD rounds, JackpotManager (SHA-256) for rounds 1–33.
 2. **Guessing Phase**: Players submit guesses (valid 5-letter words only). Each guess is checked against bonus and burn word lists — bonus words trigger a $WORD token transfer, burn words trigger a token burn.
 3. **Wrong Guesses**: Added to public wheel, visible to all players
-4. **Correct Guess**: Round ends, winner determined, ETH payouts processed onchain. Top-10 $WORD rewards distributed via `distributeTop10Rewards`.
+4. **Correct Guess**: Round ends, winner determined, payouts processed onchain in the round's currency. Top-10 additionally receive a separate oracle-priced $WORD reward via `distributeTop10Rewards` — this is intentional, and distinct from their share of the prize pool.
 5. **Resolution**: Answer + salt revealed, verifiable at `/verify?round=N`. Both JackpotManager (SHA-256) and WordManager (keccak256) commitments can be independently verified.
 
 ### Word Validation
@@ -950,7 +954,7 @@ Notification tokens are managed via Neynar webhook:
 4. Use Neynar API to send notifications via `src/lib/notifications.ts`
 
 **Automated notification events:**
-- **Round start** (`notifyRoundStarted`) — Triggered by `announceRoundStarted()` when a new round begins. Uses 8 randomized templates interpolating round number and jackpot ETH.
+- **Round start** (`notifyRoundStarted`) — Triggered by `announceRoundStarted()` when a new round begins. Uses 8 randomized templates interpolating round number and the jackpot with its unit (ETH or $WORD).
 - **Daily reset** (`notifyDailyReset`) — Triggered by Vercel Cron at 11:00 UTC (`/api/cron/daily-notify`). Uses 8 randomized templates with active round context. Skips if no round is active.
 - **Round resolved** (`notifyRoundResolved`) — Triggered when a round is won.
 
@@ -1126,7 +1130,7 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 
 ### Milestone 2.2: Daily Limits
 - Base 1 free guess per day
-- Paid guess packs (3 for 0.0003 ETH)
+- Paid guess packs (3 guesses per pack, from 0.0004 ETH)
 - Database tracking per user per day
 
 ### Milestone 2.3: Wheel + Top Ticker
