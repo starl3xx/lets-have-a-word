@@ -270,6 +270,18 @@ export async function fetchWordTokenMarketCap(): Promise<MarketCapData | null> {
       return geckoTerminalData;
     }
 
+    // Only let the pool override a live USD feed when its own USD conversion is
+    // trustworthy. The pool half is always current, but converting it to USD
+    // relies on a cached ETH/USD rate — so a stale rate can manufacture the
+    // very divergence being used to justify preferring it over GeckoTerminal.
+    if (onchain?.ethPriceStale) {
+      console.warn(
+        `[ORACLE] Source divergence ${(divergence * 100).toFixed(2)}% but the ETH/USD rate ` +
+          `behind the onchain conversion is stale — keeping GeckoTerminal`
+      );
+      return geckoTerminalData;
+    }
+
     console.warn(
       `[ORACLE] Source divergence ${(divergence * 100).toFixed(2)}% exceeds ` +
         `${SOURCE_AGREEMENT_TOLERANCE * 100}% (GeckoTerminal $${geckoTerminalData.priceUsd.toExponential(4)} ` +

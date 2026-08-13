@@ -15,7 +15,27 @@
 import { ethers } from 'ethers';
 import { getBaseProvider, WORD_TOKEN_ADDRESS } from './word-token';
 import { WORD_POOL_ADDRESS } from '../../config/economy';
-import { getEthUsdPrice } from './prices';
+import { getEthUsdPrice, isCachedPriceStale } from './prices';
+
+/**
+ * Ceiling for the whole onchain read.
+ *
+ * ethers has no built-in per-call deadline, so a hung Base RPC would otherwise
+ * block indefinitely. That matters because `fetchWordTokenMarketCap` awaits
+ * this inside a `Promise.all`, and with DexScreener currently returning nothing
+ * this is the live path — including Superguess purchase verification, which
+ * runs after the player has already transferred their $WORD.
+ */
+const ONCHAIN_READ_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 /**
  * Uniswap v4 StateView on Base.
@@ -39,6 +59,15 @@ export interface OnchainPriceResult {
   /** WETH per $WORD, before the USD conversion */
   priceInWeth: number;
   ethUsdPrice: number;
+  /**
+   * Whether the ETH/USD rate used for the conversion came from a stale cache.
+   *
+   * The pool half of this price is always current, but the USD conversion
+   * leans on CoinGecko via `getEthUsdPrice()`, which can serve an arbitrarily
+   * old in-memory value. Callers must not treat a stale-converted price as
+   * more authoritative than a live USD feed.
+   */
+  ethPriceStale: boolean;
 }
 
 /**
@@ -65,15 +94,19 @@ export async function fetchOnchainWordPrice(): Promise<OnchainPriceResult | null
       ? WORD_POOL_ADDRESS
       : `0x${WORD_POOL_ADDRESS}`;
 
-    const [slot0, ethUsdPrice, totalSupplyWei] = await Promise.all([
-      stateView.getSlot0(poolId),
-      getEthUsdPrice(),
-      new ethers.Contract(
-        WORD_TOKEN_ADDRESS,
-        ['function totalSupply() view returns (uint256)'],
-        provider
-      ).totalSupply(),
-    ]);
+    const [slot0, ethUsdPrice, totalSupplyWei] = await withTimeout(
+      Promise.all([
+        stateView.getSlot0(poolId),
+        getEthUsdPrice(),
+        new ethers.Contract(
+          WORD_TOKEN_ADDRESS,
+          ['function totalSupply() view returns (uint256)'],
+          provider
+        ).totalSupply(),
+      ]),
+      ONCHAIN_READ_TIMEOUT_MS,
+      'Onchain $WORD price read'
+    );
 
     const sqrtPriceX96: bigint = slot0[0];
     if (sqrtPriceX96 === 0n) {
@@ -104,7 +137,13 @@ export async function fetchOnchainWordPrice(): Promise<OnchainPriceResult | null
       `[ORACLE] Onchain (Uniswap v4) - Price: $${priceUsd.toExponential(4)}, FDV: $${marketCapUsd.toLocaleString()}`
     );
 
-    return { priceUsd, marketCapUsd, priceInWeth, ethUsdPrice };
+    return {
+      priceUsd,
+      marketCapUsd,
+      priceInWeth,
+      ethUsdPrice,
+      ethPriceStale: isCachedPriceStale(),
+    };
   } catch (error) {
     console.error('[ORACLE] Onchain price read failed:', error);
     return null;
