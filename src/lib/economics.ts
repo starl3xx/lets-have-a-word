@@ -23,6 +23,22 @@ import { getWinnerPayoutAddress, logWalletResolution } from './wallet-identity';
 import { calculateTopGuesserPayouts, formatPayoutsForLog } from './top-guesser-payouts';
 import { TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
 import { computePrizeSplit } from './prize-split';
+import {
+  getWordJackpotSolvency,
+  resolveWordRoundOnChain,
+  tokensForUsdCents,
+  formatWordAmount,
+} from './word-jackpot-contract';
+import { WORD_SEED_USD_CENTS } from '../../config/economy';
+
+/**
+ * How many rounds' worth of seed the $WORD carry may accumulate to.
+ *
+ * WordJackpot spends carry before drawing on the tranche, so a token carried
+ * forward is a token the treasury does not have to supply — letting it build up
+ * is directly good for runway. The cap only bounds it.
+ */
+export const WORD_SEED_CARRY_MULTIPLE = 10;
 
 // Global flag for Sepolia simulation mode
 // When true, contract queries use Sepolia RPC instead of mainnet
@@ -389,12 +405,32 @@ export async function resolveRoundAndCreatePayouts(
     return;
   }
 
+  // Which contract holds this round's prize. Read from the ROUND, never from
+  // global config: a round must resolve in the currency it was seeded in, so
+  // flipping the env var mid-round cannot strand a live prize in the contract
+  // the resolver stopped looking at.
+  const isWordRound = round.prizeCurrency === 'word';
+
   // CRITICAL: Use actual contract balance for payouts, not DB value
   // This prevents payout failures when DB and contract are out of sync
   // Use Sepolia or mainnet based on simulation mode
   let jackpotEth: number;
   let jackpotWei: bigint;
 
+  if (isWordRound) {
+    // WordJackpot tracks `pool` explicitly rather than inferring it from
+    // balanceOf, so there is no balance-vs-internal reconciliation to do here —
+    // that entire class of mismatch is designed out. The pool IS the number the
+    // contract will validate the payout sum against.
+    const solvency = await getWordJackpotSolvency();
+    jackpotWei = solvency.poolWei;
+    jackpotEth = 0;
+
+    console.log(`[economics] WordJackpot state for round ${roundId}:`);
+    console.log(`  - Pool: ${formatWordAmount(jackpotWei)} $WORD`);
+    console.log(`  - Carry (already reserved): ${formatWordAmount(solvency.carryWei)} $WORD`);
+    console.log(`  - Unallocated tranche: ${formatWordAmount(solvency.unallocatedWei)} $WORD`);
+  } else {
   try {
     if (sepoliaSimulationMode) {
       // For Sepolia: MUST use internal jackpot for payout calculations
@@ -461,8 +497,11 @@ export async function resolveRoundAndCreatePayouts(
     console.error(`[economics] Cannot safely compute payouts without current contract state.`);
     throw new Error(`Failed to query contract jackpot. Cannot compute payouts safely. Please check RPC connectivity.`);
   }
+  }
 
-  if (jackpotEth === 0) {
+  // ETH keeps its float check so behaviour is unchanged; the token round tests
+  // the exact wei, since a $WORD pool has no meaningful float representation.
+  if (isWordRound ? jackpotWei === 0n : jackpotEth === 0) {
     console.log(`⚠️  Round ${roundId} has zero jackpot, no payouts created`);
     return;
   }
@@ -495,14 +534,47 @@ export async function resolveRoundAndCreatePayouts(
   // - Any overflow beyond cap routes to creator
   // ============================================================================
 
+  // The $WORD cap is oracle-priced rather than constant: carry is capped at
+  // WORD_SEED_CARRY_MULTIPLE rounds' worth of seed at the round's own seed
+  // price. Letting carry accumulate is deliberate — WordJackpot spends carry
+  // before drawing on the tranche, so every token carried forward is a token
+  // the treasury does not have to supply. The multiple exists only to bound it.
+  let seedCapWei = SEED_CAP_WEI;
+  if (isWordRound) {
+    const priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+    if (priceE18 > 0n) {
+      seedCapWei =
+        tokensForUsdCents(BigInt(WORD_SEED_USD_CENTS), priceE18) *
+        BigInt(WORD_SEED_CARRY_MULTIPLE);
+    } else {
+      // No price snapshot means the round predates the column or was seeded
+      // outside the normal path. Capping at zero would silently divert the
+      // whole carry to the creator, so leave it uncapped and say so.
+      seedCapWei = jackpotWei;
+      console.warn(
+        `[economics] Round ${roundId} has no seed_price_e18 — carrying the full seed uncapped`
+      );
+    }
+  }
+
   // The arithmetic itself lives in prize-split.ts: it is currency-agnostic, so
   // the $WORD path reuses it rather than forking a second copy of the rule that
   // decides how a prize pool is divided.
   const split = computePrizeSplit({
     jackpotWei,
     hasReferrer,
-    seedCapWei: SEED_CAP_WEI,
+    seedCapWei,
   });
+
+  /**
+   * Amount columns for a payout row. The ETH columns are numeric(20,18) and
+   * physically cannot hold a ~78M-token amount, which is why migration 0022
+   * added parallel ones rather than reusing them.
+   */
+  const payoutAmount = (wei: bigint) =>
+    isWordRound
+      ? { amountWord: wei.toString(), currency: 'word' }
+      : { amountEth: ethers.formatEther(wei), currency: 'eth' };
 
   const toWinnerWei = split.toWinnerWei;
   const toTopGuessersWei = split.toTopGuessersWei;
@@ -536,7 +608,7 @@ export async function resolveRoundAndCreatePayouts(
     roundId,
     fid: winnerFid,
     walletAddress: winnerWallet,
-    amountEth: ethers.formatEther(toWinnerWei),
+    ...payoutAmount(toWinnerWei),
     role: 'winner',
   });
 
@@ -554,7 +626,7 @@ export async function resolveRoundAndCreatePayouts(
       roundId,
       fid: referrerFid,
       walletAddress: referrerWallet,
-      amountEth: ethers.formatEther(toReferrerWei),
+      ...payoutAmount(toReferrerWei),
       role: 'referrer',
     });
   }
@@ -591,7 +663,7 @@ export async function resolveRoundAndCreatePayouts(
         roundId,
         fid,
         walletAddress: wallet,
-        amountEth: ethers.formatEther(amountWei),
+        ...payoutAmount(amountWei),
         role: 'top_guesser',
       });
     }
@@ -602,7 +674,7 @@ export async function resolveRoundAndCreatePayouts(
       roundId,
       fid: winnerFid,
       walletAddress: winnerWallet,
-      amountEth: ethers.formatEther(toTopGuessersWei),
+      ...payoutAmount(toTopGuessersWei),
       role: 'top_guesser',
     });
     // Update winner's onchain payout
@@ -614,7 +686,7 @@ export async function resolveRoundAndCreatePayouts(
     dbPayouts.push({
       roundId,
       fid: null,
-      amountEth: ethers.formatEther(seedForNextRoundWei),
+      ...payoutAmount(seedForNextRoundWei),
       role: 'seed',
     });
   }
@@ -635,7 +707,7 @@ export async function resolveRoundAndCreatePayouts(
       roundId,
       fid: null,
       walletAddress: creatorWallet,
-      amountEth: ethers.formatEther(toCreatorOverflowWei),
+      ...payoutAmount(toCreatorOverflowWei),
       role: 'creator',
     });
 
@@ -694,7 +766,15 @@ export async function resolveRoundAndCreatePayouts(
 
   // Pre-flight ETH receive check: simulate sending 1 wei to each recipient
   // Contracts with reverting receive() functions will brick resolution (Pashov audit finding)
-  if (!sepoliaSimulationMode && !skipOnchainResolutionFlag) {
+  //
+  // Skipped entirely for $WORD, for two independent reasons. An ERC-20 transfer
+  // never invokes the recipient's receive(), so the simulation tests a property
+  // that has no bearing on whether the payout lands. And WordJackpot credits a
+  // failed transfer to claimable() rather than reverting the batch, so one bad
+  // recipient can no longer strand everyone else — which is the only thing this
+  // check was protecting against. Its remedy was also worse than the problem:
+  // it silently redirected a player's prize to the operator wallet.
+  if (!isWordRound && !sepoliaSimulationMode && !skipOnchainResolutionFlag) {
     const provider = getBaseProvider();
     const config = getContractConfig();
     console.log(`[economics] Pre-flight ETH receive check for ${onChainPayouts.length} recipients...`);
@@ -741,7 +821,11 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`[economics] Adding ${validation.diffWei} wei rounding dust to winner payout`);
     onChainPayouts[0].amountWei += validation.diffWei;
     // Update DB payout too
-    dbPayouts[0].amountEth = ethers.formatEther(onChainPayouts[0].amountWei);
+    if (isWordRound) {
+      dbPayouts[0].amountWord = onChainPayouts[0].amountWei.toString();
+    } else {
+      dbPayouts[0].amountEth = ethers.formatEther(onChainPayouts[0].amountWei);
+    }
   }
 
   // Execute onchain payouts (use Sepolia or mainnet based on simulation mode)
@@ -752,9 +836,25 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`[economics] DB payouts will be created but no onchain transaction`);
   } else {
     try {
-      resolveTxHash = sepoliaSimulationMode
-        ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
-        : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
+      if (isWordRound) {
+        // resolveWordRoundOnChain re-validates the whole payout array against
+        // the live pool before spending gas, and logs any payout the contract
+        // had to defer to claimable().
+        resolveTxHash = await resolveWordRoundOnChain(
+          roundId,
+          onChainPayouts.map((p) => ({
+            address: p.address,
+            amountWei: p.amountWei,
+            role: p.role as 'winner' | 'referrer' | 'top_guesser' | 'seed',
+            fid: p.fid,
+          })),
+          seedForNextRoundWei
+        );
+      } else {
+        resolveTxHash = sepoliaSimulationMode
+          ? await resolveRoundWithPayoutsOnSepolia(onChainPayouts, seedForNextRoundWei)
+          : await resolveRoundWithPayoutsOnChain(onChainPayouts, seedForNextRoundWei);
+      }
       console.log(`[economics] Onchain payouts executed${sepoliaSimulationMode ? ' (Sepolia)' : ''}: ${resolveTxHash}`);
     } catch (error) {
       console.error(`[economics] CRITICAL: Onchain payout failed for round ${roundId}:`, error);
@@ -769,6 +869,24 @@ export async function resolveRoundAndCreatePayouts(
   }
 
   // Milestone 14: Distribute $WORD top-10 rewards (non-blocking, never blocks ETH payouts)
+  //
+  // DELIBERATE: on a $WORD round the top 10 receive TWO separate $WORD streams,
+  // and this is intended rather than an oversight. They are funded from
+  // different places and mean different things:
+  //
+  //   1. Their share of the prize pool (10%, or 12.5% with no referrer), paid
+  //      from WordJackpot above. Scales with how big the round got.
+  //   2. This reward, paid from WordManagerV3's tranche. Fixed in USD terms,
+  //      and there to make placing in the top 10 worth chasing even in a small
+  //      round — which is what drives pack purchases.
+  //
+  // Structurally identical to what rounds 1-33 did (ETH prize + $WORD reward);
+  // the only change is that both legs are now the same token, which makes it
+  // LOOK like a double-pay when reading the resolve path. It is not one.
+  //
+  // The staker-solvency guard added to WordManagerV3 means this leg now reverts
+  // loudly rather than quietly paying out of staked principal when the tranche
+  // is dry, and the catch below keeps that from blocking round resolution.
   if (topGuesserFids.length > 0) {
     (async () => {
       try {
@@ -856,10 +974,22 @@ export async function resolveRoundAndCreatePayouts(
       referrerFid,
       status: 'resolved',
       txHash: resolveTxHash,
+      // Record what actually carried forward so the next round's seed and the
+      // archive read the same number the contract holds.
+      ...(isWordRound
+        ? {
+            prizePoolWord: jackpotWei.toString(),
+            seedNextRoundWord: seedForNextRoundWei.toString(),
+          }
+        : {}),
     })
     .where(eq(rounds.id, roundId));
 
-  console.log(`✅ Resolved round ${roundId} with ${dbPayouts.length} payouts (jackpot: ${jackpotEth.toFixed(18)} ETH)`);
+  console.log(
+    isWordRound
+      ? `✅ Resolved round ${roundId} with ${dbPayouts.length} payouts (pool: ${formatWordAmount(jackpotWei)} $WORD)`
+      : `✅ Resolved round ${roundId} with ${dbPayouts.length} payouts (jackpot: ${jackpotEth.toFixed(18)} ETH)`
+  );
 
   // Milestone 5.1: Announce round resolution (non-blocking)
   try {
