@@ -55,7 +55,15 @@ export const users = pgTable('users', {
  * Round Status Types
  * Milestone 9.5: Kill switch and dead day support
  */
-export type RoundStatus = 'active' | 'resolved' | 'cancelled';
+/**
+ * 'pending' exists for the $WORD path only: the round row is inserted first so
+ * Postgres assigns the serial id that WordJackpot.startRound needs as its round
+ * identifier, and only becomes 'active' once that transaction confirms. A
+ * pending round is invisible to every status query in the codebase — they all
+ * filter with positive equality on 'active' or 'cancelled', never a negation —
+ * so it cannot accept a guess before its commitment is onchain.
+ */
+export type RoundStatus = 'active' | 'pending' | 'resolved' | 'cancelled';
 
 /**
  * Rounds Table

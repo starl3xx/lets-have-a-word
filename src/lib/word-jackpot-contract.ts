@@ -443,7 +443,11 @@ export async function startWordRoundOnChain(
   if (!Number.isInteger(seedUsdCents) || seedUsdCents <= 0) {
     throw new Error(`Invalid seed target: ${seedUsdCents} cents`);
   }
-  if (!/^0x[0-9a-fA-F]{64}$/.test(commitHash)) {
+  // The DB stores commit hashes as bare hex in a varchar(64); the ETH path
+  // normalizes the prefix inside the contract call rather than at every call
+  // site, so this does the same.
+  const bytes32Hash = commitHash.startsWith('0x') ? commitHash : `0x${commitHash}`;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(bytes32Hash)) {
     throw new Error(`Commit hash must be a 32-byte hex string, got: ${commitHash}`);
   }
 
@@ -506,7 +510,7 @@ export async function startWordRoundOnChain(
   const tx = await sendWithBuilderCode(contract, 'startRound', [
     roundId,
     seedUsdCents,
-    commitHash,
+    bytes32Hash,
   ]);
   const receipt = await tx.wait();
   console.log(`[WORD-JACKPOT] Round ${roundId} started — block ${receipt?.blockNumber}`);
