@@ -3,7 +3,7 @@
 
   <h1>Let's Have A Word</h1>
 
-  <p><strong>Massively multiplayer word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot</strong></p>
+  <p><strong>Massively multiplayer word hunt where everyone eliminates wrong answers until one player hits the jackpot</strong></p>
 
   <p>
     <img src="https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js" alt="Next.js 14" />
@@ -29,7 +29,7 @@
 Round 14 starts → answer committed onchain (keccak256)
   ├─ Everyone guesses the SAME 5-letter word
   ├─ Wrong guesses spin onto a shared elimination wheel
-  ├─ First correct guesser wins the ETH jackpot
+  ├─ First correct guesser wins the jackpot
   └─ Anyone can verify fairness at /verify
 ```
 
@@ -40,7 +40,7 @@ One secret word. One winner. Provably fair.
 ## Why Let's Have A Word?
 
 - **Provably fair** — commit-reveal with onchain commitment on Base; anyone can verify
-- **ETH jackpots** — 80% to the winner, 10% to Top-10 early guessers, atomically distributed onchain
+- **$WORD jackpots** — 80% to the winner, 10% to Top-10 early guessers, atomically distributed onchain (rounds 1–33 paid in ETH)
 - **$WORD tokenomics** — hold tokens for bonus guesses, find hidden bonus/burn words each round, stake for yield
 - **XP tiers** — earn XP from gameplay, unlock staking multipliers (1.0x → 1.6x)
 - **Farcaster-native** — mini app with Quick Auth, push notifications, and social sharing
@@ -52,13 +52,16 @@ One secret word. One winner. Provably fair.
 
 | Mechanic | Details |
 |----------|---------|
+| **Prize Currency** | **$WORD** from round 34 · ETH for rounds 1–33 · packs still bought with ETH |
 | **Prize Split** | 80% winner · 10% Top-10 · 5% seed · 5% referrer |
+| **Round Seed** | ~$20 of $WORD, oracle-priced at round start from a treasury tranche |
 | **Guess Types** | Free (base) → $WORD bonus → Share bonus → Paid (consumed in order) |
-| **Daily Allocation** | 1 free + up to 3 $WORD + 1 share + 9 paid = **14 max/day** |
-| **Pack Pricing** | 3 guesses per pack, up to 3 packs/day, dynamic pricing by phase |
+| **Daily Allocation** | 1 free + up to 3 $WORD + 1 share + unlimited paid |
+| **Pack Pricing** | 3 guesses per pack, uncapped. Stage: 0.0004 / 0.0006 / 0.0008 ETH by round progress. Volume: 1.0× / 1.5× / 2.0× by packs bought that day |
 | **Top-10 Tiers** | #1: 19% · #2: 16% · #3: 14% · #4: 11% · #5: 10% · #6-10: 6% each |
+| **Top-10 $WORD** | Separate from the pool share — **$3.00** to first place, oracle-priced, paid from the WordManager tranche |
 | **XP Staking** | Passive 1.0x · Bronze 1.15x · Silver 1.35x · Gold 1.60x |
-| **Bonus Words** | 10 per round — find one, earn 5M $WORD |
+| **Bonus Words** | 10 per round — find one, earn **$1.50** of $WORD (oracle-priced, token-capped) |
 | **Burn Words** | 5 per round — find one, burn 5M $WORD + earn "Arsonist" wordmark |
 
 ---
@@ -208,6 +211,18 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 ---
 
 ## Changelog
+
+### 2026-08-13 (after Round 33)
+
+- **Game economy converted from ETH to $WORD**: No round had run since Round 33 ended on 2 July — `createRound` could not clear JackpotManagerV3's 0.02 ETH `MINIMUM_SEED` against a 0.00162 ETH carry, so `/api/game` had been returning 500 for six weeks. Rounds are now seeded with ~$20 of $WORD from a treasury tranche instead, which removes the ETH floor entirely. Two new contracts: **WordJackpot** (UUPS, holds the $WORD prize pool, computes the seed from its own oracle price so the USD peg is a property rather than a comment, and defers a failed payout to `claimable()` instead of reverting the whole batch) and **WordPackSales** (immutable, takes ETH for packs and records the payer as `msg.sender`). Guess packs are still bought with ETH — only the prize changed. The whole path stays dormant behind `isWordEconomyConfigured()` until `WORD_JACKPOT_ADDRESS` and `WORD_PACK_SALES_ADDRESS` are set, so nothing changes until the contracts are deployed and funded. Migration `0022_word_economy.sql` — **apply before deploying**.
+- **Rewards oracle-priced in USD**: Bonus words pay **$1.50** and top-10 first place **$3.00** of $WORD, replacing fixed token amounts with a crude market-cap step. Each has a token cap so a bad oracle reading cannot drain the tranche. Deliberate asymmetry: round seeding *refuses* to proceed on a stale price (a mispriced seed is large and irreversible), while a reward *degrades* to the legacy fixed amount (a player who found the word has earned it). Found and fixed en route: `guesses.ts` had its own hardcoded 5M constant and never called the config function, so the admin dashboard projected a per-round cost the game did not pay — a 2× divergence above $150K mcap.
+- **Game payouts can no longer spend staked $WORD**: `WordManagerV3`'s three distribution paths transferred until the ERC-20 ran out, so once the tranche emptied the next reward came out of a staker's deposit and they found out when `withdraw()` reverted. Measured exposure was ~218M free tokens against ~97.6M/round of outflow — roughly two rounds. Added `reservedForStakers()` / `availableForGames()` and a solvency guard; the batch path checks the **total**, since per-transfer checks each see a balance the previous transfer already reduced. Adds no storage, verified by diffing the compiled layout against the live implementation. First tests this contract has ever had (17). Not yet deployed — needs a Sepolia dry run.
+- **Every player-facing surface reads currency from the round, not a global flag**: ticker, archive, winner share card, OG image, share text, push notifications, @letshaveaword casts, FAQ, stats and referral panels. The archive shows rounds 1–33 in ETH beside 34+ in $WORD on one screen, which is why a global toggle would not work. Fixed three bugs of the same shape in the process — a formatted string read as a number: the archive's rank split did `parseFloat("7,812,500")` → 7; the OG image did `parseFloat("78,125,000 $WORD")` → 78, advertising a 78 ETH prize; and the resolve cast's top-10 sort compared `NaN`, listing the ten in arbitrary order. None threw.
+- **`amount_eth` is NULL on a $WORD payout** (0022 drops its NOT NULL) and 14 sites read it as a number. The fairness monitor derived expectations from `prizePoolEth`, hit its zero-jackpot guard, and would have silently stopped auditing payouts from Round 34; `archiveRound` wrote `"NaN"` into a permanent record; admin analytics under-reported creator revenue, winner payouts, seed totals and referral earnings; and `diagnose-sybil-round` ordered by `amount_eth desc`, which sorts NULLs last and scrambled $WORD payout ranking in the tool used to inspect suspected sybils. Every aggregate now has a parallel `_word` column — ETH and $WORD are never summed into one figure.
+- **Jackpot milestone casts fixed for $WORD**: thresholds were ETH values `[0.1, 0.25, 0.5, 1.0]`, and a $20 seed is ~78,000,000 $WORD — all four would have fired the moment a round started, four casts before anyone guessed. $WORD rounds now use USD milestones ($50/$100/$250/$500).
+- **Oracle hardened**: added the Uniswap v4 pool as a second, independent price source and cross-check it against GeckoTerminal (15% tolerance), with timeouts on every fetch — previously a hung upstream would hang the 15-minute cron indefinitely.
+- **Pack pricing docs and tests corrected**: `pack-pricing.test.ts` had been asserting the pre-Milestone-7.1 schedule (0.0003 / 0.00045 / 0.0006) against code pricing at 0.0004 / 0.0006 / 0.0008 — **all 28 of the suite's failing tests were this one stale file**. Suite now reports 237 passed, 0 failed. `getPackPriceWithMultiplier`'s examples had drifted on every line and one contradicted itself (claimed 2× while showing 1.5×). `DEFAULT_RULES_CONFIG` was seeding fresh environments with the pre-2026 80/10/10 split.
+- **CI runs contract tests** (`.github/workflows/contracts.yml`) — there was no `.github/` at all, so no contract test had ever run in CI. Suite went 65 → 82 passing.
 
 ### 2026-08-12 (after Round 33)
 

@@ -1,19 +1,19 @@
 # Let's Have A Word!
 
-**The massively multiplayer word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot.**
+**The massively multiplayer word hunt where everyone eliminates wrong answers until one player hits the jackpot.**
 
 ---
 
 ## What is Let's Have A Word?
 
-Let's Have A Word is a social word-guessing game on Farcaster where players worldwide compete to guess the same secret 5-letter word. Every wrong guess helps everyone else by eliminating that word from play. When someone guesses correctly, they win the ETH jackpot.
+Let's Have A Word is a social word-guessing game on Farcaster where players worldwide compete to guess the same secret 5-letter word. Every wrong guess helps everyone else by eliminating that word from play. When someone guesses correctly, they win the jackpot.
 
 ### How It Works
 
 1. **One secret word** — Every player in the world is hunting the same 5-letter word
 2. **Wrong guesses help everyone** — Incorrect guesses appear on a spinning wheel visible to all players
 3. **First correct guess wins** — The round ends when someone finds the word
-4. **Jackpot payout** — The winner receives ETH automatically, paid onchain
+4. **Jackpot payout** — The winner is paid automatically, onchain
 
 ---
 
@@ -83,9 +83,9 @@ Pricing has two components:
 
 | Round Stage | Total Guesses | Price per Pack |
 |-------------|---------------|----------------|
-| Early | 0–749 | 0.00030 ETH |
-| Late | 750–1249 | 0.00045 ETH |
-| Late Max | 1250+ | 0.00060 ETH |
+| Early | 0–849 | 0.00040 ETH |
+| Mid | 850–1249 | 0.00060 ETH |
+| Late | 1250+ | 0.00080 ETH |
 
 **Volume-based multipliers** (based on your daily purchases):
 
@@ -109,7 +109,11 @@ Pack purchases are **unlimited** — there's no daily cap. Volume multipliers re
 
 ### How It Grows
 
-The prize pool accumulates as players purchase guess packs. Every pack purchase adds ETH to the pot.
+The prize pool accumulates as players purchase guess packs.
+
+From round 34 the prize pool is denominated in **$WORD**, and each round is seeded with roughly **$20 of $WORD** so it never starts empty. Rounds 1–33 paid in ETH.
+
+Guess packs are still bought with **ETH** — only the prize changed.
 
 ### Prize Distribution
 
@@ -119,11 +123,12 @@ When a round is won, the prize pool is distributed **atomically onchain in a sin
 |-----------|-------|
 | Jackpot Winner | 80% |
 | Top 10 Early Guessers | 10% |
-| Winner's Referrer | 10% |
+| Next Round Seed | 5% |
+| Winner's Referrer | 5% |
 
-**If the winner has no referrer:**
-- 7.5% is added to the Top 10 pool (making it 17.5% total)
-- 2.5% seeds the next round's prize pool
+**If the winner has no referrer**, the referrer's 5% is split in half:
+- 2.5% is added to the Top 10 pool (making it **12.5%** total)
+- 2.5% is added to the seed (making it **7.5%** total)
 
 There are no offchain payouts. Everything is verifiable on BaseScan.
 
@@ -135,8 +140,8 @@ There are no offchain payouts. Everything is verifiable on BaseScan.
 
 Top 10 rewards are based on **early participation** in each round:
 
-- Only the **first 750 guesses** in a round are eligible for Top 10 ranking
-- After guess #750, the Top 10 locks
+- Only the **first 850 guesses** in a round are eligible for Top 10 ranking
+- After guess #850, the Top 10 locks
 - Later guesses can still win the jackpot but don't affect rankings
 
 This incentivizes early participation during the high-uncertainty phase of each round.
@@ -313,7 +318,7 @@ Yes. Every round uses cryptographic commit-reveal to ensure the word cannot be c
 
 ### What if I don't win the jackpot?
 
-You can still earn rewards through the **Top 10 Early Guessers** pool. If you're among the first 750 guessers and rank in the top 10 by guess count, you'll receive a share of 10-17.5% of the prize pool.
+You can still earn rewards through the **Top 10 Early Guessers** pool. If you're among the first 850 guessers and rank in the top 10 by guess count, you'll receive a share of 10–12.5% of the prize pool — plus a separate $WORD reward on top.
 
 ### How do I refer friends?
 

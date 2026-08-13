@@ -11,6 +11,13 @@ When the secret word is solved, the round is **resolved atomically onchain in a 
 
 There are **no offchain payouts** and no manual intervention.
 
+### Prize currency
+
+- **Rounds 1–33** — prize pool denominated in **ETH**, held by `JackpotManagerV3`.
+- **Round 34 onward** — prize pool denominated in **$WORD**, held by `WordJackpot`, seeded with **~$20 of $WORD** (oracle-priced at round start) drawn from a treasury tranche.
+
+**Guess packs are bought with ETH in both eras.** Only the prize changed. Each round records its own currency in `rounds.prize_currency`, and every split below applies identically to either asset — the arithmetic is currency-agnostic (`src/lib/prize-split.ts`).
+
 ---
 
 ## 2. High‑Level Payout Split (100%)
@@ -18,14 +25,18 @@ There are **no offchain payouts** and no manual intervention.
 ### Base allocation
 - **80%** → Jackpot winner (secret word guesser)
 - **10%** → Top 10 guessers pool
-- **10%** → Referral pool (conditional)
+- **5%** → Next round seed
+- **5%** → Referrer (conditional)
+
+Source of truth in code: the basis-point constants in `src/lib/prize-split.ts`
+(`WINNER_BPS 8000`, `TOP_GUESSERS_BPS 1000`, `SEED_BPS 500`, `REFERRER_BPS 500`).
 
 ---
 
 ## 3. Referral Logic
 
 ### If the jackpot winner **has a valid referrer**
-- Referrer receives the full **10%**
+- Referrer receives **5%**; the seed keeps its **5%**
 
 ### If the jackpot winner **does NOT have a referrer**
 - **2.5%** is added to the Top 10 guessers pool
@@ -42,7 +53,8 @@ There are **no offchain payouts** and no manual intervention.
 ### With referrer
 - Winner: **80%**
 - Top 10 guessers: **10%**
-- Referrer: **10%**
+- Next round seed: **5%**
+- Referrer: **5%**
 
 ### Without referrer
 - Winner: **80%**
