@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   WORD_HOLDER_THRESHOLD,
   WORD_BONUS_MCAP_THRESHOLD_USD,
@@ -195,5 +195,61 @@ describe('$WORD Economy Config', () => {
       expect(formatMarketCap(1_500_000)).toBe('$1.5M');
       expect(formatMarketCap(10_000_000)).toBe('$10.0M');
     });
+  });
+});
+
+/**
+ * WORD_SEED_USD_CENTS is read from the environment at module load, so each case
+ * stubs the env and re-imports rather than calling a function. The parsing is
+ * defensive because a bad value here does not fail loudly: it decides how much
+ * real money every round is seeded with.
+ */
+describe('WORD_SEED_USD_CENTS', () => {
+  async function loadWith(value: string | undefined) {
+    vi.resetModules();
+    if (value === undefined) {
+      vi.stubEnv('WORD_SEED_USD_CENTS', '');
+    } else {
+      vi.stubEnv('WORD_SEED_USD_CENTS', value);
+    }
+    const mod = await import('../../config/economy');
+    return mod.WORD_SEED_USD_CENTS;
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('defaults to $20.00 when unset', async () => {
+    expect(await loadWith(undefined)).toBe(2000);
+  });
+
+  it('accepts a valid override', async () => {
+    expect(await loadWith('3500')).toBe(3500);
+  });
+
+  it('falls back on a non-numeric value', async () => {
+    expect(await loadWith('twenty dollars')).toBe(2000);
+  });
+
+  it('falls back on zero, which would seed nothing', async () => {
+    expect(await loadWith('0')).toBe(2000);
+  });
+
+  it('falls back on a negative value', async () => {
+    expect(await loadWith('-500')).toBe(2000);
+  });
+
+  it('falls back on a fractional value, since cents are integers', async () => {
+    expect(await loadWith('2000.5')).toBe(2000);
+  });
+
+  it('falls back on an absurdly large value rather than draining the treasury', async () => {
+    expect(await loadWith('99999999')).toBe(2000);
+  });
+
+  it('ignores surrounding whitespace', async () => {
+    expect(await loadWith('  2500  ')).toBe(2500);
   });
 });

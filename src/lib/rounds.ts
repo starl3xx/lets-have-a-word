@@ -19,6 +19,13 @@ import {
   isBonusWordsEnabledOnChain,
 } from './jackpot-contract';
 import { commitRoundOnChain } from './word-manager';
+import {
+  isWordEconomyConfigured,
+  startWordRoundOnChain,
+  getWordJackpotConfig,
+  formatWordAmount,
+} from './word-jackpot-contract';
+import { WORD_SEED_USD_CENTS } from '../../config/economy';
 
 /**
  * Options for creating a new round
@@ -109,7 +116,16 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   let onChainCommitmentTxHash: string | null = null;
   let roundCommitTxHash: string | null = null;
 
-  if (!skipOnChainCommitment) {
+  // Round 34 onward the prize lives in WordJackpot, not JackpotManagerV3.
+  // WordJackpot.startRound needs the round id as its identifier, and that id is
+  // assigned by Postgres on insert — so unlike the ETH path this cannot commit
+  // before the row exists. The row is inserted 'pending' instead and only
+  // becomes 'active' once the onchain call confirms, which preserves the
+  // property that actually matters: a round cannot take a guess until its
+  // commitment is immutably onchain.
+  const useWordEconomy = !skipOnChainCommitment && isWordEconomyConfigured();
+
+  if (!skipOnChainCommitment && !useWordEconomy) {
     // Check if contract is deployed and accessible
     const contractDeployed = await isContractDeployed();
 
@@ -171,6 +187,9 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       startTxHash: onChainCommitmentTxHash ?? null,
       startedAt: new Date(),
       resolvedAt: null,
+      prizeCurrency: useWordEconomy ? 'word' : 'eth',
+      // Held out of every active-round query until WordJackpot confirms below.
+      status: useWordEconomy ? 'pending' : 'active',
     })
     .returning();
 
@@ -189,6 +208,54 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     await db.execute(rawSql`UPDATE rounds SET salt = ${salt} WHERE id = ${round.id}`);
     round.salt = salt;
     console.log(`[rounds] ✅ Salt corruption fixed for round ${round.id}`);
+  }
+
+  // Seed the round in WordJackpot and only then make it visible. Placed before
+  // any further writes so a failure leaves nothing but one cancelled row.
+  if (useWordEconomy) {
+    try {
+      const seed = await startWordRoundOnChain(round.id, WORD_SEED_USD_CENTS, commitHash);
+
+      await db
+        .update(rounds)
+        .set({
+          status: 'active',
+          startTxHash: seed.txHash,
+          prizePoolWord: seed.seedTokensWei.toString(),
+          seedUsdCents: seed.seedUsdCents,
+          seedPriceE18: seed.priceE18.toString(),
+          jackpotContractAddress: getWordJackpotConfig().wordJackpotAddress,
+        })
+        .where(eq(rounds.id, round.id));
+
+      round.status = 'active';
+      round.startTxHash = seed.txHash;
+      round.prizeCurrency = 'word';
+      round.prizePoolWord = seed.seedTokensWei.toString();
+
+      console.log(
+        `[rounds] ✅ Round ${round.id} seeded with ${formatWordAmount(seed.seedTokensWei)} $WORD ` +
+          `($${(seed.seedUsdCents / 100).toFixed(2)}) — tx ${seed.txHash}`
+      );
+    } catch (error) {
+      // The row must not survive as a startable round. Marking it cancelled
+      // rather than deleting keeps the answer/salt for forensics and keeps the
+      // id burnt, so a retry cannot collide with a WordJackpot round that may
+      // have been created by a transaction that landed after this threw.
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`[rounds] ❌ WordJackpot seeding failed for round ${round.id}: ${reason}`);
+
+      await db
+        .update(rounds)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancelledReason: `WordJackpot seeding failed: ${reason}`.slice(0, 500),
+        })
+        .where(eq(rounds.id, round.id));
+
+      throw error;
+    }
   }
 
   // Insert bonus words if enabled (use round commitment salts for onchain verification)

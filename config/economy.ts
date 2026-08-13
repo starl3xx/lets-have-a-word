@@ -76,6 +76,31 @@ export const WORD_POOL_ADDRESS =
 export const WORD_POOL_URL = `https://www.geckoterminal.com/base/pools/${WORD_POOL_ADDRESS}`;
 
 /**
+ * USD target every $WORD round is seeded at, in cents. $20.00 by default.
+ *
+ * Denominated in USD rather than tokens so a round is worth the same to a
+ * player regardless of where $WORD is trading; WordJackpot converts it at its
+ * own stored oracle price at seed time and refuses if that price is stale.
+ *
+ * Deliberately not a token count: a fixed token seed would make the prize swing
+ * with the market, and the treasury's runway is what should absorb price moves,
+ * not the player's experience.
+ *
+ * Parsed defensively — a malformed env var must not silently seed $0 (which
+ * WordJackpot would reject as below minSeedTokens) or some absurd amount.
+ */
+export const WORD_SEED_USD_CENTS = (() => {
+  const raw = process.env.WORD_SEED_USD_CENTS?.trim();
+  if (!raw) return 2000;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 100_000) {
+    console.warn(`[economy] Ignoring invalid WORD_SEED_USD_CENTS="${raw}" — using 2000 ($20.00)`);
+    return 2000;
+  }
+  return parsed;
+})();
+
+/**
  * @deprecated Use getHolderTierThresholds() — kept for backward compat during migration
  */
 export const WORD_HOLDER_THRESHOLD = 100_000_000;
