@@ -1,0 +1,51 @@
+name: Contracts
+
+# Contract tests have never run automatically — this repo had no .github/
+# directory at all, so the only checks on a PR were Vercel and Cursor Bugbot.
+# That gap matters most for Solidity, where a mistake moves real money and
+# cannot be hot-fixed after deploy.
+#
+# Scope is deliberately narrow: ONLY the contract suite, which is green
+# (40 passing). The app's vitest suite has 28 pre-existing failures and
+# `tsc --noEmit` has pre-existing errors, so including either would make this
+# workflow red on day one — and a permanently-red gate is one everybody learns
+# to ignore, which is worse than no gate. Add them here as they are cleaned up.
+
+on:
+  pull_request:
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+
+jobs:
+  test:
+    name: Hardhat tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile
+        run: npx hardhat compile
+
+      # No network access needed: the suite deploys to the in-process Hardhat
+      # network. Any test that reaches for Base RPC would fail here, which is
+      # the correct outcome — CI must not depend on a live chain.
+      - name: Test
+        run: npx hardhat test
