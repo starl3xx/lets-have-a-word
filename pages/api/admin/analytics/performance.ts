@@ -225,7 +225,10 @@ export default async function handler(
         WHERE r.resolved_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
       ),
       referral_payouts AS (
-        SELECT COALESCE(SUM(CAST(amount_eth AS DECIMAL)), 0) as total
+        -- ETH only: amount_eth is NULL on a $WORD payout. total_word carries
+        -- referral earnings from round 34+, in wei.
+        SELECT COALESCE(SUM(CAST(amount_eth AS DECIMAL)), 0) as total,
+               COALESCE(SUM(CAST(NULLIF(amount_word, '') AS NUMERIC)), 0)::text as total_word
         FROM round_payouts
         WHERE role = 'referrer'
           AND created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'

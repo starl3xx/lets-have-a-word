@@ -145,30 +145,45 @@ export default async function handler(
       return {
         fid: row.fid,
         amountEth: payout?.amountEth || '0',
+        amountWord: payout?.amountWord ?? null,
         rank: index + 1,
         guessCount: row.guessCount,
       };
     });
 
-    // Build payouts JSON
+    // Build payouts JSON.
+    //
+    // amount_eth is NULL on a $WORD payout, so emitting only amountEth writes
+    // "null" into an archive row that is never recomputed. Mirrors the shape
+    // archiveRound() produces in src/lib/archive.ts.
+    const amt = (p: { amountEth: string | null; amountWord: string | null } | undefined) => ({
+      amountEth: p?.amountEth ?? '0',
+      ...(p?.amountWord ? { amountWord: p.amountWord } : {}),
+    });
+
     const payoutsJson: any = {
-      topGuessers: topGuessers.map(t => ({ fid: t.fid, amountEth: t.amountEth, rank: t.rank })),
+      topGuessers: topGuessers.map(t => ({
+        fid: t.fid,
+        amountEth: t.amountEth,
+        ...(t.amountWord ? { amountWord: t.amountWord } : {}),
+        rank: t.rank,
+      })),
     };
 
     if (winnerPayout && winnerFid) {
-      payoutsJson.winner = { fid: winnerFid, amountEth: winnerPayout.amountEth };
+      payoutsJson.winner = { fid: winnerFid, ...amt(winnerPayout) };
     }
 
     if (referrerPayout && referrerPayout.fid) {
-      payoutsJson.referrer = { fid: referrerPayout.fid, amountEth: referrerPayout.amountEth };
+      payoutsJson.referrer = { fid: referrerPayout.fid, ...amt(referrerPayout) };
     }
 
     if (seedPayout) {
-      payoutsJson.seed = { amountEth: seedPayout.amountEth };
+      payoutsJson.seed = amt(seedPayout);
     }
 
     if (creatorPayout) {
-      payoutsJson.creator = { amountEth: creatorPayout.amountEth };
+      payoutsJson.creator = amt(creatorPayout);
     }
 
     // Need the target word - must be provided as query param for security

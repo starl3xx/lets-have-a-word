@@ -161,22 +161,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Step 5: Get payouts
     const payoutsResult = await db.execute(sql`
-      SELECT fid, amount_eth, role FROM round_payouts WHERE round_id = ${roundId}
+      SELECT fid, amount_eth, amount_word, role FROM round_payouts WHERE round_id = ${roundId}
     `);
     const payoutsRows = getRows(payoutsResult);
+
+    // amount_eth is NULL on a $WORD payout, so writing only amountEth puts
+    // "null" into an archive row nothing ever recomputes. Same shape as
+    // archiveRound() in src/lib/archive.ts.
+    const amt = (p: any) => ({
+      amountEth: p.amount_eth ?? '0',
+      ...(p.amount_word ? { amountWord: p.amount_word } : {}),
+    });
 
     const payoutsJson: any = { topGuessers: [] };
     for (const payout of payoutsRows) {
       if (payout.role === 'winner' && payout.fid) {
-        payoutsJson.winner = { fid: payout.fid, amountEth: payout.amount_eth };
+        payoutsJson.winner = { fid: payout.fid, ...amt(payout) };
       } else if (payout.role === 'referrer' && payout.fid) {
-        payoutsJson.referrer = { fid: payout.fid, amountEth: payout.amount_eth };
+        payoutsJson.referrer = { fid: payout.fid, ...amt(payout) };
       } else if (payout.role === 'seed') {
-        payoutsJson.seed = { amountEth: payout.amount_eth };
+        payoutsJson.seed = amt(payout);
       } else if (payout.role === 'top_guesser' && payout.fid) {
         payoutsJson.topGuessers.push({
           fid: payout.fid,
-          amountEth: payout.amount_eth,
+          ...amt(payout),
           rank: payoutsJson.topGuessers.length + 1
         });
       }
