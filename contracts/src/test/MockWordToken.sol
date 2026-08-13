@@ -24,6 +24,17 @@ contract MockWordToken is ERC20 {
         blocked[account] = value;
     }
 
+    /**
+     * @dev Mirrors ERC20Burnable.burn on the real $WORD token: burns from the
+     * caller and REDUCES totalSupply. The distinction matters — the pre-2026
+     * implementation transferred to 0xdead instead, which leaves supply
+     * unchanged, so a mock that only transferred would let a regression back to
+     * that behaviour pass silently.
+     */
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
+    }
+
     function _update(address from, address to, uint256 value) internal override {
         require(!blocked[to], "MockWordToken: recipient blocked");
         super._update(from, to, value);
