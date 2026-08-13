@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatWordAmount } from '../src/lib/word-amounts';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import type { UserReferralsResponse } from '../pages/api/user/referrals';
@@ -35,6 +36,7 @@ export default function ReferralSheet({
 
   // For ETH earned animation
   const [displayedEth, setDisplayedEth] = useState('0.0000');
+  const [wordEarnedWei, setWordEarnedWei] = useState('0');
   const [displayedReferrals, setDisplayedReferrals] = useState(0);
   const animationRef = useRef<number | null>(null);
 
@@ -72,6 +74,8 @@ export default function ReferralSheet({
           setAutoCopied(true);
           setTimeout(() => setAutoCopied(false), 2000);
         }
+
+        setWordEarnedWei(data.referralWordEarned ?? '0');
 
         // Animate counters
         animateCounters(
@@ -180,7 +184,7 @@ export default function ReferralSheet({
 
       const castText = `I'm hunting for the secret word in @letshaveaword 👀\n\n` +
         `Every wrong guess shrinks the field\n` +
-        `One correct guess wins the ETH jackpot 🎯\n\n` +
+        `One correct guess wins the jackpot 🎯\n\n` +
         `Play with my link ↓ ${referralData.referralLink}`;
 
       await sdk.actions.composeCast({
@@ -303,6 +307,21 @@ export default function ReferralSheet({
                   <p className="text-3xl font-bold text-accent-900 tabular-nums">
                     {displayedEth}
                   </p>
+                  {(() => {
+                    // Only rendered once a referrer has earned in a $WORD
+                    // round, so a purely pre-34 history looks unchanged.
+                    let wei = 0n;
+                    try {
+                      wei = BigInt(wordEarnedWei || '0');
+                    } catch {
+                      wei = 0n;
+                    }
+                    return wei > 0n ? (
+                      <p className="text-sm font-semibold text-accent-800 tabular-nums">
+                        {formatWordAmount(wei)} $WORD
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               </div>
               <p className="text-xs text-accent-600 mt-2">
