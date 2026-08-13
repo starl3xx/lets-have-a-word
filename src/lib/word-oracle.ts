@@ -16,6 +16,7 @@ import { ethers } from 'ethers';
 import { getJackpotManagerReadOnly, getJackpotManagerWithOperator } from './jackpot-contract';
 import { WORD_TOKEN_ADDRESS } from './word-token';
 import { sendWithBuilderCode } from './builder-code';
+import { fetchOnchainWordPrice } from './word-price-onchain';
 
 /**
  * Market cap tier thresholds (in USD)
@@ -31,9 +32,25 @@ export const MARKET_CAP_TIER = {
 export enum OracleSource {
   DEXSCREENER = 'dexscreener',
   GECKOTERMINAL = 'geckoterminal',
+  ONCHAIN = 'onchain',
   COINGECKO = 'coingecko',
   FALLBACK = 'fallback',
 }
+
+/**
+ * How far an HTTP source may diverge from the onchain pool price before we
+ * distrust it. Wide enough to absorb differing ETH/USD rates and indexer lag
+ * (observed divergence is ~1.6%), narrow enough to catch a stale or wrong feed.
+ */
+const SOURCE_AGREEMENT_TOLERANCE = 0.15;
+
+/**
+ * Per-request timeout for the HTTP price sources.
+ *
+ * These ran with no timeout at all, so a hung upstream would hang the caller
+ * indefinitely — including the 15-minute oracle cron.
+ */
+const PRICE_FETCH_TIMEOUT_MS = 8000;
 
 /**
  * Market cap data structure
@@ -65,7 +82,8 @@ export interface ContractMarketCapInfo {
 export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
   try {
     const response = await fetch(
-      `https://api.dexscreener.com/latest/dex/tokens/${WORD_TOKEN_ADDRESS}`
+      `https://api.dexscreener.com/latest/dex/tokens/${WORD_TOKEN_ADDRESS}`,
+      { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) }
     );
 
     if (!response.ok) {
@@ -119,7 +137,8 @@ export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
 export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
   try {
     const response = await fetch(
-      `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}`
+      `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}`,
+      { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) }
     );
 
     if (!response.ok) {
@@ -164,7 +183,8 @@ export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
 export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
   try {
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/base/contract/${WORD_TOKEN_ADDRESS}`
+      `https://api.coingecko.com/api/v3/coins/base/contract/${WORD_TOKEN_ADDRESS}`,
+      { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) }
     );
 
     if (!response.ok) {
@@ -200,10 +220,16 @@ export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
 /**
  * Fetch $WORD market cap from available sources
  *
- * Tries sources in priority order:
- * 1. DexScreener (richest data incl. 24h change, but delisted $WORD Aug 2026)
- * 2. GeckoTerminal (tracks the Uniswap v4 pool reliably)
- * 3. CoinGecko (if listed)
+ * 1. DexScreener — richest data (incl. 24h change), but it delisted $WORD in
+ *    Aug 2026. Kept first so it reclaims priority automatically if it relists.
+ * 2. GeckoTerminal and the onchain Uniswap v4 pool, fetched together and
+ *    cross-checked. GeckoTerminal wins when they agree because it carries
+ *    extra fields; the onchain read wins when they don't, because a pool read
+ *    cannot go stale or be delisted.
+ * 3. CoinGecko — never listed $WORD, kept only as a last resort.
+ *
+ * Never returns a zero or negative price: callers price real payouts off this,
+ * so absence must be explicit rather than a silent default.
  *
  * @returns Market cap data or null if all sources fail
  */
@@ -216,10 +242,62 @@ export async function fetchWordTokenMarketCap(): Promise<MarketCapData | null> {
     return dexData;
   }
 
-  // Fallback to GeckoTerminal
-  const geckoTerminalData = await fetchFromGeckoTerminal();
-  if (geckoTerminalData && geckoTerminalData.marketCapUsd > 0) {
+  // GeckoTerminal and the onchain pool are independent of each other, so fetch
+  // both and use the disagreement as a signal rather than picking blind.
+  const [geckoTerminalData, onchain] = await Promise.all([
+    fetchFromGeckoTerminal(),
+    fetchOnchainWordPrice(),
+  ]);
+
+  const onchainData: MarketCapData | null =
+    onchain && onchain.marketCapUsd > 0
+      ? {
+          marketCapUsd: onchain.marketCapUsd,
+          priceUsd: onchain.priceUsd,
+          source: OracleSource.ONCHAIN,
+          timestamp: new Date(),
+        }
+      : null;
+
+  const gtValid = geckoTerminalData && geckoTerminalData.marketCapUsd > 0;
+
+  if (gtValid && onchainData) {
+    const divergence =
+      Math.abs(geckoTerminalData.priceUsd - onchainData.priceUsd) / onchainData.priceUsd;
+
+    if (divergence <= SOURCE_AGREEMENT_TOLERANCE) {
+      console.log(`[ORACLE] Sources agree within ${(divergence * 100).toFixed(2)}% — using GeckoTerminal`);
+      return geckoTerminalData;
+    }
+
+    // Only let the pool override a live USD feed when its own USD conversion is
+    // trustworthy. The pool half is always current, but converting it to USD
+    // relies on a cached ETH/USD rate — so a stale rate can manufacture the
+    // very divergence being used to justify preferring it over GeckoTerminal.
+    if (onchain?.ethPriceStale) {
+      console.warn(
+        `[ORACLE] Source divergence ${(divergence * 100).toFixed(2)}% but the ETH/USD rate ` +
+          `behind the onchain conversion is stale — keeping GeckoTerminal`
+      );
+      return geckoTerminalData;
+    }
+
+    console.warn(
+      `[ORACLE] Source divergence ${(divergence * 100).toFixed(2)}% exceeds ` +
+        `${SOURCE_AGREEMENT_TOLERANCE * 100}% (GeckoTerminal $${geckoTerminalData.priceUsd.toExponential(4)} ` +
+        `vs onchain $${onchainData.priceUsd.toExponential(4)}) — trusting the onchain pool`
+    );
+    return onchainData;
+  }
+
+  if (gtValid) {
+    console.warn('[ORACLE] Onchain price unavailable — using GeckoTerminal unverified');
     return geckoTerminalData;
+  }
+
+  if (onchainData) {
+    console.warn('[ORACLE] GeckoTerminal unavailable — using onchain pool price');
+    return onchainData;
   }
 
   // Fallback to CoinGecko
