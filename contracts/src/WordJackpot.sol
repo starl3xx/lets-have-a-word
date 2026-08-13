@@ -321,6 +321,12 @@ contract WordJackpot is
 
         uint256 total = carryForNextRound;
         for (uint256 i = 0; i < amounts.length; i++) {
+            // A nonzero amount aimed at address(0) would pass the sum check and
+            // then be skipped by the payout loop, leaving those tokens in the
+            // contract as unallocated — silently sweepable, and reported as
+            // paid. Reject the array instead: a failed resolve is recoverable,
+            // a misallocated one is not.
+            if (amounts[i] > 0 && recipients[i] == address(0)) revert ZeroAddress();
             total += amounts[i];
         }
         if (total != pool) revert PayoutMismatch(total, pool);

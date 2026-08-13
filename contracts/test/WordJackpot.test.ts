@@ -134,6 +134,36 @@ describe("WordJackpot", function () {
         .be.reverted;
     });
 
+    it("rejects a nonzero payout aimed at the zero address", async function () {
+      const { jackpot, operator, winner } = await deploy();
+      await jackpot.connect(operator).startRound(34, SEED_CENTS, hre.ethers.ZeroHash);
+      const seed = 78_125_000n * E18;
+      const half = seed / 2n;
+
+      // Would otherwise pass the sum check, then be skipped by the payout loop,
+      // leaving those tokens sweepable while the event reported them as paid.
+      await expect(
+        jackpot
+          .connect(operator)
+          .resolveRound(34, [winner.address, hre.ethers.ZeroAddress], [half, seed - half], 0n)
+      ).to.be.revertedWithCustomError(jackpot, "ZeroAddress");
+
+      // Nothing moved: the round is still live and fully funded
+      expect(await jackpot.pool()).to.equal(seed);
+    });
+
+    it("still allows a zero-amount entry at the zero address", async function () {
+      const { jackpot, operator, winner } = await deploy();
+      await jackpot.connect(operator).startRound(34, SEED_CENTS, hre.ethers.ZeroHash);
+      const seed = 78_125_000n * E18;
+
+      await expect(
+        jackpot
+          .connect(operator)
+          .resolveRound(34, [winner.address, hre.ethers.ZeroAddress], [seed, 0n], 0n)
+      ).to.not.be.reverted;
+    });
+
     it("pays the 80/10/5/5 split", async function () {
       const { jackpot, token, operator, winner, second, third } = await deploy();
       await jackpot.connect(operator).startRound(34, SEED_CENTS, hre.ethers.ZeroHash);
