@@ -105,6 +105,7 @@ contract WordManagerV3 is
     error InvalidWordIndex();
     error HashMismatch();
     error InsufficientBalance();
+    error WouldTouchStakerFunds(uint256 requested, uint256 available);
 
     // =========================================================================
     // Modifiers
@@ -299,6 +300,60 @@ contract WordManagerV3 is
     }
 
     // =========================================================================
+    // Solvency — separating staker funds from game funds
+    // =========================================================================
+
+    /**
+     * @notice Tokens this contract owes stakers and must never spend on the game.
+     *
+     * Two components: the staked principal every staker can withdraw on demand,
+     * and the rewards already promised for the remainder of the current period
+     * (rewardRate is $WORD per second and the period runs to periodFinish).
+     *
+     * Known limit: rewards that have already streamed but not yet been claimed
+     * are not separately reserved, because a Synthetix-style accrual has no
+     * aggregate counter for them — only per-account `rewards[]`. Adding one
+     * would mean new storage on a live proxy and a write in every updateReward.
+     * The principal term is the one that matters: without it a staker can be
+     * left unable to withdraw a deposit, which is the unrecoverable case.
+     */
+    function reservedForStakers() public view returns (uint256) {
+        uint256 remainingRewards = block.timestamp < periodFinish
+            ? (periodFinish - block.timestamp) * rewardRate
+            : 0;
+        return _totalSupply + remainingRewards;
+    }
+
+    /**
+     * @notice Balance the game may spend without dipping into staker funds.
+     *
+     * This is the quantity the admin dashboard already displays; until now
+     * nothing enforced it onchain.
+     */
+    function availableForGames() public view returns (uint256) {
+        uint256 balance = wordToken.balanceOf(address(this));
+        uint256 reserved = reservedForStakers();
+        return balance > reserved ? balance - reserved : 0;
+    }
+
+    /**
+     * @dev Reverts unless `amount` can be paid out of game funds alone.
+     *
+     * Every game distribution below was previously unguarded: they transferred
+     * until the ERC20 itself ran out, which meant staked principal was paid to
+     * game winners and stakers discovered it when withdraw() reverted. Failing
+     * loudly here is strictly better — a reverted reward is re-runnable once the
+     * contract is topped up, an eaten deposit is not.
+     */
+    modifier gameSolvent(uint256 amount) {
+        uint256 available = availableForGames();
+        if (amount > available) {
+            revert WouldTouchStakerFunds(amount, available);
+        }
+        _;
+    }
+
+    // =========================================================================
     // Operator — Reward Distribution
     // =========================================================================
 
@@ -397,7 +452,7 @@ contract WordManagerV3 is
         bytes32 salt,
         address player,
         uint256 amount
-    ) external onlyOperator {
+    ) external onlyOperator gameSolvent(amount) {
         if (roundCommitments[roundId].committedAt == 0) {
             revert RoundNotCommitted(roundId);
         }
@@ -457,7 +512,11 @@ contract WordManagerV3 is
     // Legacy Compatibility (from V2)
     // =========================================================================
 
-    function distributeBonusReward(address player, uint256 amount) external onlyOperator {
+    function distributeBonusReward(address player, uint256 amount)
+        external
+        onlyOperator
+        gameSolvent(amount)
+    {
         require(wordToken.transfer(player, amount), "Transfer failed");
         totalDistributed += amount;
     }
@@ -473,6 +532,20 @@ contract WordManagerV3 is
         uint256[] calldata amounts
     ) external onlyOperator {
         require(players.length == amounts.length, "Length mismatch");
+
+        // Check the TOTAL before transferring anything. Guarding each transfer
+        // individually would let the batch drain past the reserve one payment
+        // at a time, since each check would see a balance the previous transfer
+        // had already reduced.
+        uint256 total;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            total += amounts[i];
+        }
+        uint256 available = availableForGames();
+        if (total > available) {
+            revert WouldTouchStakerFunds(total, available);
+        }
+
         for (uint256 i = 0; i < players.length; i++) {
             require(wordToken.transfer(players[i], amounts[i]), "Transfer failed");
             totalDistributed += amounts[i];
