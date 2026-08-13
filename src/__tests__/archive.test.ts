@@ -11,6 +11,7 @@ import {
   type ArchiveRoundResult,
 } from '../lib/archive';
 import { createRound, resolveRound, getActiveRound } from '../lib/rounds';
+import { createTestRound, retireActiveRounds } from './helpers/rounds';
 
 /**
  * Archive Module Tests
@@ -21,6 +22,12 @@ import { createRound, resolveRound, getActiveRound } from '../lib/rounds';
  */
 
 describe('Round Archive', () => {
+
+  afterEach(async () => {
+    // createRound refuses to run while a round is active, so without this the
+    // second test in the file fails and every one after it.
+    await retireActiveRounds();
+  });
   // Test round cleanup helper
   let testRoundIds: number[] = [];
 
@@ -43,7 +50,7 @@ describe('Round Archive', () => {
   describe('archiveRound()', () => {
     it('should archive a resolved round', async () => {
       // Create and resolve a round
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
 
@@ -61,7 +68,7 @@ describe('Round Archive', () => {
 
     it('should be idempotent - archiving same round twice returns existing', async () => {
       // Create and resolve a round
-      const round = await createRound({ forceAnswer: 'house' });
+      const round = await createTestRound({ forceAnswer: 'house' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
 
@@ -86,7 +93,7 @@ describe('Round Archive', () => {
 
     it('should fail for unresolved round', async () => {
       // Create a round but don't resolve it
-      const round = await createRound({ forceAnswer: 'audio' });
+      const round = await createTestRound({ forceAnswer: 'audio' });
       testRoundIds.push(round.id);
 
       const result = await archiveRound({ roundId: round.id });
@@ -100,7 +107,7 @@ describe('Round Archive', () => {
 
     it('should include winner info when present', async () => {
       // Create and resolve a round with winner
-      const round = await createRound({ forceAnswer: 'crane' });
+      const round = await createTestRound({ forceAnswer: 'crane' });
       testRoundIds.push(round.id);
       const winnerFid = 54321;
       await resolveRound(round.id, winnerFid);
@@ -113,7 +120,7 @@ describe('Round Archive', () => {
 
     it('should include referrer info when present', async () => {
       // Create and resolve a round with winner and referrer
-      const round = await createRound({ forceAnswer: 'smart' });
+      const round = await createTestRound({ forceAnswer: 'smart' });
       testRoundIds.push(round.id);
       const winnerFid = 11111;
       const referrerFid = 22222;
@@ -128,7 +135,7 @@ describe('Round Archive', () => {
 
     it('should include payout information', async () => {
       // Create and resolve a round
-      const round = await createRound({ forceAnswer: 'world' });
+      const round = await createTestRound({ forceAnswer: 'world' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
 
@@ -143,7 +150,7 @@ describe('Round Archive', () => {
   describe('getArchivedRound()', () => {
     it('should retrieve an archived round by number', async () => {
       // Create, resolve, and archive a round
-      const round = await createRound({ forceAnswer: 'beach' });
+      const round = await createTestRound({ forceAnswer: 'beach' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
       await archiveRound({ roundId: round.id });
@@ -195,7 +202,7 @@ describe('Round Archive', () => {
   describe('getLatestArchivedRound()', () => {
     it('should return the most recent archived round', async () => {
       // Archive a round
-      const round = await createRound({ forceAnswer: 'plant' });
+      const round = await createTestRound({ forceAnswer: 'plant' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
       await archiveRound({ roundId: round.id });
@@ -213,7 +220,7 @@ describe('Round Archive', () => {
   describe('getArchiveDebugInfo()', () => {
     it('should return debug info comparing archived vs raw data', async () => {
       // Create, resolve, and archive a round
-      const round = await createRound({ forceAnswer: 'dance' });
+      const round = await createTestRound({ forceAnswer: 'dance' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
       await archiveRound({ roundId: round.id });
@@ -241,7 +248,7 @@ describe('Round Archive', () => {
   describe('getRoundGuessDistribution()', () => {
     it('should return distribution data for a round', async () => {
       // Create, resolve, and archive a round
-      const round = await createRound({ forceAnswer: 'night' });
+      const round = await createTestRound({ forceAnswer: 'night' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
 
@@ -253,7 +260,7 @@ describe('Round Archive', () => {
     });
 
     it('should return empty arrays for round with no guesses', async () => {
-      const round = await createRound({ forceAnswer: 'light' });
+      const round = await createTestRound({ forceAnswer: 'light' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
 
@@ -282,7 +289,7 @@ describe('Round Archive', () => {
   describe('syncAllRounds()', () => {
     it('should sync all unarchived resolved rounds', async () => {
       // Create and resolve a round
-      const round = await createRound({ forceAnswer: 'storm' });
+      const round = await createTestRound({ forceAnswer: 'storm' });
       testRoundIds.push(round.id);
       await resolveRound(round.id, 12345);
 
@@ -319,7 +326,7 @@ describe('Archive Data Integrity', () => {
       await resolveRound(active.id, 99999);
     }
 
-    const round = await createRound({ forceAnswer: 'timer' });
+    const round = await createTestRound({ forceAnswer: 'timer' });
     const afterCreate = new Date();
 
     await resolveRound(round.id, 12345);
@@ -342,7 +349,7 @@ describe('Archive Data Integrity', () => {
       await resolveRound(active.id, 99999);
     }
 
-    const round = await createRound({ forceAnswer: 'proof' });
+    const round = await createTestRound({ forceAnswer: 'proof' });
     await resolveRound(round.id, 12345);
 
     await archiveRound({ roundId: round.id });

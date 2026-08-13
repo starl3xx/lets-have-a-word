@@ -69,14 +69,21 @@ jobs:
         # job meaningful — a permanently-red job gets ignored, which is how the
         # suite rotted in the first place.
         #
-        # STILL EXCLUDED, and why — each needs createRound({
-        # skipOnChainCommitment: true }) plus per-test cleanup, since createRound
-        # requires a deployed contract and refuses to run while a round is
-        # active:
-        #   archive, daily-limits, guess-logic, round-lifecycle, wheel, economics
-        # daily-limits has both fixes already and goes from 0 to 8 passing; its
-        # remaining 14 failures are $WORD tier assertions, not infrastructure.
-        # Move files out of this list as they go green.
+        # STILL EXCLUDED. The infrastructure blockers are now fixed — these run
+        # against a database and no longer need a contract — but each still has
+        # individual assertion failures, so none is fully green yet:
+        #
+        #   wheel            8/20 failing
+        #   round-lifecycle  7/21
+        #   archive          6/22
+        #   daily-limits     6/22
+        #   economics        4/8
+        #   guess-logic      3/26
+        #
+        # Whole suite: 370/404 passing, up from 308. What remains is per-test
+        # debugging where the answer is not obvious — some look like stale
+        # expectations, some like real bugs — and getting one wrong means making
+        # a test agree with broken behaviour. Move files here as they go green.
         run: |
           npx vitest run --no-file-parallelism \
             src/__tests__/economy-config.test.ts \

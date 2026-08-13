@@ -430,6 +430,21 @@ export async function resolveRoundAndCreatePayouts(
     console.log(`  - Pool: ${formatWordAmount(jackpotWei)} $WORD`);
     console.log(`  - Carry (already reserved): ${formatWordAmount(solvency.carryWei)} $WORD`);
     console.log(`  - Unallocated tranche: ${formatWordAmount(solvency.unallocatedWei)} $WORD`);
+  } else if (skipOnchainResolutionFlag) {
+    // No onchain call is going to happen, so there is no contract figure to
+    // match and the database value is the only one that exists.
+    //
+    // The read below deliberately refuses to fall back to the DB, because a
+    // value that disagrees with the contract's internal jackpot makes
+    // resolveRoundWithPayouts revert with CALL_EXCEPTION. That reasoning does
+    // not apply when the transaction is skipped entirely — and requiring a
+    // reachable contract to compute payouts we are not sending is what made
+    // this path untestable.
+    jackpotWei = ethers.parseEther(round.prizePoolEth || '0');
+    jackpotEth = parseFloat(round.prizePoolEth || '0');
+    console.log(
+      `[economics] Onchain resolution skipped — using DB prize pool ${jackpotEth} ETH`
+    );
   } else {
   try {
     if (sepoliaSimulationMode) {

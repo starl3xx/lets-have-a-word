@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   submitGuess,
   getWrongWordsForRound,
@@ -6,6 +6,7 @@ import {
   getTopGuessersForRound,
 } from '../lib/guesses';
 import { createRound, getActiveRound, resolveRound } from '../lib/rounds';
+import { createTestRound, retireActiveRounds } from './helpers/rounds';
 import type { SubmitGuessParams } from '../types';
 
 /**
@@ -14,6 +15,12 @@ import type { SubmitGuessParams } from '../types';
  */
 
 describe('Guess Logic - Milestone 1.3', () => {
+
+  afterEach(async () => {
+    // createRound refuses to run while a round is active, so without this the
+    // second test in the file fails and every one after it.
+    await retireActiveRounds();
+  });
   let testRoundId: number;
   let testAnswer: string;
 
@@ -26,7 +33,7 @@ describe('Guess Logic - Milestone 1.3', () => {
 
     // Create a new round with a known answer
     testAnswer = 'brain';
-    const round = await createRound({ forceAnswer: testAnswer });
+    const round = await createTestRound({ forceAnswer: testAnswer });
     testRoundId = round.id;
   });
 

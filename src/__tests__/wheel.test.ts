@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   populateRoundSeedWords,
   getWheelWordsForRound,
@@ -8,6 +8,7 @@ import {
   getActiveWheelData,
 } from '../lib/wheel';
 import { createRound, resolveRound, getActiveRound } from '../lib/rounds';
+import { createTestRound, retireActiveRounds } from './helpers/rounds';
 import { submitGuess } from '../lib/guesses';
 import { db } from '../db';
 import { roundSeedWords, guesses } from '../db/schema';
@@ -22,9 +23,15 @@ import { eq } from 'drizzle-orm';
  */
 
 describe('Wheel Functionality (Milestone 2.3)', () => {
+
+  afterEach(async () => {
+    // createRound refuses to run while a round is active, so without this the
+    // second test in the file fails and every one after it.
+    await retireActiveRounds();
+  });
   describe('populateRoundSeedWords()', () => {
     it('should populate seed words for a round', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Seed words should already be populated by createRound
       // Verify they exist
@@ -46,7 +53,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should not populate seed words twice for the same round', async () => {
-      const round = await createRound({ forceAnswer: 'house' });
+      const round = await createTestRound({ forceAnswer: 'house' });
 
       // Get initial count (already populated by createRound)
       const initialSeedWords = await db
@@ -72,7 +79,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should respect the count parameter', async () => {
-      const round = await createRound({ forceAnswer: 'audio' });
+      const round = await createTestRound({ forceAnswer: 'audio' });
 
       // Delete existing seed words
       await db.delete(roundSeedWords).where(eq(roundSeedWords.roundId, round.id));
@@ -94,7 +101,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
   describe('getWheelWordsForRound()', () => {
     it('should return only seed words when no guesses exist', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const wheelWords = await getWheelWordsForRound(round.id);
 
@@ -110,7 +117,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should return union of seed words and wrong guesses', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit some wrong guesses
       await submitGuess({ fid: 12345, word: 'HOUSE' });
@@ -136,7 +143,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should not include duplicate words', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit same wrong guess from different users
       await submitGuess({ fid: 100, word: 'HOUSE' });
@@ -154,7 +161,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should not include correct guesses in the wheel', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit wrong guesses
       await submitGuess({ fid: 100, word: 'HOUSE' });
@@ -178,7 +185,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
   describe('getGlobalGuessCount()', () => {
     it('should return 0 when no guesses exist', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const count = await getGlobalGuessCount(round.id);
 
@@ -189,7 +196,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should count all guesses for a round', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit guesses
       await submitGuess({ fid: 100, word: 'HOUSE' });
@@ -205,7 +212,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should include both correct and incorrect guesses', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit wrong guesses
       await submitGuess({ fid: 100, word: 'HOUSE' });
@@ -222,7 +229,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should NOT count seed words as guesses', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Get seed words count
       const seedWords = await db
@@ -243,7 +250,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
   describe('getRoundStatus()', () => {
     it('should return correct round status', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const status = await getRoundStatus(round.id);
 
@@ -258,7 +265,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should convert ETH to USD', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const status = await getRoundStatus(round.id);
 
@@ -271,7 +278,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should include global guess count', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit guesses
       await submitGuess({ fid: 100, word: 'HOUSE' });
@@ -292,7 +299,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
   describe('getActiveRoundStatus()', () => {
     it('should return status for active round', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const status = await getActiveRoundStatus();
 
@@ -320,7 +327,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
   describe('getActiveWheelData()', () => {
     it('should return wheel data for active round', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const wheelData = await getActiveWheelData();
 
@@ -334,7 +341,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     });
 
     it('should return sorted alphabetical words', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit some wrong guesses
       await submitGuess({ fid: 100, word: 'ZEBRA' });
@@ -357,7 +364,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
   describe('Integration: Complete Wheel Lifecycle', () => {
     it('should handle full wheel lifecycle', async () => {
       // 1. Create round (automatically populates seed words)
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // 2. Verify seed words exist
       const initialWheel = await getWheelWordsForRound(round.id);

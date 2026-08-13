@@ -66,7 +66,11 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   }
 
   // Select answer
-  const selectedAnswer = forceAnswer || getRandomAnswerWord();
+  // Uppercase to match getRandomAnswerWord(), which returns canonical WORDS
+  // entries. Storing forceAnswer verbatim meant the test-only path produced a
+  // differently-cased answer than production, so anything comparing or
+  // displaying the stored answer behaved differently under test.
+  const selectedAnswer = (forceAnswer || getRandomAnswerWord()).toUpperCase();
 
   // Validate answer
   if (!isValidAnswer(selectedAnswer)) {
