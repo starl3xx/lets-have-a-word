@@ -199,16 +199,28 @@ export default async function handler(
       const verifiedClientWallet = isWalletOwnedByFid(walletAddress, farcasterUser)
         ? walletAddress
         : null;
+
+      // Fall back to the custody address before ever accepting an unverified
+      // client wallet. Every real Farcaster account has one and it comes from
+      // Neynar, so whenever Neynar knows this FID there is always a trustworthy
+      // value available. Skipping it would let an attacker pre-create a record
+      // for any FID that happens to have no primary/signer address, planting
+      // their own wallet — and the fail-closed update path below would then
+      // stop the real owner from correcting it.
       const userWallet =
         verifiedClientWallet ||
         farcasterUser?.primaryWallet ||
         farcasterUser?.signerWallet ||
-        walletAddress ||
+        farcasterUser?.custodyAddress ||
+        // Only when Neynar has no record of this FID at all is there nothing
+        // better to use — and an FID Neynar does not know has no winnings to
+        // redirect.
+        (farcasterUser ? null : walletAddress) ||
         null;
 
       if (walletAddress && !verifiedClientWallet) {
         console.warn(
-          `[user-state] New FID ${fid}: ${walletAddress} is not Neynar-verified; preferring Neynar address if present`
+          `[user-state] New FID ${fid}: ${walletAddress} is not Neynar-verified; using ${userWallet ?? 'no'} address instead`
         );
       }
       const username = farcasterUser?.username || `user-${fid}`;
