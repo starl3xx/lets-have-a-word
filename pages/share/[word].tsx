@@ -61,7 +61,10 @@ export const getServerSideProps: GetServerSideProps<SharePageProps> = async (con
 
 export default function SharePage({ word, round, jackpot, ogImageUrl }: SharePageProps) {
   const title = `\u201c${word}\u201d eliminated \u2014 Round #${round} | Let\u2019s Have A Word`;
-  const description = `${jackpot} ETH jackpot is still up for grabs. Find the word. Win the prize.`;
+  // `jackpot` already carries its unit ("0.0216 ETH" / "78,125,000 $WORD") —
+  // SharePromptModal formats it before putting it in the query string. Adding
+  // " ETH" here produced "0.0216 ETH ETH".
+  const description = `${jackpot} jackpot is still up for grabs. Find the word. Win the prize.`;
 
   return (
     <>

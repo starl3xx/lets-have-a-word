@@ -224,7 +224,7 @@ function GameContent() {
 
   // Winner share card state (Milestone 4.14)
   const [showWinnerShareCard, setShowWinnerShareCard] = useState(false);
-  const [winnerData, setWinnerData] = useState<{ word: string; roundId: number; jackpotEth: string } | null>(null);
+  const [winnerData, setWinnerData] = useState<{ word: string; roundId: number; prizeDisplay: string } | null>(null);
 
   // UX state (Milestone 4.3)
   const [isShaking, setIsShaking] = useState(false);
@@ -1239,7 +1239,7 @@ function GameContent() {
         }());
 
         // Milestone 4.14: Show winner share card after short delay
-        setWinnerData({ word: data.word, roundId: data.roundId, jackpotEth: data.jackpotEth || '0.00' });
+        setWinnerData({ word: data.word, roundId: data.roundId, prizeDisplay: data.prizeDisplay || 'the jackpot' });
         setTimeout(() => {
           setShowWinnerShareCard(true);
         }, 2000); // 2 second delay to let confetti play first
@@ -1749,7 +1749,7 @@ function GameContent() {
 
                 if (latestGuess.result === 'correct') {
                   setBoxResultState('correct');
-                  setWinnerData({ word: latestGuess.word, roundId: currentRoundId || 0, jackpotEth: '0' });
+                  setWinnerData({ word: latestGuess.word, roundId: currentRoundId || 0, prizeDisplay: 'the jackpot' });
                   setShowWinnerShareCard(true);
                 } else if (latestGuess.result === 'bonus_word') {
                   setBoxResultState('correct');
@@ -2369,7 +2369,7 @@ function GameContent() {
         <WinnerShareCard
           winnerWord={winnerData.word}
           roundId={winnerData.roundId}
-          jackpotEth={winnerData.jackpotEth}
+          prizeDisplay={winnerData.prizeDisplay}
           onClose={() => setShowWinnerShareCard(false)}
         />
       )}

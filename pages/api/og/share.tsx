@@ -29,7 +29,10 @@ function asString(val: string | string[] | undefined, fallback: string): string 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const word = asString(req.query.word, 'HELLO').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
   const round = asString(req.query.round, '1');
-  const jackpot = asString(req.query.jackpot, '0.0200');
+  // Already formatted with its unit by the caller ("0.0216 ETH" /
+  // "78,125,000 $WORD"). Do not parseFloat it: that yields 78 for a $WORD
+  // amount, because parsing stops at the first thousands separator.
+  const jackpot = asString(req.query.jackpot, '0.0200 ETH');
   const guesses = asString(req.query.guesses, '0');
   const players = asString(req.query.players, '0');
 
@@ -126,7 +129,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               lineHeight: '1',
             }}
           >
-            {parseFloat(jackpot).toFixed(4)} ETH
+            {jackpot}
           </span>
           <span
             style={{

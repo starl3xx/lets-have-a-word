@@ -1030,7 +1030,21 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
       }
 
       // Calculate jackpot amount (80% of prize pool)
+      // The winner's 80% share, formatted with the round's own unit. Built
+      // here rather than in the client because the server is the only side
+      // that knows which currency the round was seeded in.
       const jackpotEth = (parseFloat(round.prizePoolEth) * 0.8).toFixed(4);
+      let prizeDisplay = `${jackpotEth} ETH`;
+      if (round.prizeCurrency === 'word') {
+        try {
+          const { formatWordAmount } = await import('./word-amounts');
+          const winnerShareWei = (BigInt(round.prizePoolWord ?? '0') * 8000n) / 10000n;
+          prizeDisplay = `${formatWordAmount(winnerShareWei)} $WORD`;
+        } catch (err) {
+          console.error('[guesses] Failed to format $WORD winner share:', err);
+          prizeDisplay = 'the jackpot';
+        }
+      }
 
       return {
         status: 'correct',
@@ -1038,6 +1052,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         roundId: round.id,
         winnerFid: fid,
         jackpotEth,
+        prizeDisplay,
       };
 
     } catch (error: any) {

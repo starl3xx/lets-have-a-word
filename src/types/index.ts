@@ -54,6 +54,11 @@ export interface Round {
   commitHash: string; // H(salt||answer)
   prizePoolEth: string; // current prize pool
   seedNextRoundEth: string; // accumulated seed for next round
+  // $WORD economy (migration 0022). Optional because this type is also built
+  // from partial selects; a round without them is an ETH round.
+  prizeCurrency?: string | null; // 'eth' (rounds 1-33) | 'word' (34+)
+  prizePoolWord?: string | null; // prize pool in $WORD wei
+  seedPriceE18?: string | null; // USD-per-$WORD (1e18-scaled) snapshot at seed time
   winnerFid: number | null;
   referrerFid: number | null;
   startedAt: Date;
@@ -81,7 +86,15 @@ export type SubmitGuessResult =
   | { status: 'invalid_word'; reason: 'not_5_letters' | 'non_alpha' | 'not_in_dictionary' }
   | { status: 'already_guessed_word'; word: string }
   | { status: 'incorrect'; word: string; totalGuessesForUserThisRound: number }
-  | { status: 'correct'; word: string; roundId: number; winnerFid: number }
+  | {
+      status: 'correct';
+      word: string;
+      roundId: number;
+      winnerFid: number;
+      jackpotEth?: string;
+      /** Winner's share INCLUDING its unit ("0.0216 ETH" / "62,500,000 $WORD"). */
+      prizeDisplay?: string;
+    }
   | { status: 'no_guesses_left_today' } // Milestone 2.2: Daily limits enforced
   | { status: 'duplicate_ignored'; word: string; message: string } // Milestone 9.6: Idempotent duplicate handling
   | { status: 'rate_limited'; message: string; retryAfterSeconds?: number } // Milestone 9.6: Rate limit soft block
