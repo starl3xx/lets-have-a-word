@@ -5,7 +5,7 @@ import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics'
 import { getActiveRound } from '../../src/lib/rounds';
 import { logXpEvent } from '../../src/lib/xp';
 import { db } from '../../src/db';
-import { guesses, packPurchases, users } from '../../src/db/schema';
+import { guesses, packPurchases } from '../../src/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   getTotalPackCostWei,
@@ -179,55 +179,23 @@ export default async function handler(
       });
     }
 
-    // Reject only when the paying wallet positively belongs to a DIFFERENT
-    // user — i.e. this is someone else's purchase being claimed.
+    // NOTE: there is deliberately no payer check here.
     //
-    // The naive check (compare the payer to this FID's wallet of record and
-    // reject on any difference) rejects honest buyers, because the two values
-    // come from independent sources: the client sends `useAccount()` —
-    // whichever wallet is connected — while the DB holds
-    // `signerWalletAddress || custodyAddress`, which Neynar can overwrite and
-    // which falls back to a custody address most users never transact from.
+    // Three versions were tried and all were unsound, because every one of them
+    // ultimately trusts `users.signerWalletAddress` — and that column is
+    // written from an unauthenticated client query parameter
+    // (`user-state.ts:76` reads `req.query.walletAddress`, `:194` writes it,
+    // and `:92` takes the FID from `req.query.devFid` with no environment
+    // guard). An attacker can therefore attach any wallet to their own FID
+    // before claiming a purchase, which defeats any ownership test built on it.
     //
-    // Asking "does this wallet belong to somebody else?" instead has no such
-    // failure mode. An unrecognised wallet means we cannot attribute the
-    // payment, so we allow it; only a wallet demonstrably owned by another FID
-    // is refused. Note the packs are still credited to the requesting FID, so
-    // this is a guard, not a re-routing of credit.
-    if (verification.player) {
-      const payer = verification.player.toLowerCase();
-
-      // Collect EVERY user the paying wallet is associated with, not just one.
-      // Neither wallet column is unique — `users_wallet_idx` is a plain index —
-      // so a wallet can legitimately appear on several rows (a custody address
-      // recorded against one account and as a signer on another, or stale rows
-      // left by a wallet change). Taking a single arbitrary row would reject
-      // the real payer whenever the query happened to return a different one.
-      const owners = await db
-        .select({ fid: users.fid })
-        .from(users)
-        .where(
-          sql`lower(${users.signerWalletAddress}) = ${payer} OR lower(${users.custodyAddress}) = ${payer}`
-        )
-        .limit(10);
-
-      // Allow when the caller is among the wallet's owners. Reject only when
-      // the wallet is known and the caller is not one of them.
-      if (owners.length > 0 && !owners.some((o) => o.fid === fid)) {
-        const payerFids = owners.map((o) => o.fid);
-        console.error(`[purchase-guess-pack] Purchase claimed by a different FID than the payer`, {
-          txHash, requestingFid: fid, payerFids, payer,
-        });
-        Sentry.captureMessage('[purchase-guess-pack] Purchase claimed by non-payer', {
-          level: 'error',
-          extra: { txHash, requestingFid: fid, payerFids, payer },
-        });
-        return res.status(403).json({
-          error: 'This transaction was paid by a different account',
-          code: AppErrorCodes.PURCHASE_FAILED,
-        });
-      }
-    }
+    // Binding the payer needs an authenticated caller, the way
+    // `pages/api/guess.ts:274` verifies a Farcaster QuickAuth JWT. That is a
+    // coordinated client and server change and is tracked separately. Adding a
+    // wallet heuristic in the meantime would carry a real false-reject risk —
+    // taking ETH from someone who paid — in exchange for no security.
+    //
+    // The amount check below is the defence that actually works.
 
     // The contract accepts any non-zero msg.value and treats `quantity` as a
     // caller-supplied label, so price is enforced here or nowhere. Without this
