@@ -8,7 +8,7 @@ import {
   getActiveWheelData,
 } from '../lib/wheel';
 import { createRound, resolveRound, getActiveRound } from '../lib/rounds';
-import { submitGuess } from '../lib/guess-logic';
+import { submitGuess } from '../lib/guesses';
 import { db } from '../db';
 import { roundSeedWords, guesses } from '../db/schema';
 import { eq } from 'drizzle-orm';

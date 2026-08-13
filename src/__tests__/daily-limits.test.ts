@@ -12,7 +12,7 @@ import {
 import * as economyConfig from '../../config/economy';
 import { createRound, resolveRound } from '../lib/rounds';
 import { db } from '../db';
-import { dailyGuessState } from '../db/schema';
+import { dailyGuessState, rounds } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
 /**
@@ -34,8 +34,21 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
     testDate = getTodayUTC();
 
     // Create a test round
-    const round = await createRound({ forceAnswer: 'brain' });
+    const round = await createRound({ forceAnswer: 'brain', skipOnChainCommitment: true });
     testRoundId = round.id;
+  });
+
+  afterEach(async () => {
+    // Retire the round this test created. createRound refuses to run while a
+    // round is active, so without this every case after the first fails with
+    // "Round N is still active" — which is why this file never passed once it
+    // started collecting.
+    if (testRoundId) {
+      await db
+        .update(rounds)
+        .set({ status: 'resolved', resolvedAt: new Date() })
+        .where(eq(rounds.id, testRoundId));
+    }
   });
 
   describe('Daily State Management', () => {

@@ -1,0 +1,94 @@
+name: App tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The app's vitest suite had never run in CI — only contracts.yml existed, and
+# it deliberately runs Hardhat alone. Nine test files could not even be
+# collected, because importing src/db threw when DATABASE_URL was unset, so
+# they failed before executing a single assertion.
+#
+# The schema is built with `drizzle-kit push` from src/db/schema.ts rather than
+# by replaying migrations/: those start at 0009 and there is no drizzle journal,
+# so the directory cannot reconstruct the database from empty. schema.ts is also
+# the right source of truth here — it is what the application code reads.
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lhaw_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/lhaw_test
+      # Any valid 32-byte key works; it only has to stay constant for the run,
+      # since answers are encrypted on insert and decrypted on read. Rotating it
+      # mid-run produces "unable to authenticate data" from AES-GCM.
+      ANSWER_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build schema from schema.ts
+        run: npx drizzle-kit push --force
+
+      - name: Seed default game rules
+        # rounds.ruleset_id has a FK to game_rules; without this every test that
+        # creates a round fails on the constraint rather than on its assertion.
+        run: npm run seed
+
+      - name: Run tests
+        # --no-file-parallelism because all files share one database. Run in
+        # parallel, a round created by one file is "active" while another tries
+        # to create its own, and createRound refuses.
+        #
+        # Explicit file list rather than the whole suite: six files still fail
+        # and are tracked separately (see below). Listing what passes keeps this
+        # job meaningful — a permanently-red job gets ignored, which is how the
+        # suite rotted in the first place.
+        #
+        # STILL EXCLUDED, and why — each needs createRound({
+        # skipOnChainCommitment: true }) plus per-test cleanup, since createRound
+        # requires a deployed contract and refuses to run while a round is
+        # active:
+        #   archive, daily-limits, guess-logic, round-lifecycle, wheel, economics
+        # daily-limits has both fixes already and goes from 0 to 8 passing; its
+        # remaining 14 failures are $WORD tier assertions, not infrastructure.
+        # Move files out of this list as they go green.
+        run: |
+          npx vitest run --no-file-parallelism \
+            src/__tests__/economy-config.test.ts \
+            src/__tests__/commitment-v2.test.ts \
+            src/__tests__/input-state.test.ts \
+            src/__tests__/rate-limit.test.ts \
+            src/__tests__/commit-reveal.test.ts \
+            src/__tests__/bakers-dozen.test.ts \
+            src/__tests__/word-lists.test.ts \
+            src/lib/prize-split.test.ts \
+            src/lib/word-amounts.test.ts \
+            src/lib/pack-pricing.test.ts \
+            src/lib/top-guesser-payouts.test.ts \
+            src/lib/prize-display.test.ts \
+            src/lib/users.test.ts

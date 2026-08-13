@@ -5,11 +5,11 @@ name: Contracts
 # That gap matters most for Solidity, where a mistake moves real money and
 # cannot be hot-fixed after deploy.
 #
-# Scope is deliberately narrow: ONLY the contract suite, which is green
-# (40 passing). The app's vitest suite has 28 pre-existing failures and
-# `tsc --noEmit` has pre-existing errors, so including either would make this
-# workflow red on day one — and a permanently-red gate is one everybody learns
-# to ignore, which is worse than no gate. Add them here as they are cleaned up.
+# Scope is deliberately narrow: ONLY the contract suite (87 passing). The app's
+# vitest suite now runs in app-tests.yml, which needs a Postgres service and so
+# is kept separate. `tsc --noEmit` still has pre-existing errors and is not
+# gated anywhere — a permanently-red gate is one everybody learns to ignore,
+# which is worse than no gate.
 
 on:
   pull_request:
