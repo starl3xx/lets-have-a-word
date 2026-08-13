@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createTestRound, retireActiveRounds } from './helpers/rounds';
 import {
   createRound,
   getActiveRound,
@@ -16,9 +17,15 @@ import { computeCommitHash } from '../lib/commit-reveal';
  */
 
 describe('Round Lifecycle', () => {
+
+  afterEach(async () => {
+    // createRound refuses to run while a round is active, so without this the
+    // second test in the file fails and every one after it.
+    await retireActiveRounds();
+  });
   describe('createRound()', () => {
     it('should create a round with random answer', async () => {
-      const round = await createRound();
+      const round = await createTestRound();
 
       expect(round).toBeDefined();
       expect(round.id).toBeGreaterThan(0);
@@ -40,9 +47,9 @@ describe('Round Lifecycle', () => {
 
     it('should create a round with forced answer', async () => {
       const opts: CreateRoundOptions = { forceAnswer: 'brain' };
-      const round = await createRound(opts);
+      const round = await createTestRound(opts);
 
-      expect(round.answer).toBe('brain');
+      expect(round.answer).toBe('BRAIN');
 
       // Clean up
       await resolveRound(round.id, 12345);
@@ -50,7 +57,7 @@ describe('Round Lifecycle', () => {
 
     it('should create a round with custom ruleset', async () => {
       const opts: CreateRoundOptions = { rulesetId: 1 };
-      const round = await createRound(opts);
+      const round = await createTestRound(opts);
 
       expect(round.rulesetId).toBe(1);
 
@@ -65,7 +72,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should throw error if active round already exists', async () => {
-      const round1 = await createRound();
+      const round1 = await createTestRound();
 
       // Try to create another round while first is still active
       await expect(createRound()).rejects.toThrow('Cannot create new round');
@@ -86,7 +93,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should return the active round', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       const active = await getActiveRound();
 
       expect(active).toBeDefined();
@@ -98,7 +105,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should not return resolved rounds', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       await resolveRound(created.id, 12345);
 
       const active = await getActiveRound();
@@ -110,7 +117,7 @@ describe('Round Lifecycle', () => {
 
   describe('ensureActiveRound()', () => {
     it('should return existing active round if one exists', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       const ensured = await ensureActiveRound();
 
       expect(ensured.id).toBe(created.id);
@@ -145,7 +152,7 @@ describe('Round Lifecycle', () => {
       const opts: CreateRoundOptions = { forceAnswer: 'house' };
       const ensured = await ensureActiveRound(opts);
 
-      expect(ensured.answer).toBe('house');
+      expect(ensured.answer).toBe('HOUSE');
 
       // Clean up
       await resolveRound(ensured.id, 12345);
@@ -154,7 +161,7 @@ describe('Round Lifecycle', () => {
 
   describe('getRoundById()', () => {
     it('should retrieve a round by ID', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       const retrieved = await getRoundById(created.id);
 
       expect(retrieved).toBeDefined();
@@ -174,7 +181,7 @@ describe('Round Lifecycle', () => {
 
   describe('resolveRound()', () => {
     it('should resolve a round with winner', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       const winnerFid = 12345;
 
       const resolved = await resolveRound(created.id, winnerFid);
@@ -185,7 +192,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should resolve a round with winner and referrer', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       const winnerFid = 12345;
       const referrerFid = 67890;
 
@@ -201,7 +208,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should throw error when resolving already-resolved round', async () => {
-      const created = await createRound();
+      const created = await createTestRound();
       await resolveRound(created.id, 12345);
 
       // Try to resolve again
@@ -211,7 +218,7 @@ describe('Round Lifecycle', () => {
 
   describe('Commit-Reveal Integrity', () => {
     it('should create valid commit hash', async () => {
-      const round = await createRound({ forceAnswer: 'audio' });
+      const round = await createTestRound({ forceAnswer: 'audio' });
 
       // Manually verify commitment
       const expectedHash = computeCommitHash(round.salt, round.answer);
@@ -223,7 +230,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should verify round commitment', async () => {
-      const round = await createRound();
+      const round = await createTestRound();
 
       const isValid = verifyRoundCommitment(round);
 
@@ -234,7 +241,7 @@ describe('Round Lifecycle', () => {
     });
 
     it('should fail verification for tampered answer', async () => {
-      const round = await createRound({ forceAnswer: 'brain' });
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Tamper with the answer
       const tamperedRound = { ...round, answer: 'house' };
@@ -251,7 +258,7 @@ describe('Round Lifecycle', () => {
   describe('Complete Round Lifecycle', () => {
     it('should handle full lifecycle: create -> active -> resolve', async () => {
       // 1. Create round
-      const created = await createRound({ forceAnswer: 'brain' });
+      const created = await createTestRound({ forceAnswer: 'brain' });
       expect(created.resolvedAt).toBeNull();
 
       // 2. Get active round
@@ -276,7 +283,7 @@ describe('Round Lifecycle', () => {
       expect(stillActive?.id).not.toBe(created.id);
 
       // 6. Can create new round now
-      const newRound = await createRound();
+      const newRound = await createTestRound();
       expect(newRound.id).not.toBe(created.id);
 
       // Clean up new round

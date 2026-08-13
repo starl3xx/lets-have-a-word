@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: [],
+    setupFiles: ['./src/__tests__/setup.ts'],
     include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     // contracts/ holds Hardhat tests, which need the Hardhat runtime and
     // cannot execute under vitest — they were being collected and counted as
