@@ -5,7 +5,7 @@ import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics'
 import { getActiveRound } from '../../src/lib/rounds';
 import { logXpEvent } from '../../src/lib/xp';
 import { db } from '../../src/db';
-import { guesses, packPurchases } from '../../src/db/schema';
+import { guesses, packPurchases, users } from '../../src/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   getTotalPackCostWei,
@@ -30,7 +30,6 @@ import {
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
 import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
-import { getGuessPurchaseWallet } from '../../src/lib/wallet-identity';
 
 /**
  * Minimum share of the quoted price a purchase must actually pay, in bps.
@@ -166,25 +165,6 @@ export default async function handler(
     // Milestone 6.4: Verify onchain transaction before awarding packs
     const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
 
-    // Resolve the FID's wallet of record so a mismatch against the onchain
-    // payer is at least visible.
-    //
-    // Report-only, deliberately: the two values come from independent sources
-    // and legitimately diverge. The client sends `useAccount()` — whichever
-    // wallet is connected in the mini-app — while this resolves
-    // `signerWalletAddress || custodyAddress` from the DB, which Neynar can
-    // overwrite and which falls back to a custody address most users never
-    // transact from. Rejecting on mismatch would take ETH from a user who paid
-    // correctly, which is worse than the narrow theft it would prevent
-    // (claiming someone else's txHash in the seconds before they submit it).
-    // The amount check below is the defence that actually closes the hole.
-    let walletOfRecord: string | undefined;
-    try {
-      walletOfRecord = await getGuessPurchaseWallet(fid);
-    } catch (error) {
-      console.warn(`[purchase-guess-pack] Could not resolve wallet for FID ${fid}`, error);
-    }
-
     const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
 
     if (!verification.valid) {
@@ -199,20 +179,44 @@ export default async function handler(
       });
     }
 
-    if (
-      walletOfRecord &&
-      verification.player &&
-      walletOfRecord.toLowerCase() !== verification.player.toLowerCase()
-    ) {
-      console.warn(`[purchase-guess-pack] Payer differs from wallet of record`, {
-        txHash, fid,
-        onchainPlayer: verification.player,
-        walletOfRecord,
-      });
-      Sentry.captureMessage('[purchase-guess-pack] Payer differs from wallet of record', {
-        level: 'warning',
-        extra: { fid, txHash, onchainPlayer: verification.player, walletOfRecord },
-      });
+    // Reject only when the paying wallet positively belongs to a DIFFERENT
+    // user — i.e. this is someone else's purchase being claimed.
+    //
+    // The naive check (compare the payer to this FID's wallet of record and
+    // reject on any difference) rejects honest buyers, because the two values
+    // come from independent sources: the client sends `useAccount()` —
+    // whichever wallet is connected — while the DB holds
+    // `signerWalletAddress || custodyAddress`, which Neynar can overwrite and
+    // which falls back to a custody address most users never transact from.
+    //
+    // Asking "does this wallet belong to somebody else?" instead has no such
+    // failure mode. An unrecognised wallet means we cannot attribute the
+    // payment, so we allow it; only a wallet demonstrably owned by another FID
+    // is refused. Note the packs are still credited to the requesting FID, so
+    // this is a guard, not a re-routing of credit.
+    if (verification.player) {
+      const payer = verification.player.toLowerCase();
+      const [owner] = await db
+        .select({ fid: users.fid })
+        .from(users)
+        .where(
+          sql`lower(${users.signerWalletAddress}) = ${payer} OR lower(${users.custodyAddress}) = ${payer}`
+        )
+        .limit(1);
+
+      if (owner && owner.fid !== fid) {
+        console.error(`[purchase-guess-pack] Purchase claimed by a different FID than the payer`, {
+          txHash, requestingFid: fid, payerFid: owner.fid, payer,
+        });
+        Sentry.captureMessage('[purchase-guess-pack] Purchase claimed by non-payer', {
+          level: 'error',
+          extra: { txHash, requestingFid: fid, payerFid: owner.fid, payer },
+        });
+        return res.status(403).json({
+          error: 'This transaction was paid by a different account',
+          code: AppErrorCodes.PURCHASE_FAILED,
+        });
+      }
     }
 
     // The contract accepts any non-zero msg.value and treats `quantity` as a
