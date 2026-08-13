@@ -109,28 +109,35 @@ export default function SplashPage() {
     logAnalytics('og_hunter_add_miniapp_click', fid || undefined);
 
     try {
-      const result = await sdk.actions.addMiniApp();
+      // Resolving IS the success signal. AddMiniAppResult carries only an
+      // optional `notificationDetails`; there is no `added` field, and the SDK
+      // reports refusal by throwing (AddMiniApp.RejectedByUser), which the
+      // catch below already handles.
+      //
+      // The guard here was `result.added || result.notificationDetails`.
+      // `added` was always undefined, so the whole condition collapsed to
+      // "did they also turn on notifications" — and anyone who added the mini
+      // app without granting notifications was never recorded, on the campaign
+      // whose entire purpose is counting adds.
+      await sdk.actions.addMiniApp();
 
-      // If user added the app, record it server-side and show feedback
-      if (result.added || result.notificationDetails) {
-        setHasAddedLocally(true);
+      setHasAddedLocally(true);
 
-        // Record the add directly via API (don't rely on webhook)
-        if (fid) {
-          try {
-            await fetch('/api/og-hunter/record-add', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fid }),
-            });
-          } catch (err) {
-            console.error('[Splash] Failed to record add:', err);
-          }
+      // Record the add directly via API (don't rely on webhook)
+      if (fid) {
+        try {
+          await fetch('/api/og-hunter/record-add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fid }),
+          });
+        } catch (err) {
+          console.error('[Splash] Failed to record add:', err);
         }
-
-        // Fetch updated status
-        await fetchStatus();
       }
+
+      // Fetch updated status
+      await fetchStatus();
     } catch (err) {
       console.log('[Splash] Mini app add declined or failed:', err);
       // User likely cancelled - this is fine

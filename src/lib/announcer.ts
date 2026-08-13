@@ -107,7 +107,16 @@ export async function castFromAnnouncer(
 
   try {
     // Publish cast using Neynar SDK
-    const cast = await neynarClient.publishCast({
+    // `response.cast.hash`, not `response.hash`. publishCast resolves to a
+    // PostCastResponse — `{ success, cast }` — so reading .hash off the
+    // response gave undefined every time. The cast itself posted, which is why
+    // this went unnoticed, but everything downstream of the hash broke:
+    // announcer_events.cast_hash was written as null on every row, the
+    // postedAt stamp was only written when the Twitter cross-post happened to
+    // succeed (`if (cast?.hash || tweet?.id)`), and the referral-win cast is
+    // meant to reply to the round-resolved cast — with an undefined parent it
+    // posted unthreaded instead.
+    const response = await neynarClient.publishCast({
       signerUuid: NEYNAR_SIGNER_UUID!,
       text,
       embeds: options?.embeds,
@@ -115,10 +124,10 @@ export async function castFromAnnouncer(
     });
 
     if (ANNOUNCER_DEBUG_LOGS) {
-      console.log('[announcer] cast created:', cast.hash);
+      console.log('[announcer] cast created:', response.cast.hash);
     }
 
-    return { hash: cast.hash };
+    return { hash: response.cast.hash };
   } catch (error) {
     console.error('[announcer] ERROR: Failed to publish cast:', error);
     // Don't throw - announcer failures should never break the game

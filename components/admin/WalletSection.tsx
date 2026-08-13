@@ -83,6 +83,12 @@ interface WalletBalances {
     roundsAvailable: number;
     stakingPeriodActive: boolean;
     stakingPeriodEnds: string | null;
+    // Sent by /api/admin/wallet/balances but missing from this copy of its
+    // shape, so the "Staking at risk" alert below — which reads
+    // stakingHealthy — did not typecheck. It renders correctly at runtime;
+    // this is drift between two hand-maintained copies of one response type.
+    stakingHeadroom: string;
+    stakingHealthy: boolean;
   };
   pendingRefunds: {
     count: number;
