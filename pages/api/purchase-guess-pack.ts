@@ -166,23 +166,26 @@ export default async function handler(
     // Milestone 6.4: Verify onchain transaction before awarding packs
     const totalGuesses = packCount * DAILY_LIMITS_RULES.paidGuessPackSize;
 
-    // Bind the transaction to a wallet this FID actually controls, so one user
-    // cannot claim another user's purchase by submitting their txHash first.
-    // If the wallet can't be resolved we continue without the binding rather
-    // than reject — a paying user would otherwise lose their ETH and get
-    // nothing — but the gap is surfaced so it doesn't stay invisible.
-    let expectedPlayer: string | undefined;
+    // Resolve the FID's wallet of record so a mismatch against the onchain
+    // payer is at least visible.
+    //
+    // Report-only, deliberately: the two values come from independent sources
+    // and legitimately diverge. The client sends `useAccount()` — whichever
+    // wallet is connected in the mini-app — while this resolves
+    // `signerWalletAddress || custodyAddress` from the DB, which Neynar can
+    // overwrite and which falls back to a custody address most users never
+    // transact from. Rejecting on mismatch would take ETH from a user who paid
+    // correctly, which is worse than the narrow theft it would prevent
+    // (claiming someone else's txHash in the seconds before they submit it).
+    // The amount check below is the defence that actually closes the hole.
+    let walletOfRecord: string | undefined;
     try {
-      expectedPlayer = await getGuessPurchaseWallet(fid);
+      walletOfRecord = await getGuessPurchaseWallet(fid);
     } catch (error) {
-      console.warn(`[purchase-guess-pack] Could not resolve wallet for FID ${fid}; skipping payer binding`, error);
-      Sentry.captureMessage('[purchase-guess-pack] Payer binding skipped — wallet unresolved', {
-        level: 'warning',
-        extra: { fid, txHash },
-      });
+      console.warn(`[purchase-guess-pack] Could not resolve wallet for FID ${fid}`, error);
     }
 
-    const verification = await verifyPurchaseTransaction(txHash, expectedPlayer, totalGuesses);
+    const verification = await verifyPurchaseTransaction(txHash, undefined, totalGuesses);
 
     if (!verification.valid) {
       console.error(`[purchase-guess-pack] Onchain verification failed: ${verification.error}`, {
@@ -193,6 +196,22 @@ export default async function handler(
       });
       return res.status(400).json({
         error: `Transaction verification failed: ${verification.error}`,
+      });
+    }
+
+    if (
+      walletOfRecord &&
+      verification.player &&
+      walletOfRecord.toLowerCase() !== verification.player.toLowerCase()
+    ) {
+      console.warn(`[purchase-guess-pack] Payer differs from wallet of record`, {
+        txHash, fid,
+        onchainPlayer: verification.player,
+        walletOfRecord,
+      });
+      Sentry.captureMessage('[purchase-guess-pack] Payer differs from wallet of record', {
+        level: 'warning',
+        extra: { fid, txHash, onchainPlayer: verification.player, walletOfRecord },
       });
     }
 
