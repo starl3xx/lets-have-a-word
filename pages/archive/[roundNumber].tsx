@@ -2,6 +2,14 @@
 // Milestone 5.4, Updated Milestone 6.3, Milestone 7.x: Public Round Detail Page
 // Restyled to match RoundArchiveModal and archive list with Söhne font
 import { useState, useEffect } from 'react';
+import {
+  archiveCurrency,
+  formatArchiveJackpot,
+  formatArchiveSeed,
+  formatArchiveShare,
+  formatArchivePayoutEntry,
+} from '../../src/lib/prize-display';
+import { formatWordAmount } from '../../src/lib/word-amounts';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
@@ -73,8 +81,15 @@ interface ArchivedRound {
   id: number;
   roundNumber: number;
   targetWord: string;
-  seedEth: string;
-  finalJackpotEth: string;
+  // Nullable since migration 0022: a $WORD round has no ETH amount, and the
+  // API has been returning these fields all along — this type just never
+  // declared them, so the page rendered NaN instead of failing to compile.
+  seedEth: string | null;
+  finalJackpotEth: string | null;
+  currency?: string | null;
+  seedWord?: string | null;
+  finalJackpotWord?: string | null;
+  finalJackpotUsdCents?: number | null;
   totalGuesses: number;
   uniquePlayers: number;
   winnerFid: number | null;
@@ -126,6 +141,28 @@ interface Distribution {
 
 // Söhne font family (matching archive list and RoundArchiveModal)
 const FONT_FAMILY = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
+
+/**
+ * One breakdown amount. ETH keeps its original flourish — leading "0." stripped
+ * so the decimals read large — because rounds 1-33 must look unchanged. That
+ * only works for sub-1 values, so $WORD renders as a plain separated number.
+ */
+function BreakdownAmount({ value, currency }: { value: string; currency: 'eth' | 'word' }) {
+  if (currency === 'word') {
+    return (
+      <>
+        <span>{value}</span>
+        <span className="text-sm font-medium opacity-50"> $WORD</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <span>.{value.replace('0.', '')}</span>
+      <span className="text-sm font-medium opacity-50"> ETH</span>
+    </>
+  );
+}
 
 export default function RoundDetailPage() {
   const router = useRouter();
@@ -199,17 +236,26 @@ export default function RoundDetailPage() {
     ? Math.max(...distribution.distribution.map(d => d.count), 1)
     : 1;
 
-  // Calculate prize breakdown (matching RoundArchiveModal: 80% winner, 10% referrer, 10% top guessers)
-  const calculateBreakdown = (totalEth: string) => {
-    const ethNum = parseFloat(totalEth);
-    return {
-      jackpot: (ethNum * 0.8).toFixed(4),
-      referrer: (ethNum * 0.1).toFixed(4),
-      topGuessers: (ethNum * 0.1).toFixed(4),
-    };
+  // Prize breakdown in the round's own currency. finalJackpotEth is NULL on a
+  // $WORD archive row, so the old parseFloat here produced NaN on every share.
+  const archiveCur = round ? archiveCurrency(round) : 'eth';
+  const rawShare = (bps: number) => {
+    if (!round) return '0';
+    if (archiveCur === 'word') {
+      let wei = 0n;
+      try {
+        wei = BigInt(round.finalJackpotWord ?? '0');
+      } catch {
+        wei = 0n;
+      }
+      return formatWordAmount((wei * BigInt(bps)) / 10000n);
+    }
+    return (((parseFloat(round.finalJackpotEth ?? '0') || 0) * bps) / 10000).toFixed(4);
   };
 
-  const breakdown = round ? calculateBreakdown(round.finalJackpotEth) : null;
+  const breakdown = round
+    ? { jackpot: rawShare(8000), referrer: rawShare(500), topGuessers: rawShare(1000) }
+    : null;
 
   return (
     <>
@@ -275,8 +321,8 @@ export default function RoundDetailPage() {
           <div className="bg-white border-b border-gray-200">
             <div className="max-w-2xl mx-auto px-4 py-4">
               <div className="flex flex-wrap gap-2">
-                <StatChip label="prize pool" value={`${formatEth(round.finalJackpotEth)} ETH`} variant="green" />
-                <StatChip label="jackpot (80%)" value={`${(parseFloat(round.finalJackpotEth) * 0.8).toFixed(4)} ETH`} variant="green" />
+                <StatChip label="prize pool" value={formatArchiveJackpot(round)} variant="green" />
+                <StatChip label="jackpot (80%)" value={formatArchiveShare(round, 8000)} variant="green" />
                 <StatChip label="guesses" value={round.totalGuesses.toLocaleString()} />
                 <StatChip label="players" value={round.uniquePlayers.toLocaleString()} />
                 <StatChip label="duration" value={formatDuration(round.startTime, round.endTime)} />
@@ -366,7 +412,7 @@ export default function RoundDetailPage() {
                         </button>
                         {round.payoutsJson.referrer && (
                           <span className="text-green-600 font-medium">
-                            (earned {formatEth(round.payoutsJson.referrer.amountEth)} ETH)
+                            (earned {formatArchivePayoutEntry(round.payoutsJson.referrer, archiveCur)})
                           </span>
                         )}
                       </div>
@@ -388,8 +434,7 @@ export default function RoundDetailPage() {
                       <div className="text-xs text-green-700 uppercase font-semibold">Jackpot</div>
                       <div className="text-xs text-green-600/70">(80%)</div>
                       <div className="mt-2 text-lg font-bold text-gray-900">
-                        .{breakdown.jackpot.replace('0.', '')}
-                        <span className="text-sm font-medium opacity-50"> ETH</span>
+                        <BreakdownAmount value={breakdown.jackpot} currency={archiveCur} />
                       </div>
                     </div>
                     {/* Referrer */}
@@ -406,8 +451,7 @@ export default function RoundDetailPage() {
                       }`}>(5%)</div>
                       {round.referrerFid ? (
                         <div className="mt-2 text-lg font-bold text-gray-900">
-                          .{breakdown.referrer.replace('0.', '')}
-                          <span className="text-sm font-medium opacity-50"> ETH</span>
+                          <BreakdownAmount value={breakdown.referrer} currency={archiveCur} />
                         </div>
                       ) : (
                         <div className="mt-2 text-sm text-gray-400">
@@ -420,8 +464,7 @@ export default function RoundDetailPage() {
                       <div className="text-xs text-amber-700 uppercase font-semibold">Top 10</div>
                       <div className="text-xs text-amber-600/70">(10%)</div>
                       <div className="mt-2 text-lg font-bold text-gray-900">
-                        .{breakdown.topGuessers.replace('0.', '')}
-                        <span className="text-sm font-medium opacity-50"> ETH</span>
+                        <BreakdownAmount value={breakdown.topGuessers} currency={archiveCur} />
                       </div>
                     </div>
                   </div>
@@ -653,7 +696,7 @@ export default function RoundDetailPage() {
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <InfoRow label="Started" value={formatDate(round.startTime)} />
                   <InfoRow label="Ended" value={formatDate(round.endTime)} />
-                  <InfoRow label="Seed ETH" value={`${formatEth(round.seedEth)} ETH`} />
+                  <InfoRow label="Seed" value={formatArchiveSeed(round)} />
                   <InfoRow label="$WORD bonuses" value={(round.clanktonBonusCount ?? 0).toString()} />
                   <InfoRow label="Referral signups" value={(round.referralBonusCount ?? 0).toString()} />
 

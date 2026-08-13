@@ -5,6 +5,12 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
+import {
+  archiveCurrency,
+  formatArchiveJackpot,
+  formatArchiveSeed,
+  formatArchivePayoutEntry,
+} from '../../src/lib/prize-display';
 import { AnalyticsChart } from "./AnalyticsChart"
 
 // =============================================================================
@@ -34,8 +40,14 @@ interface ArchivedRound {
   id: number
   roundNumber: number
   targetWord: string
-  seedEth: string
-  finalJackpotEth: string
+  // Nullable since 0022 — a $WORD round has no ETH amount. The API has always
+  // returned the currency fields; this type just never declared them.
+  seedEth: string | null
+  finalJackpotEth: string | null
+  currency?: string | null
+  seedWord?: string | null
+  finalJackpotWord?: string | null
+  finalJackpotUsdCents?: number | null
   totalGuesses: number
   uniquePlayers: number
   winnerFid: number | null
@@ -688,7 +700,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     </td>
                     <td style={{ ...styles.td, textAlign: "right" }}>
                       <span style={{ color: "#16a34a", fontWeight: 600 }}>
-                        {formatEth(round.finalJackpotEth)} ETH
+                        {formatArchiveJackpot(round)}
                       </span>
                     </td>
                     <td style={{ ...styles.td, textAlign: "right" }}>{round.totalGuesses.toLocaleString()}</td>
@@ -785,12 +797,12 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                       <td style={{ padding: "6px 0" }}>{formatDuration(selectedRound.startTime, selectedRound.endTime)}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Seed ETH:</td>
-                      <td style={{ padding: "6px 0" }}>{formatEth(selectedRound.seedEth)} ETH</td>
+                      <td style={{ padding: "6px 0", color: "#6b7280" }}>Seed:</td>
+                      <td style={{ padding: "6px 0" }}>{formatArchiveSeed(selectedRound)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>Final Jackpot:</td>
-                      <td style={{ padding: "6px 0", fontWeight: 600 }}>{formatEth(selectedRound.finalJackpotEth)} ETH</td>
+                      <td style={{ padding: "6px 0", fontWeight: 600 }}>{formatArchiveJackpot(selectedRound)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>Salt:</td>
@@ -835,13 +847,13 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                   {selectedRound.payoutsJson.winner && (
                     <div style={{ marginBottom: "8px" }}>
                       <strong>Winner ({formatFid(selectedRound.payoutsJson.winner.fid)}):</strong>{' '}
-                      {formatEth(selectedRound.payoutsJson.winner.amountEth)} ETH
+                      {formatArchivePayoutEntry(selectedRound.payoutsJson.winner, archiveCurrency(selectedRound))}
                     </div>
                   )}
                   {selectedRound.payoutsJson.referrer && (
                     <div style={{ marginBottom: "8px" }}>
                       <strong>Referrer ({formatFid(selectedRound.payoutsJson.referrer.fid)}):</strong>{' '}
-                      {formatEth(selectedRound.payoutsJson.referrer.amountEth)} ETH
+                      {formatArchivePayoutEntry(selectedRound.payoutsJson.referrer, archiveCurrency(selectedRound))}
                     </div>
                   )}
                   {selectedRound.payoutsJson.topGuessers?.length > 0 && (
@@ -849,19 +861,19 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                       <strong>Top Guessers ({selectedRound.payoutsJson.topGuessers.length}):</strong>
                       <ul style={{ margin: "4px 0 0 20px", padding: 0 }}>
                         {selectedRound.payoutsJson.topGuessers.map((g: any, idx: number) => (
-                          <li key={idx}>#{g.rank} {formatFid(g.fid)}: {formatEth(g.amountEth)} ETH</li>
+                          <li key={idx}>#{g.rank} {formatFid(g.fid)}: {formatArchivePayoutEntry(g, archiveCurrency(selectedRound))}</li>
                         ))}
                       </ul>
                     </div>
                   )}
                   {selectedRound.payoutsJson.seed && (
                     <div style={{ marginBottom: "8px" }}>
-                      <strong>Seed:</strong> {formatEth(selectedRound.payoutsJson.seed.amountEth)} ETH
+                      <strong>Seed:</strong> {formatArchivePayoutEntry(selectedRound.payoutsJson.seed, archiveCurrency(selectedRound))}
                     </div>
                   )}
                   {selectedRound.payoutsJson.creator && (
                     <div>
-                      <strong>Creator:</strong> {formatEth(selectedRound.payoutsJson.creator.amountEth)} ETH
+                      <strong>Creator:</strong> {formatArchivePayoutEntry(selectedRound.payoutsJson.creator, archiveCurrency(selectedRound))}
                     </div>
                   )}
                 </div>

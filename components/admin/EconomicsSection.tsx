@@ -135,6 +135,7 @@ interface EconomicsData {
       winner: number
       top10Total: number
       referrer: number
+      seed: number
     } | null
   }
   growthCurve: {
@@ -1145,12 +1146,13 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
             border: "1px solid #bbf7d0",
           }}>
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#166534", marginBottom: "8px" }}>
-              Example Payout at Median Pool ({poolSplit.examplePayout.poolSize.toFixed(4)} ETH)
+              Example Payout at Median Pool ({poolSplit.examplePayout.poolSize.toFixed(4)} ETH) — ETH rounds only
             </div>
             <div style={{ display: "flex", gap: "24px", fontSize: "13px", color: "#166534", flexWrap: "wrap" }}>
               <span>Winner: {poolSplit.examplePayout.winner.toFixed(4)} ETH</span>
               <span>Top-10 Total: {poolSplit.examplePayout.top10Total.toFixed(4)} ETH</span>
               <span>Referrer: {poolSplit.examplePayout.referrer.toFixed(4)} ETH</span>
+              <span>Next-round seed: {poolSplit.examplePayout.seed.toFixed(4)} ETH</span>
             </div>
           </div>
         )}

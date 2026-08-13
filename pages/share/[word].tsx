@@ -24,7 +24,9 @@ export const getServerSideProps: GetServerSideProps<SharePageProps> = async (con
   const first = (v: string | string[] | undefined, fallback: string) =>
     Array.isArray(v) ? v[0] || fallback : v || fallback;
   const round = first(q.round, '1');
-  const jackpot = first(q.jackpot, '0.0200');
+  // Default carries its unit, matching the og/share default — without it a
+  // bare /share/WORD link renders "0.0200 jackpot" with no asset named.
+  const jackpot = first(q.jackpot, '0.0200 ETH');
   const guesses = first(q.guesses, '0');
   const players = first(q.players, '0');
 
