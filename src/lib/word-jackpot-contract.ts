@@ -416,6 +416,46 @@ export async function syncWordPriceOnChain(): Promise<{
   return { txHash: tx.hash, priceE18, priceUsd: marketData.priceUsd };
 }
 
+/**
+ * Best available $WORD price for pricing a reward, or null if there is none.
+ *
+ * Prefers WordJackpot's stored price: it is one cheap call, and it is the same
+ * figure the round was seeded against, so a reward and its round agree on what
+ * a dollar is worth. Falls back to a live oracle fetch when the contract is
+ * unconfigured or its price has gone stale.
+ *
+ * NOTE the deliberate asymmetry with round seeding. `startWordRoundOnChain`
+ * refuses to proceed on a stale price, because a mispriced seed is a large,
+ * irreversible commitment. A bonus-word reward is small and frequent, so
+ * returning null here lets the caller fall back to the legacy fixed token
+ * amount rather than denying a player a reward they earned. Failing loud is
+ * right for the seed; failing soft is right for the reward.
+ */
+export async function getRewardPriceE18(): Promise<bigint | null> {
+  if (isWordEconomyConfigured()) {
+    try {
+      const onchain = await getWordPriceOnChain();
+      if (!onchain.isStale && onchain.priceE18 > 0n) {
+        return onchain.priceE18;
+      }
+      console.warn('[WORD-JACKPOT] Onchain price stale — falling back to the live oracle');
+    } catch (error) {
+      console.warn('[WORD-JACKPOT] Could not read the onchain price:', error);
+    }
+  }
+
+  try {
+    const market = await fetchWordTokenMarketCap();
+    if (market && market.priceUsd > 0) {
+      return usdPriceToE18(market.priceUsd);
+    }
+  } catch (error) {
+    console.warn('[WORD-JACKPOT] Oracle price fetch failed:', error);
+  }
+
+  return null;
+}
+
 export interface StartWordRoundResult {
   txHash: string;
   roundId: number;

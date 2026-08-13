@@ -14,6 +14,13 @@ import {
   getXpStakingTier,
   XP_STAKING_TIERS,
   getMinStakeForBoost,
+  usdCentsToWordWei,
+  getBonusWordRewardWei,
+  getTop10WordAmountsWei,
+  BONUS_WORD_MAX_TOKENS_WEI,
+  TOP10_FIRST_PLACE_MAX_TOKENS_WEI,
+  TOP10_POOL_USD_CENTS,
+  TOP10_FIRST_PLACE_USD_CENTS,
 } from '../../config/economy';
 
 /**
@@ -251,5 +258,105 @@ describe('WORD_SEED_USD_CENTS', () => {
 
   it('ignores surrounding whitespace', async () => {
     expect(await loadWith('  2500  ')).toBe(2500);
+  });
+});
+
+/**
+ * Oracle-priced $WORD rewards.
+ *
+ * The USD targets are the agreed ones: $1.50 for a bonus word, $3.00 for first
+ * place in the top 10. The caps exist because a USD-pegged reward costs more
+ * tokens as the price falls, without limit — a 100x-too-low oracle reading
+ * would pay 100x the tokens out of a finite tranche.
+ */
+describe('oracle-priced $WORD rewards', () => {
+  // $0.000000256 per token
+  const PRICE_E18 = 256_000_000_000n;
+  const ONE_TOKEN = 10n ** 18n;
+
+  describe('usdCentsToWordWei', () => {
+    it('matches the seedTokensFor formula', () => {
+      expect(usdCentsToWordWei(2000, PRICE_E18, 10n ** 40n)).toBe(78_125_000n * ONE_TOKEN);
+    });
+
+    it('caps rather than paying an unbounded amount', () => {
+      const cap = 1_000_000n * ONE_TOKEN;
+      expect(usdCentsToWordWei(2000, PRICE_E18, cap)).toBe(cap);
+    });
+
+    it('refuses a zero price instead of dividing by it', () => {
+      expect(() => usdCentsToWordWei(150, 0n, 10n ** 40n)).toThrow(/zero price/);
+    });
+  });
+
+  describe('getBonusWordRewardWei', () => {
+    it('pays $1.50 worth at the reference price', () => {
+      expect(getBonusWordRewardWei(PRICE_E18)).toBe(5_859_375n * ONE_TOKEN);
+    });
+
+    it('pays more tokens as the price falls, preserving the USD value', () => {
+      const half = getBonusWordRewardWei(PRICE_E18 / 2n);
+      expect(half).toBe(getBonusWordRewardWei(PRICE_E18) * 2n);
+    });
+
+    it('does not cap at the reference price or a modest decline', () => {
+      // The cap must not bind in normal conditions, or the peg silently stops
+      // being a peg. $WORD's all-time low is ~15% below the reference.
+      expect(getBonusWordRewardWei(PRICE_E18)).toBeLessThan(BONUS_WORD_MAX_TOKENS_WEI);
+      expect(getBonusWordRewardWei((PRICE_E18 * 85n) / 100n)).toBeLessThan(
+        BONUS_WORD_MAX_TOKENS_WEI
+      );
+    });
+
+    it('caps once the price collapses', () => {
+      expect(getBonusWordRewardWei(PRICE_E18 / 100n)).toBe(BONUS_WORD_MAX_TOKENS_WEI);
+    });
+  });
+
+  describe('getTop10WordAmountsWei', () => {
+    it('pays first place $3.00 worth at the reference price', () => {
+      const amounts = getTop10WordAmountsWei(PRICE_E18);
+      // $15.79 pool * 19% = $3.00, within a cent of rounding.
+      expect(amounts[0]).toBeGreaterThan(11_700_000n * ONE_TOKEN);
+      expect(amounts[0]).toBeLessThan(11_740_000n * ONE_TOKEN);
+    });
+
+    it('returns exactly ten amounts', () => {
+      expect(getTop10WordAmountsWei(PRICE_E18)).toHaveLength(10);
+    });
+
+    it('is monotonically non-increasing by rank', () => {
+      const amounts = getTop10WordAmountsWei(PRICE_E18);
+      for (let i = 1; i < amounts.length; i++) {
+        expect(amounts[i]).toBeLessThanOrEqual(amounts[i - 1]);
+      }
+    });
+
+    it('preserves the rank ratios even when the cap binds', () => {
+      // The cap applies to the pool, so 1st place stays 19/16 of 2nd whether or
+      // not it fired. Capping each rank separately would distort the curve.
+      // Compared within 1 wei because each rank is a truncated division; 1 wei
+      // of $WORD is about 2.5e-25 dollars.
+      for (const amounts of [
+        getTop10WordAmountsWei(PRICE_E18),
+        getTop10WordAmountsWei(PRICE_E18 / 1000n),
+      ]) {
+        const diff = (amounts[0] * 16n) / 19n - amounts[1];
+        expect(diff >= -1n && diff <= 1n).toBe(true);
+      }
+    });
+
+    it('never pays first place more than the configured ceiling', () => {
+      // The cap's job is to bound the payout, not to hit a round number. Two
+      // truncating divisions (pool cap, then rank share) leave it 1 wei under,
+      // which is the safe direction.
+      const first = getTop10WordAmountsWei(PRICE_E18 / 1000n)[0];
+      expect(first).toBeLessThanOrEqual(TOP10_FIRST_PLACE_MAX_TOKENS_WEI);
+      expect(TOP10_FIRST_PLACE_MAX_TOKENS_WEI - first).toBeLessThanOrEqual(1n);
+    });
+
+    it('derives the pool from first place so the two cannot drift', () => {
+      expect(TOP10_POOL_USD_CENTS).toBe(Math.round((TOP10_FIRST_PLACE_USD_CENTS * 100) / 19));
+    });
   });
 });
