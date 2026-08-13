@@ -154,8 +154,8 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
               {/* Tokenomics section */}
               <TokenomicsOverview data={tokenomicsData} isLoading={isLoadingTokenomics} />
 
-              {/* Market cap & price */}
-              {tokenomicsData && (
+              {/* Market cap & price - hidden when the oracle has no live value */}
+              {tokenomicsData && parseFloat(tokenomicsData.marketCap) > 0 && (
                 <div className="section-card bg-success-50">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-success-700">Market cap</span>

@@ -209,6 +209,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-08-12 (after Round 33)
+
+- **GeckoTerminal added as market cap oracle source**: DexScreener delisted $WORD (~Aug 11), leaving the oracle with no working source — the browser landing page showed “$WORD · $0” and onchain market cap updates went stale. The oracle now falls back DexScreener → GeckoTerminal → CoinGecko, and the landing page hides the market cap when no live value is available.
+
 ### 2026-06-28 (post-Round 32)
 
 - **Blockscout per-page timeout raised 5s → 10s** (`src/lib/wallet-cluster.ts`): high-activity wallets return a large first transactions page (~50 items / ~200KB) that can take ~6s to serve. The old 5s budget aborted page 1 before any data was read, so the lookup returned `verified=false` and the wallet stayed *permanently* unverified (every retry hit the same slow page). This misclassified legitimate high-activity wallets as “no Base history” (fail-open) and stalled the `wallet_first_tx_at` backfill on them — surfaced when the post-#145 backfill hung on 2 such wallets. 10s clears the observed ~6.3s worst case with margin. Latency stays bounded: the gate caches the result and only re-fetches after the 6h cooldown, and page-2+ timeouts already degrade to a verified partial result, so only the rare uncached slow first page is affected.

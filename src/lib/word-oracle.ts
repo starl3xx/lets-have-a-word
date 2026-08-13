@@ -30,6 +30,7 @@ export const MARKET_CAP_TIER = {
  */
 export enum OracleSource {
   DEXSCREENER = 'dexscreener',
+  GECKOTERMINAL = 'geckoterminal',
   COINGECKO = 'coingecko',
   FALLBACK = 'fallback',
 }
@@ -109,6 +110,52 @@ export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
 }
 
 /**
+ * Fetch $WORD market cap from GeckoTerminal API
+ *
+ * GeckoTerminal (CoinGecko’s DEX tracker) indexes the Uniswap v4 $WORD pool
+ * even when DexScreener does not. Free API, no key required.
+ * Endpoint: https://api.geckoterminal.com/api/v2/networks/base/tokens/{address}
+ */
+export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
+  try {
+    const response = await fetch(
+      `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}`
+    );
+
+    if (!response.ok) {
+      console.warn(`[ORACLE] GeckoTerminal API error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const attributes = data.data?.attributes;
+
+    if (!attributes) {
+      console.warn('[ORACLE] No token data for $WORD on GeckoTerminal');
+      return null;
+    }
+
+    const priceUsd = parseFloat(attributes.price_usd || '0');
+    // market_cap_usd is null for tokens without a CoinGecko listing - use FDV as proxy (same as DexScreener)
+    const marketCapUsd = parseFloat(attributes.market_cap_usd || attributes.fdv_usd || '0');
+
+    console.log(
+      `[ORACLE] GeckoTerminal - Price: $${priceUsd.toFixed(8)}, MCap: $${marketCapUsd.toLocaleString()}`
+    );
+
+    return {
+      marketCapUsd,
+      priceUsd,
+      source: OracleSource.GECKOTERMINAL,
+      timestamp: new Date(),
+    };
+  } catch (error) {
+    console.error('[ORACLE] GeckoTerminal fetch error:', error);
+    return null;
+  }
+}
+
+/**
  * Fetch $WORD market cap from CoinGecko API
  *
  * CoinGecko may have $WORD listed - check by contract address.
@@ -154,8 +201,9 @@ export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
  * Fetch $WORD market cap from available sources
  *
  * Tries sources in priority order:
- * 1. DexScreener (most reliable for new tokens)
- * 2. CoinGecko (if listed)
+ * 1. DexScreener (richest data incl. 24h change, but delisted $WORD Aug 2026)
+ * 2. GeckoTerminal (tracks the Uniswap v4 pool reliably)
+ * 3. CoinGecko (if listed)
  *
  * @returns Market cap data or null if all sources fail
  */
@@ -166,6 +214,12 @@ export async function fetchWordTokenMarketCap(): Promise<MarketCapData | null> {
   const dexData = await fetchFromDexScreener();
   if (dexData && dexData.marketCapUsd > 0) {
     return dexData;
+  }
+
+  // Fallback to GeckoTerminal
+  const geckoTerminalData = await fetchFromGeckoTerminal();
+  if (geckoTerminalData && geckoTerminalData.marketCapUsd > 0) {
+    return geckoTerminalData;
   }
 
   // Fallback to CoinGecko
