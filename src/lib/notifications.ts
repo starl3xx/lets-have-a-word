@@ -32,35 +32,35 @@ function pickRandom<T>(arr: T[]): T {
 const ROUND_START_TEMPLATES: NotificationTemplate[] = [
   {
     title: (n) => `🔵 Round #${n} is live!`,
-    body: (_, jackpot) => `The hunt begins — ${jackpot} ETH jackpot up for grabs. One correct guess wins it all. 🕵️‍♂️`,
+    body: (_, jackpot) => `The hunt begins — ${jackpot} jackpot up for grabs. One correct guess wins it all. 🕵️‍♂️`,
   },
   {
     title: () => `🔵 New round just dropped`,
-    body: (n, jackpot) => `Round #${n} is live with a ${jackpot} ETH prize pool. Can you find the secret 5-letter word? 🕵️‍♂️`,
+    body: (n, jackpot) => `Round #${n} is live with a ${jackpot} prize pool. Can you find the secret 5-letter word? 🕵️‍♂️`,
   },
   {
     title: (n) => `🔵 Round #${n} — game on`,
-    body: (_, jackpot) => `A new secret word is locked onchain. ${jackpot} ETH to whoever cracks it first! 👀`,
+    body: (_, jackpot) => `A new secret word is locked onchain. ${jackpot} to whoever cracks it first! 👀`,
   },
   {
     title: (n) => `🔵 Round #${n} is here`,
-    body: (_, jackpot) => `Fresh word, fresh jackpot. ${jackpot} ETH on the line. Start guessing now! 🕵️‍♂️`,
+    body: (_, jackpot) => `Fresh word, fresh jackpot. ${jackpot} on the line. Start guessing now! 🕵️‍♂️`,
   },
   {
     title: () => `🔵 The word is locked`,
-    body: (n, jackpot) => `Round #${n} is live with ${jackpot} ETH. Every wrong guess narrows the field... 🕵️‍♂️`,
+    body: (n, jackpot) => `Round #${n} is live with ${jackpot}. Every wrong guess narrows the field... 🕵️‍♂️`,
   },
   {
     title: (n) => `🔵 Hunt for word #${n}`,
-    body: (_, jackpot) => `New round, new word. Prize pool: ${jackpot} ETH. One guess could change everything. 🕵️‍♂️`,
+    body: (_, jackpot) => `New round, new word. Prize pool: ${jackpot}. One guess could change everything. 🕵️‍♂️`,
   },
   {
-    title: (_, jackpot) => `🔵 ${jackpot} ETH up for grabs`,
+    title: (_, jackpot) => `🔵 ${jackpot} up for grabs`,
     body: (n) => `Round #${n} just started. Can you find the secret word before anyone else? ⏳`,
   },
   {
     title: (n) => `🔵 Round #${n} — let\u2019s go!`,
-    body: (_, jackpot) => `The secret word is committed onchain. ${jackpot} ETH jackpot waiting for the right guess. 🕵️‍♂️`,
+    body: (_, jackpot) => `The secret word is committed onchain. ${jackpot} jackpot waiting for the right guess. 🕵️‍♂️`,
   },
 ];
 
@@ -68,7 +68,7 @@ const ROUND_START_TEMPLATES: NotificationTemplate[] = [
 const DAILY_RESET_TEMPLATES: NotificationTemplate[] = [
   {
     title: () => `🌱 Your guesses are refreshed`,
-    body: (n, jackpot) => `New day, new chances. Round #${n} is still live with ${jackpot} ETH on the line!`,
+    body: (n, jackpot) => `New day, new chances. Round #${n} is still live with ${jackpot} on the line!`,
   },
   {
     title: () => `🫳 Free guesses reset`,
@@ -76,27 +76,27 @@ const DAILY_RESET_TEMPLATES: NotificationTemplate[] = [
   },
   {
     title: () => `🔁 Daily reset — you\u2019re back in`,
-    body: (_, jackpot) => `Fresh guesses are live. Can you crack the ${jackpot} ETH jackpot today?`,
+    body: (_, jackpot) => `Fresh guesses are live. Can you crack the ${jackpot} jackpot today?`,
   },
   {
     title: () => `👀 New guesses available`,
-    body: (n, jackpot) => `Your free guesses just reset. Jump back into Round #${n} — ${jackpot} ETH up for grabs.`,
+    body: (n, jackpot) => `Your free guesses just reset. Jump back into Round #${n} — ${jackpot} up for grabs.`,
   },
   {
     title: () => `🔎 Gm, word hunter`,
-    body: (n, jackpot) => `Daily guesses are live. Round #${n} prize pool: ${jackpot} ETH. Today could be your day!`,
+    body: (n, jackpot) => `Daily guesses are live. Round #${n} prize pool: ${jackpot}. Today could be your day!`,
   },
   {
     title: () => `🌅 Daily guesses are live`,
-    body: (_, jackpot) => `Guesses refreshed. The hunt for the secret word continues — ${jackpot} ETH jackpot.`,
+    body: (_, jackpot) => `Guesses refreshed. The hunt for the secret word continues — ${jackpot} jackpot.`,
   },
   {
     title: () => `🎯 Guess again`,
-    body: (n, jackpot) => `Daily reset complete. Your free guesses are ready. ${jackpot} ETH in Round #${n} awaits.`,
+    body: (n, jackpot) => `Daily reset complete. Your free guesses are ready. ${jackpot} in Round #${n} awaits.`,
   },
   {
     title: () => `💪 Back in the game`,
-    body: (n, jackpot) => `Free guesses refreshed for Round #${n}. ${jackpot} ETH is still on the line.`,
+    body: (n, jackpot) => `Free guesses refreshed for Round #${n}. ${jackpot} is still on the line.`,
   },
 ];
 
@@ -228,7 +228,7 @@ export async function sendNotification(
  * Send "Round Started" notification with a randomized template
  *
  * @param roundNumber - The round number that just started
- * @param jackpotEth - Optional jackpot amount in ETH (e.g. "0.02")
+ * @param jackpot - Optional prize INCLUDING its unit ("0.0216 ETH" / "78,125,000 $WORD")
  */
 export async function notifyRoundStarted(roundNumber: number, jackpotEth?: string): Promise<NotificationResult> {
   const jackpot = jackpotEth ?? '?';
@@ -244,7 +244,7 @@ export async function notifyRoundStarted(roundNumber: number, jackpotEth?: strin
  * Send "Daily Reset" notification with a randomized template
  *
  * @param roundNumber - Optional current round number
- * @param jackpotEth - Optional jackpot amount in ETH (e.g. "0.02")
+ * @param jackpot - Optional prize INCLUDING its unit ("0.0216 ETH" / "78,125,000 $WORD")
  */
 export async function notifyDailyReset(roundNumber?: number, jackpotEth?: string): Promise<NotificationResult> {
   const n = roundNumber ?? 0;
@@ -262,7 +262,7 @@ export async function notifyDailyReset(roundNumber?: number, jackpotEth?: string
  *
  * @param roundNumber - The round number that was resolved
  * @param winnerUsername - Optional username of the winner
- * @param prizeEth - Optional prize amount in ETH
+ * @param prize - Optional prize INCLUDING its unit ("0.0216 ETH" / "78,125,000 $WORD")
  */
 export async function notifyRoundResolved(
   roundNumber: number,
@@ -270,7 +270,7 @@ export async function notifyRoundResolved(
   prizeEth?: string
 ): Promise<NotificationResult> {
   const winner = winnerUsername ? `@${winnerUsername}` : 'Someone';
-  const prize = prizeEth ? `${prizeEth} ETH` : 'the jackpot';
+  const prize = prizeEth || 'the jackpot';
 
   return sendNotification(
     `🟣 Round #${roundNumber} complete!`,
