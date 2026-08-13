@@ -246,6 +246,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 - **Account-age gating for guessing**: Added a Farcaster FID-age gate that blocks guessing from accounts less than 14 days old. Source of truth is the Farcaster Hub `onChainEvents` Register event (immutable, cached on `users.fid_registered_at`). Quality-score gate rubber-stamped the Round 28 sybil farm — age is the orthogonal signal. Gated behind `ACCOUNT_AGE_GATING_ENABLED`; `ACCOUNT_AGE_MIN_DAYS` (default 14) and `ACCOUNT_AGE_ALLOWLIST` tunables. Hub failures fail open with Sentry alert. New `ACCOUNT_TOO_NEW` error code.
 
+### 2026-04-13
+
+- **Real ERC20 burn for $WORD tokens**: WordManagerV3 now calls `ERC20Burnable.burn()` instead of transferring to `0xdead`. Burns from `claimBurnWord()` and `burnWord()` (including Superguess 50% burn) now reduce `totalSupply()`, so DexScreener and other aggregators reflect the true circulating supply. Deployed to Base as implementation `0x1156cA05…` (proxy `0x2eEa96E8…`).
+
 ### 2026-04-02
 
 - **Slang words added**: YEETS, DEGEN, YOINK, NOOBS, CHADS, PWNED, NERFS. Removed offensive terms: PYGMY, ARYAN, NEGRO, SAMBO, SQUAW, HONKY, SKANK, GIPSY, MAMMY. 4,437 words.
@@ -346,7 +350,7 @@ Integrated $WORD token rewards and penalties into round gameplay, with onchain c
 
 - **Burn Words** (`src/lib/burn-words.ts`)
   - Each round includes 5 hidden burn words that destroy $WORD tokens permanently
-  - Finding one sends 5M $WORD to `0xdead` (permanent burn)
+  - Finding one permanently burns 5M $WORD via ERC20Burnable.burn() (reduces totalSupply)
   - Finder receives +100 XP and the "Arsonist" wordmark — bragging rights, no token reward
   - Same keccak256 commitment system as bonus words
 

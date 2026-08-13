@@ -2237,7 +2237,7 @@ Each round includes **10 hidden bonus words** drawn from the full 4,438-word dic
 #### Burn Words
 Each round also includes **5 hidden burn words**. Finding one destroys $WORD tokens permanently — a deflationary mechanic that keeps the economy honest.
 
-- Each burn word sends **5M $WORD tokens** to the `0xdead` address (permanent burn)
+- Each burn word permanently destroys **5M $WORD tokens** via `ERC20Burnable.burn()` (reduces `totalSupply()`)
 - The finder receives **+100 XP** and the **"Arsonist" wordmark** — bragging rights, but no token reward
 - Uses the same `keccak256` commitment system as bonus words
 - Stored in the `round_burn_words` table with encrypted words and per-word salts
@@ -2284,7 +2284,7 @@ function commitRound(uint256 roundId, bytes32 secretHash, bytes32[10] bonusWordH
 // Verified bonus word claim — checks hash, transfers $WORD to player
 function claimBonusReward(uint256 roundId, uint256 wordIndex, string word, bytes32 salt, address player, uint256 amount) external onlyOperator;
 
-// Verified burn word destruction — checks hash, sends $WORD to 0xdead
+// Verified burn word destruction — checks hash, burns $WORD via ERC20Burnable.burn()
 function claimBurnWord(uint256 roundId, uint256 wordIndex, string word, bytes32 salt, uint256 amount) external onlyOperator;
 ```
 

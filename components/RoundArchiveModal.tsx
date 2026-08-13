@@ -578,7 +578,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                     Burn Word Finders
                   </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">5M $WORD burned each</p>
+                  <p className="text-xs text-gray-500 mt-0.5">5M $WORD permanently burned each</p>
                 </div>
 
                 <div className="space-y-1.5">
