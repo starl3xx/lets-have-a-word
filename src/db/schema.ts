@@ -560,6 +560,8 @@ export const adminWalletActions = pgTable('admin_wallet_actions', {
   actionType: varchar('action_type', { length: 50 }).notNull().$type<AdminWalletActionType>(),
   amountEth: varchar('amount_eth', { length: 50 }).notNull(),
   amountWei: varchar('amount_wei', { length: 78 }).notNull(),
+  currency: varchar('currency', { length: 8 }).default('eth').notNull(),
+  amountWord: numeric('amount_word', { precision: 78, scale: 0 }),
   fromAddress: varchar('from_address', { length: 42 }).notNull(),
   toAddress: varchar('to_address', { length: 42 }).notNull(),
   txHash: varchar('tx_hash', { length: 66 }),
@@ -844,3 +846,30 @@ export const superguessSessions = pgTable('superguess_sessions', {
 
 export type SuperguessSessionRow = typeof superguessSessions.$inferSelect;
 export type SuperguessSessionInsert = typeof superguessSessions.$inferInsert;
+
+
+/**
+ * Treasury ETH -> $WORD batch conversions (migration 0022).
+ *
+ * The operation the $WORD economy depends on, and previously untracked.
+ * Without a record there is no way to reconcile player ETH taken against
+ * $WORD credited to the pool — the invariant that reveals whether the
+ * pre-funded tranche is draining faster than revenue replaces it.
+ */
+export const wordConversions = pgTable('word_conversions', {
+  id: serial('id').primaryKey(),
+  ethAmountWei: numeric('eth_amount_wei', { precision: 78, scale: 0 }).notNull(),
+  wordAmountWei: numeric('word_amount_wei', { precision: 78, scale: 0 }).notNull(),
+  ethUsdPrice: decimal('eth_usd_price', { precision: 20, scale: 8 }),
+  wordUsdPriceE18: numeric('word_usd_price_e18', { precision: 78, scale: 0 }),
+  swapTxHash: varchar('swap_tx_hash', { length: 66 }),
+  fundTxHash: varchar('fund_tx_hash', { length: 66 }),
+  initiatedByFid: integer('initiated_by_fid').notNull(),
+  note: varchar('note', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  createdAtIdx: index('word_conversions_created_at_idx').on(table.createdAt),
+}));
+
+export type WordConversionRow = typeof wordConversions.$inferSelect;
+export type WordConversionInsert = typeof wordConversions.$inferInsert;
