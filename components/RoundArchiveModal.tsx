@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatPrize } from '../src/lib/prize-display';
+import { formatWordAmount } from '../src/lib/word-amounts';
 import Top10StatusChip from './Top10StatusChip';
 import BadgeStack from './BadgeStack';
 
@@ -63,10 +65,39 @@ interface BurnWordFinder {
   hasBakersDozenBadge?: boolean;
 }
 
+/**
+ * Render one breakdown amount.
+ *
+ * ETH keeps its original flourish — the leading "0." stripped so the decimals
+ * read large, e.g. ".0216 ETH" — because rounds 1-33 must look unchanged. That
+ * idiom only works for sub-1 values, so $WORD (tens of millions of tokens)
+ * renders as a plain separated number instead.
+ */
+function BreakdownAmount({ value, currency }: { value: string; currency: 'eth' | 'word' }) {
+  if (currency === 'word') {
+    return (
+      <>
+        <span className="font-bold">{value}</span>
+        <span className="text-sm font-medium opacity-50"> $WORD</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="font-bold">.{value.replace('0.', '')}</span>
+      <span className="text-sm font-medium opacity-50"> ETH</span>
+    </>
+  );
+}
+
 interface RoundState {
   roundId: number;
   prizePoolEth: string;
   prizePoolUsd: string;
+  /** 'eth' for rounds 1-33, 'word' for 34+. Absent on older cached payloads. */
+  prizeCurrency?: 'eth' | 'word';
+  /** Prize pool in $WORD wei, present only on 'word' rounds. */
+  prizePoolWord?: string;
   globalGuessCount: number;
   top10Locked: boolean;
   top10GuessesRemaining: number;
@@ -272,34 +303,62 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
   }, [isOpen, fetchData]);
 
   // Calculate prize breakdown (80% jackpot, 10% top guessers, 5% referrer, 5% next round)
-  const calculateBreakdown = (totalEth: string, totalUsd: string) => {
-    const ethNum = parseFloat(totalEth);
+  //
+  // `eth` stays the field name because the ETH rendering below keys off it and
+  // rounds 1-33 must look exactly as they always have. On a $WORD round it
+  // carries a whole-token string instead, and `display` says which to use.
+  const calculateBreakdown = (
+    totalEth: string,
+    totalUsd: string,
+    currency: 'eth' | 'word',
+    totalWordWei?: string
+  ) => {
     const usdNum = parseFloat(totalUsd);
+    const share = (bps: number) => {
+      if (currency === 'word') {
+        let wei = 0n;
+        try {
+          wei = BigInt(totalWordWei ?? '0');
+        } catch {
+          wei = 0n;
+        }
+        return formatWordAmount((wei * BigInt(bps)) / 10000n);
+      }
+      return (parseFloat(totalEth) * (bps / 10000)).toFixed(4);
+    };
+
+    // The top-10 pool is also needed as a NUMBER to split by rank below. It
+    // cannot be recovered from the display string: formatWordAmount inserts
+    // thousands separators, and parseFloat("7,812,500") is 7.
+    let topGuessersPoolWei = 0n;
+    if (currency === 'word') {
+      try {
+        topGuessersPoolWei = (BigInt(totalWordWei ?? '0') * 1000n) / 10000n;
+      } catch {
+        topGuessersPoolWei = 0n;
+      }
+    }
 
     return {
-      jackpot: {
-        eth: (ethNum * 0.8).toFixed(4),
-        usd: (usdNum * 0.8).toFixed(0),
-      },
-      topGuessers: {
-        eth: (ethNum * 0.1).toFixed(4),
-        usd: (usdNum * 0.1).toFixed(0),
-      },
-      referrer: {
-        eth: (ethNum * 0.05).toFixed(4),
-        usd: (usdNum * 0.05).toFixed(0),
-      },
-      nextRound: {
-        eth: (ethNum * 0.05).toFixed(4),
-        usd: (usdNum * 0.05).toFixed(0),
-      },
+      display: currency,
+      topGuessersPoolWei,
+      jackpot: { eth: share(8000), usd: (usdNum * 0.8).toFixed(0) },
+      topGuessers: { eth: share(1000), usd: (usdNum * 0.1).toFixed(0) },
+      referrer: { eth: share(500), usd: (usdNum * 0.05).toFixed(0) },
+      nextRound: { eth: share(500), usd: (usdNum * 0.05).toFixed(0) },
     };
   };
 
   if (!isOpen) return null;
 
+  const prizeCurrency = roundState?.prizeCurrency ?? 'eth';
   const breakdown = roundState
-    ? calculateBreakdown(roundState.prizePoolEth, roundState.prizePoolUsd)
+    ? calculateBreakdown(
+        roundState.prizePoolEth,
+        roundState.prizePoolUsd,
+        prizeCurrency,
+        roundState.prizePoolWord
+      )
     : null;
 
   return (
@@ -316,7 +375,13 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
             </h2>
             {roundState && (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-sm font-semibold text-green-600">{formatEthDisplay(roundState.prizePoolEth)} ETH</span>
+                <span className="text-sm font-semibold text-green-600">
+                  {formatPrize({
+                    currency: prizeCurrency,
+                    eth: formatEthDisplay(roundState.prizePoolEth),
+                    word: roundState.prizePoolWord,
+                  })}
+                </span>
                 <span className="text-xs text-gray-500">prize pool</span>
               </div>
             )}
@@ -390,8 +455,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                   {/* Values region - mt-auto ensures alignment across cards */}
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
-                      <span className="font-bold">.{breakdown.jackpot.eth.replace('0.', '')}</span>
-                      <span className="text-sm font-medium opacity-50"> ETH</span>
+                      <BreakdownAmount value={breakdown.jackpot.eth} currency={breakdown.display} />
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.jackpot.usd} USD)</div>
                   </div>
@@ -405,8 +469,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                   </div>
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
-                      <span className="font-bold">.{breakdown.referrer.eth.replace('0.', '')}</span>
-                      <span className="text-sm font-medium opacity-50"> ETH</span>
+                      <BreakdownAmount value={breakdown.referrer.eth} currency={breakdown.display} />
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.referrer.usd} USD)</div>
                   </div>
@@ -420,8 +483,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                   </div>
                   <div className="mt-auto pt-2">
                     <div className="text-lg leading-tight text-gray-900">
-                      <span className="font-bold">.{breakdown.topGuessers.eth.replace('0.', '')}</span>
-                      <span className="text-sm font-medium opacity-50"> ETH</span>
+                      <BreakdownAmount value={breakdown.topGuessers.eth} currency={breakdown.display} />
                     </div>
                     <div className="text-xs text-gray-400">(${breakdown.topGuessers.usd} USD)</div>
                   </div>
@@ -462,8 +524,16 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                 <div className="space-y-1.5">
                   {topGuessers.slice(0, 10).map((guesser, index) => {
                     const rank = index + 1;
-                    const top10PoolEth = breakdown ? parseFloat(breakdown.topGuessers.eth) : 0;
-                    const rankPayout = getRankPayout(rank, top10PoolEth);
+                    // Split the pool in its own domain: bigint wei for $WORD,
+                    // float ETH for the legacy path.
+                    const rankPayout =
+                      prizeCurrency === 'word'
+                        ? formatWordAmount(
+                            ((breakdown?.topGuessersPoolWei ?? 0n) *
+                              BigInt(Math.round(TOP10_RANK_PERCENTAGES[rank - 1] * 10000))) /
+                              10000n
+                          )
+                        : getRankPayout(rank, breakdown ? parseFloat(breakdown.topGuessers.eth) : 0);
 
                     return (
                       <div key={guesser.fid} className="flex items-center gap-2">
@@ -497,7 +567,9 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                             size="sm"
                           />
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
-                            (.{rankPayout.replace('0.', '')} ETH)
+                            ({prizeCurrency === 'word'
+                              ? `${rankPayout} $WORD`
+                              : `.${rankPayout.replace('0.', '')} ETH`})
                           </span>
                         </div>
                         {/* Guess Count */}
