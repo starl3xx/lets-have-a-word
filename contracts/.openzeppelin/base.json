@@ -5,6 +5,10 @@
       "address": "0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5",
       "txHash": "0x767b3f89395d7ea73ab441d940daf53cec70d4f501f1c98b0e08bc1e19d8d798",
       "kind": "uups"
+    },
+    {
+      "address": "0x2eEa96E86D5b9e44E39A2A7D83CE214c6E10b574",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -450,6 +454,304 @@
               }
             ],
             "numberOfBytes": "256"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "63a395d283049fae4e6683a5e48b37ec32aa63c38d0d65fa4141e4e323d304fc": {
+      "address": "0xBc195527158409fF64037073EF4F81eDE3cE45FF",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "wordToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1232",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:40"
+          },
+          {
+            "label": "operator",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:41"
+          },
+          {
+            "label": "rewardRate",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:47"
+          },
+          {
+            "label": "rewardsDuration",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:48"
+          },
+          {
+            "label": "periodFinish",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:49"
+          },
+          {
+            "label": "lastUpdateTime",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:50"
+          },
+          {
+            "label": "rewardPerTokenStored",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:51"
+          },
+          {
+            "label": "userRewardPerTokenPaid",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:53"
+          },
+          {
+            "label": "rewards",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:54"
+          },
+          {
+            "label": "_totalSupply",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:56"
+          },
+          {
+            "label": "_balances",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:57"
+          },
+          {
+            "label": "roundCommitments",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_mapping(t_uint256,t_struct(RoundCommitment)1702_storage)",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:70"
+          },
+          {
+            "label": "bonusWordClaimed",
+            "offset": 0,
+            "slot": "12",
+            "type": "t_mapping(t_uint256,t_mapping(t_uint256,t_bool))",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:71"
+          },
+          {
+            "label": "burnWordClaimed",
+            "offset": 0,
+            "slot": "13",
+            "type": "t_mapping(t_uint256,t_mapping(t_uint256,t_bool))",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:72"
+          },
+          {
+            "label": "totalBurned",
+            "offset": 0,
+            "slot": "14",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:74"
+          },
+          {
+            "label": "totalDistributed",
+            "offset": 0,
+            "slot": "15",
+            "type": "t_uint256",
+            "contract": "WordManagerV3",
+            "src": "src/WordManagerV3.sol:75"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)226_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_bytes32)10_storage": {
+            "label": "bytes32[10]",
+            "numberOfBytes": "320"
+          },
+          "t_array(t_bytes32)5_storage": {
+            "label": "bytes32[5]",
+            "numberOfBytes": "160"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_contract(IERC20)1232": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_mapping(t_uint256,t_bool))": {
+            "label": "mapping(uint256 => mapping(uint256 => bool))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(RoundCommitment)1702_storage)": {
+            "label": "mapping(uint256 => struct WordManagerV3.RoundCommitment)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(RoundCommitment)1702_storage": {
+            "label": "struct WordManagerV3.RoundCommitment",
+            "members": [
+              {
+                "label": "secretHash",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "bonusWordHashes",
+                "type": "t_array(t_bytes32)10_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "burnWordHashes",
+                "type": "t_array(t_bytes32)5_storage",
+                "offset": 0,
+                "slot": "11"
+              },
+              {
+                "label": "committedAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "16"
+              }
+            ],
+            "numberOfBytes": "544"
           }
         },
         "namespaces": {

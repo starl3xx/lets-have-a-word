@@ -7,6 +7,10 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface IERC20Burnable {
+    function burn(uint256 amount) external;
+}
+
 /**
  * @title WordManagerV3
  * @notice Manages $WORD staking with Synthetix-style streaming rewards + game mechanics
@@ -443,10 +447,7 @@ contract WordManagerV3 is
 
         burnWordClaimed[roundId][wordIndex] = true;
 
-        address burnAddress = address(0xdead);
-        if (!wordToken.transfer(burnAddress, amount)) {
-            revert InsufficientBalance();
-        }
+        IERC20Burnable(address(wordToken)).burn(amount);
 
         totalBurned += amount;
         emit BurnWordClaimed(roundId, wordIndex, amount);
@@ -462,8 +463,7 @@ contract WordManagerV3 is
     }
 
     function burnWord(uint256, address, uint256 amount) external onlyOperator {
-        address burnAddress = address(0xdead);
-        require(wordToken.transfer(burnAddress, amount), "Burn transfer failed");
+        IERC20Burnable(address(wordToken)).burn(amount);
         totalBurned += amount;
     }
 
