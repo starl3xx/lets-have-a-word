@@ -486,7 +486,7 @@ function GameContent() {
     // Fetch $WORD token data
     fetch('/api/word-tokenomics')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.marketCap) setWordTokenData({ marketCap: data.marketCap, priceChange24h: data.priceChange24h }); })
+      .then(data => { if (parseFloat(data?.marketCap) > 0) setWordTokenData({ marketCap: data.marketCap, priceChange24h: data.priceChange24h }); })
       .catch(() => {});
   }, [hasCheckedContext, isInMiniApp]);
 
