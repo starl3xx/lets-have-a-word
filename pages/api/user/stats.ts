@@ -19,6 +19,11 @@ export interface UserStatsResponse {
   paidGuessesAllTime: number;
   jackpotsWon: number;
   totalEthWon: string;
+  /** Lifetime $WORD winnings in wei, as a decimal string. Separate from the ETH
+   *  total because rounds 1-33 and 34+ pay different assets. */
+  totalWordWon: string;
+  topGuesserWordWon: string;
+  referralWordWon: string;
   topGuesserPlacements: number;
   topGuesserEthWon: string;
   referralWins: number;
@@ -105,10 +110,17 @@ export default async function handler(
             .from(rounds)
             .where(eq(rounds.winnerFid, fid)),
 
-          // Total ETH won from payouts
+          // Lifetime winnings, kept as two separate sums.
+          //
+          // Rounds 1-33 paid ETH and 34+ pay $WORD, and the two cannot be added
+          // together. amount_eth is NULL on a $WORD payout, so SUM silently
+          // skips those rows — "all-time ETH won" stays truthful but a player
+          // who has only ever played $WORD rounds would see 0.0000 and read it
+          // as broken. amount_word is varchar(78), hence the cast.
           db
             .select({
               total: sql<string>`coalesce(sum(${roundPayouts.amountEth}), '0')`,
+              totalWord: sql<string>`coalesce(sum(cast(nullif(${roundPayouts.amountWord}, '') as numeric)), 0)::text`,
             })
             .from(roundPayouts)
             .where(eq(roundPayouts.fid, fid)),
@@ -118,6 +130,7 @@ export default async function handler(
             .select({
               count: count(),
               total: sql<string>`coalesce(sum(${roundPayouts.amountEth}), '0')`,
+              totalWord: sql<string>`coalesce(sum(cast(nullif(${roundPayouts.amountWord}, '') as numeric)), 0)::text`,
             })
             .from(roundPayouts)
             .where(and(eq(roundPayouts.fid, fid), eq(roundPayouts.role, 'top_guesser'))),
@@ -127,6 +140,7 @@ export default async function handler(
             .select({
               count: count(),
               total: sql<string>`coalesce(sum(${roundPayouts.amountEth}), '0')`,
+              totalWord: sql<string>`coalesce(sum(cast(nullif(${roundPayouts.amountWord}, '') as numeric)), 0)::text`,
             })
             .from(roundPayouts)
             .where(and(eq(roundPayouts.fid, fid), eq(roundPayouts.role, 'referrer'))),
@@ -201,10 +215,13 @@ export default async function handler(
         const paidGuessesAllTime = Number(allTimeGuessesResult[0]?.paid || 0);
         const jackpotsWon = Number(wonRoundsResult[0]?.count || 0);
         const totalEthWon = payoutsResult[0]?.total || '0';
+        const totalWordWon = payoutsResult[0]?.totalWord || '0';
         const topGuesserPlacements = Number(topGuesserStatsResult[0]?.count || 0);
         const topGuesserEthWon = topGuesserStatsResult[0]?.total || '0';
+        const topGuesserWordWon = topGuesserStatsResult[0]?.totalWord || '0';
         const referralWins = Number(referralStatsResult[0]?.count || 0);
         const referralEthWon = referralStatsResult[0]?.total || '0';
+        const referralWordWon = referralStatsResult[0]?.totalWord || '0';
         const guessesThisRound = Number(roundGuessesResult[0]?.total || 0);
         const paidGuessesThisRound = Number(roundGuessesResult[0]?.paid || 0);
         const referralsGeneratedThisRound = Number(referralsResult[0]?.count || 0);
@@ -265,6 +282,9 @@ export default async function handler(
           paidGuessesAllTime,
           jackpotsWon,
           totalEthWon,
+          totalWordWon,
+          topGuesserWordWon,
+          referralWordWon,
           topGuesserPlacements,
           topGuesserEthWon,
           referralWins,
