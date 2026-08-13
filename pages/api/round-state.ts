@@ -103,6 +103,8 @@ export default async function handler(
         // Milestone 15
         superguessActive: false,
         superguessEligible: sgEligible,
+        // Dev mode mocks the ETH economy; it has no WordJackpot to read from.
+        prizeCurrency: 'eth' as const,
       };
 
       return res.status(200).json(syntheticStatus);

@@ -17,6 +17,7 @@ import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
 import { getEthUsdPrice } from './prices';
 import { getTop10LockStatus, TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
+import { usdCentsForTokens } from './word-amounts';
 
 /**
  * Round Status - displayed in top ticker
@@ -27,6 +28,20 @@ export interface RoundStatus {
   roundId: number;
   prizePoolEth: string; // Decimal as string
   prizePoolUsd?: string; // Optional USD conversion
+  /**
+   * Which asset this round pays in. 'eth' for rounds 1-33, 'word' for 34+.
+   *
+   * Sent to the client on every round-state poll so the UI renders a round in
+   * the currency it was actually seeded in, rather than inferring from a build
+   * flag — the archive shows old and new rounds side by side.
+   */
+  prizeCurrency: 'eth' | 'word';
+  /**
+   * Prize pool in $WORD wei, as a decimal string. Present only on 'word'
+   * rounds. A string because the pool is ~1e26 wei, far past Number.MAX_SAFE_INTEGER,
+   * and JSON has no bigint.
+   */
+  prizePoolWord?: string;
   globalGuessCount: number; // Total guesses for this round
   lastUpdatedAt: string; // ISO timestamp when status was computed
   roundStartedAt?: string; // ISO timestamp when round started
@@ -212,9 +227,23 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
 
   // Convert prize pool to USD if rate is available
   const prizePoolEthNum = parseFloat(round.prizePoolEth);
-  const prizePoolUsd = ethUsdRate != null
+  let prizePoolUsd = ethUsdRate != null
     ? (prizePoolEthNum * ethUsdRate).toFixed(2)
     : undefined;
+
+  // A $WORD round's USD value comes from the price snapshot taken when it was
+  // seeded, not from a live quote. Two reasons: the snapshot is already stored
+  // so this stays a zero-network-call path on a hot poll, and a round's
+  // headline value should not flicker with every tick of a thin market.
+  const isWordRound = round.prizeCurrency === 'word';
+  if (isWordRound) {
+    const priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+    const poolWei = BigInt(round.prizePoolWord ?? '0');
+    prizePoolUsd =
+      priceE18 > 0n
+        ? (Number(usdCentsForTokens(poolWei, priceE18)) / 100).toFixed(2)
+        : undefined;
+  }
 
   // Get Top-10 lock status (pass roundId for historical accuracy: 750 for rounds 1-3, 850 for 4+)
   const top10Status = getTop10LockStatus(globalGuessCount, roundId);
@@ -223,6 +252,8 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
     roundId: round.id,
     prizePoolEth: round.prizePoolEth,
     prizePoolUsd,
+    prizeCurrency: isWordRound ? 'word' : 'eth',
+    ...(isWordRound ? { prizePoolWord: round.prizePoolWord ?? '0' } : {}),
     globalGuessCount,
     lastUpdatedAt: new Date().toISOString(),
     // Top-10 lock fields

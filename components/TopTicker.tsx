@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatPrize } from '../src/lib/prize-display';
 import type { RoundStatus } from '../src/lib/wheel';
 
 // Total words in the game dictionary (for percentage calculation)
@@ -10,21 +11,6 @@ interface TopTickerProps {
   onRoundStatusChange?: (hasActiveRound: boolean) => void; // Notify parent when round status changes
   superguessLive?: boolean; // Milestone 15: Turns banner red during active Superguess
   onSuperguessStatusChange?: (active: boolean, eligible: boolean) => void; // Milestone 15
-}
-
-/**
- * Format ETH value for display
- * Always show exactly 4 decimal places
- *
- * @param value - ETH value as string or number
- * @returns Formatted ETH string (e.g. "0.4219")
- */
-function formatEth(value: string | number): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value;
-
-  if (isNaN(num)) return '0.0000';
-
-  return num.toFixed(4);
 }
 
 /**
@@ -88,7 +74,7 @@ function getPercentageColor(guessCount: number, totalWords: number): string {
  * Milestone 5.4: Round number is clickable to open archive modal
  *
  * Shows:
- * - Prize pool in ETH and USD (formatted properly)
+ * - Prize pool in the round's currency (ETH or $WORD) with its USD value
  * - Global guess count for the current round (with commas)
  *
  * Polls /api/round-state every 15 seconds for live updates.
@@ -271,7 +257,11 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
             Prize Pool
           </p>
           <p className="text-lg font-bold">
-            {formatEth(status.prizePoolEth)} ETH
+            {formatPrize({
+              currency: status.prizeCurrency ?? 'eth',
+              eth: status.prizePoolEth,
+              word: status.prizePoolWord,
+            })}
             {status.prizePoolUsd && (
               <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
                 ({formatUsd(status.prizePoolUsd)})
