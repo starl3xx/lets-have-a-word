@@ -1,0 +1,671 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0xe938D20bB297202dB7BCe7bd4D53Eb7d765CD9E2",
+      "txHash": "0xe073b26839efebe16ba386c93b46d3eb1f134c900c6a21580b99c358a191b0ca",
+      "kind": "uups"
+    },
+    {
+      "address": "0x566924d382e7520d2b0c41b339Dc245f3D25D92e",
+      "txHash": "0xf468a02b61a210ea369f24fe2092b36380dd6a5084d556b9331d7997f094b86d",
+      "kind": "uups"
+    },
+    {
+      "address": "0x417F03283919afC04501e1D08A49B6dAF88185b4",
+      "kind": "uups"
+    },
+    {
+      "address": "0xe4ec37679fdFF5AABecA5dd2f40BEDfd4DB61822",
+      "kind": "uups"
+    },
+    {
+      "address": "0xb2020bb4b8940f0C6cf345c861c7f0Dd3540B747",
+      "kind": "uups"
+    }
+  ],
+  "impls": {
+    "69bfaea70e834cb3aea4e1d2d2231a1f04535ae56b1d51a242f8c53e4509a04a": {
+      "address": "0x506b71A31200B7713E2d72642191702047C6a5e6",
+      "txHash": "0xbc82d78541bd46de0f455f5b3385384303825d4c0fe54313a9f699621bc81705",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "wordToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1392",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:48"
+          },
+          {
+            "label": "operator",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:49"
+          },
+          {
+            "label": "treasury",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:51"
+          },
+          {
+            "label": "pool",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:54"
+          },
+          {
+            "label": "carry",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:56"
+          },
+          {
+            "label": "claimable",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:58"
+          },
+          {
+            "label": "totalClaimable",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:59"
+          },
+          {
+            "label": "activeRoundId",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:61"
+          },
+          {
+            "label": "priceE18",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:64"
+          },
+          {
+            "label": "priceUpdatedAt",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint64",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:65"
+          },
+          {
+            "label": "maxPriceAge",
+            "offset": 8,
+            "slot": "9",
+            "type": "t_uint64",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:66"
+          },
+          {
+            "label": "minSeedTokens",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:70"
+          },
+          {
+            "label": "maxSeedTokens",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:71"
+          },
+          {
+            "label": "rounds",
+            "offset": 0,
+            "slot": "12",
+            "type": "t_mapping(t_uint256,t_struct(Round)1867_storage)",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:82"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "13",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:85"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)224_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)288_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_contract(IERC20)1392": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Round)1867_storage)": {
+            "label": "mapping(uint256 => struct WordJackpot.Round)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Round)1867_storage": {
+            "label": "struct WordJackpot.Round",
+            "members": [
+              {
+                "label": "startingPool",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "finalPool",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "winnerPayout",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "commitHash",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "startedAt",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "resolvedAt",
+                "type": "t_uint64",
+                "offset": 8,
+                "slot": "4"
+              },
+              {
+                "label": "active",
+                "type": "t_bool",
+                "offset": 16,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "fd0064ad8cee4bd714ac36b38c5124dcf4a543176a88439fc4487aa6bd60b113": {
+      "address": "0x9e1acde9344FC6A40db35d3d66F6a35F24C29058",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "wordToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1466",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:48"
+          },
+          {
+            "label": "operator",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:49"
+          },
+          {
+            "label": "treasury",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:51"
+          },
+          {
+            "label": "pool",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:54"
+          },
+          {
+            "label": "carry",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:56"
+          },
+          {
+            "label": "claimable",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:58"
+          },
+          {
+            "label": "totalClaimable",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:59"
+          },
+          {
+            "label": "activeRoundId",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:61"
+          },
+          {
+            "label": "priceE18",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:64"
+          },
+          {
+            "label": "priceUpdatedAt",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint64",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:65"
+          },
+          {
+            "label": "maxPriceAge",
+            "offset": 8,
+            "slot": "9",
+            "type": "t_uint64",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:66"
+          },
+          {
+            "label": "minSeedTokens",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:70"
+          },
+          {
+            "label": "maxSeedTokens",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_uint256",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:71"
+          },
+          {
+            "label": "rounds",
+            "offset": 0,
+            "slot": "12",
+            "type": "t_mapping(t_uint256,t_struct(Round)1941_storage)",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:82"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "13",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "WordJackpot",
+            "src": "src/WordJackpot.sol:85"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)224_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)288_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_contract(IERC20)1466": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Round)1941_storage)": {
+            "label": "mapping(uint256 => struct WordJackpot.Round)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Round)1941_storage": {
+            "label": "struct WordJackpot.Round",
+            "members": [
+              {
+                "label": "startingPool",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "finalPool",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "winnerPayout",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "commitHash",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "startedAt",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "resolvedAt",
+                "type": "t_uint64",
+                "offset": 8,
+                "slot": "4"
+              },
+              {
+                "label": "active",
+                "type": "t_bool",
+                "offset": 16,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      },
+      "allAddresses": [
+        "0x9e1acde9344FC6A40db35d3d66F6a35F24C29058",
+        "0x729e602532633d6848EF83C05cF03c0b039BA0b0",
+        "0x5dC222A5e182D45FC1353fD7D9dd4DB3897711F2"
+      ]
+    }
+  }
+}
