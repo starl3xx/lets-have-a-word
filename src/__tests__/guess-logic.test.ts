@@ -138,7 +138,7 @@ describe('Guess Logic - Milestone 1.3', () => {
     it('should accept correct guess and resolve round', async () => {
       const result = await submitGuess({
         fid: 5000,
-        word: testAnswer, // 'crane'
+        word: testAnswer,
       });
 
       expect(result.status).toBe('correct');
@@ -154,9 +154,17 @@ describe('Guess Logic - Milestone 1.3', () => {
     });
 
     it('should handle case-insensitive correct guesses', async () => {
+      // Derived from the fixture answer rather than spelled out. This test
+      // hardcoded 'CrAnE' and went on doing so after the answer changed to
+      // 'brain', so what it actually asserted was that a wrong word is wrong.
+      const mixedCase = testAnswer
+        .split('')
+        .map((letter, i) => (i % 2 === 0 ? letter.toUpperCase() : letter.toLowerCase()))
+        .join('');
+
       const result = await submitGuess({
         fid: 5000,
-        word: 'CrAnE', // Mixed case
+        word: mixedCase,
       });
 
       expect(result.status).toBe('correct');
@@ -321,9 +329,14 @@ describe('Guess Logic - Milestone 1.3', () => {
     });
 
     it('should respect limit parameter', async () => {
+      // Real words. This loop used to guess 'word1'…'word5', which are not in
+      // the word list and were all rejected as invalid, so no guess was ever
+      // recorded and the function was asked to limit an empty set.
+      const words = ['house', 'phone', 'table', 'chair', 'slate'];
+
       // Create 5 users with guesses
-      for (let i = 1; i <= 5; i++) {
-        await submitGuess({ fid: 1000 + i, word: `word${i}` as any });
+      for (let i = 0; i < words.length; i++) {
+        await submitGuess({ fid: 1001 + i, word: words[i] });
       }
 
       const top3 = await getTopGuessersForRound(testRoundId, 3);

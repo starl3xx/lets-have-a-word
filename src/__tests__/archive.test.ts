@@ -12,6 +12,9 @@ import {
 } from '../lib/archive';
 import { createRound, resolveRound, getActiveRound } from '../lib/rounds';
 import { createTestRound, retireActiveRounds } from './helpers/rounds';
+import { db } from '../db';
+import { users } from '../db/schema';
+import { inArray } from 'drizzle-orm';
 
 /**
  * Archive Module Tests
@@ -119,12 +122,21 @@ describe('Round Archive', () => {
     });
 
     it('should include referrer info when present', async () => {
+      const winnerFid = 11111;
+      const referrerFid = 22222;
+
+      // The referrer comes from the winner's user record, not from an argument
+      // to resolveRound — which used to accept one and pass it nowhere.
+      await db.delete(users).where(inArray(users.fid, [winnerFid, referrerFid]));
+      await db.insert(users).values([
+        { fid: referrerFid, xp: 0 },
+        { fid: winnerFid, referrerFid, xp: 0 },
+      ]);
+
       // Create and resolve a round with winner and referrer
       const round = await createTestRound({ forceAnswer: 'smart' });
       testRoundIds.push(round.id);
-      const winnerFid = 11111;
-      const referrerFid = 22222;
-      await resolveRound(round.id, winnerFid, referrerFid);
+      await resolveRound(round.id, winnerFid);
 
       const result = await archiveRound({ roundId: round.id });
 

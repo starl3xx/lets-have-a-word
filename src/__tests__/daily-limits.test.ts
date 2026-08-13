@@ -10,9 +10,10 @@ import {
   DAILY_LIMITS_RULES,
 } from '../lib/daily-limits';
 import * as economyConfig from '../../config/economy';
+import * as wordToken from '../lib/word-token';
 import { createRound, resolveRound } from '../lib/rounds';
 import { db } from '../db';
-import { dailyGuessState, rounds } from '../db/schema';
+import { dailyGuessState, rounds, users } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
 /**
@@ -32,6 +33,20 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
     // Use unique FID for each test to avoid conflicts
     testFid = Math.floor(Math.random() * 1000000) + 100000;
     testDate = getTodayUTC();
+
+    // Both the player and the dummy winner these tests resolve with need to be
+    // real users with wallets. That is free while the prize pool is empty, but
+    // a test that buys a pack puts ETH in the pool, and resolution then goes
+    // through the payout path — which refuses to pay a winner it cannot find an
+    // address for. A player who has bought a pack always has a wallet in
+    // production, so this is what the fixture should have looked like anyway.
+    await db
+      .insert(users)
+      .values([
+        { fid: testFid, signerWalletAddress: '0x8888888888888888888888888888888888888888', xp: 0 },
+        { fid: 99999, signerWalletAddress: '0x7777777777777777777777777777777777777777', xp: 0 },
+      ])
+      .onConflictDoNothing();
 
     // Create a test round
     const round = await createRound({ forceAnswer: 'brain', skipOnChainCommitment: true });
@@ -179,34 +194,22 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       expect(stateAfter.paidGuessCredits).toBe(DAILY_LIMITS_RULES.paidGuessPackSize);
     });
 
-    it('should allow up to max packs per day', async () => {
-      // Buy first pack
-      const canBuy1 = await canBuyAnotherPack(testFid, testDate);
-      expect(canBuy1).toBe(true);
-      await awardPaidPack(testFid, testDate);
+    it('should not cap the number of packs bought in a day', async () => {
+      // Pack purchases are deliberately uncapped — volume pricing tiers do the
+      // work a hard cap used to. This test previously asserted the old limit of
+      // three, expecting the fourth purchase to be refused.
+      const packs = 5;
 
-      // Buy second pack
-      const canBuy2 = await canBuyAnotherPack(testFid, testDate);
-      expect(canBuy2).toBe(true);
-      await awardPaidPack(testFid, testDate);
+      for (let i = 0; i < packs; i++) {
+        expect(await canBuyAnotherPack(testFid, testDate)).toBe(true);
+        await awardPaidPack(testFid, testDate);
+      }
 
-      // Buy third pack
-      const canBuy3 = await canBuyAnotherPack(testFid, testDate);
-      expect(canBuy3).toBe(true);
-      await awardPaidPack(testFid, testDate);
+      expect(await canBuyAnotherPack(testFid, testDate)).toBe(true);
 
-      // Try to buy fourth pack (should fail)
-      const canBuy4 = await canBuyAnotherPack(testFid, testDate);
-      expect(canBuy4).toBe(false);
-
-      await expect(awardPaidPack(testFid, testDate)).rejects.toThrow('Cannot buy more packs');
-
-      // Verify state
       const finalState = await getOrCreateDailyState(testFid, testDate);
-      expect(finalState.paidPacksPurchased).toBe(DAILY_LIMITS_RULES.maxPaidPacksPerDay);
-      expect(finalState.paidGuessCredits).toBe(
-        DAILY_LIMITS_RULES.paidGuessPackSize * DAILY_LIMITS_RULES.maxPaidPacksPerDay
-      );
+      expect(finalState.paidPacksPurchased).toBe(packs);
+      expect(finalState.paidGuessCredits).toBe(DAILY_LIMITS_RULES.paidGuessPackSize * packs);
     });
 
     it('should correctly consume paid credits across multiple guesses', async () => {
@@ -483,13 +486,37 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
    * when the market cap crosses $250K during the day.
    */
   describe('$WORD Tier Upgrade Mid-Day', () => {
-    afterEach(() => {
+    /**
+     * The tier is read per user, not globally. `getOrCreateDailyState` calls
+     * `getWordBonusTierForFid`, which looks up the user's signer wallet and
+     * asks `getWordBonusTier` for that wallet's onchain balance — so a user
+     * with no wallet row is always tier 0 no matter what the market cap is.
+     *
+     * These tests were stubbing `getWordHolderBonusGuesses`, a config value
+     * nothing on this path consults since Milestone 14, and creating no user
+     * at all. Both therefore measured an unheld token: the tier stayed 0, the
+     * allocation never moved off the number the test had inserted by hand, and
+     * the "upgrade" being asserted could not have happened.
+     */
+    afterEach(async () => {
       vi.restoreAllMocks();
+      await db.delete(users).where(eq(users.fid, testFid));
     });
+
+    /** Give the test user a wallet and pin what that wallet's tier resolves to. */
+    async function holdingTier(tier: number) {
+      await db.delete(users).where(eq(users.fid, testFid));
+      await db.insert(users).values({
+        fid: testFid,
+        signerWalletAddress: '0x6666666666666666666666666666666666666666',
+        xp: 0,
+      });
+      vi.spyOn(wordToken, 'getWordBonusTier').mockResolvedValue(tier);
+    }
 
     it('should upgrade $WORD holder from 2 to 3 guesses when tier increases mid-day', async () => {
       // Simulate LOW tier (mcap < $250K) - holder gets 2 bonus guesses
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
+      await holdingTier(2);
 
       // Create a daily state with $WORD bonus at LOW tier
       // We'll manually insert a row to simulate an existing holder
@@ -511,8 +538,8 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       expect(initialState.freeAllocatedClankton).toBe(2); // legacy column name
       expect(getFreeGuessesRemaining(initialState)).toBe(3); // 1 base + 2 $WORD
 
-      // Now simulate market cap crossing $250K (HIGH tier)
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
+      // Their holding now resolves to the higher tier
+      await holdingTier(3);
 
       // User opens app again - should get upgraded
       const upgradedState = await getOrCreateDailyState(testFid, testDate);
@@ -521,9 +548,9 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       expect(getFreeGuessesRemaining(upgradedState)).toBe(4); // 1 base + 3 $WORD
     });
 
-    it('should NOT downgrade $WORD holder if market cap drops below threshold', async () => {
-      // Start with HIGH tier (mcap >= $250K)
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
+    it('should NOT downgrade $WORD holder if their tier drops', async () => {
+      // Start with HIGH tier
+      await holdingTier(3);
 
       // Create a daily state with $WORD bonus at HIGH tier
       const [initialState] = await db
@@ -543,8 +570,8 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
 
       expect(initialState.freeAllocatedClankton).toBe(3); // legacy column name
 
-      // Simulate market cap dropping below $250K (LOW tier)
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
+      // Their holding now resolves to a lower tier
+      await holdingTier(2);
 
       // User opens app again - should NOT be downgraded
       const state = await getOrCreateDailyState(testFid, testDate);
@@ -553,9 +580,9 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       expect(getFreeGuessesRemaining(state)).toBe(4); // 1 base + 3 $WORD
     });
 
-    it('should not affect non-$WORD holders when tier changes', async () => {
-      // Simulate LOW tier
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
+    it('should not affect non-$WORD holders', async () => {
+      // Holds nothing, so tier 0
+      await holdingTier(0);
 
       // Create a daily state for non-holder
       const [initialState] = await db
@@ -575,8 +602,9 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
 
       expect(initialState.freeAllocatedClankton).toBe(0); // legacy column name
 
-      // Simulate market cap crossing $250K (HIGH tier)
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
+      // The tier is per-wallet now, so a rising market cap cannot promote
+      // someone holding nothing — they stay at 0.
+      await holdingTier(0);
 
       // User opens app again - should NOT get any bonus (not a holder)
       const state = await getOrCreateDailyState(testFid, testDate);
@@ -586,8 +614,8 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
     });
 
     it('should upgrade holder who already used some guesses', async () => {
-      // Simulate LOW tier initially
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(2);
+      // Start at the lower tier
+      await holdingTier(2);
 
       // Create a daily state with $WORD bonus, some guesses used
       const [initialState] = await db
@@ -608,8 +636,8 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
       // Originally had 3 total (1 base + 2 $WORD), used 2, so 1 remaining
       expect(getFreeGuessesRemaining(initialState)).toBe(1);
 
-      // Simulate market cap crossing $250K (HIGH tier)
-      vi.spyOn(economyConfig, 'getWordHolderBonusGuesses').mockReturnValue(3);
+      // Their holding now resolves to the higher tier
+      await holdingTier(3);
 
       // User opens app again - should get upgraded
       const upgradedState = await getOrCreateDailyState(testFid, testDate);

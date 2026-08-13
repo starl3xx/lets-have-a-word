@@ -212,11 +212,11 @@ describe('Round Lifecycle', () => {
       expect(resolved.winnerFid).toBe(winnerFid);
       expect(resolved.resolvedAt).not.toBeNull();
 
-      // This round's pool is empty, so there is no referrer share to pay and
-      // nothing writes rounds.referrerFid. The previous version of this test
-      // passed 67890 as a third argument to resolveRound and expected it back;
-      // that argument was never used for anything and has been removed.
-      expect(resolved.referrerFid).toBeNull();
+      // Recorded from the winner's user record. The previous version of this
+      // test passed 67890 as a third argument to resolveRound and expected it
+      // back; that argument was never used for anything and has been removed,
+      // so the only way this can be right is if the lookup happened.
+      expect(resolved.referrerFid).toBe(referrerFid);
 
       await db.delete(users).where(inArray(users.fid, [winnerFid, referrerFid]));
     });

@@ -530,12 +530,21 @@ export async function resolveRoundAndCreatePayouts(
     // free guess before anyone buys a pack — so this was reachable without
     // anything else going wrong.
     //
-    // There are no payouts to make, only the round to close.
+    // There are no payouts to make, only the round to close. The referrer is
+    // still recorded: who referred the winner is a fact about the round, not
+    // about whether there was a share to pay them, and the archive reads it.
+    const [zeroPoolWinner] = await db
+      .select({ referrerFid: users.referrerFid })
+      .from(users)
+      .where(eq(users.fid, winnerFid))
+      .limit(1);
+
     await db
       .update(rounds)
       .set({
         resolvedAt: new Date(),
         winnerFid,
+        referrerFid: zeroPoolWinner?.referrerFid ?? null,
         status: 'resolved',
       })
       .where(eq(rounds.id, roundId));

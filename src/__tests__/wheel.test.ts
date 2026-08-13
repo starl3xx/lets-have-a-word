@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as prices from '../lib/prices';
 import {
   populateRoundSeedWords,
   getWheelWordsForRound,
@@ -215,6 +216,22 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
   });
 
   describe('getRoundStatus()', () => {
+    /**
+     * getRoundStatus derives prizePoolUsd from getEthUsdPrice, which makes a
+     * live call to CoinGecko and returns null when that call fails — and
+     * CoinGecko rate-limits anonymous callers freely. Left alone these two
+     * tests pass or fail depending on someone else's API, which is how a suite
+     * earns a reputation for being flaky and stops being trusted. The rate is
+     * pinned instead.
+     */
+    beforeEach(() => {
+      vi.spyOn(prices, 'getEthUsdPrice').mockResolvedValue(3000);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it('should return correct round status', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 

@@ -5,7 +5,15 @@ import {
   createNextRoundFromSeed,
 } from './economics';
 import { db } from '../db';
-import { rounds, systemState, roundPayouts, guesses, users, announcerEvents } from '../db/schema';
+import {
+  rounds,
+  systemState,
+  roundPayouts,
+  guesses,
+  users,
+  announcerEvents,
+  wordRewards,
+} from '../db/schema';
 import { eq, inArray } from 'drizzle-orm';
 
 /**
@@ -16,6 +24,19 @@ import { eq, inArray } from 'drizzle-orm';
  * - resolveRoundAndCreatePayouts: 80/10/10 jackpot split
  * - createNextRoundFromSeed: round creation with seed initialization
  */
+
+/**
+ * ETH amount of a payout row.
+ *
+ * `amount_eth` became nullable when $WORD payouts arrived — a $WORD row
+ * carries `amount_word` and leaves this null. Every round in this file is an
+ * ETH round, so a null here means the row was written in the wrong currency,
+ * which is worth failing on rather than quietly reading as NaN.
+ */
+function ethAmount(payout: { amountEth: string | null }): number {
+  expect(payout.amountEth).not.toBeNull();
+  return parseFloat(payout.amountEth!);
+}
 
 describe('Economics Module - Milestone 3.1', () => {
   describe('applyPaidGuessEconomicEffects', () => {
@@ -234,13 +255,13 @@ describe('Economics Module - Milestone 3.1', () => {
       const winnerPayout = payouts.find((p) => p.role === 'winner');
       expect(winnerPayout).toBeDefined();
       expect(winnerPayout!.fid).toBe(winner.fid);
-      expect(parseFloat(winnerPayout!.amountEth)).toBeCloseTo(0.8, 6);
+      expect(ethAmount(winnerPayout!)).toBeCloseTo(0.8, 6);
 
       // Check referrer payout (5%)
       const referrerPayout = payouts.find((p) => p.role === 'referrer');
       expect(referrerPayout).toBeDefined();
       expect(referrerPayout!.fid).toBe(referrer.fid);
-      expect(parseFloat(referrerPayout!.amountEth)).toBeCloseTo(0.05, 6);
+      expect(ethAmount(referrerPayout!)).toBeCloseTo(0.05, 6);
 
       // Top guessers share 10%, tiered rather than split evenly (Milestone
       // 6.9b): with two of them the 1900/1600 bps weights renormalise to
@@ -248,7 +269,7 @@ describe('Economics Module - Milestone 3.1', () => {
       const topGuessersPayouts = payouts.filter((p) => p.role === 'top_guesser');
       expect(topGuessersPayouts.length).toBe(2);
       const topGuesserAmounts = topGuessersPayouts
-        .map((p) => parseFloat(p.amountEth))
+        .map(ethAmount)
         .sort((a, b) => b - a);
       expect(topGuesserAmounts[0]).toBeCloseTo(0.05429, 5);
       expect(topGuesserAmounts[1]).toBeCloseTo(0.04571, 5);
@@ -257,10 +278,10 @@ describe('Economics Module - Milestone 3.1', () => {
       // Seed is 5%, capped at 0.02 ETH; the 0.03 above the cap goes to the
       // creator, so the six payouts still sum to the whole pool.
       const seedPayout = payouts.find((p) => p.role === 'seed');
-      expect(parseFloat(seedPayout!.amountEth)).toBeCloseTo(0.02, 6);
+      expect(ethAmount(seedPayout!)).toBeCloseTo(0.02, 6);
       const creatorPayout = payouts.find((p) => p.role === 'creator');
-      expect(parseFloat(creatorPayout!.amountEth)).toBeCloseTo(0.03, 6);
-      const total = payouts.reduce((sum, p) => sum + parseFloat(p.amountEth!), 0);
+      expect(ethAmount(creatorPayout!)).toBeCloseTo(0.03, 6);
+      const total = payouts.reduce((sum, p) => sum + ethAmount(p), 0);
       expect(total).toBeCloseTo(1.0, 6);
 
       // Check round is marked as resolved
@@ -271,9 +292,11 @@ describe('Economics Module - Milestone 3.1', () => {
       expect(resolvedRound.resolvedAt).not.toBeNull();
       expect(resolvedRound.winnerFid).toBe(winner.fid);
 
-      // Clean up. announcer_events has a FK to rounds and resolution writes a
-      // row into it, so the round cannot be deleted until that goes first.
+      // Clean up. announcer_events and word_rewards both have a FK to rounds
+      // and resolution writes into them, so the round cannot be deleted until
+      // those rows go first.
       await db.delete(announcerEvents).where(eq(announcerEvents.roundId, round.id));
+      await db.delete(wordRewards).where(eq(wordRewards.roundId, round.id));
       await db.delete(roundPayouts).where(eq(roundPayouts.roundId, round.id));
       await db.delete(guesses).where(eq(guesses.roundId, round.id));
       await db.delete(rounds).where(eq(rounds.id, round.id));
@@ -342,18 +365,18 @@ describe('Economics Module - Milestone 3.1', () => {
       // so the seed takes 0.02 and the creator takes the remaining 0.055.
       expect(seedPayout).toBeDefined();
       expect(seedPayout!.fid).toBeNull();
-      expect(parseFloat(seedPayout!.amountEth)).toBeCloseTo(0.02, 6);
+      expect(ethAmount(seedPayout!)).toBeCloseTo(0.02, 6);
 
       expect(creatorPayout).toBeDefined();
       expect(creatorPayout!.fid).toBeNull();
-      expect(parseFloat(creatorPayout!.amountEth)).toBeCloseTo(0.055, 6);
+      expect(ethAmount(creatorPayout!)).toBeCloseTo(0.055, 6);
 
       // Nobody else guessed, so the winner also takes the 12.5% top-10 bucket
       // as a second row rather than it being left unallocated.
       const winnerTopTen = payouts.find((p) => p.role === 'top_guesser');
       expect(winnerTopTen).toBeDefined();
       expect(winnerTopTen!.fid).toBe(winner.fid);
-      expect(parseFloat(winnerTopTen!.amountEth)).toBeCloseTo(0.125, 6);
+      expect(ethAmount(winnerTopTen!)).toBeCloseTo(0.125, 6);
 
       // Check round seed was updated
       const [updatedRound] = await db
@@ -369,9 +392,11 @@ describe('Economics Module - Milestone 3.1', () => {
         6
       );
 
-      // Clean up. announcer_events has a FK to rounds and resolution writes a
-      // row into it, so the round cannot be deleted until that goes first.
+      // Clean up. announcer_events and word_rewards both have a FK to rounds
+      // and resolution writes into them, so the round cannot be deleted until
+      // those rows go first.
       await db.delete(announcerEvents).where(eq(announcerEvents.roundId, round.id));
+      await db.delete(wordRewards).where(eq(wordRewards.roundId, round.id));
       await db.delete(roundPayouts).where(eq(roundPayouts.roundId, round.id));
       await db.delete(rounds).where(eq(rounds.id, round.id));
       await db.delete(users).where(eq(users.fid, winner.fid));
