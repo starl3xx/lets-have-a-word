@@ -41,7 +41,7 @@ async function validate() {
     const existingRound = await getActiveRound();
     if (existingRound) {
       console.log(`   Found existing active round ${existingRound.id}, resolving it first...`);
-      await resolveRound(existingRound.id, 99999, null);
+      await resolveRound(existingRound.id, 99999);
       console.log(`   Resolved round ${existingRound.id}`);
     }
     console.log('');
@@ -79,8 +79,7 @@ async function validate() {
     // Step 7: Test round resolution
     console.log('Step 7: Testing round resolution...');
     const winnerFid = 12345;
-    const referrerFid = 67890;
-    const resolvedRound = await resolveRound(testRound.id, winnerFid, referrerFid);
+    const resolvedRound = await resolveRound(testRound.id, winnerFid);
     console.log(`✅ Round ${resolvedRound.id} resolved successfully`);
     console.log(`   Winner FID: ${resolvedRound.winnerFid}`);
     console.log(`   Referrer FID: ${resolvedRound.referrerFid}`);

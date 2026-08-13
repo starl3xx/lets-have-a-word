@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as prices from '../lib/prices';
 import {
   populateRoundSeedWords,
   getWheelWordsForRound,
@@ -30,61 +31,21 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
     await retireActiveRounds();
   });
   describe('populateRoundSeedWords()', () => {
-    it('should populate seed words for a round', async () => {
+    /**
+     * Seed words were removed in Milestone 4.11. The wheel now renders every
+     * guessable word carrying a status rather than a sampled subset, so there
+     * is nothing left to seed and `populateRoundSeedWords` is an explicit
+     * no-op kept only so older callers do not break.
+     *
+     * The three tests this replaces asserted it filled `round_seed_words` —
+     * one of them that a `count` argument it now ignores produced exactly ten
+     * rows. They had been asserting against deleted behaviour, and the two
+     * that "passed" did so by comparing zero to zero.
+     */
+    it('should be a no-op that writes no seed words', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
-      // Seed words should already be populated by createRound
-      // Verify they exist
-      const seedWords = await db
-        .select()
-        .from(roundSeedWords)
-        .where(eq(roundSeedWords.roundId, round.id));
-
-      expect(seedWords.length).toBeGreaterThan(0);
-      expect(seedWords.length).toBeLessThanOrEqual(30);
-
-      // All seed words should be 5 letters and uppercase
-      seedWords.forEach((sw) => {
-        expect(sw.word).toMatch(/^[A-Z]{5}$/);
-      });
-
-      // Clean up
-      await resolveRound(round.id, 12345);
-    });
-
-    it('should not populate seed words twice for the same round', async () => {
-      const round = await createTestRound({ forceAnswer: 'house' });
-
-      // Get initial count (already populated by createRound)
-      const initialSeedWords = await db
-        .select()
-        .from(roundSeedWords)
-        .where(eq(roundSeedWords.roundId, round.id));
-
-      const initialCount = initialSeedWords.length;
-
-      // Try to populate again
       await populateRoundSeedWords(round.id);
-
-      // Count should remain the same
-      const afterSeedWords = await db
-        .select()
-        .from(roundSeedWords)
-        .where(eq(roundSeedWords.roundId, round.id));
-
-      expect(afterSeedWords.length).toBe(initialCount);
-
-      // Clean up
-      await resolveRound(round.id, 12345);
-    });
-
-    it('should respect the count parameter', async () => {
-      const round = await createTestRound({ forceAnswer: 'audio' });
-
-      // Delete existing seed words
-      await db.delete(roundSeedWords).where(eq(roundSeedWords.roundId, round.id));
-
-      // Populate with custom count
       await populateRoundSeedWords(round.id, 10);
 
       const seedWords = await db
@@ -92,7 +53,7 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
         .from(roundSeedWords)
         .where(eq(roundSeedWords.roundId, round.id));
 
-      expect(seedWords.length).toBe(10);
+      expect(seedWords).toHaveLength(0);
 
       // Clean up
       await resolveRound(round.id, 12345);
@@ -100,23 +61,40 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
   });
 
   describe('getWheelWordsForRound()', () => {
-    it('should return only seed words when no guesses exist', async () => {
+    /**
+     * Milestone 4.10 changed the return type: the wheel is now the whole guess
+     * list, every word carrying a status of 'unguessed' | 'wrong' | 'winner',
+     * rather than an array of the strings that had been guessed.
+     *
+     * The tests below had not been updated, so they asked whether an array of
+     * objects `toContain('HOUSE')` — which is false for every word, guessed or
+     * not. Worse, the two assertions that still passed passed for the wrong
+     * reason: `not.toContain('BRAIN')` was reading as "the answer is not
+     * leaked" when in fact no bare string could ever be found in that array,
+     * so it would have held even if the wheel had marked the answer as the
+     * winner before anyone guessed it. Status is now asserted directly.
+     */
+    const statusOf = (words: Awaited<ReturnType<typeof getWheelWordsForRound>>, word: string) =>
+      words.find((w) => w.word === word)?.status;
+
+    it('should return every guessable word as unguessed when no guesses exist', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
       const wheelWords = await getWheelWordsForRound(round.id);
 
-      // Should contain seed words
       expect(wheelWords.length).toBeGreaterThan(0);
+      expect(wheelWords.every((w) => w.status === 'unguessed')).toBe(true);
 
-      // Should be sorted alphabetically
-      const sorted = [...wheelWords].sort();
-      expect(wheelWords).toEqual(sorted);
+      // Sorted alphabetically by word — compare the words themselves, since
+      // sorting the objects compares "[object Object]" and always agrees.
+      const words = wheelWords.map((w) => w.word);
+      expect(words).toEqual([...words].sort((a, b) => a.localeCompare(b)));
 
       // Clean up
       await resolveRound(round.id, 12345);
     });
 
-    it('should return union of seed words and wrong guesses', async () => {
+    it('should mark wrong guesses as wrong and leave the answer unguessed', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit some wrong guesses
@@ -126,23 +104,19 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
       const wheelWords = await getWheelWordsForRound(round.id);
 
-      // Should include our wrong guesses
-      expect(wheelWords).toContain('HOUSE');
-      expect(wheelWords).toContain('CRANE');
-      expect(wheelWords).toContain('SLATE');
+      expect(statusOf(wheelWords, 'HOUSE')).toBe('wrong');
+      expect(statusOf(wheelWords, 'CRANE')).toBe('wrong');
+      expect(statusOf(wheelWords, 'SLATE')).toBe('wrong');
 
-      // Should not include the correct answer
-      expect(wheelWords).not.toContain('BRAIN');
-
-      // Should be sorted alphabetically
-      const sorted = [...wheelWords].sort();
-      expect(wheelWords).toEqual(sorted);
+      // The answer must stay indistinguishable from any other unguessed word
+      // until it is actually guessed, or the wheel leaks it.
+      expect(statusOf(wheelWords, 'BRAIN')).toBe('unguessed');
 
       // Clean up
       await resolveRound(round.id, 12345);
     });
 
-    it('should not include duplicate words', async () => {
+    it('should list each word exactly once however many times it is guessed', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit same wrong guess from different users
@@ -152,15 +126,15 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
       const wheelWords = await getWheelWordsForRound(round.id);
 
-      // Count occurrences of HOUSE
-      const houseCount = wheelWords.filter((w) => w === 'HOUSE').length;
-      expect(houseCount).toBe(1);
+      const houseEntries = wheelWords.filter((w) => w.word === 'HOUSE');
+      expect(houseEntries).toHaveLength(1);
+      expect(houseEntries[0].status).toBe('wrong');
 
       // Clean up
       await resolveRound(round.id, 12345);
     });
 
-    it('should not include correct guesses in the wheel', async () => {
+    it('should mark a correct guess as the winner', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
       // Submit wrong guesses
@@ -172,12 +146,9 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
       const wheelWords = await getWheelWordsForRound(round.id);
 
-      // Should include wrong guesses
-      expect(wheelWords).toContain('HOUSE');
-      expect(wheelWords).toContain('CRANE');
-
-      // Should NOT include correct answer
-      expect(wheelWords).not.toContain('BRAIN');
+      expect(statusOf(wheelWords, 'HOUSE')).toBe('wrong');
+      expect(statusOf(wheelWords, 'CRANE')).toBe('wrong');
+      expect(statusOf(wheelWords, 'BRAIN')).toBe('winner');
 
       // The round is now resolved, no cleanup needed
     });
@@ -228,20 +199,16 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
       // The round is now resolved
     });
 
-    it('should NOT count seed words as guesses', async () => {
+    it('should count only real guesses, not the words shown on the wheel', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
-      // Get seed words count
-      const seedWords = await db
-        .select()
-        .from(roundSeedWords)
-        .where(eq(roundSeedWords.roundId, round.id));
+      // The wheel shows the whole guess list from the moment a round opens.
+      // None of it counts as a guess: only rows in `guesses` do.
+      const wheelWords = await getWheelWordsForRound(round.id);
+      expect(wheelWords.length).toBeGreaterThan(0);
 
-      // Global guess count should be 0 (seed words are not counted)
       const count = await getGlobalGuessCount(round.id);
-
       expect(count).toBe(0);
-      expect(seedWords.length).toBeGreaterThan(0); // But seed words exist
 
       // Clean up
       await resolveRound(round.id, 12345);
@@ -249,6 +216,22 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
   });
 
   describe('getRoundStatus()', () => {
+    /**
+     * getRoundStatus derives prizePoolUsd from getEthUsdPrice, which makes a
+     * live call to CoinGecko and returns null when that call fails — and
+     * CoinGecko rate-limits anonymous callers freely. Left alone these two
+     * tests pass or fail depending on someone else's API, which is how a suite
+     * earns a reputation for being flaky and stops being trusted. The rate is
+     * pinned instead.
+     */
+    beforeEach(() => {
+      vi.spyOn(prices, 'getEthUsdPrice').mockResolvedValue(3000);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it('should return correct round status', async () => {
       const round = await createTestRound({ forceAnswer: 'brain' });
 
@@ -310,18 +293,26 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
       await resolveRound(round.id, 12345);
     });
 
-    it('should return null when no active round exists', async () => {
-      // Ensure no active round
-      const activeRound = await getActiveRound();
-      if (activeRound) {
-        await resolveRound(activeRound.id, 12345);
-      }
+    it('should return the status of the round that is already active', async () => {
+      // This replaces a test named "should return null when no active round
+      // exists" whose only assertion was `status === null || status !== null`
+      // — true of every value — and which could not run anyway: with no
+      // active round, getActiveRoundStatus goes through ensureActiveRound and
+      // *creates* one, which needs a deployed contract. It never returns null,
+      // as its own doc comment says. What is worth pinning is that it reports
+      // the existing round rather than starting a second one.
+      const round = await createTestRound({ forceAnswer: 'brain' });
 
       const status = await getActiveRoundStatus();
 
-      // May be null or may be a newly created round from ensureActiveRound
-      // In production, there's always an active round
-      expect(status === null || status !== null).toBe(true);
+      expect(status).not.toBeNull();
+      expect(status.roundId).toBe(round.id);
+
+      const stillActive = await getActiveRound();
+      expect(stillActive!.id).toBe(round.id);
+
+      // Clean up
+      await resolveRound(round.id, 12345);
     });
   });
 
@@ -363,23 +354,23 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
 
   describe('Integration: Complete Wheel Lifecycle', () => {
     it('should handle full wheel lifecycle', async () => {
-      // 1. Create round (automatically populates seed words)
+      // 1. Create round
       const round = await createTestRound({ forceAnswer: 'brain' });
 
-      // 2. Verify seed words exist
+      // 2. The wheel starts as the full guess list, nothing guessed yet
       const initialWheel = await getWheelWordsForRound(round.id);
       expect(initialWheel.length).toBeGreaterThan(0);
+      expect(initialWheel.every((w) => w.status === 'unguessed')).toBe(true);
 
       // 3. Submit wrong guesses
       await submitGuess({ fid: 100, word: 'HOUSE' });
       await submitGuess({ fid: 200, word: 'CRANE' });
       await submitGuess({ fid: 300, word: 'SLATE' });
 
-      // 4. Verify wheel includes seed words + wrong guesses
+      // 4. Those three words turn wrong; nothing else moves
       const wheelWithGuesses = await getWheelWordsForRound(round.id);
-      expect(wheelWithGuesses).toContain('HOUSE');
-      expect(wheelWithGuesses).toContain('CRANE');
-      expect(wheelWithGuesses).toContain('SLATE');
+      const wrongWords = wheelWithGuesses.filter((w) => w.status === 'wrong').map((w) => w.word);
+      expect(wrongWords.sort()).toEqual(['CRANE', 'HOUSE', 'SLATE']);
 
       // 5. Verify global guess count (should NOT include seed words)
       const guessCount = await getGlobalGuessCount(round.id);
@@ -393,9 +384,9 @@ describe('Wheel Functionality (Milestone 2.3)', () => {
       // 7. Submit correct guess
       await submitGuess({ fid: 400, word: 'BRAIN' });
 
-      // 8. Verify correct answer NOT in wheel
+      // 8. The answer is now, and only now, marked as the winner
       const finalWheel = await getWheelWordsForRound(round.id);
-      expect(finalWheel).not.toContain('BRAIN');
+      expect(finalWheel.find((w) => w.word === 'BRAIN')?.status).toBe('winner');
 
       // 9. Verify final guess count includes all guesses
       const finalCount = await getGlobalGuessCount(round.id);

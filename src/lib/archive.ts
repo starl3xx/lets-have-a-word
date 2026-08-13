@@ -177,7 +177,14 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       winnerFid: rawRound.winner_fid,
       referrerFid: rawRound.referrer_fid,
       startedAt: rawRound.started_at instanceof Date ? rawRound.started_at : new Date(rawRound.started_at),
-      resolvedAt: rawRound.resolved_at instanceof Date ? rawRound.resolved_at : new Date(rawRound.resolved_at),
+      // Null must survive this conversion. `new Date(null)` is not an invalid
+      // date, it is 1970-01-01 — a perfectly truthy Date — so an unresolved
+      // round sailed past the `if (!round.resolvedAt)` guard below and got
+      // archived mid-play, with 1970 written into the permanent record as the
+      // round's end time.
+      resolvedAt: rawRound.resolved_at
+        ? (rawRound.resolved_at instanceof Date ? rawRound.resolved_at : new Date(rawRound.resolved_at))
+        : null,
       status: rawRound.status,
     };
 

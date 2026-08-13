@@ -40,6 +40,12 @@ jobs:
       # since answers are encrypted on insert and decrypted on read. Rotating it
       # mid-run produces "unable to authenticate data" from AES-GCM.
       ANSWER_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001'
+      # Pinned rather than assumed. The timestamp columns are `timestamp`
+      # without time zone, so a Date written as UTC and read back by a client
+      # in another zone comes out shifted by that zone's offset — five hours
+      # out, on a machine set to US Central. Runners are UTC anyway; this makes
+      # the dependency explicit instead of luck.
+      TZ: UTC
 
     steps:
       - uses: actions/checkout@v4
@@ -64,38 +70,8 @@ jobs:
         # parallel, a round created by one file is "active" while another tries
         # to create its own, and createRound refuses.
         #
-        # Explicit file list rather than the whole suite: six files still fail
-        # and are tracked separately (see below). Listing what passes keeps this
-        # job meaningful — a permanently-red job gets ignored, which is how the
-        # suite rotted in the first place.
-        #
-        # STILL EXCLUDED. The infrastructure blockers are now fixed — these run
-        # against a database and no longer need a contract — but each still has
-        # individual assertion failures, so none is fully green yet:
-        #
-        #   wheel            8/20 failing
-        #   round-lifecycle  7/21
-        #   archive          6/22
-        #   daily-limits     6/22
-        #   economics        4/8
-        #   guess-logic      3/26
-        #
-        # Whole suite: 370/404 passing, up from 308. What remains is per-test
-        # debugging where the answer is not obvious — some look like stale
-        # expectations, some like real bugs — and getting one wrong means making
-        # a test agree with broken behaviour. Move files here as they go green.
-        run: |
-          npx vitest run --no-file-parallelism \
-            src/__tests__/economy-config.test.ts \
-            src/__tests__/commitment-v2.test.ts \
-            src/__tests__/input-state.test.ts \
-            src/__tests__/rate-limit.test.ts \
-            src/__tests__/commit-reveal.test.ts \
-            src/__tests__/bakers-dozen.test.ts \
-            src/__tests__/word-lists.test.ts \
-            src/lib/prize-split.test.ts \
-            src/lib/word-amounts.test.ts \
-            src/lib/pack-pricing.test.ts \
-            src/lib/top-guesser-payouts.test.ts \
-            src/lib/prize-display.test.ts \
-            src/lib/users.test.ts
+        # The whole suite, no exclusions: 402 tests across 19 files, all green.
+        # This ran an explicit allow-list of 13 files while six others were
+        # still failing; keep it that way and the next regression lands in a
+        # file nobody is watching, which is how the suite rotted to begin with.
+        run: npx vitest run --no-file-parallelism
