@@ -4,6 +4,7 @@ import { guesses, rounds } from '../../../src/db/schema';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../../src/lib/devGameState';
 import { getGuessWords } from '../../../src/lib/word-lists';
+import { getWrongWordsForRound } from '../../../src/lib/guesses';
 
 /**
  * Wrong Guesses Response
@@ -76,18 +77,26 @@ export default async function handler(
       });
     }
 
-    // Get all wrong guesses for this round (simple, indexed query)
-    const wrongGuessRows = await db
-      .select({ word: guesses.word })
-      .from(guesses)
-      .where(
-        and(
-          eq(guesses.roundId, activeRound.id),
-          eq(guesses.isCorrect, false)
-        )
-      );
-
-    const realWrongGuesses = wrongGuessRows.map(row => row.word.toUpperCase());
+    // Delegates to getWrongWordsForRound rather than running its own query.
+    //
+    // The query this replaces filtered on `is_correct = false` alone, which
+    // silently excluded ineligible-winner rows — a correct guess by an account
+    // that failed the sybil check, stored with is_correct = true and
+    // is_ineligible_winner = true.
+    //
+    // That is an answer disclosure. getWheelWordsForRound marks those words
+    // `wrong` on /api/wheel while this endpoint omitted them, so diffing two
+    // public responses identified the answer: the word present in one and
+    // absent from the other. The invariant it broke is spelled out in
+    // guesses.ts — an ineligible winner must be observably indistinguishable
+    // from an ordinary wrong guess, or the comparison leaks the word.
+    //
+    // Three call sites honoured that and this one did not, which is the
+    // argument for calling the shared function instead of repeating its WHERE
+    // clause a fourth time.
+    const realWrongGuesses = (await getWrongWordsForRound(activeRound.id)).map((word) =>
+      word.toUpperCase()
+    );
 
     // In dev mode, merge seeded wrong words with real DB wrong guesses
     if (devMode) {
