@@ -28,9 +28,23 @@ import {
   ADMIN_SESSION_TTL_SECONDS,
 } from '../../../src/lib/adminSession';
 
-// Create Farcaster auth client for verification
+/**
+ * Farcaster auth client for SIWF verification.
+ *
+ * The connector talks to Optimism, because verifying a SIWF signature means
+ * resolving the custody address to a FID onchain (and, since auth-client 0.7,
+ * checking auth addresses). An explicit RPC is passed rather than relying on
+ * the default: with none supplied the library falls back to the public
+ * endpoint and logs "Do not use this in production". A rate-limited public RPC
+ * would make admin sign-in fail intermittently, which is the worst kind of
+ * auth failure — it looks like a wrong key rather than an outage.
+ *
+ * OPTIMISM_RPC_URL is optional; unset simply restores the previous behaviour.
+ */
 const appClient = createAppClient({
-  ethereum: viemConnector(),
+  ethereum: process.env.OPTIMISM_RPC_URL
+    ? viemConnector({ rpcUrl: process.env.OPTIMISM_RPC_URL })
+    : viemConnector(),
 });
 
 interface VerifyRequest {
