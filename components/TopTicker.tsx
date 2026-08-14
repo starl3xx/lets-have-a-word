@@ -228,7 +228,7 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
             Update in progress…
           </p>
           <p className="text-sm opacity-80 mt-1">
-            Get ready to guess the secret word!
+            Get ready for something new!
           </p>
           {adminFid && (
             <div className="mt-3">
