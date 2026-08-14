@@ -61,7 +61,21 @@ export interface RateLimitResult {
 export interface DuplicateCheckResult {
   isDuplicate: boolean;
   lastSubmittedAt?: number;
+  /**
+   * When isDuplicate, whether the first attempt finished. 'pending' means it is
+   * still in flight; 'processed' means it reached a durable outcome.
+   */
+  state?: 'pending' | 'processed';
 }
+
+/**
+ * What the dedup key holds.
+ *
+ * It used to hold a bare timestamp, which could express "someone submitted this
+ * word recently" but not "and it actually landed" — the distinction the retry
+ * path turns on. See checkDuplicateGuess.
+ */
+type DuplicateRecord = { state: 'pending' | 'processed'; at: number };
 
 // =============================================================================
 // Key Generation
@@ -318,8 +332,28 @@ export async function checkPurchaseRateLimit(
 // =============================================================================
 
 /**
- * Check if this is a duplicate guess submission
- * Returns isDuplicate: true if the same FID submitted the same word recently
+ * Claim the right to process this (fid, word), or report that someone already
+ * has.
+ *
+ * The window is 30s because the frontend gives up at 12s and users retry; the
+ * key stops that retry from spending a second credit on a guess the server
+ * already recorded.
+ *
+ * The bug this replaces: the key was written BEFORE the guess was processed and
+ * never removed, so it could not tell "already recorded" from "attempted and
+ * failed". When submission threw — a DB blip, an RPC hang on the correct-guess
+ * path — the row was never written, no credit was spent, and every retry for
+ * the next 30 seconds returned `duplicate_ignored`. The frontend renders that
+ * status as no banner at all (index.tsx), so the player pressed GUESS and
+ * watched nothing happen, with the word silently discarded.
+ *
+ * So the record carries the outcome. Callers must close it out: mark it
+ * processed once the guess is durable, or clear it if nothing was recorded.
+ * Leaving a 'pending' record is the old bug, scoped to 30 seconds.
+ *
+ * Claiming is a single SET NX, which is also a fix in itself — the previous
+ * GET-then-SET let two concurrent identical submissions both read an empty key
+ * and both proceed, which is the exact double-submit the check exists to catch.
  */
 export async function checkDuplicateGuess(
   fid: number,
@@ -334,28 +368,45 @@ export async function checkDuplicateGuess(
   const config = RateLimitConfig.duplicateGuess;
 
   try {
-    // Check if key exists
-    const lastSubmitted = await redis.get<number>(key);
+    const record: DuplicateRecord = { state: 'pending', at: Date.now() };
+    const claimed = await redis.set(key, record, {
+      nx: true,
+      ex: config.windowSeconds,
+    });
 
-    if (lastSubmitted) {
-      // Log duplicate detection
-      console.log(`[RateLimit] Duplicate guess detected: FID ${fid}, word "${word}"`);
-      logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
-        userId: fid.toString(),
-        data: {
-          event_subtype: 'DUPLICATE_SUBMISSION_IGNORED',
-          word: word.toUpperCase(),
-          last_submitted_at: lastSubmitted,
-        },
-      });
-
-      return { isDuplicate: true, lastSubmittedAt: lastSubmitted };
+    if (claimed) {
+      return { isDuplicate: false };
     }
 
-    // Record this submission
-    await redis.set(key, Date.now(), { ex: config.windowSeconds });
+    // Lost the race, or a previous attempt already holds the key.
+    const existing = await redis.get<DuplicateRecord | number>(key);
 
-    return { isDuplicate: false };
+    // A bare number is a record written by the previous version of this
+    // function, still inside its 30s TTL during a deploy. It only ever meant
+    // "submitted", so treat it as processed — the conservative reading.
+    const state =
+      typeof existing === 'object' && existing !== null ? existing.state : 'processed';
+    const at =
+      typeof existing === 'object' && existing !== null
+        ? existing.at
+        : typeof existing === 'number'
+          ? existing
+          : undefined;
+
+    console.log(
+      `[RateLimit] Duplicate guess detected: FID ${fid}, word "${word}" (${state})`
+    );
+    logAnalyticsEvent(AnalyticsEventTypes.GUESS_SUBMITTED, {
+      userId: fid.toString(),
+      data: {
+        event_subtype: 'DUPLICATE_SUBMISSION_IGNORED',
+        word: word.toUpperCase(),
+        last_submitted_at: at,
+        duplicate_state: state,
+      },
+    });
+
+    return { isDuplicate: true, lastSubmittedAt: at, state };
   } catch (error) {
     console.error('[RateLimit] Error checking duplicate guess:', error);
     // Fail open - don't block on errors
@@ -364,8 +415,32 @@ export async function checkDuplicateGuess(
 }
 
 /**
- * Clear duplicate guess record (call after successful guess processing)
- * This allows the same word to be submitted again after processing
+ * Mark the guess as durably recorded, so retries inside the window keep being
+ * absorbed. Call this when the submission consumed a credit, wrote a guess row,
+ * or paid out a reward.
+ */
+export async function markDuplicateProcessed(fid: number, word: string): Promise<void> {
+  if (!redis) return;
+
+  const key = getDuplicateKey(fid, word);
+  const record: DuplicateRecord = { state: 'processed', at: Date.now() };
+  try {
+    await redis.set(key, record, { ex: RateLimitConfig.duplicateGuess.windowSeconds });
+  } catch (error) {
+    // Non-critical: the key stays 'pending' and expires on its own. A retry
+    // inside the window is still absorbed, which is the safe direction.
+    console.error('[RateLimit] Error marking duplicate processed:', error);
+  }
+}
+
+/**
+ * Release the claim because nothing was recorded — the submission threw, or it
+ * was rejected without spending anything. The player's retry must be allowed to
+ * do real work; that is the whole point.
+ *
+ * Safe even if the guess did land and failed afterwards: the retry runs the
+ * round-wide duplicate check in guesses.ts, gets `already_guessed_word`, and
+ * spends no credit.
  */
 export async function clearDuplicateGuess(fid: number, word: string): Promise<void> {
   if (!redis) return;

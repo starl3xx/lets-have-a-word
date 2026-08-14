@@ -37,8 +37,11 @@ import { applyGameplayGuard } from '../../src/lib/operational-guard';
 import {
   checkGuessRateLimit,
   checkDuplicateGuess,
+  clearDuplicateGuess,
+  markDuplicateProcessed,
   extractRequestMetadata,
 } from '../../src/lib/rateLimit';
+import { guessWasRecorded } from '../../src/lib/guesses';
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { createClient as createQuickAuthClient } from '@farcaster/quick-auth';
 
@@ -472,11 +475,27 @@ export default async function handler(
       });
       console.log(`📝 Guess result:`, result);
 
+      // Close out the duplicate claim taken above. Keeping it absorbs retries
+      // for the rest of the window; releasing it lets a retry do real work.
+      // Left open, the claim would swallow the player's next attempt at this
+      // word for 30 seconds and show them nothing.
+      if (guessWasRecorded(result)) {
+        await markDuplicateProcessed(fid, normalizedWord);
+      } else {
+        await clearDuplicateGuess(fid, normalizedWord);
+      }
+
       // Return the result
       return res.status(200).json(result);
     } catch (submitError: any) {
       console.error('📝 submitGuessWithDailyLimits FAILED:', submitError);
       console.error('📝 Stack trace:', submitError.stack);
+
+      // Nothing was recorded, so the retry must be allowed through. This is the
+      // case the old code got wrong: it held the claim, the client retried
+      // after the 12s frontend timeout, and got a silent `duplicate_ignored`
+      // for a guess that had never been written.
+      await clearDuplicateGuess(fid, normalizedWord);
       throw submitError;
     }
 
