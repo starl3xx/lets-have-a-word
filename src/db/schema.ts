@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, numeric, index, date, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type { GameRulesConfig } from '../types';
 
 /**
@@ -437,13 +438,36 @@ export const packPurchases = pgTable('pack_purchases', {
   pricingPhase: varchar('pricing_phase', { length: 20 }).notNull(), // 'BASE', 'LATE_1', 'LATE_2'
   totalGuessesAtPurchase: integer('total_guesses_at_purchase').notNull(),
   // Milestone 6.4: Onchain transaction verification
-  txHash: varchar('tx_hash', { length: 66 }).unique(), // Onchain transaction hash
+  txHash: varchar('tx_hash', { length: 66 }), // Onchain transaction hash
+  // Which PacksPurchased event within that transaction this row credits.
+  //
+  // A transaction hash alone stopped being a unique key the moment gas
+  // sponsorship became possible: an ERC-4337 bundler batches user operations
+  // from different accounts into ONE transaction, so two players who buy at the
+  // same moment share a hash and have one event each. Keyed on the hash alone,
+  // the first to submit was credited and the second rejected as a duplicate
+  // after paying.
+  //
+  // NULL means a row written before this existed, when a transaction carried
+  // exactly one purchase. See the two unique indexes below.
+  logIndex: integer('log_index'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundIdx: index('pack_purchases_round_idx').on(table.roundId),
   fidIdx: index('pack_purchases_fid_idx').on(table.fid),
   createdAtIdx: index('pack_purchases_created_at_idx').on(table.createdAt),
   txHashIdx: index('pack_purchases_tx_hash_idx').on(table.txHash),
+  // One credit per event.
+  txHashLogIndexUnique: unique('pack_purchases_tx_hash_log_index_unique').on(
+    table.txHash,
+    table.logIndex
+  ),
+  // Legacy rows carry a NULL log index, and Postgres treats NULLs as distinct,
+  // so the constraint above would let the same old transaction be claimed
+  // again. This keeps the original "one credit per transaction" rule for them.
+  legacyTxHashUnique: uniqueIndex('pack_purchases_legacy_tx_hash_unique')
+    .on(table.txHash)
+    .where(sql`log_index IS NULL`),
 }));
 
 export type PackPurchaseRow = typeof packPurchases.$inferSelect;
