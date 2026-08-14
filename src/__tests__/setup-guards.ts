@@ -114,6 +114,18 @@ process.env.TWITTER_ENABLED = 'false';
  * the notification broadcast requires. NEYNAR_API_KEY is deliberately left
  * alone, because `isDevelopment` in /api/guess keys off its absence and
  * clearing it would silently change which auth path the handler tests take.
+ *
+ * ASSIGNED EMPTY, NOT DELETED. `delete` leaves the key *missing*, and missing
+ * is exactly what `dotenv.config()` refills — it never overwrites a key that is
+ * already present, but it will happily supply one that is not. farcaster.ts
+ * calls it at import time and setup.ts reaches it via economics.ts →
+ * announcer.ts, so a deleted credential came back before announcer.ts and
+ * notifications.ts snapshotted it. An empty string is present, so dotenv leaves
+ * it alone, and every consumer treats it as falsy either way.
+ *
+ * Latent in this repo, which has .env.local rather than the .env that
+ * dotenv.config() reads by default — which is the reason to fix it now rather
+ * than after someone adds one.
  */
-delete process.env.NEYNAR_SIGNER_UUID;
-delete process.env.NEYNAR_APP_UUID;
+process.env.NEYNAR_SIGNER_UUID = '';
+process.env.NEYNAR_APP_UUID = '';
