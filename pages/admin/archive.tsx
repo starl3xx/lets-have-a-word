@@ -14,8 +14,8 @@ import dynamic from "next/dynamic"
 import { AnalyticsChart } from "../../components/admin/AnalyticsChart"
 
 // Dynamically import the auth wrapper (client-only)
-const AdminAuthWrapper = dynamic(
-  () => import("../../components/admin/AdminAuthWrapper").then(m => m.AdminAuthWrapper),
+const AdminSiwfProvider = dynamic(
+  () => import("../../components/admin/AdminSiwfGate").then(m => m.AdminSiwfProvider),
   { ssr: false, loading: () => <div style={{ padding: 24, fontFamily: 'Soehne, system-ui, sans-serif' }}>Loading...</div> }
 )
 
@@ -809,8 +809,8 @@ function ArchiveDashboard({ user, onSignOut }: ArchiveDashboardProps) {
 
 export default function ArchivePage() {
   return (
-    <AdminAuthWrapper>
+    <AdminSiwfProvider>
       <ArchiveDashboard />
-    </AdminAuthWrapper>
+    </AdminSiwfProvider>
   )
 }
