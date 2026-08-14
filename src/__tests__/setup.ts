@@ -17,6 +17,10 @@ import { beforeAll, beforeEach } from 'vitest';
 import { setSkipOnchainResolution } from '../lib/economics';
 import { retireActiveRounds } from './helpers/rounds';
 
+// The database guard and outbound silencing live in setup-guards.ts, which
+// runs first and imports nothing from src/ — see the note there for why the
+// ordering is load-bearing.
+
 beforeAll(() => {
   setSkipOnchainResolution(true);
 });

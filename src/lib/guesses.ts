@@ -1265,3 +1265,47 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     };
   }
 }
+
+/**
+ * Did this submission change durable state?
+ *
+ * Drives whether the 30-second duplicate key is kept (so retries stay absorbed)
+ * or released (so a retry does real work). Getting it wrong in one direction
+ * pays a reward twice; in the other, it silently discards the player's guess.
+ *
+ * The switch is exhaustive on purpose — the `never` assignment makes adding a
+ * status to SubmitGuessResult a compile error until someone classifies it,
+ * rather than letting it fall into a default that may be the unsafe answer.
+ */
+export function guessWasRecorded(result: SubmitGuessResult): boolean {
+  switch (result.status) {
+    // A guess row was written. `bonus_word` and `burn_word` also moved tokens,
+    // so a retry is a double-payout attempt, not merely a wasted credit.
+    case 'correct':
+    case 'incorrect':
+    case 'bonus_word':
+    case 'burn_word':
+      return true;
+
+    // Rejected before anything was written, and no credit spent. Retrying is
+    // deterministic and free — `no_guesses_left_today` is the one that bites in
+    // practice, since buying a pack and retyping the same word takes well under
+    // 30 seconds.
+    case 'round_closed':
+    case 'invalid_word':
+    case 'already_guessed_word':
+    case 'no_guesses_left_today':
+    case 'superguess_blocked':
+      return false;
+
+    // Produced by the API layer, not by submission, so they never reach here.
+    case 'duplicate_ignored':
+    case 'rate_limited':
+      return false;
+
+    default: {
+      const unhandled: never = result;
+      return Boolean(unhandled);
+    }
+  }
+}
