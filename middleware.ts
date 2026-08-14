@@ -16,6 +16,7 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifyAdminSession, ADMIN_SESSION_COOKIE } from './src/lib/adminSession';
 
 /**
  * Routes that should always be accessible (even in prelaunch mode)
@@ -115,10 +116,22 @@ function secretsMatch(a: string, b: string): boolean {
  * browser is still a bearer secret, and an XSS on the admin page would reach
  * it. That is a far smaller surface than a value printed in the public bundle.
  */
-function guardAdminApi(request: NextRequest): NextResponse | null {
+async function guardAdminApi(request: NextRequest): Promise<NextResponse | null> {
   const secret = process.env.ADMIN_SECRET;
   if (!secret) return null;
 
+  // Preferred: a session minted by /api/auth/verify after checking a Sign In
+  // With Farcaster signature. This is an assertion about WHICH admin, signed by
+  // the server, and it is HttpOnly so page scripts cannot read or copy it.
+  const sessionFid = await verifyAdminSession(
+    request.cookies.get(ADMIN_SESSION_COOKIE)?.value,
+    secret
+  );
+  if (sessionFid !== null) return null;
+
+  // Break-glass: the raw secret, for curl, scripts and recovering when
+  // sign-in itself is broken. Weaker than the session — it says only "someone
+  // holds the key", not who — so it is checked second and kept deliberately.
   const provided =
     request.headers.get('x-admin-secret') ??
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ??
@@ -133,12 +146,12 @@ function guardAdminApi(request: NextRequest): NextResponse | null {
   );
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Before anything else, and independent of prelaunch mode.
   if (pathname.startsWith('/api/admin/')) {
-    const denied = guardAdminApi(request);
+    const denied = await guardAdminApi(request);
     if (denied) return denied;
   }
 
