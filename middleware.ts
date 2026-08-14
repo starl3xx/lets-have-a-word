@@ -69,8 +69,78 @@ const STATIC_EXTENSIONS = [
   '.xml',
 ];
 
+/**
+ * Constant-time string comparison.
+ *
+ * `crypto.timingSafeEqual` is a Node API and middleware runs on the edge
+ * runtime, so it is written out. The practical risk from a non-constant-time
+ * compare over HTTP is negligible next to network jitter — this is here so the
+ * next person does not have to work that out before trusting the line.
+ */
+function secretsMatch(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Gate for /api/admin/*.
+ *
+ * Until now the only thing standing in front of ~80 admin endpoints was a FID
+ * supplied by the caller — as a query parameter, a body field, or an unsigned
+ * `siwn_fid` cookie. The admin FIDs are not secret: they are hardcoded in
+ * components/admin/AdminAuthWrapper.tsx and ship inside the browser bundle, so
+ * `?devFid=6500` was public knowledge, not a guess. Three endpoints had no
+ * check at all.
+ *
+ * That reaches endpoints which return a round's decrypted answer, send the
+ * contract's entire $WORD balance to a caller-supplied address, and pay ETH out
+ * of the operator wallet.
+ *
+ * The gate lives here rather than in each handler for two reasons: one place
+ * cannot be forgotten when an endpoint is added, and it covers the three that
+ * never had a check in the first place — which a per-endpoint migration would
+ * have missed by definition.
+ *
+ * DORMANT UNTIL CONFIGURED. With ADMIN_SECRET unset this returns immediately
+ * and every endpoint behaves exactly as it does today, so deploying this
+ * changes nothing on its own. Set ADMIN_SECRET to close the hole.
+ *
+ * Accepts the secret from a header (for curl and scripts) or a cookie (so the
+ * dashboard's existing ~76 fetch calls keep working untouched — the browser
+ * attaches it automatically on same-origin requests). A bearer secret in the
+ * browser is still a bearer secret, and an XSS on the admin page would reach
+ * it. That is a far smaller surface than a value printed in the public bundle.
+ */
+function guardAdminApi(request: NextRequest): NextResponse | null {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret) return null;
+
+  const provided =
+    request.headers.get('x-admin-secret') ??
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ??
+    request.cookies.get('admin_secret')?.value ??
+    '';
+
+  if (secretsMatch(provided, secret)) return null;
+
+  return new NextResponse(
+    JSON.stringify({ error: 'Admin authentication required' }),
+    { status: 401, headers: { 'content-type': 'application/json' } }
+  );
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Before anything else, and independent of prelaunch mode.
+  if (pathname.startsWith('/api/admin/')) {
+    const denied = guardAdminApi(request);
+    if (denied) return denied;
+  }
 
   // Check if prelaunch mode is enabled
   const isPrelaunchMode = process.env.NEXT_PUBLIC_PRELAUNCH_MODE === '1';

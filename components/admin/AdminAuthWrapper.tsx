@@ -39,6 +39,53 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
   const [user, setUser] = useState<SIWNData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  /**
+   * Whether the admin API accepts us.
+   *
+   * Probed rather than assumed, so this self-configures: with ADMIN_SECRET
+   * unset server-side the probe succeeds and the prompt never appears, which
+   * is why shipping this does not disrupt an existing deployment.
+   */
+  const [secretStatus, setSecretStatus] = useState<'checking' | 'ok' | 'needed'>('checking')
+  const [secretInput, setSecretInput] = useState('')
+  const [secretError, setSecretError] = useState<string | null>(null)
+
+  const probeAdminApi = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/me', { credentials: 'same-origin' })
+      setSecretStatus(res.status === 401 ? 'needed' : 'ok')
+      return res.status !== 401
+    } catch {
+      // A network failure is not an auth failure — do not lock the operator
+      // out of the dashboard because a probe timed out.
+      setSecretStatus('ok')
+      return true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user) void probeAdminApi()
+  }, [user, probeAdminApi])
+
+  const submitSecret = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSecretError(null)
+
+    // Session cookie, not persisted to disk: it expires when the browser
+    // closes, which is the right lifetime for a key that can move funds.
+    document.cookie = `admin_secret=${encodeURIComponent(secretInput)}; path=/; SameSite=Strict${
+      window.location.protocol === 'https:' ? '; Secure' : ''
+    }`
+
+    const ok = await probeAdminApi()
+    if (!ok) {
+      setSecretError('That key was not accepted.')
+      document.cookie = 'admin_secret=; path=/; max-age=0'
+    } else {
+      setSecretInput('')
+    }
+  }
+
   // Use different client IDs for dev vs prod
   const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   const neynarClientId = isDev
@@ -289,6 +336,52 @@ export function AdminAuthWrapper({ children }: AdminAuthWrapperProps) {
             Sign Out
           </button>
         </div>
+      </div>
+    )
+  }
+
+  // Admin identity checks out. One more step: the admin API sits behind a
+  // server-side secret (see middleware.ts). Being FID 6500 is no longer
+  // sufficient, because that number ships in this very bundle.
+  if (secretStatus === 'checking') {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", fontFamily }}>
+        <p style={{ color: "#6b7280" }}>Checking admin access…</p>
+      </div>
+    )
+  }
+
+  if (secretStatus === 'needed') {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", fontFamily }}>
+        <form
+          onSubmit={submitSecret}
+          style={{ background: "white", padding: "40px", borderRadius: "16px", maxWidth: "440px", width: "100%", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}
+        >
+          <h2 style={{ margin: "0 0 8px", fontSize: "20px", fontWeight: 600 }}>Admin key required</h2>
+          <p style={{ margin: "0 0 20px", fontSize: "14px", color: "#6b7280", lineHeight: 1.5 }}>
+            The admin API is protected by a server-side secret. Enter it once — it is stored
+            as a cookie on this device so the dashboard&rsquo;s existing requests carry it
+            automatically.
+          </p>
+          <input
+            type="password"
+            value={secretInput}
+            onChange={(e) => setSecretInput(e.target.value)}
+            placeholder="ADMIN_SECRET"
+            autoFocus
+            style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "14px", fontFamily, boxSizing: "border-box" }}
+          />
+          {secretError && (
+            <p style={{ margin: "10px 0 0", fontSize: "13px", color: "#dc2626" }}>{secretError}</p>
+          )}
+          <button
+            type="submit"
+            style={{ marginTop: "16px", width: "100%", padding: "10px", background: "#111827", color: "white", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily }}
+          >
+            Unlock
+          </button>
+        </form>
       </div>
     )
   }
