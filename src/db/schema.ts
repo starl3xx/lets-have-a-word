@@ -761,6 +761,37 @@ export type RoundBurnWordInsert = typeof roundBurnWords.$inferInsert;
 /**
  * Word Rewards Table
  * Milestone 14: Unified audit trail for all $WORD token events
+ * Guess Log Checkpoints
+ *
+ * Mirrors what has been committed to the GuessLog contract, so proofs can be
+ * rebuilt without replaying chain history. `fromGuessId`/`toGuessId` pin the
+ * exact rows a checkpoint covered: proofs are regenerated from that range
+ * rather than from whatever is in `guesses` at the time of asking, so a later
+ * insert cannot change a historical proof.
+ */
+export const guessLogCheckpoints = pgTable('guess_log_checkpoints', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  checkpointId: integer('checkpoint_id').notNull(), // index within the round; matches onchain
+  fromIndex: integer('from_index').notNull(), // inclusive, 1-based guess_index_in_round
+  toIndex: integer('to_index').notNull(), // inclusive
+  fromGuessId: integer('from_guess_id').notNull(),
+  toGuessId: integer('to_guess_id').notNull(),
+  root: varchar('root', { length: 66 }).notNull(),
+  txHash: varchar('tx_hash', { length: 66 }),
+  postedAt: timestamp('posted_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  roundCheckpointUnique: unique('guess_log_checkpoints_round_checkpoint_unique').on(
+    table.roundId,
+    table.checkpointId
+  ),
+  roundIdx: index('guess_log_checkpoints_round_idx').on(table.roundId),
+}));
+
+export type GuessLogCheckpointRow = typeof guessLogCheckpoints.$inferSelect;
+
+/**
  * Tracks bonus word rewards, burn events, top-10 rewards, and staking
  */
 export const wordRewards = pgTable('word_rewards', {
