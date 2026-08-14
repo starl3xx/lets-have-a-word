@@ -114,7 +114,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         avg_score: c.avg_score,
       })),
       sampleClusters,
-      note: 'Read-only report. Clusters listed here are candidates for review — being in a cluster does not by itself imply sybil. The active gate uses .base.eth + cluster_size >= MIN_COHORT + score < SCORE_MAX as a compound signal.',
+      note:
+        'Read-only report. Clusters listed here are candidates for review — being in a cluster ' +
+        'does not by itself imply sybil, and this report does NOT apply the gate. The gate is ' +
+        'compound (cluster_size >= MIN_COHORT AND score < SCORE_MAX AND no Coinbase attestation), ' +
+        'and it stopped scoping to .base.eth usernames when the farm began winning with ' +
+        'placeholder handles. For who would actually be blocked, use ' +
+        '/api/admin/operational/cluster-gate-dry-run, which calls the real gate function.',
       generatedAt: new Date().toISOString(),
     });
   } catch (error: any) {

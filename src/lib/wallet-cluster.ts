@@ -115,6 +115,13 @@ export interface WalletClusterCheckResult {
   clusterSize: number | null;
   reason?: string;
   errorCode?: string;
+  /**
+   * True when this user was in a blocking cluster and cleared only because of
+   * their Coinbase attestation. Structured rather than inferred from `reason`,
+   * so the dry-run report cannot silently stop counting exemptions the day
+   * someone rewords a string.
+   */
+  bypassedByAttestation?: boolean;
 }
 
 /**
@@ -455,6 +462,7 @@ export async function checkWalletCluster(
             walletFirstTxAt: firstTx,
             clusterSize,
             reason: `In a cluster of ${clusterSize}, but holds a Coinbase Verified Account attestation`,
+            bypassedByAttestation: true,
           };
         }
       } catch (err) {
