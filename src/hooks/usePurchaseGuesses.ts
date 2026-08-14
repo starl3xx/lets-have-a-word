@@ -5,11 +5,50 @@
  * Uses wagmi to call purchaseGuesses() on the JackpotManager contract
  */
 
-import { useState, useCallback } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther } from 'viem';
+import { useState, useCallback, useMemo } from 'react';
+import {
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useCapabilities,
+  useSendCalls,
+  useWaitForCallsStatus,
+} from 'wagmi';
+import { parseEther, encodeFunctionData } from 'viem';
 import { base } from 'wagmi/chains';
 import { ERC_8021_SUFFIX } from '../config/wagmi';
+
+/**
+ * Where the wallet fetches sponsorship from. Our own proxy, never the upstream
+ * paymaster: the real URL carries an API key, and the proxy is where the policy
+ * lives that stops this sponsoring anything other than a pack purchase.
+ *
+ * Absolute because the wallet — which may be a different origin, or an app —
+ * is the one making the request, not the page.
+ *
+ * ⚠ NOT READY TO ENABLE. Turning NEXT_PUBLIC_PAYMASTER_ENABLED on requires a
+ * server-side fix first, because bundling breaks an assumption the purchase
+ * endpoint makes:
+ *
+ * An ERC-4337 bundler batches several user operations into ONE transaction, so
+ * two players buying packs in the same bundle get back the SAME transaction
+ * hash. `pack_purchases.tx_hash` is UNIQUE, so the first of them is credited
+ * and the second is rejected as a duplicate — having already paid.
+ * `verifyPackPurchaseTransaction` makes it worse by taking the FIRST
+ * PacksPurchased event in the receipt, which under bundling may be someone
+ * else's purchase.
+ *
+ * The fix is to key a purchase on the event rather than the transaction —
+ * unique on (tx_hash, log_index), and select the event by log index — which
+ * changes a replay-protection invariant and deserves its own review.
+ *
+ * Unreachable while the flag is off: the non-sponsored path below sends one
+ * transaction per purchase, so a hash is never shared.
+ */
+function paymasterUrl(): string | null {
+  if (process.env.NEXT_PUBLIC_PAYMASTER_ENABLED !== 'true') return null;
+  if (typeof window === 'undefined') return null;
+  return `${window.location.origin}/api/paymaster`;
+}
 
 // JackpotManager contract ABI (minimal - just purchaseGuesses)
 const JACKPOT_MANAGER_ABI = [
@@ -138,6 +177,48 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
     hash: txHash,
   });
 
+  // ---------------------------------------------------------------------
+  // Sponsored path (EIP-5792 + ERC-7677)
+  //
+  // Farcaster users arrive on ERC-4337 smart accounts, and today they need
+  // Base ETH for gas *on top of* the pack price. Where the wallet advertises
+  // paymasterService support we route the same call through wallet_sendCalls
+  // with the paymaster attached, so the pack costs exactly its price.
+  //
+  // Strictly additive: every branch below falls back to writeContract, so a
+  // wallet without the capability, a disabled flag, or a paymaster that
+  // refuses all behave exactly as they do now — the user pays their own gas
+  // and the purchase still goes through. Sponsorship is never load-bearing.
+  // ---------------------------------------------------------------------
+  const { data: capabilities } = useCapabilities();
+  const {
+    sendCalls,
+    data: sendCallsResult,
+    isPending: isSendCallsPending,
+    isError: isSendCallsError,
+    error: sendCallsError,
+    reset: resetSendCalls,
+  } = useSendCalls();
+
+  const {
+    data: callsStatus,
+    isLoading: isCallsConfirming,
+    isError: isCallsStatusError,
+    error: callsStatusError,
+  } = useWaitForCallsStatus({ id: sendCallsResult?.id });
+
+  const canSponsor = useMemo(() => {
+    if (!paymasterUrl()) return false;
+    const forChain = capabilities?.[base.id] as
+      | { paymasterService?: { supported?: boolean } }
+      | undefined;
+    return forChain?.paymasterService?.supported === true;
+  }, [capabilities]);
+
+  // The bundle resolves to one or more receipts; the pack purchase is the only
+  // call in ours, so its transaction hash is the one the server verifies.
+  const sponsoredTxHash = callsStatus?.receipts?.[0]?.transactionHash;
+
   // Track configuration errors separately
   const [configError, setConfigError] = useState<Error | null>(null);
   // Either rail makes purchases possible, so this is only an error when neither
@@ -155,6 +236,26 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
     // transact correctly.
     if (WORD_PACK_SALES_ADDRESS) {
       const packCount = params.packCount ?? Math.max(1, Math.round(params.quantity / 3));
+
+      const url = paymasterUrl();
+      if (canSponsor && url) {
+        sendCalls({
+          calls: [
+            {
+              to: WORD_PACK_SALES_ADDRESS,
+              value,
+              data: (encodeFunctionData({
+                abi: WORD_PACK_SALES_ABI,
+                functionName: 'buyPacks',
+                args: [packCount, BigInt(params.roundId ?? 0)],
+              }) + ERC_8021_SUFFIX.slice(2)) as `0x${string}`,
+            },
+          ],
+          capabilities: { paymasterService: { url } },
+        });
+        return;
+      }
+
       writeContract({
         address: WORD_PACK_SALES_ADDRESS,
         abi: WORD_PACK_SALES_ABI,
@@ -186,21 +287,31 @@ export function usePurchaseGuesses(): UsePurchaseGuessesReturn {
       // Append Base Builder Code for attribution tracking
       dataSuffix: ERC_8021_SUFFIX,
     });
-  }, [writeContract]);
+  }, [writeContract, sendCalls, canSponsor]);
 
   const reset = useCallback(() => {
     setConfigError(null);
     resetWrite();
-  }, [resetWrite]);
+    resetSendCalls();
+  }, [resetWrite, resetSendCalls]);
+
+  // The two paths are merged here so callers see one interface and do not have
+  // to know whether a purchase was sponsored. Success on the sponsored path
+  // means the bundle confirmed AND produced a receipt — the server needs a
+  // transaction hash to verify against, so a confirmed bundle without one is
+  // not yet success.
+  const sponsoredSuccess = callsStatus?.status === 'success' && !!sponsoredTxHash;
 
   return {
     purchaseGuesses,
-    isPending,
-    isConfirming,
-    isSuccess,
-    isError: isWriteError || isReceiptError || !!configError,
-    error: configError || writeError || receiptError || null,
-    txHash,
+    isPending: isPending || isSendCallsPending,
+    isConfirming: isConfirming || isCallsConfirming,
+    isSuccess: isSuccess || sponsoredSuccess,
+    isError:
+      isWriteError || isReceiptError || isSendCallsError || isCallsStatusError || !!configError,
+    error:
+      configError || writeError || receiptError || sendCallsError || callsStatusError || null,
+    txHash: txHash ?? sponsoredTxHash,
     reset,
     isConfigError,
   };
