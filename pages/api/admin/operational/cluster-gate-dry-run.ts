@@ -33,7 +33,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from '../me';
 import { db } from '../../../../src/db';
 import { users } from '../../../../src/db/schema';
-import { and, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, asc, isNotNull, lt, sql } from 'drizzle-orm';
 import { checkWalletCluster } from '../../../../src/lib/wallet-cluster';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -69,6 +69,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           lt(sql`cast(${users.userScore} as decimal)`, sql`${scoreMax}`)
         )
       )
+      // Deterministic, so two runs compare the same population. Without it
+      // Postgres may return a different `limit` rows each time and a
+      // before/after reads as a change when it is just a different sample.
+      .orderBy(asc(users.fid))
       .limit(limit);
 
     const wouldBlock: Array<Record<string, unknown>> = [];
