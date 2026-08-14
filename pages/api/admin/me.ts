@@ -7,6 +7,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { verifyAdminSession, ADMIN_SESSION_COOKIE } from '../../../src/lib/adminSession';
 
 export interface AdminCheckResponse {
   isAdmin: boolean;
@@ -62,10 +63,22 @@ export default async function handler(
   }
 
   try {
-    // Get FID from query params or session
-    // For now, we'll support a devFid query param for testing
-    // In production, this should come from SIWN session
     let fid: number | null = null;
+
+    // A signed SIWF session is the real answer when one exists. Everything
+    // below it is a client-supplied claim, kept for local development and for
+    // the break-glass path, and made irrelevant in production by the
+    // middleware gate that rejects the request before it ever gets here.
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (adminSecret) {
+      const sessionFid = await verifyAdminSession(
+        req.cookies[ADMIN_SESSION_COOKIE],
+        adminSecret
+      );
+      if (sessionFid !== null) {
+        return res.status(200).json({ isAdmin: isAdminFid(sessionFid), fid: sessionFid });
+      }
+    }
 
     // Check for dev FID (development mode)
     if (req.query.devFid) {

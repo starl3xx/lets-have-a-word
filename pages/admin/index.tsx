@@ -12,9 +12,13 @@ import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/router"
 
-// Dynamically import the auth wrapper (client-only)
-const AdminAuthWrapper = dynamic(
-  () => import("../../components/admin/AdminAuthWrapper").then(m => m.AdminAuthWrapper),
+// Dynamically import the auth gate (client-only).
+//
+// Sign In With Farcaster, replacing Sign In With Neynar — Neynar retired SIWN
+// on 2026-08-14 and stopped issuing new connections, so the old flow would
+// have stranded anyone signing in on a new browser.
+const AdminSiwfProvider = dynamic(
+  () => import("../../components/admin/AdminSiwfGate").then(m => m.AdminSiwfProvider),
   { ssr: false, loading: () => <div style={{ padding: 24, fontFamily: 'Soehne, system-ui, sans-serif' }}>Loading...</div> }
 )
 
@@ -607,8 +611,8 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
 
 export default function AdminPage() {
   return (
-    <AdminAuthWrapper>
+    <AdminSiwfProvider>
       <DashboardContent />
-    </AdminAuthWrapper>
+    </AdminSiwfProvider>
   )
 }
