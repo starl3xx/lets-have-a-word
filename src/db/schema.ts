@@ -34,6 +34,10 @@ export const users = pgTable('users', {
   walletFirstTxAt: timestamp('wallet_first_tx_at'), // Timestamp of the wallet's earliest tx on Base (post-Round-29 cluster gate)
   walletFirstTxCheckedAt: timestamp('wallet_first_tx_checked_at'), // Last attempt to resolve wallet_first_tx_at via Blockscout
   walletClusterSize: integer('wallet_cluster_size'), // Count of LHAW users with wallet_first_tx_at within ±1h of this user's; updated on each lazy fetch. >=5 indicates a coordinated mint batch
+  // Coinbase onchain Verified Account attestation (EAS on Base). Cached because
+  // the wallet-cluster gate consults it on the guess path. null = never checked.
+  coinbaseAttested: boolean('coinbase_attested'),
+  coinbaseAttestedCheckedAt: timestamp('coinbase_attested_checked_at'),
   xp: integer('xp').default(0).notNull(),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
