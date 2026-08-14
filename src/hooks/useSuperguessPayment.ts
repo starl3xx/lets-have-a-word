@@ -2,17 +2,45 @@
  * useSuperguessPayment Hook
  * Milestone 15: Wagmi ERC-20 transfer for Superguess purchase
  *
- * Flow: approve → transfer $WORD to operator → call /api/superguess/purchase with txHash
+ * Flow: pay ETH to WordPackSales.buySuperguess → call /api/superguess/purchase
+ * with the txHash.
+ *
+ * Superguess moved from $WORD to ETH. Players earn $WORD by playing — jackpot,
+ * bonus words, top ten — and spend ETH to buy, matching guess packs. A
+ * first-time player is far likelier to hold ETH than the reward token, and
+ * pricing purchases in $WORD pushed holders to sell the thing staking exists
+ * to encourage them to keep.
+ *
+ * Paying through the contract rather than transferring to the operator wallet
+ * is what makes the purchase verifiable: buySuperguess emits an event carrying
+ * msg.sender, so the backend can bind the payment to a payer and credit it
+ * exactly once. The previous flow — a bare $WORD transfer — left the server
+ * scanning for any transfer of roughly the right size, which accepted a
+ * stranger's historical transaction.
  * Pattern follows useStaking.ts (approve + useWriteContract + useWaitForTransactionReceipt)
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt, useAccount, useReadContract } from 'wagmi';
-import { parseUnits, maxUint256 } from 'viem';
+import { useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance } from 'wagmi';
+import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
 
 // $WORD token address (ERC-20)
 const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b' as `0x${string}`;
+
+const WORD_PACK_SALES_ADDRESS = process.env
+  .NEXT_PUBLIC_WORD_PACK_SALES_ADDRESS as `0x${string}` | undefined;
+
+/** Superguess is bought through the same contract as guess packs. */
+const WORD_PACK_SALES_ABI = [
+  {
+    name: 'buySuperguess',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [{ name: 'roundId', type: 'uint256' }],
+    outputs: [],
+  },
+] as const;
 
 // Operator wallet for receiving Superguess payments
 // Uses NEXT_PUBLIC_ prefix because this runs client-side (Wagmi hook)
@@ -63,9 +91,9 @@ interface UseSuperguessPaymentReturn {
   error: string | null;
   txHash: string | null;
   sessionId: number | null;
-  startPayment: (tokenAmount: string) => void;
+  startPayment: (ethAmount: string, roundId?: number) => void;
   reset: () => void;
-  balance: bigint | undefined;
+  ethBalance: { value: bigint; formatted: string; symbol: string } | undefined;
 }
 
 export function useSuperguessPayment(
@@ -77,12 +105,10 @@ export function useSuperguessPayment(
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
 
-  // Read $WORD balance
-  const { data: balance } = useReadContract({
-    address: WORD_TOKEN_ADDRESS,
-    abi: ERC20_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
+  // Native ETH balance — what the purchase is now paid in. A first-time
+  // player is far likelier to hold this than the reward token.
+  const { data: ethBalance } = useBalance({
+    address,
     chainId: base.id,
   });
 
@@ -103,9 +129,9 @@ export function useSuperguessPayment(
 
   // Start the payment flow
   const startPayment = useCallback(
-    (tokenAmount: string) => {
-      if (!address || !OPERATOR_WALLET) {
-        setError('Wallet not connected or operator not configured');
+    (ethAmount: string, roundId?: number) => {
+      if (!address) {
+        setError('Wallet not connected');
         return;
       }
 
@@ -113,13 +139,18 @@ export function useSuperguessPayment(
       setError(null);
       setSessionId(null);
 
-      const amountWei = parseUnits(tokenAmount, 18);
+      if (!WORD_PACK_SALES_ADDRESS) {
+        setError('Superguess purchases are not available yet');
+        setPhase('error');
+        return;
+      }
 
       writeTransfer({
-        address: WORD_TOKEN_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [OPERATOR_WALLET, amountWei],
+        address: WORD_PACK_SALES_ADDRESS,
+        abi: WORD_PACK_SALES_ABI,
+        functionName: 'buySuperguess',
+        args: [BigInt(roundId ?? 0)],
+        value: parseEther(ethAmount),
         chainId: base.id,
       });
     },
@@ -200,6 +231,6 @@ export function useSuperguessPayment(
     sessionId,
     startPayment,
     reset,
-    balance: balance as bigint | undefined,
+    ethBalance,
   };
 }

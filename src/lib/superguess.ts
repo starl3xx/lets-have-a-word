@@ -145,10 +145,20 @@ export async function startSuperguessSession(params: {
   roundId: number;
   fid: number;
   tier: string;
-  wordAmountPaid: string;
   usdEquivalent: number;
-  burnedAmount: string;
-  stakingAmount: string;
+  /** 'eth' for anything bought now; 'word' exists only for legacy rows. */
+  currency?: 'eth' | 'word';
+  /** wei, when currency is 'eth'. */
+  ethAmountPaid?: string;
+  /**
+   * The payment that bought this session. Recorded so one payment grants
+   * exactly one session — its absence was the replay hole.
+   */
+  txHash?: string | null;
+  logIndex?: number | null;
+  wordAmountPaid?: string;
+  burnedAmount?: string;
+  stakingAmount?: string;
   burnTxHash?: string;
   stakingTxHash?: string;
 }): Promise<SuperguessSessionRow> {
@@ -161,10 +171,16 @@ export async function startSuperguessSession(params: {
       roundId: params.roundId,
       fid: params.fid,
       tier: params.tier,
+      currency: params.currency ?? 'eth',
+      ethAmountPaid: params.ethAmountPaid,
+      txHash: params.txHash ?? undefined,
+      logIndex: params.logIndex ?? undefined,
       wordAmountPaid: params.wordAmountPaid,
       usdEquivalent: params.usdEquivalent.toFixed(2),
-      burnedAmount: params.burnedAmount,
-      stakingAmount: params.stakingAmount,
+      // Zero rather than null, and true rather than a placeholder: an ETH
+      // purchase burns no $WORD and sends none to staking.
+      burnedAmount: params.burnedAmount ?? '0',
+      stakingAmount: params.stakingAmount ?? '0',
       burnTxHash: params.burnTxHash,
       stakingTxHash: params.stakingTxHash,
       status: 'active',

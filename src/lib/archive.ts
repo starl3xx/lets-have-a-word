@@ -498,7 +498,13 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           tier: sg.tier,
           outcome: sg.status,
           guessesUsed: sg.guessesUsed,
-          wordAmountPaid: sg.wordAmountPaid,
+          // Record what was actually paid. Superguess moved from $WORD to ETH,
+          // so the archive carries the currency alongside the amount rather
+          // than a single field that means different things in different
+          // rounds — the same mistake the ETH/$WORD prize columns avoided.
+          currency: sg.currency,
+          wordAmountPaid: sg.wordAmountPaid ?? null,
+          ethAmountPaid: sg.ethAmountPaid ?? null,
           usdEquivalent: sg.usdEquivalent,
         };
         console.log(`[archive] Superguess data: FID ${sg.fid}, ${sg.status}, ${sg.guessesUsed} guesses`);

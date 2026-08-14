@@ -24,6 +24,7 @@ import { getActiveRound } from '../../../src/lib/rounds';
 import { getTotalGuessCountInRound } from '../../../src/lib/guesses';
 import { getGuessWords } from '../../../src/lib/word-lists';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
+import { getEthUsdPrice } from '../../../src/lib/prices';
 
 export default async function handler(
   req: NextApiRequest,
@@ -93,34 +94,33 @@ export default async function handler(
     // Available! Return tier + pricing
     const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
 
-    // Fetch $WORD price for token conversion display
-    let wordTokenAmount: string | null = null;
+    // Price the tier in ETH.
+    //
+    // Superguess is bought with ETH: players earn $WORD by playing — jackpot,
+    // bonus words, top ten — and spend ETH to buy, so a first-time player does
+    // not have to acquire the reward token before they can use it.
+    //
+    // Returns an exact decimal string rather than a display abbreviation. The
+    // client previously received "64M" and parsed it back to a number to build
+    // the transaction: a lossy round-trip through a human-readable label, on
+    // the value being paid.
+    let ethAmount: string | null = null;
+    let ethUsdRate: number | null = null;
+
     if (tier) {
-      try {
-        const { fetchWordTokenMarketCap } = await import('../../../src/lib/word-oracle');
-        const marketData = await fetchWordTokenMarketCap();
-        if (marketData && marketData.priceUsd > 0) {
-          const tokensNeeded = tier.usdPrice / marketData.priceUsd;
-          // Format as human-readable: "64M", "128M", etc.
-          if (tokensNeeded >= 1_000_000_000) {
-            wordTokenAmount = `${(tokensNeeded / 1_000_000_000).toFixed(1)}B`;
-          } else if (tokensNeeded >= 1_000_000) {
-            wordTokenAmount = `${Math.round(tokensNeeded / 1_000_000)}M`;
-          } else if (tokensNeeded >= 1_000) {
-            wordTokenAmount = `${Math.round(tokensNeeded / 1_000)}K`;
-          } else {
-            wordTokenAmount = Math.round(tokensNeeded).toString();
-          }
-        }
-      } catch (err) {
-        console.warn('[superguess/status] Failed to fetch $WORD price:', err);
+      ethUsdRate = await getEthUsdPrice();
+      if (ethUsdRate && ethUsdRate > 0) {
+        // 6 dp is well under a cent at any plausible ETH price, and the server
+        // accepts a floor below the quote anyway.
+        ethAmount = (tier.usdPrice / ethUsdRate).toFixed(6);
       }
     }
 
     return res.status(200).json({
       available: true,
       tier: tier ? { id: tier.id, usdPrice: tier.usdPrice } : null,
-      wordTokenAmount,
+      ethAmount,
+      ethUsdRate,
       globalGuessCount,
       roundId: roundId,
     });
