@@ -16,7 +16,7 @@ export interface AdminCheckResponse {
 
 /**
  * Default admin FIDs - fallback when LHAW_ADMIN_USER_IDS env var is not set
- * Keep in sync with components/admin/AdminAuthWrapper.tsx
+ * Also settable via LHAW_ADMIN_USER_IDS.
  */
 const DEFAULT_ADMIN_FIDS = [
   6500,      // Primary admin
@@ -96,10 +96,10 @@ export default async function handler(
         fid = parseInt(match[1], 10);
       }
     }
-    // Check cookies for SIWN session
-    else if (req.cookies.siwn_fid) {
-      fid = parseInt(req.cookies.siwn_fid, 10);
-    }
+    // The `siwn_fid` cookie is gone: it was unsigned and client-settable, and
+    // Sign In With Neynar — the only thing that legitimately set it — was
+    // retired on 2026-08-14. Middleware strips it from admin requests, so
+    // reading it here would be reading something that can no longer arrive.
 
     if (!fid || isNaN(fid)) {
       return res.status(401).json({ error: 'Not authenticated' });
