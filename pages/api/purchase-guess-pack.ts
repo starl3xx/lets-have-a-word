@@ -5,7 +5,7 @@ import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics'
 import { getActiveRound } from '../../src/lib/rounds';
 import { logXpEvent } from '../../src/lib/xp';
 import { db } from '../../src/db';
-import { guesses, packPurchases } from '../../src/db/schema';
+import { guesses, packPurchases, users } from '../../src/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   getTotalPackCostWei,
@@ -182,10 +182,53 @@ export default async function handler(
       payer?: string;
       rail: 'word_pack_sales' | 'jackpot_manager';
       salesContractAddress?: string;
+      /** Which PacksPurchased event was credited; null on the legacy rail. */
+      logIndex?: number;
     };
 
     if (isWordEconomyConfigured()) {
-      const packSales = await verifyPackPurchaseTransaction(txHash);
+      // A transaction can hold several purchases once gas sponsorship is on: an
+      // ERC-4337 bundler batches user operations from different accounts into
+      // one transaction, so two players who buy at the same moment share a
+      // hash. Two things keep them apart.
+      //
+      // The caller's own wallet identifies which event is theirs, and the log
+      // indexes already credited for this hash are excluded so a bundle is
+      // drawn down one event at a time rather than consumed whole by whoever
+      // posts first. Without this the second player was refused as a duplicate
+      // after paying, and the amount checked below could have been someone
+      // else's.
+      const [buyer] = await db
+        .select({ wallet: users.signerWalletAddress })
+        .from(users)
+        .where(eq(users.fid, fid))
+        .limit(1);
+
+      const alreadyCredited = await db
+        .select({ logIndex: packPurchases.logIndex })
+        .from(packPurchases)
+        .where(eq(packPurchases.txHash, txHash));
+
+      const claimedIndexes = alreadyCredited
+        .map((r) => r.logIndex)
+        .filter((i): i is number => i !== null);
+
+      // A legacy row has a NULL log index and stands for the whole
+      // transaction, so treat the hash as fully spent rather than letting a
+      // real index slip past the composite unique constraint.
+      if (alreadyCredited.some((r) => r.logIndex === null)) {
+        return res.status(400).json({
+          error: 'This transaction has already been credited',
+          code: AppErrorCodes.PURCHASE_FAILED,
+        });
+      }
+
+      const packSales = await verifyPackPurchaseTransaction(
+        txHash,
+        buyer?.wallet ?? undefined,
+        undefined,
+        claimedIndexes
+      );
       if (packSales.valid) {
         verification = {
           ...packSales,
@@ -341,6 +384,9 @@ export default async function handler(
           pricingPhase,
           totalGuessesAtPurchase: totalGuessesInRound,
           txHash, // Milestone 6.4: Store verified txHash
+          // Which event in that transaction this row credits. Null on the
+          // legacy rail, where a transaction only ever carries one purchase.
+          logIndex: verification.logIndex ?? null,
         });
       } catch (purchaseLogError) {
         // Don't fail the request if purchase logging fails

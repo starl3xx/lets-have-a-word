@@ -680,6 +680,13 @@ export interface PackPurchaseVerification {
    * msg.sender and cannot be spoofed.
    */
   payer?: string;
+  /**
+   * Which PacksPurchased event in the receipt this verification refers to.
+   * Recorded alongside the transaction hash so one event can be credited once,
+   * which a transaction hash alone cannot express when a bundler puts several
+   * players' purchases in the same transaction.
+   */
+  logIndex?: number;
   packCount?: number;
   roundId?: number;
   /** Exact wei paid, decimal string. Compare costs against this, never ethAmount. */
@@ -701,7 +708,13 @@ export interface PackPurchaseVerification {
 export async function verifyPackPurchaseTransaction(
   txHash: string,
   expectedPayer?: string,
-  expectedRoundId?: number
+  expectedRoundId?: number,
+  /**
+   * Log indexes already credited for this transaction. Passed by the caller
+   * from its own records so a bundled transaction can be drawn down one event
+   * at a time instead of being consumed whole by whoever asks first.
+   */
+  excludeLogIndexes: number[] = []
 ): Promise<PackPurchaseVerification> {
   try {
     const config = getWordJackpotConfig();
@@ -715,25 +728,70 @@ export async function verifyPackPurchaseTransaction(
       return { valid: false, error: 'Transaction reverted' };
     }
 
+    // Collect EVERY PacksPurchased event, not just the first.
+    //
+    // One transaction can carry several. An ERC-4337 bundler batches user
+    // operations from different accounts into a single transaction, so two
+    // players who buy at the same moment share a transaction hash and each
+    // have their own event inside it. Taking the first one and stopping meant
+    // the amount and payer checked could belong to somebody else's purchase.
+    //
+    // `logIndex` is what distinguishes them, and it is what the caller records
+    // so a given event can only ever be credited once.
     const iface = new ethers.Interface(WORD_PACK_SALES_ABI);
-    let purchaseEvent: ethers.LogDescription | null = null;
+    const events: Array<{ parsed: ethers.LogDescription; logIndex: number }> = [];
 
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== config.wordPackSalesAddress.toLowerCase()) continue;
       try {
         const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
         if (parsed?.name === 'PacksPurchased') {
-          purchaseEvent = parsed;
-          break;
+          events.push({ parsed, logIndex: log.index });
         }
       } catch {
         // Not this event
       }
     }
 
-    if (!purchaseEvent) {
+    if (events.length === 0) {
       return { valid: false, error: 'No PacksPurchased event found in transaction' };
     }
+
+    // Narrow to events that could belong to this caller. Already-credited log
+    // indexes are excluded so the same wallet buying twice inside one bundle
+    // resolves to its second event rather than colliding with its first.
+    let candidates = events.filter((e) => !excludeLogIndexes.includes(e.logIndex));
+
+    if (expectedPayer) {
+      candidates = candidates.filter(
+        (e) => (e.parsed.args.payer as string).toLowerCase() === expectedPayer.toLowerCase()
+      );
+    }
+
+    if (candidates.length === 0) {
+      return {
+        valid: false,
+        error:
+          events.length > excludeLogIndexes.length
+            ? 'No unclaimed PacksPurchased event in this transaction matches the expected payer'
+            : 'Every PacksPurchased event in this transaction has already been credited',
+      };
+    }
+
+    // Ambiguous: several unclaimed events and nothing to tell them apart.
+    // Guessing here would credit one player for another's payment, so refuse
+    // and say so rather than pick.
+    if (candidates.length > 1 && !expectedPayer) {
+      return {
+        valid: false,
+        error:
+          `Transaction contains ${candidates.length} unclaimed pack purchases and no payer was ` +
+          `supplied to identify which one belongs to this request`,
+      };
+    }
+
+    const purchaseEvent = candidates[0].parsed;
+    const logIndex = candidates[0].logIndex;
 
     const payer = purchaseEvent.args.payer as string;
     const roundId = Number(purchaseEvent.args.roundId);
@@ -746,6 +804,7 @@ export async function verifyPackPurchaseTransaction(
         valid: false,
         error: `Payer mismatch: expected ${expectedPayer}, got ${payer}`,
         payer,
+        logIndex,
         packCount,
         roundId,
         weiAmount,
@@ -758,6 +817,7 @@ export async function verifyPackPurchaseTransaction(
         valid: false,
         error: `Round mismatch: expected ${expectedRoundId}, got ${roundId}`,
         payer,
+        logIndex,
         packCount,
         roundId,
         weiAmount,
@@ -765,7 +825,7 @@ export async function verifyPackPurchaseTransaction(
       };
     }
 
-    return { valid: true, payer, packCount, roundId, weiAmount, ethAmount };
+    return { valid: true, payer, logIndex, packCount, roundId, weiAmount, ethAmount };
   } catch (error) {
     console.error('[WORD-JACKPOT] Error verifying pack purchase:', error);
     return {

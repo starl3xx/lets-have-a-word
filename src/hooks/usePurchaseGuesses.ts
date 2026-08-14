@@ -25,24 +25,10 @@ import { ERC_8021_SUFFIX } from '../config/wagmi';
  * Absolute because the wallet — which may be a different origin, or an app —
  * is the one making the request, not the page.
  *
- * ⚠ NOT READY TO ENABLE. Turning NEXT_PUBLIC_PAYMASTER_ENABLED on requires a
- * server-side fix first, because bundling breaks an assumption the purchase
- * endpoint makes:
- *
- * An ERC-4337 bundler batches several user operations into ONE transaction, so
- * two players buying packs in the same bundle get back the SAME transaction
- * hash. `pack_purchases.tx_hash` is UNIQUE, so the first of them is credited
- * and the second is rejected as a duplicate — having already paid.
- * `verifyPackPurchaseTransaction` makes it worse by taking the FIRST
- * PacksPurchased event in the receipt, which under bundling may be someone
- * else's purchase.
- *
- * The fix is to key a purchase on the event rather than the transaction —
- * unique on (tx_hash, log_index), and select the event by log index — which
- * changes a replay-protection invariant and deserves its own review.
- *
- * Unreachable while the flag is off: the non-sponsored path below sends one
- * transaction per purchase, so a hash is never shared.
+ * The ERC-4337 bundling hazard this used to warn about is fixed: a purchase is
+ * keyed on (tx_hash, log_index) rather than tx_hash, so two players batched
+ * into one transaction are each credited for their own event rather than the
+ * second being refused as a duplicate after paying. Needs migration 0025.
  */
 function paymasterUrl(): string | null {
   if (process.env.NEXT_PUBLIC_PAYMASTER_ENABLED !== 'true') return null;
