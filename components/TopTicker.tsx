@@ -211,15 +211,21 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
   }
 
   /**
-   * No active round - show "Next round starting soon" splash
+   * No active round - show the "Update in progress" splash
    * If adminFid is provided, show a Start Round button
+   *
+   * Says "Update in progress" rather than "Next round starting soon" because
+   * the latter promises something imminent, and the gap between rounds is
+   * currently measured in weeks while the $WORD migration lands. Copy that
+   * keeps predicting a round that does not arrive reads as a broken game
+   * rather than a paused one.
    */
   if (!status) {
     return (
       <div className="bg-brand text-white py-4 px-4 shadow-md">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-2xl font-bold animate-pulse">
-            Next round starting soon
+            Update in progress…
           </p>
           <p className="text-sm opacity-80 mt-1">
             Get ready to guess the secret word!
