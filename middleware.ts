@@ -90,12 +90,12 @@ function secretsMatch(a: string, b: string): boolean {
 /**
  * Gate for /api/admin/*.
  *
- * Until now the only thing standing in front of ~80 admin endpoints was a FID
- * supplied by the caller — as a query parameter, a body field, or an unsigned
- * `siwn_fid` cookie. The admin FIDs are not secret: they are hardcoded in
- * components/admin/AdminAuthWrapper.tsx and ship inside the browser bundle, so
- * `?devFid=6500` was public knowledge, not a guess. Three endpoints had no
- * check at all.
+ * Until this existed, the only thing standing in front of ~80 admin endpoints
+ * was a FID supplied by the caller — as a query parameter, a body field, or an
+ * unsigned `siwn_fid` cookie. The admin FIDs were not secret either: they were
+ * hardcoded in the admin sign-in component and shipped inside the browser
+ * bundle, so `?devFid=6500` was public knowledge rather than a guess. Three
+ * endpoints had no check at all.
  *
  * That reaches endpoints which return a round's decrypted answer, send the
  * contract's entire $WORD balance to a caller-supplied address, and pay ETH out
@@ -153,6 +153,36 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/admin/')) {
     const denied = await guardAdminApi(request);
     if (denied) return denied;
+
+    // Strip `siwn_fid` before it reaches any handler.
+    //
+    // 58 admin endpoints still read that cookie as an identity fallback, in
+    // two different shapes. It is unsigned and client-settable, and Sign In
+    // With Neynar — the only thing that ever legitimately set it — was retired
+    // on 2026-08-14, so a request carrying one today is either stale or
+    // forged.
+    //
+    // Removing it here rather than editing 58 handlers: the shapes differ
+    // enough that a blanket edit would risk changing control flow in files
+    // nobody is going to re-read. This kills the path centrally whatever the
+    // handler does with it.
+    //
+    // Defence in depth rather than the primary control — the guard above
+    // already rejects unauthenticated callers. This is what stops the cookie
+    // mattering again if ADMIN_SECRET is ever lost or unset.
+    if (request.cookies.has('siwn_fid')) {
+      const headers = new Headers(request.headers);
+      const cookies = request.cookies
+        .getAll()
+        .filter((c) => c.name !== 'siwn_fid')
+        .map((c) => `${c.name}=${c.value}`)
+        .join('; ');
+
+      if (cookies) headers.set('cookie', cookies);
+      else headers.delete('cookie');
+
+      return NextResponse.next({ request: { headers } });
+    }
   }
 
   // Check if prelaunch mode is enabled

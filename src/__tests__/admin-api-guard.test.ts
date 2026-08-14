@@ -97,4 +97,39 @@ describe('admin API guard', () => {
       expect((await middleware(req('/admin'))).status).not.toBe(401);
     });
   });
+
+  describe('the retired siwn_fid cookie', () => {
+    beforeEach(() => {
+      process.env.ADMIN_SECRET = SECRET;
+    });
+
+    it('never reaches an admin handler, even alongside a valid key', async () => {
+      // 58 admin endpoints still read this cookie as an identity fallback. It
+      // is unsigned and client-settable, and the only thing that legitimately
+      // set it — Sign In With Neynar — was retired on 2026-08-14.
+      const res = await middleware(
+        req('/api/admin/me', { 'x-admin-secret': SECRET }, `siwn_fid=6500; other=keep`)
+      );
+
+      expect(res.status).not.toBe(401);
+      const forwarded = res.headers.get('x-middleware-override-headers');
+      // Next signals rewritten request headers via these override headers.
+      expect(forwarded ?? '').toContain('cookie');
+      expect(res.headers.get('x-middleware-request-cookie') ?? '').not.toContain('siwn_fid');
+    });
+
+    it('keeps the other cookies on the request', async () => {
+      // Stripping must not take the admin session with it.
+      const res = await middleware(
+        req('/api/admin/me', {}, `siwn_fid=6500; admin_secret=${SECRET}`)
+      );
+      expect(res.status).not.toBe(401);
+      expect(res.headers.get('x-middleware-request-cookie') ?? '').toContain('admin_secret');
+    });
+
+    it('does not let the cookie authenticate on its own', async () => {
+      const res = await middleware(req('/api/admin/me', {}, 'siwn_fid=6500'));
+      expect(res.status).toBe(401);
+    });
+  });
 });
