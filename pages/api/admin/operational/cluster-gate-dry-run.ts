@@ -73,6 +73,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const wouldBlock: Array<Record<string, unknown>> = [];
     const exemptedByAttestation: Array<Record<string, unknown>> = [];
+    const exemptedByPurchase: Array<Record<string, unknown>> = [];
+    const exemptedByShare: Array<Record<string, unknown>> = [];
     let evaluated = 0;
 
     // Sequential on purpose. Each miss can cost a Blockscout page and an RPC
@@ -92,6 +94,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!result.eligible) {
         wouldBlock.push(row);
+      } else if (result.bypassedByPurchase) {
+        exemptedByPurchase.push(row);
+      } else if (result.bypassedByShare) {
+        exemptedByShare.push(row);
       } else if (result.bypassedByAttestation) {
         exemptedByAttestation.push(row);
       }
@@ -99,11 +105,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const gateEnabled = process.env.WALLET_CLUSTER_GATING_ENABLED === 'true';
     const bypassEnabled = process.env.WALLET_CLUSTER_ATTESTATION_BYPASS !== 'false';
+    const purchaseBypassEnabled = process.env.WALLET_CLUSTER_PURCHASE_BYPASS !== 'false';
+    const shareBypassEnabled = process.env.WALLET_CLUSTER_SHARE_BYPASS !== 'false';
 
     return res.status(200).json({
       config: {
         gateEnabled,
         attestationBypassEnabled: bypassEnabled,
+        purchaseBypassEnabled,
+        shareBypassEnabled,
         minCohort: parseInt(process.env.WALLET_CLUSTER_MIN_COHORT || '5', 10),
         windowHours: parseFloat(process.env.WALLET_CLUSTER_WINDOW_HOURS || '1'),
         scoreMax,
@@ -114,9 +124,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         candidateLimit: limit,
         truncated: candidates.length === limit,
         wouldBlock: wouldBlock.length,
+        exemptedByPurchase: exemptedByPurchase.length,
+        exemptedByShare: exemptedByShare.length,
         exemptedByAttestation: exemptedByAttestation.length,
       },
       wouldBlock,
+      exemptedByPurchase,
+      exemptedByShare,
       exemptedByAttestation,
       note:
         gateEnabled

@@ -27,7 +27,7 @@
  */
 import * as Sentry from '@sentry/nextjs';
 import { db } from '../db';
-import { users } from '../db/schema';
+import { users, packPurchases, dailyGuessState } from '../db/schema';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { logAnalyticsEvent } from './analytics';
 import { hasCoinbaseVerifiedAccount } from './attestations';
@@ -63,6 +63,83 @@ const ATTESTATION_FALSE_TTL_MS = 6 * 60 * 60 * 1000;
  */
 function getAttestationBypassEnabled(): boolean {
   return process.env.WALLET_CLUSTER_ATTESTATION_BYPASS !== 'false';
+}
+
+/**
+ * Having paid for a guess pack exempts an account from the cluster heuristic.
+ *
+ * No bot has ever bought one, across 33 rounds — and that is structural rather
+ * than lucky. The farm's whole model is many free accounts; with enough of
+ * them you never need paid guesses. So a purchase is the strongest evidence of
+ * being human that this system holds, and unlike the Coinbase attestation
+ * (which cleared 6 of 244 blocked candidates in the first dry run) most real
+ * spenders already have it.
+ *
+ * The obvious objection is that publishing a bypass creates an incentive to
+ * buy one pack per account to unlock it. That is true, and it is priced the
+ * right way round: the cost scales with account count, which is precisely the
+ * axis the farm's advantage depends on. Unlocking a few thousand accounts at
+ * pack prices costs far more than a pool is worth — and a farm that does it is
+ * paying into the pool it is trying to win, plus the creator's cut. It turns a
+ * free attack into one that funds the game.
+ *
+ * Set WALLET_CLUSTER_PURCHASE_BYPASS=false to disable, which is worth doing
+ * only if purchases ever start showing up in accounts that are obviously farmed.
+ */
+function getPurchaseBypassEnabled(): boolean {
+  return process.env.WALLET_CLUSTER_PURCHASE_BYPASS !== 'false';
+}
+
+/**
+ * Having earned the share bonus exempts an account. See hasEverSharedForBonus
+ * for why this is ranked below a purchase but expected to matter more.
+ * Set WALLET_CLUSTER_SHARE_BYPASS=false to disable.
+ */
+function getShareBypassEnabled(): boolean {
+  return process.env.WALLET_CLUSTER_SHARE_BYPASS !== 'false';
+}
+
+/**
+ * Has this FID ever completed a pack purchase?
+ *
+ * A `pack_purchases` row is only written after the transaction is verified
+ * onchain, so its existence means money actually moved — there is no pending
+ * or failed state to filter out.
+ */
+async function hasEverPurchasedPack(fid: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: packPurchases.id })
+    .from(packPurchases)
+    .where(eq(packPurchases.fid, fid))
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * Has this FID ever earned the share bonus?
+ *
+ * Weaker evidence than a purchase and deliberately ranked below it: a cast can
+ * be automated, whereas spending money cannot be faked. But it is far more
+ * common — most real players never buy a pack, while sharing to earn an extra
+ * guess is ordinary behaviour — so it is expected to clear many more genuine
+ * players than either of the other two signals.
+ *
+ * It is also not free to forge in practice. The bonus is only granted after
+ * `verifyRecentShareCast` finds a real public cast, which means a farm faking
+ * it has to post thousands of them under its own handles. That is exactly the
+ * loud, visible activity that got the earlier swarm noticed and shut down.
+ *
+ * `daily_guess_state` keeps a row per (fid, date) and rows are never deleted,
+ * so a single historical true is durable evidence even though the flag itself
+ * is per-day.
+ */
+async function hasEverSharedForBonus(fid: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: dailyGuessState.id })
+    .from(dailyGuessState)
+    .where(and(eq(dailyGuessState.fid, fid), eq(dailyGuessState.hasSharedToday, true)))
+    .limit(1);
+  return !!row;
 }
 
 function getMinCohort(): number {
@@ -115,6 +192,16 @@ export interface WalletClusterCheckResult {
   clusterSize: number | null;
   reason?: string;
   errorCode?: string;
+  /**
+   * True when this user was in a blocking cluster and cleared only because
+   * they have paid for a pack before.
+   */
+  bypassedByPurchase?: boolean;
+  /**
+   * True when this user was in a blocking cluster and cleared only because
+   * they have shared to earn a guess before.
+   */
+  bypassedByShare?: boolean;
   /**
    * True when this user was in a blocking cluster and cleared only because of
    * their Coinbase attestation. Structured rather than inferred from `reason`,
@@ -453,6 +540,38 @@ export async function checkWalletCluster(
     // earlier exit already fails open, so a verified user reaches the same
     // outcome either way, and this placement means the RPC round-trip is only
     // spent on the users actually facing a block.
+    // Checked before the attestation because it is a plain indexed lookup on
+    // an existing table rather than two RPC round-trips, and because it clears
+    // far more real players.
+    if (getPurchaseBypassEnabled()) {
+      const purchased = await hasEverPurchasedPack(fid);
+      if (purchased) {
+        return {
+          eligible: true,
+          walletFirstTxAt: firstTx,
+          clusterSize,
+          reason: `In a cluster of ${clusterSize}, but has paid for a guess pack before`,
+          bypassedByPurchase: true,
+        };
+      }
+    }
+
+    // Ranked below purchase because a cast is automatable and money is not,
+    // but expected to clear far more real players — sharing for an extra guess
+    // is ordinary behaviour, buying a pack is not.
+    if (getShareBypassEnabled()) {
+      const shared = await hasEverSharedForBonus(fid);
+      if (shared) {
+        return {
+          eligible: true,
+          walletFirstTxAt: firstTx,
+          clusterSize,
+          reason: `In a cluster of ${clusterSize}, but has shared to earn a guess before`,
+          bypassedByShare: true,
+        };
+      }
+    }
+
     if (getAttestationBypassEnabled()) {
       try {
         const attested = await resolveCoinbaseAttestation(fid, user.wallet, user.coinbaseAttested, user.coinbaseAttestedCheckedAt, forceRefresh);
