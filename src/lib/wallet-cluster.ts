@@ -30,6 +30,7 @@ import { db } from '../db';
 import { users } from '../db/schema';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { logAnalyticsEvent } from './analytics';
+import { hasCoinbaseVerifiedAccount } from './attestations';
 
 export const WALLET_IN_BOT_CLUSTER_ERROR = 'WALLET_IN_BOT_CLUSTER';
 
@@ -48,6 +49,21 @@ const DEFAULT_SCORE_MAX = 0.70;
 // partial result, so this only affects the rare uncached slow first page.
 const BLOCKSCOUT_TIMEOUT_MS = 10000;
 const RETRY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
+/** See resolveCoinbaseAttestation for why these differ. */
+const ATTESTATION_TRUE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const ATTESTATION_FALSE_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * The bypass is on whenever the gate itself is on. It only ever makes the gate
+ * more permissive, and it is the reason the gate is safe to enable at all, so
+ * defaulting it off would ship the risk without the mitigation. Set to "false"
+ * to disable it — worth having if Coinbase verifications ever start showing up
+ * in the farm's own wallets.
+ */
+function getAttestationBypassEnabled(): boolean {
+  return process.env.WALLET_CLUSTER_ATTESTATION_BYPASS !== 'false';
+}
 
 function getMinCohort(): number {
   const raw = process.env.WALLET_CLUSTER_MIN_COHORT;
@@ -242,6 +258,51 @@ async function computeClusterSize(timestamp: Date, windowHours: number): Promise
  * Fail-open on Blockscout errors with Sentry alert. RPC outages should
  * not lock users out.
  */
+/**
+ * Cached read of the wallet's Coinbase Verified Account attestation.
+ *
+ * The two cache lifetimes are deliberately different. A positive is stable —
+ * attestations are long-lived and revocation is rare — so it is held for a
+ * month. A negative is held for only six hours, because the most likely reason
+ * to see one is a player who has not verified *yet*: someone blocked by this
+ * gate who then goes and verifies with Coinbase should get in the same day,
+ * not four weeks later. Caching both for the same duration would optimise the
+ * wrong direction.
+ *
+ * Throws if the lookup fails, so the caller can distinguish it from a
+ * confirmed negative.
+ */
+async function resolveCoinbaseAttestation(
+  fid: number,
+  wallet: string,
+  cached: boolean | null,
+  checkedAt: Date | null,
+  forceRefresh: boolean
+): Promise<boolean> {
+  const ttl = cached === true ? ATTESTATION_TRUE_TTL_MS : ATTESTATION_FALSE_TTL_MS;
+  const fresh = !forceRefresh && checkedAt !== null && Date.now() - checkedAt.getTime() < ttl;
+
+  if (fresh && cached !== null) {
+    return cached;
+  }
+
+  const attested = await hasCoinbaseVerifiedAccount(wallet);
+
+  // Best-effort cache write: failing to memoise is not a reason to fail the
+  // lookup we already have an answer for.
+  await db
+    .update(users)
+    .set({
+      coinbaseAttested: attested,
+      coinbaseAttestedCheckedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.fid, fid))
+    .catch(() => {});
+
+  return attested;
+}
+
 export async function checkWalletCluster(
   fid: number,
   forceRefresh = false
@@ -259,6 +320,8 @@ export async function checkWalletCluster(
       walletFirstTxAt: users.walletFirstTxAt,
       walletFirstTxCheckedAt: users.walletFirstTxCheckedAt,
       walletClusterSize: users.walletClusterSize,
+      coinbaseAttested: users.coinbaseAttested,
+      coinbaseAttestedCheckedAt: users.coinbaseAttestedCheckedAt,
     })
     .from(users)
     .where(eq(users.fid, fid))
@@ -368,6 +431,43 @@ export async function checkWalletCluster(
     .catch(() => {});
 
   if (clusterSize >= minCohort) {
+    // Last chance to clear: a Coinbase Verified Account attestation on this
+    // wallet overrides the heuristic.
+    //
+    // The co-mint signal is circumstantial — it says "your wallet was created
+    // around the same time as some other players' wallets", which is also true
+    // of anyone onboarded in a launch wave. That collateral damage is why this
+    // gate has never been switched on. An onchain attestation from Coinbase is
+    // evidence about *this* person that a farm cannot mass-produce, so a
+    // verified player is exempt and the cohort threshold can be tightened at
+    // the farm without taking honest players with it.
+    //
+    // Checked here rather than at the top of the function on purpose: every
+    // earlier exit already fails open, so a verified user reaches the same
+    // outcome either way, and this placement means the RPC round-trip is only
+    // spent on the users actually facing a block.
+    if (getAttestationBypassEnabled()) {
+      try {
+        const attested = await resolveCoinbaseAttestation(fid, user.wallet, user.coinbaseAttested, user.coinbaseAttestedCheckedAt, forceRefresh);
+        if (attested) {
+          return {
+            eligible: true,
+            walletFirstTxAt: firstTx,
+            clusterSize,
+            reason: `In a cluster of ${clusterSize}, but holds a Coinbase Verified Account attestation`,
+          };
+        }
+      } catch (err) {
+        // Could not check. Fall through to the block — an RPC outage must not
+        // hand out bypasses, and this is exactly the behaviour the gate had
+        // before attestations existed.
+        Sentry.captureException(err, {
+          tags: { component: 'wallet-cluster', operation: 'attestation_bypass' },
+          extra: { fid, wallet: user.wallet },
+        });
+      }
+    }
+
     return {
       eligible: false,
       walletFirstTxAt: firstTx,
