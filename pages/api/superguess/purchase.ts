@@ -35,6 +35,23 @@ import { getActiveRound } from '../../../src/lib/rounds';
 import { getTotalGuessCountInRound } from '../../../src/lib/guesses';
 import { getGuessWords } from '../../../src/lib/word-lists';
 import { awardWordmark } from '../../../src/lib/wordmarks';
+import { db } from '../../../src/db';
+import { users, superguessSessions } from '../../../src/db/schema';
+import { eq } from 'drizzle-orm';
+import { getEthUsdPrice } from '../../../src/lib/prices';
+import {
+  verifySuperguessPurchaseTransaction,
+  isWordEconomyConfigured,
+} from '../../../src/lib/word-jackpot-contract';
+
+/**
+ * Floor for an accepted Superguess payment, in basis points of the quoted
+ * price. Same reasoning as guess packs: the ETH quote is recomputed at request
+ * time, so a price move between signing and confirming can make an honest
+ * payment look short, and rejecting then would take the player's ETH and give
+ * nothing back. Anything under this is not a price move.
+ */
+const SUPERGUESS_MIN_PAYMENT_BPS = 9000n;
 
 export default async function handler(
   req: NextApiRequest,
@@ -122,93 +139,88 @@ export default async function handler(
       return res.status(400).json({ error: 'txHash is required' });
     }
 
-    // 6b. Verify onchain transfer + extract actual amount (production only)
-    const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b';
-    const OPERATOR_WALLET = (process.env.OPERATOR_WALLET || '').toLowerCase();
-    let wordAmountPaid = '0';
-    let burnedAmount = '0';
-    let stakingAmount = '0';
+    // 6b. Verify the ETH payment (production only)
+    //
+    // WHAT THIS REPLACES. The old check scanned the receipt for ANY $WORD
+    // transfer to the operator wallet of at least 80% of the tier price. It
+    // never checked who sent it, and never recorded which payment bought which
+    // session — so a historical transfer read off Base, which is public data,
+    // could be replayed for a free 25-guess session. The endpoint then spent
+    // real operator funds in response, burning $WORD and moving more to
+    // staking against a payment that had never been made.
+    //
+    // Now the payment is our own SuperguessPurchased event: emitted by
+    // WordPackSales, payer taken from msg.sender, and claimed once via a
+    // unique (tx_hash, log_index).
+    //
+    // CURRENCY. Superguess is paid in ETH. Players earn $WORD by playing and
+    // spend ETH to buy, so a first-time player does not have to acquire the
+    // reward token before they can use it — and holders are not pushed to sell
+    // the thing staking exists to encourage them to keep.
+    let ethAmountPaid = '0';
+    let paymentLogIndex: number | null = null;
 
-    if (!isDevMode && !OPERATOR_WALLET) {
-      return res.status(500).json({ error: 'OPERATOR_WALLET not configured' });
-    }
-
-    if (!isDevMode && txHash) {
-      try {
-        const { ethers } = await import('ethers');
-        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL || 'https://mainnet.base.org');
-
-        // Fetch tx receipt and verify
-        const receipt = await provider.getTransactionReceipt(txHash);
-        if (!receipt) {
-          return res.status(400).json({ error: 'Transaction not found or not yet mined' });
-        }
-        if (receipt.status !== 1) {
-          return res.status(400).json({ error: 'Transaction reverted' });
-        }
-
-        // Parse ERC-20 Transfer events to find $WORD transfer to operator
-        const transferTopic = ethers.id('Transfer(address,address,uint256)');
-        let transferredAmount: bigint | null = null;
-
-        for (const log of receipt.logs) {
-          if (
-            log.address.toLowerCase() === WORD_TOKEN_ADDRESS.toLowerCase() &&
-            log.topics[0] === transferTopic &&
-            log.topics.length >= 3
-          ) {
-            // topics[2] is the 'to' address (padded to 32 bytes)
-            const toAddress = '0x' + log.topics[2].slice(26);
-            if (toAddress.toLowerCase() === OPERATOR_WALLET) {
-              transferredAmount = BigInt(log.data);
-              break;
-            }
-          }
-        }
-
-        if (!transferredAmount || transferredAmount === BigInt(0)) {
-          return res.status(400).json({
-            error: 'No $WORD transfer to operator wallet found in transaction',
-          });
-        }
-
-        // Validate minimum payment — must be at least 80% of expected amount
-        // (small tolerance for price movement between quote and execution)
-        const { fetchWordTokenMarketCap } = await import('../../../src/lib/word-oracle');
-        const marketData = await fetchWordTokenMarketCap();
-        if (!marketData || marketData.priceUsd <= 0) {
-          return res.status(503).json({
-            error: 'Unable to verify payment — $WORD price oracle unavailable. Try again shortly.',
-          });
-        }
-        const expectedTokens = tier.usdPrice / marketData.priceUsd;
-        const expectedWei = ethers.parseUnits(Math.floor(expectedTokens).toString(), 18);
-        const minimumWei = (expectedWei * BigInt(80)) / BigInt(100); // 80% tolerance
-        if (transferredAmount < minimumWei) {
-          return res.status(400).json({
-            error: 'Insufficient $WORD payment for this tier',
-            expected: expectedWei.toString(),
-            received: transferredAmount.toString(),
-          });
-        }
-
-        wordAmountPaid = transferredAmount.toString();
-        // 50/50 split
-        const halfWei = transferredAmount / BigInt(2);
-        burnedAmount = halfWei.toString();
-        stakingAmount = (transferredAmount - halfWei).toString();
-
-        console.log(`🔴 [Superguess] Verified transfer: ${wordAmountPaid} $WORD (burn: ${burnedAmount}, staking: ${stakingAmount})`);
-
-        // Prevent txHash reuse — check the tx receipt's block+index is unique
-        // (Simpler than adding a column: the partial unique index on active sessions
-        // already prevents double-purchase within a round, and hasUsedSuperguessThisRound
-        // prevents reuse across the same round. Cross-round reuse is blocked by
-        // verifying the transfer amount matches the current tier price.)
-      } catch (err) {
-        console.error('[superguess/purchase] Tx verification failed:', err);
-        return res.status(400).json({ error: 'Transaction verification failed' });
+    if (!isDevMode) {
+      if (!isWordEconomyConfigured()) {
+        return res.status(503).json({ error: 'Superguess purchases are not available yet' });
       }
+
+      const [buyer] = await db
+        .select({ wallet: users.signerWalletAddress })
+        .from(users)
+        .where(eq(users.fid, fid))
+        .limit(1);
+
+      const alreadyClaimed = await db
+        .select({ logIndex: superguessSessions.logIndex })
+        .from(superguessSessions)
+        .where(eq(superguessSessions.txHash, txHash));
+
+      const claimedIndexes = alreadyClaimed
+        .map((r) => r.logIndex)
+        .filter((i): i is number => i !== null);
+
+      const verification = await verifySuperguessPurchaseTransaction(
+        txHash,
+        buyer?.wallet ?? undefined,
+        claimedIndexes
+      );
+
+      if (!verification.valid) {
+        console.error(`[superguess/purchase] Payment verification failed: ${verification.error}`);
+        return res.status(400).json({ error: `Payment verification failed: ${verification.error}` });
+      }
+
+      // Price the tier in ETH at the current rate. A floor rather than an exact
+      // match, for the same reason pack purchases use one: the quote is
+      // recomputed at request time, so an ETH move between signing and
+      // confirming can make an honest payment look short. Rejecting then would
+      // take the player's ETH and give nothing back.
+      const ethUsd = await getEthUsdPrice();
+      if (!ethUsd) {
+        return res.status(503).json({ error: 'Could not price the purchase — try again shortly' });
+      }
+
+      const expectedWei = BigInt(Math.floor((tier.usdPrice / ethUsd) * 1e18));
+      const floorWei = (expectedWei * BigInt(SUPERGUESS_MIN_PAYMENT_BPS)) / 10000n;
+      const paidWei = BigInt(verification.weiAmount ?? '0');
+
+      if (paidWei < floorWei) {
+        console.error('[superguess/purchase] Underpayment rejected', {
+          fid,
+          txHash,
+          paidWei: paidWei.toString(),
+          expectedWei: expectedWei.toString(),
+        });
+        return res.status(400).json({ error: 'Payment below the quoted Superguess price' });
+      }
+
+      ethAmountPaid = paidWei.toString();
+      paymentLogIndex = verification.logIndex ?? null;
+
+      console.log(
+        `🔴 [Superguess] Verified ${ethAmountPaid} wei from ${verification.payer} (tier ${tier.id}, $${tier.usdPrice})`
+      );
     }
 
     // 7. Start session (before burn/staking so the session exists even if onchain fails)
@@ -218,11 +230,11 @@ export default async function handler(
         roundId: activeRound.id,
         fid,
         tier: tier.id,
-        wordAmountPaid,
+        currency: 'eth',
+        ethAmountPaid,
         usdEquivalent: tier.usdPrice,
-        burnedAmount,
-        stakingAmount,
-        // burnTxHash and stakingTxHash are set later by the async burn/transfer flow
+        txHash: isDevMode ? null : txHash,
+        logIndex: paymentLogIndex,
       });
     } catch (error: any) {
       // Handle race condition (another session started between our check and insert)
@@ -234,79 +246,16 @@ export default async function handler(
       throw error;
     }
 
-    // 8. Execute 50% burn + 50% staking rewards
-    // IMPORTANT: Must be awaited — Vercel serverless terminates after response
-    if (!isDevMode && burnedAmount !== '0') {
-      try {
-          const { burnWordOnChain, getWordManagerAddress } = await import('../../../src/lib/word-manager');
-          const { ethers } = await import('ethers');
-          const { db } = await import('../../../src/db');
-          const { superguessSessions, wordRewards } = await import('../../../src/db/schema');
-          const { eq } = await import('drizzle-orm');
-
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL || 'https://mainnet.base.org');
-          const operatorWallet = new ethers.Wallet(process.env.OPERATOR_PRIVATE_KEY!, provider);
-          const erc20 = new ethers.Contract(
-            WORD_TOKEN_ADDRESS,
-            ['function transfer(address to, uint256 amount) returns (bool)'],
-            operatorWallet
-          );
-
-          // Step 1: Transfer burn portion to WordManager so burnWord() can burn from contract balance
-          const wordManagerAddress = getWordManagerAddress();
-          if (wordManagerAddress) {
-            const depositTx = await erc20.transfer(wordManagerAddress, burnedAmount);
-            await depositTx.wait();
-            console.log(`🔴 [Superguess] Deposited ${burnedAmount} $WORD to WordManager for burn`);
-          }
-
-          // Step 2: Burn 50% via contract's burnWord() mechanic
-          const burnTxHash = await burnWordOnChain(activeRound.id, fid, burnedAmount);
-          console.log(`🔴 [Superguess] Burned ${burnedAmount} $WORD: ${burnTxHash}`);
-
-          // Step 3: Transfer 50% to staking rewards address
-          const STAKING_REWARDS_ADDRESS = '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB';
-          let stakingTxHash: string | null = null;
-          try {
-            const tx = await erc20.transfer(STAKING_REWARDS_ADDRESS, stakingAmount);
-            const receipt = await tx.wait();
-            stakingTxHash = receipt.hash;
-            console.log(`🔴 [Superguess] Transferred ${stakingAmount} $WORD to staking rewards: ${stakingTxHash}`);
-          } catch (transferErr) {
-            console.error('[superguess/purchase] Staking transfer failed:', transferErr);
-          }
-
-          // Update session with tx hashes
-          await db
-            .update(superguessSessions)
-            .set({
-              burnTxHash: burnTxHash || undefined,
-              stakingTxHash: stakingTxHash || undefined,
-            })
-            .where(eq(superguessSessions.id, session.id));
-
-          // Record burn in word_rewards audit trail
-          await db.insert(wordRewards).values({
-            roundId: activeRound.id,
-            fid: null, // Burn — tokens destroyed, not awarded
-            rewardType: 'burn',
-            amount: burnedAmount,
-            txHash: burnTxHash || undefined,
-          });
-
-          // Record staking contribution in audit trail
-          await db.insert(wordRewards).values({
-            roundId: activeRound.id,
-            fid: null,
-            rewardType: 'staking',
-            amount: stakingAmount,
-            txHash: stakingTxHash || undefined,
-          });
-      } catch (err) {
-        console.error('[superguess/purchase] Burn/staking failed (session still active):', err);
-        // Session continues — burn/staking can be retried manually
-      }
-    }
+    // The 50% burn / 50% staking split that used to run here is gone with the
+    // currency it operated on: there is no $WORD arriving to split.
+    //
+    // That removes a per-purchase deflationary sink, which is an economic
+    // change and not merely a refactor. ETH now accumulates in WordPackSales
+    // alongside pack revenue and is withdrawn to the treasury. If the buy-and-
+    // burn effect is wanted, it becomes a batched treasury operation —
+    // converting ETH and burning — rather than something that happens inline
+    // on a player's request. That is a decision to make deliberately rather
+    // than inherit from how the old flow happened to be wired.
 
     // 9. Award SHOWSTOPPER wordmark (on purchase, not win)
     await awardWordmark(fid, 'SHOWSTOPPER', {

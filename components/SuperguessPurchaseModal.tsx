@@ -18,7 +18,9 @@ interface SuperguessStatusData {
   available: boolean;
   reason?: string;
   tier?: { id: string; usdPrice: number };
-  wordTokenAmount?: string; // e.g. "64M"
+  /** Exact ETH to pay, decimal string. Superguess is bought with ETH. */
+  ethAmount?: string;
+  ethUsdRate?: number | null;
   globalGuessCount?: number;
   roundId?: number;
 }
@@ -51,7 +53,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     sessionId,
     startPayment,
     reset: resetPayment,
-    balance,
+    ethBalance,
   } = useSuperguessPayment(devFid, authToken);
 
   // Fetch availability on open
@@ -63,7 +65,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
       setStatusData({
         available: true,
         tier: { id: 'tier_1', usdPrice: 20 },
-        wordTokenAmount: '64M',
+        ethAmount: '0.005000',
         globalGuessCount: 920,
         roundId: 1,
       });
@@ -101,18 +103,12 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
   }, [phase, onPurchaseComplete, onClose, resetPayment]);
 
   const handlePurchase = useCallback(() => {
-    if (!statusData?.tier || !statusData?.wordTokenAmount) return;
+    if (!statusData?.tier || !statusData?.ethAmount) return;
 
-    // Parse human-readable token amount (e.g. "64M", "1.5B") to whole token count
-    const amt = statusData.wordTokenAmount;
-    const numPart = parseFloat(amt);
-    let tokensNeeded: number;
-    if (amt.endsWith('B')) tokensNeeded = Math.round(numPart * 1_000_000_000);
-    else if (amt.endsWith('M')) tokensNeeded = Math.round(numPart * 1_000_000);
-    else if (amt.endsWith('K')) tokensNeeded = Math.round(numPart * 1_000);
-    else tokensNeeded = Math.round(numPart);
-
-    startPayment(tokensNeeded.toString());
+    // The exact quote from the server, passed straight through. This used to
+    // parse a display string — "64M" back into 64000000 — to decide what to
+    // pay, which is a lossy round-trip on the amount being charged.
+    startPayment(statusData.ethAmount, statusData.roundId);
   }, [statusData, startPayment]);
 
   const handleDevPurchase = useCallback(async () => {
@@ -136,7 +132,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
   if (!isOpen) return null;
 
   const isDevMode = !!devFid;
-  const balanceFormatted = balance ? formatUnits(balance, 18) : '0';
+  const balanceFormatted = ethBalance?.formatted ?? '0';
   const phaseLabel: Record<SuperguessPaymentPhase, string> = {
     idle: '',
     transferring: 'Submitting transaction...',
@@ -192,11 +188,11 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
                 <span className="text-gray-400 text-sm">Price</span>
                 <div className="text-right">
                   <span className="text-white font-bold text-lg">
-                    ${statusData.tier?.usdPrice} <span className="text-gray-400 text-sm">in $WORD</span>
+                    ${statusData.tier?.usdPrice} <span className="text-gray-400 text-sm">in ETH</span>
                   </span>
-                  {statusData.wordTokenAmount && (
+                  {statusData.ethAmount && (
                     <div className="text-gray-500 text-xs">
-                      ≈{statusData.wordTokenAmount} $WORD
+                      ≈{statusData.ethAmount} ETH
                     </div>
                   )}
                 </div>
@@ -228,36 +224,26 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
 
             {/* Wallet balance + sufficiency check */}
             {(() => {
-              const balanceNum = balance !== undefined ? Number(formatUnits(balance, 18)) : null;
-              // Parse token amount needed from "64M" format
-              let tokensNeeded = 0;
-              if (statusData?.wordTokenAmount) {
-                const amt = statusData.wordTokenAmount;
-                if (amt.endsWith('B')) tokensNeeded = parseFloat(amt) * 1_000_000_000;
-                else if (amt.endsWith('M')) tokensNeeded = parseFloat(amt) * 1_000_000;
-                else if (amt.endsWith('K')) tokensNeeded = parseFloat(amt) * 1_000;
-                else tokensNeeded = parseFloat(amt);
-              }
-              const hasEnough = balanceNum !== null && tokensNeeded > 0 && balanceNum >= tokensNeeded;
-              const balanceDisplay = balanceNum !== null
-                ? balanceNum >= 1_000_000
-                  ? `${(balanceNum / 1_000_000).toFixed(1)}M`
-                  : balanceNum >= 1_000
-                  ? `${(balanceNum / 1_000).toFixed(0)}K`
-                  : balanceNum.toLocaleString()
-                : null;
+              // ETH now, not $WORD. A first-time player is far likelier to
+              // hold ETH, which is much of the point of the switch.
+              const balanceNum = ethBalance ? Number(ethBalance.formatted) : null;
+              const ethNeeded = statusData?.ethAmount ? parseFloat(statusData.ethAmount) : 0;
+              const hasEnough = balanceNum !== null && ethNeeded > 0 && balanceNum >= ethNeeded;
+              // ETH balances are small numbers; the M/K abbreviations this
+              // replaces were sized for $WORD and would render everything as 0.
+              const balanceDisplay = balanceNum !== null ? balanceNum.toFixed(4) : null;
 
               return (
                 <>
                   {balanceDisplay !== null && (
                     <div className={`text-xs mb-3 flex items-center justify-between ${hasEnough ? 'text-green-400' : 'text-red-400'}`}>
                       <span>
-                        Wallet: {balanceDisplay} $WORD
+                        Wallet: {balanceDisplay} ETH
                         {hasEnough ? ' ✓' : ' — insufficient'}
                       </span>
-                      {!hasEnough && statusData?.wordTokenAmount && (
+                      {!hasEnough && statusData?.ethAmount && (
                         <span className="text-gray-500">
-                          Need ≈{statusData.wordTokenAmount}
+                          Need ≈{statusData.ethAmount} ETH
                         </span>
                       )}
                     </div>

@@ -41,6 +41,11 @@ contract WordPackSales {
         uint32 packCount,
         uint256 amount
     );
+    event SuperguessPurchased(
+        address indexed payer,
+        uint256 indexed roundId,
+        uint256 amount
+    );
     event Withdrawn(address indexed treasury, uint256 amount);
 
     error ZeroTreasury();
@@ -68,6 +73,32 @@ contract WordPackSales {
         if (msg.value == 0) revert ZeroPayment();
         if (packCount == 0) revert ZeroPackCount();
         emit PacksPurchased(msg.sender, roundId, packCount, msg.value);
+    }
+
+    /**
+     * @notice Buy a Superguess session.
+     *
+     * Separate from buyPacks rather than folded into it, because the backend
+     * grants different things and must not confuse the two: a pack is guess
+     * credits, a Superguess is a timed 25-guess session limited to one per
+     * round. One event per product means an attacker cannot present a pack
+     * receipt to claim a session.
+     *
+     * Priced off-chain and not checked here, for the same reason buyPacks does
+     * not check price: the tier depends on how many words remain in the round,
+     * which this contract has no view of. The server prices the purchase and is
+     * the only thing that grants the session, so an on-chain check would need a
+     * signed quote and would buy nothing.
+     *
+     * Superguess payment moves to ETH here. Players earn $WORD by playing —
+     * jackpot, bonus words, top ten — and spend ETH to buy. A first-time player
+     * is far likelier to hold ETH than $WORD, and pricing purchases in the
+     * reward token pushes holders to sell it to play, which is the opposite of
+     * what staking is meant to encourage.
+     */
+    function buySuperguess(uint256 roundId) external payable {
+        if (msg.value == 0) revert ZeroPayment();
+        emit SuperguessPurchased(msg.sender, roundId, msg.value);
     }
 
     /**

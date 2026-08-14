@@ -367,7 +367,11 @@ export interface RoundArchivePayouts {
     tier: string;
     outcome: string; // 'won' | 'exhausted' | 'expired' | 'cancelled'
     guessesUsed: number;
-    wordAmountPaid: string;
+    /** 'eth' from the currency switch onward; 'word' on archived earlier rounds. */
+    currency?: string;
+    /** Null on an ETH purchase — carried so the two are never confused. */
+    wordAmountPaid: string | null;
+    ethAmountPaid?: string | null;
     usdEquivalent: string;
   };
 }
@@ -896,7 +900,17 @@ export const superguessSessions = pgTable('superguess_sessions', {
   roundId: integer('round_id').notNull().references(() => rounds.id),
   fid: integer('fid').notNull(),
   tier: varchar('tier', { length: 20 }).notNull(), // 'tier_1' | 'tier_2' | 'tier_3' | 'tier_4'
-  wordAmountPaid: varchar('word_amount_paid', { length: 78 }).notNull(), // $WORD in wei
+  // What the session was paid in. Superguess moved to ETH: players earn $WORD
+  // by playing and spend ETH to buy, so a first-time player does not have to
+  // acquire the reward token before they can use it.
+  currency: varchar('currency', { length: 8 }).default('word').notNull(), // 'word' (legacy) | 'eth'
+  ethAmountPaid: varchar('eth_amount_paid', { length: 78 }), // wei, when currency = 'eth'
+  // The payment this session was granted for. Unique together so one payment
+  // grants exactly one session — the absence of this was the replay hole,
+  // where any historical $WORD transfer of the right size bought a session.
+  txHash: varchar('tx_hash', { length: 66 }),
+  logIndex: integer('log_index'),
+  wordAmountPaid: varchar('word_amount_paid', { length: 78 }), // $WORD in wei (legacy purchases)
   usdEquivalent: decimal('usd_equivalent', { precision: 10, scale: 2 }).notNull(),
   burnedAmount: varchar('burned_amount', { length: 78 }).notNull(), // 50% burned
   stakingAmount: varchar('staking_amount', { length: 78 }).notNull(), // 50% to staking
@@ -914,6 +928,10 @@ export const superguessSessions = pgTable('superguess_sessions', {
   roundIdx: index('superguess_sessions_round_idx').on(table.roundId),
   fidIdx: index('superguess_sessions_fid_idx').on(table.fid),
   statusIdx: index('superguess_sessions_status_idx').on(table.status),
+  // One session per payment. Legacy rows carry NULLs here and Postgres treats
+  // NULLs as distinct, so this constrains new ETH purchases without touching
+  // what came before.
+  paymentUnique: unique('superguess_sessions_payment_unique').on(table.txHash, table.logIndex),
   // Partial unique index: only one active session per round
   // Note: Drizzle doesn't support WHERE clauses on unique indexes natively,
   // so the actual partial unique index is created in the SQL migration

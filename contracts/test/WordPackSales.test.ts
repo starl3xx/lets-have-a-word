@@ -73,4 +73,46 @@ describe("WordPackSales", function () {
       "ZeroTreasury"
     );
   });
+
+  describe("buySuperguess", function () {
+    it("records the payer as msg.sender", async function () {
+      const { sales, player } = await deploy();
+      const value = hre.ethers.parseEther("0.005");
+
+      await expect(sales.connect(player).buySuperguess(34, { value }))
+        .to.emit(sales, "SuperguessPurchased")
+        .withArgs(player.address, 34, value);
+    });
+
+    it("rejects a zero payment", async function () {
+      const { sales, player } = await deploy();
+      await expect(sales.connect(player).buySuperguess(34, { value: 0 }))
+        .to.be.revertedWithCustomError(sales, "ZeroPayment");
+    });
+
+    it("emits a DIFFERENT event from buyPacks", async function () {
+      // The two products grant different things — guess credits versus a
+      // timed 25-guess session, one per round. If they shared an event, a
+      // pack receipt could be presented to claim a Superguess.
+      const { sales, player } = await deploy();
+      const value = hre.ethers.parseEther("0.005");
+
+      await expect(sales.connect(player).buySuperguess(34, { value }))
+        .to.not.emit(sales, "PacksPurchased");
+      await expect(sales.connect(player).buyPacks(1, 34, { value }))
+        .to.not.emit(sales, "SuperguessPurchased");
+    });
+
+    it("accumulates alongside pack revenue and withdraws together", async function () {
+      const { sales, player, treasury } = await deploy();
+      await sales.connect(player).buyPacks(1, 34, { value: hre.ethers.parseEther("0.0004") });
+      await sales.connect(player).buySuperguess(34, { value: hre.ethers.parseEther("0.005") });
+
+      const before = await hre.ethers.provider.getBalance(treasury.address);
+      await sales.connect(player).withdraw();
+      const after = await hre.ethers.provider.getBalance(treasury.address);
+
+      expect(after - before).to.equal(hre.ethers.parseEther("0.0054"));
+    });
+  });
 });

@@ -111,7 +111,9 @@ const WORD_PACK_SALES_ABI = [
   'function treasury() view returns (address)',
   'function buyPacks(uint32 packCount, uint256 roundId) payable',
   'function withdraw()',
+  'function buySuperguess(uint256 roundId) payable',
   'event PacksPurchased(address indexed payer, uint256 indexed roundId, uint32 packCount, uint256 amount)',
+  'event SuperguessPurchased(address indexed payer, uint256 indexed roundId, uint256 amount)',
   'event Withdrawn(address indexed treasury, uint256 amount)',
   'error ZeroTreasury()',
   'error ZeroPayment()',
@@ -874,4 +876,96 @@ export async function withdrawPackSalesOnChain(): Promise<string> {
   const tx = await sendWithBuilderCode(contract, 'withdraw', []);
   await tx.wait();
   return tx.hash;
+}
+
+
+export interface SuperguessPurchaseVerification {
+  valid: boolean;
+  payer?: string;
+  logIndex?: number;
+  roundId?: number;
+  weiAmount?: string;
+  error?: string;
+}
+
+/**
+ * Verify a Superguess payment.
+ *
+ * Replaces a check that scanned the receipt for ANY $WORD transfer to the
+ * operator wallet of at least 80% of the tier price. That accepted a
+ * transaction the caller had nothing to do with, of any age: an attacker could
+ * read a historical transfer off Base — public data — and submit its hash for
+ * a free 25-guess session. Worse, the endpoint then spent real operator funds
+ * in response, burning $WORD and moving more to staking against a payment that
+ * never happened.
+ *
+ * Three things close it, and all three come from binding to our own event
+ * rather than to a token transfer:
+ *
+ *  - the event is emitted by WordPackSales.buySuperguess, so it cannot be
+ *    satisfied by an unrelated transfer
+ *  - `payer` is msg.sender and is checked against the caller's wallet
+ *  - the (txHash, logIndex) pair is recorded and unique, so one payment grants
+ *    exactly one session even inside a bundled ERC-4337 transaction
+ */
+export async function verifySuperguessPurchaseTransaction(
+  txHash: string,
+  expectedPayer?: string,
+  excludeLogIndexes: number[] = []
+): Promise<SuperguessPurchaseVerification> {
+  try {
+    const config = getWordJackpotConfig();
+    const provider = getBaseProvider();
+
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt) return { valid: false, error: 'Transaction not found or not yet mined' };
+    if (receipt.status !== 1) return { valid: false, error: 'Transaction reverted' };
+
+    const iface = new ethers.Interface(WORD_PACK_SALES_ABI);
+    const events: Array<{ parsed: ethers.LogDescription; logIndex: number }> = [];
+
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== config.wordPackSalesAddress.toLowerCase()) continue;
+      try {
+        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (parsed?.name === 'SuperguessPurchased') {
+          events.push({ parsed, logIndex: log.index });
+        }
+      } catch {
+        // Not this event
+      }
+    }
+
+    if (events.length === 0) {
+      return { valid: false, error: 'No SuperguessPurchased event found in transaction' };
+    }
+
+    let candidates = events.filter((e) => !excludeLogIndexes.includes(e.logIndex));
+    if (expectedPayer) {
+      candidates = candidates.filter(
+        (e) => (e.parsed.args.payer as string).toLowerCase() === expectedPayer.toLowerCase()
+      );
+    }
+
+    if (candidates.length === 0) {
+      return { valid: false, error: 'No unclaimed Superguess payment in this transaction matches the caller' };
+    }
+    if (candidates.length > 1 && !expectedPayer) {
+      return { valid: false, error: 'Ambiguous payment: several unclaimed Superguess purchases and no payer to match' };
+    }
+
+    const { parsed, logIndex } = candidates[0];
+    return {
+      valid: true,
+      payer: parsed.args.payer as string,
+      logIndex,
+      roundId: Number(parsed.args.roundId),
+      weiAmount: (parsed.args.amount as bigint).toString(),
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Unknown verification error',
+    };
+  }
 }
