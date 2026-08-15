@@ -807,9 +807,23 @@ export async function resolveRoundAndCreatePayouts(
   if (topGuesserFids.length > 0) {
     // Resolve wallet addresses for all top guessers
     const guesserWallets: { fid: number; wallet: string }[] = [];
+    const seenWallets = new Set<string>();
     for (const fid of topGuesserFids) {
       const wallet = await getWinnerPayoutAddress(fid);
       logWalletResolution('PAYOUT', fid, wallet);
+      // One payout per wallet. calculateTopGuesserPayouts throws on a
+      // duplicate address, which would abort the whole resolve — and the
+      // schema allows two FIDs to share a signer wallet, so the payout path
+      // must not crash on it. The higher-ranked FID keeps the payout. This
+      // hazard predates the reward gate; the gate merely made it visible.
+      const normalized = wallet.toLowerCase();
+      if (seenWallets.has(normalized)) {
+        console.warn(
+          `[economics] Skipping duplicate top-guesser wallet for FID ${fid} (${wallet}); higher-ranked FID keeps it`
+        );
+        continue;
+      }
+      seenWallets.add(normalized);
       guesserWallets.push({ fid, wallet });
     }
 
