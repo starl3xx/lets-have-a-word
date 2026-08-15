@@ -41,6 +41,15 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
     // both slow (this file took 6.9s of mostly RPC) and an outage away from a
     // red build. The tier tests override this with the value they need.
     vi.spyOn(wordToken, 'getWordBonusTier').mockResolvedValue(0);
+    // getWordBonusTierForFid calls the *Checked variant, which reports whether
+    // the balance could actually be read so a failed lookup is not cached as
+    // "holds nothing". Stubbing only the plain one left this live: the code
+    // took the unmocked path and every case here went back to hitting Base
+    // mainnet, which is what the note above exists to prevent.
+    vi.spyOn(wordToken, 'getWordBonusTierChecked').mockResolvedValue({
+      tier: 0,
+      determined: true,
+    });
 
     // Both the player and the dummy winner these tests resolve with need to be
     // real users with wallets. That is free while the prize pool is empty, but
@@ -520,6 +529,10 @@ describe('Daily Limits & Bonuses - Milestone 2.2', () => {
         xp: 0,
       });
       vi.spyOn(wordToken, 'getWordBonusTier').mockResolvedValue(tier);
+      vi.spyOn(wordToken, 'getWordBonusTierChecked').mockResolvedValue({
+        tier,
+        determined: true,
+      });
     }
 
     it('should upgrade $WORD holder from 2 to 3 guesses when tier increases mid-day', async () => {
