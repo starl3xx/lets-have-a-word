@@ -29,7 +29,7 @@ import {
   tokensForUsdCents,
   formatWordAmount,
 } from './word-jackpot-contract';
-import { getUnflushedCreditTotal } from './word-pool-credits';
+import { getUnflushedCreditTotal, flushWordPoolCredits } from './word-pool-credits';
 import { WORD_SEED_USD_CENTS } from '../../config/economy';
 
 /**
@@ -490,6 +490,29 @@ export async function resolveRoundAndCreatePayouts(
     // winner already found, the round already announced, and the operator
     // improvising — into a refusal beforehand that names the missing amount.
     // Same outage, vastly better moment to have it.
+    // Flush first, then verify. Nothing else calls this — a round that sold a
+    // pack would otherwise refuse to resolve forever, since the credits it is
+    // waiting on have no other route to the contract.
+    //
+    // The check below is not made redundant by the flush: it is what happens
+    // when the flush fails. Attempting the send and then asserting it worked is
+    // the whole point — a refusal here names the outstanding amount, whereas
+    // proceeding on the assumption that the flush succeeded produces a reverted
+    // payout with a winner already found.
+    try {
+      const flush = await flushWordPoolCredits(roundId);
+      if (flush.creditCount > 0) {
+        console.log(
+          `[economics] Flushed ${formatWordAmount(flush.amountWei)} $WORD of purchase credits ` +
+            `for round ${roundId} before resolving — tx ${flush.txHash}`
+        );
+      }
+    } catch (error) {
+      console.error(`[economics] Credit flush failed for round ${roundId}:`, error);
+      // Deliberately swallowed: the check below turns this into a refusal that
+      // states the amount, which is more useful than this stack trace.
+    }
+
     const unflushed = await getUnflushedCreditTotal(roundId);
     if (unflushed > 0n) {
       throw new Error(

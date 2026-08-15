@@ -237,6 +237,47 @@ describe('flushing credits to the contract', () => {
     }
   });
 
+  it('does not mark a credit that landed mid-flush', async () => {
+    // topUpWordPoolOnChain waits for a confirmation — seconds during which
+    // another purchase can land. Marking "everything still unflushed" after the
+    // send would mark that new credit as sent when it was never in the total,
+    // and the round would then pass the resolve precondition and revert against
+    // a pool short by exactly that purchase.
+    //
+    // The mock is the interleaving point: it inserts a credit while the "send"
+    // is in flight, which is precisely when the race opens.
+    const round = await makeRound('word');
+    try {
+      await creditWordPool({ roundId: round.id, source: 'pack', sourceRef: '0xa:0', ethAmountWei: 10n ** 15n });
+
+      mockTopUp.mockImplementation(async () => {
+        await creditWordPool({
+          roundId: round.id,
+          source: 'pack',
+          sourceRef: '0xlate:0',
+          ethAmountWei: 10n ** 15n,
+        });
+        return '0xflushtx';
+      });
+
+      const result = await flushWordPoolCredits(round.id);
+      expect(result.creditCount).toBe(1);
+
+      // The late purchase must still be outstanding, so resolve refuses until
+      // it is sent too.
+      const stillPending = await getUnflushedCreditTotal(round.id);
+      expect(stillPending).toBeGreaterThan(0n);
+
+      const [late] = await db
+        .select()
+        .from(wordPoolCredits)
+        .where(eq(wordPoolCredits.sourceRef, '0xlate:0'));
+      expect(late.flushedAt).toBeNull();
+    } finally {
+      await cleanup(round.id);
+    }
+  });
+
   it('is a no-op with nothing pending', async () => {
     const round = await makeRound('word');
     try {
@@ -256,12 +297,11 @@ describe('resolve refuses while credits are unflushed', () => {
     mockTopUp.mockReset().mockResolvedValue('0xflushtx');
   });
 
-  it('names the missing amount instead of reverting during payout', async () => {
-    // The failure batching invites. resolveRound validates its payout sum
-    // against the contract's currentPool, so an unflushed credit means the
-    // payout transaction reverts — with a winner already found and the round
-    // already announced. Refusing here turns that into a clear precondition
-    // failure beforehand.
+  it('names the missing amount when the flush itself fails', async () => {
+    // Resolve flushes first, so the refusal is the backstop rather than the
+    // normal path: it fires when the send could not be made. Without it, a
+    // failed flush would be swallowed and the payout would revert against a
+    // short currentPool — with a winner already found and the round announced.
     const { resolveRoundAndCreatePayouts } = await import('../lib/economics');
     const round = await makeRound('word');
 
@@ -273,9 +313,36 @@ describe('resolve refuses while credits are unflushed', () => {
         ethAmountWei: 10n ** 15n,
       });
 
+      mockTopUp.mockRejectedValue(new Error('RPC unavailable'));
+
       await expect(
         resolveRoundAndCreatePayouts(round.id, 4242)
       ).rejects.toThrow(/have not reached WordJackpot/);
+    } finally {
+      await cleanup(round.id);
+    }
+  });
+
+  it('flushes automatically rather than deadlocking the round', async () => {
+    // Nothing else calls flushWordPoolCredits. Without resolve doing it, a
+    // round that sold a single pack could never resolve — the credits it waits
+    // on would have no route to the contract.
+    const { resolveRoundAndCreatePayouts } = await import('../lib/economics');
+    const round = await makeRound('word');
+
+    try {
+      await creditWordPool({
+        roundId: round.id,
+        source: 'pack',
+        sourceRef: '0xauto:0',
+        ethAmountWei: 10n ** 15n,
+      });
+
+      await expect(resolveRoundAndCreatePayouts(round.id, 4242)).rejects.toThrow();
+
+      // It got past the credit precondition by sending them.
+      expect(mockTopUp).toHaveBeenCalledTimes(1);
+      expect(await getUnflushedCreditTotal(round.id)).toBe(0n);
     } finally {
       await cleanup(round.id);
     }

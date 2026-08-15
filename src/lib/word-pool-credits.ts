@@ -18,7 +18,7 @@
 
 import { db } from '../db';
 import { rounds, wordPoolCredits, systemState } from '../db/schema';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { ethers } from 'ethers';
 
 /**
@@ -249,10 +249,17 @@ export async function flushWordPoolCredits(roundId: number): Promise<FlushResult
   const { topUpWordPoolOnChain } = await import('./word-jackpot-contract');
   const txHash = await topUpWordPoolOnChain(total);
 
+  // Mark exactly the rows that were summed, by id — not "everything still
+  // unflushed". topUpWordPoolOnChain waits for a confirmation, which is seconds
+  // during which another purchase can land. Re-selecting by NULL would mark that
+  // new credit as sent when it was never in the total, and the round would then
+  // pass the resolve precondition and revert against a pool short by exactly
+  // that purchase. Which is the failure the precondition exists to prevent,
+  // reintroduced one layer down.
   await db
     .update(wordPoolCredits)
     .set({ flushedAt: new Date(), flushTxHash: txHash })
-    .where(and(eq(wordPoolCredits.roundId, roundId), isNull(wordPoolCredits.flushedAt)));
+    .where(inArray(wordPoolCredits.id, pending.map((p) => p.id)));
 
   console.log(
     `[word-pool-credits] Flushed ${ethers.formatUnits(total, 18)} $WORD ` +
