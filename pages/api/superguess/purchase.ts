@@ -22,6 +22,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { verifyFrameMessage } from '../../../src/lib/farcaster';
+import { creditWordPool } from '../../../src/lib/word-pool-credits';
 import { isDevModeEnabled, getDevUserId } from '../../../src/lib/devGameState';
 import {
   isSuperguessFeatureEnabled,
@@ -244,6 +245,22 @@ export default async function handler(
         });
       }
       throw error;
+    }
+
+    // Credit 80% of the payment to the prize pool in $WORD, on the same terms
+    // as a guess pack. No-ops on an ETH round.
+    //
+    // Runs after the session exists, so a credit failure can never cost a
+    // player the Superguess they just paid for. creditWordPool neither throws
+    // nor rejects, and keys on (source, txHash:logIndex), so the retry a client
+    // makes after a timeout credits the pool exactly once.
+    if (!isDevMode && ethAmountPaid !== '0') {
+      await creditWordPool({
+        roundId: activeRound.id,
+        source: 'superguess',
+        sourceRef: `${txHash}:${paymentLogIndex ?? 'legacy'}`,
+        ethAmountWei: BigInt(ethAmountPaid),
+      });
     }
 
     // The 50% burn / 50% staking split that used to run here is gone with the
