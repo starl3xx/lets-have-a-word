@@ -62,7 +62,7 @@ describe('admin session tokens', () => {
   });
 
   it('rejects empty, malformed and absent input without throwing', async () => {
-    // Verification runs in middleware on every admin request; an exception
+    // Verification runs in the proxy on every admin request; an exception
     // there would be an outage, not a rejection.
     expect(await verifyAdminSession(undefined, SECRET)).toBeNull();
     expect(await verifyAdminSession(null, SECRET)).toBeNull();

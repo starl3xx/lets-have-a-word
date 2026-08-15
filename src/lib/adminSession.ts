@@ -2,7 +2,7 @@
  * Signed admin session tokens.
  *
  * Issued by /api/auth/verify after a Sign In With Farcaster signature has been
- * checked, and verified by middleware.ts on every /api/admin/* request.
+ * checked, and verified by proxy.ts on every /api/admin/* request.
  *
  * WHY A SIGNED TOKEN RATHER THAN A FID
  *
@@ -15,9 +15,9 @@
  *
  * WHY HMAC AND NOT A JWT LIBRARY
  *
- * Middleware runs on the edge runtime, so the verifier cannot use Node's
- * `crypto`. Web Crypto is available in both runtimes, which lets the same
- * module sign in an API route and verify at the edge — one implementation,
+ * The verifier began life in Edge-runtime middleware, where Node's `crypto`
+ * was unavailable. Web Crypto is available in every runtime (the proxy now
+ * runs on Node), which lets the same module sign and verify everywhere,
  * no chance of the two drifting. A JWT library would work but adds a
  * dependency to do what thirty lines of HMAC already does correctly.
  *

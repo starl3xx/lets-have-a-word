@@ -1,5 +1,5 @@
 /**
- * Sentry Client Configuration
+ * Sentry Client Configuration (instrumentation-client.ts, the Turbopack-era location)
  * Milestone 9.1 - Error Monitoring
  *
  * This file configures the initialization of Sentry on the client.
@@ -12,8 +12,10 @@ import * as Sentry from '@sentry/nextjs';
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Only enable in production
-  enabled: process.env.NODE_ENV === 'production',
+  // Only enable in production, and only when a DSN is configured — this file
+  // loads unconditionally (Next convention), unlike the old sentry.client
+  // .config.ts that only loaded under the DSN-gated withSentryConfig
+  enabled: process.env.NODE_ENV === 'production' && !!process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Adjust this value in production, or use tracesSampler for greater control
   tracesSampleRate: 0.1,
@@ -49,3 +51,6 @@ Sentry.init({
     return event;
   },
 });
+
+// Next 16 / Turbopack navigation instrumentation hook
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

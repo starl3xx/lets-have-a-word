@@ -40,8 +40,7 @@
     "@neynar/nodejs-sdk": "^3.89.0",
     "@neynar/react": "^1.2.22",
     "@openzeppelin/merkle-tree": "^1.0.8",
-    "@pigment-css/react": "^0.0.30",
-    "@sentry/nextjs": "^10.32.1",
+    "@sentry/nextjs": "^10.70.0",
     "@tanstack/react-query": "^5.90.10",
     "@upstash/ratelimit": "^2.0.7",
     "@upstash/redis": "^1.35.8",
@@ -51,12 +50,12 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.33.0",
     "ethers": "^6.15.0",
-    "next": "^14.2.0",
+    "next": "^16.3.1",
     "postcss": "^8.4.47",
     "postgres": "^3.4.4",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "recharts": "^2.13.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "recharts": "^2.15.4",
     "tailwindcss": "^3.4.0",
     "twitter-api-v2": "^1.28.0",
     "viem": "^2.39.2",
@@ -65,12 +64,16 @@
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.5.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "drizzle-kit": "^0.24.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5",
     "wawoff2": "^2.0.1"
+  },
+  "overrides": {
+    "react-is": "^19.0.0",
+    "use-sync-external-store": "^1.4.0"
   }
 }
