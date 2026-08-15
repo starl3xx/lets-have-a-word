@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
+import { WORD_POOL_URL } from '../config/economy';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 
 interface FAQSheetProps {
   onClose: () => void;
@@ -22,6 +24,7 @@ interface FAQItem {
  */
 export default function FAQSheet({ onClose }: FAQSheetProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const { inMiniApp, resolved } = useIsInMiniApp();
 
   const toggleQuestion = (index: number) => {
     setExpandedIndex(expandedIndex === index ? null : index);
@@ -32,6 +35,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
+        // Settled probe value is used synchronously so window.open keeps the
+        // click gesture; the SDK is asked again only while the probe pends
+        if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+          window.open(WORD_POOL_URL, '_blank', 'noopener,noreferrer');
+          return;
+        }
         try {
           console.log('[FAQ] Attempting to view token...');
           const result = await sdk.actions.viewToken({
@@ -53,6 +62,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
+        // Settled probe value is used synchronously so window.open keeps the
+        // click gesture; the SDK is asked again only while the probe pends
+        if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+          window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
+          return;
+        }
         try {
           await sdk.actions.viewProfile({ fid });
         } catch (error) {

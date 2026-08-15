@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
+import ExternalLink from '../components/ExternalLink';
 import type { OgHunterStatus } from '../src/lib/og-hunter';
 
 // Font family consistent with main app
@@ -522,12 +523,12 @@ function ChecklistState({
       <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 text-sm text-gray-600">
         <p>
           Let's Have A Word! is set to launch <strong>very soon</strong> with a Round #1 prize pool.{' '}
-          <button
-            onClick={() => sdk.actions.openUrl('https://farcaster.xyz/starl3xx.eth/0xac8dac1b')}
-            className="text-purple-600 hover:text-purple-700 underline"
+          <ExternalLink
+            href="https://farcaster.xyz/starl3xx.eth/0xac8dac1b"
+            className="inline-block text-purple-600 hover:text-purple-700 underline"
           >
             Read more about the game
-          </button>
+          </ExternalLink>
           .
         </p>
       </div>
