@@ -218,7 +218,7 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
   - `middleware.ts` is now `proxy.ts`, because Next 16 deprecates the old name. The logic is unchanged. The code now runs on the Node.js runtime instead of the Edge runtime.
   - `next.config.js` is now a typed `next.config.ts`. The removed `eslint` config key is gone.
   - Turbopack now bundles both `next dev` and `next build`. A production compile takes about 1.4 seconds.
-  - Sentry uses the Turbopack-era layout: the client init moved to `instrumentation-client.ts`, and a new `instrumentation.ts` registers the server init. The new `onRequestError` hook reports every server-side error to Sentry with route context, with no local try/catch needed. `@sentry/nextjs` moved to 10.70.0.
+  - Sentry uses the Turbopack-era layout: the client init moved to `instrumentation-client.ts`, and a new `instrumentation.ts` registers the server init. The new `onRequestError` hook reports every server-side error to Sentry with route context, with no local try/catch needed. `@sentry/nextjs` moved to 10.70.0. Note one behaviour change: the old layout never loaded the server init, so server-side Sentry was silently dead — it is live now, and server events will start to appear. Both inits stay gated on the DSN, as before. The edge init file is deleted, because nothing runs on the Edge runtime any more.
   - recharts moved to 2.15 with a `react-is` override. It was the one dependency without React 19 support.
   - The unused `@pigment-css/react` dependency is removed. The project is on hold upstream, and no file imports it.
   - React 19 changed one line of app code: a `JSX.Element` annotation in Wheel.tsx.

@@ -68,7 +68,7 @@ export default async function handler(
     // A signed SIWF session is the real answer when one exists. Everything
     // below it is a client-supplied claim, kept for local development and for
     // the break-glass path, and made irrelevant in production by the
-    // middleware gate that rejects the request before it ever gets here.
+    // proxy gate that rejects the request before it ever gets here.
     const adminSecret = process.env.ADMIN_SECRET;
     if (adminSecret) {
       const sessionFid = await verifyAdminSession(

@@ -73,10 +73,12 @@ const STATIC_EXTENSIONS = [
 /**
  * Constant-time string comparison.
  *
- * `crypto.timingSafeEqual` is a Node API and middleware runs on the edge
- * runtime, so it is written out. The practical risk from a non-constant-time
- * compare over HTTP is negligible next to network jitter — this is here so the
- * next person does not have to work that out before trusting the line.
+ * Written out by hand from the Edge-runtime era, when `crypto.timingSafeEqual`
+ * (a Node API) was unavailable. proxy.ts now runs on Node, but the hand-rolled
+ * version is kept: it is correct, runtime-portable, and not worth a change in
+ * security-sensitive code. The practical risk from a non-constant-time compare
+ * over HTTP is negligible next to network jitter — this is here so the next
+ * person does not have to work that out before trusting the line.
  */
 function secretsMatch(a: string, b: string): boolean {
   if (a.length !== b.length) return false;

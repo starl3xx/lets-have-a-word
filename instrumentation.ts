@@ -10,11 +10,12 @@
 import * as Sentry from '@sentry/nextjs';
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
+  // Everything server-side runs on Node now — proxy.ts is Node-only in
+  // Next 16 and no route opts into the Edge runtime, so there is no edge
+  // branch here. Gated on the DSN like the old next.config wrapping was,
+  // so a DSN-less environment stays Sentry-free.
+  if (process.env.NEXT_RUNTIME === 'nodejs' && (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)) {
     await import('./sentry.server.config');
-  }
-  if (process.env.NEXT_RUNTIME === 'edge') {
-    await import('./sentry.edge.config');
   }
 }
 

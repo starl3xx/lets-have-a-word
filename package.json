@@ -73,6 +73,7 @@
     "wawoff2": "^2.0.1"
   },
   "overrides": {
-    "react-is": "^19.0.0"
+    "react-is": "^19.0.0",
+    "use-sync-external-store": "^1.4.0"
   }
 }
