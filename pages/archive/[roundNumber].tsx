@@ -208,17 +208,20 @@ export default function RoundDetailPage() {
   const isInMiniApp = useIsInMiniApp();
 
   // Open profile using Farcaster SDK (stays in-app); on plain web the SDK
-  // call has no host to answer it, so open the Farcaster profile page instead
+  // call has no host to answer it, so open the Farcaster profile page instead.
+  // The hook value is re-checked at tap time because it can be a stale false
+  // in-host; on web the re-check short-circuits synchronously, so window.open
+  // still runs inside the click gesture.
   const openProfile = async (fid: number) => {
-    if (!isInMiniApp) {
-      window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
+    if (isInMiniApp || (await sdk.isInMiniApp())) {
+      try {
+        await sdk.actions.viewProfile({ fid });
+      } catch (error) {
+        console.error('Error opening profile:', error);
+      }
       return;
     }
-    try {
-      await sdk.actions.viewProfile({ fid });
-    } catch (error) {
-      console.error('Error opening profile:', error);
-    }
+    window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
   };
 
   const formatDuration = (startTime: string, endTime: string) => {
@@ -769,22 +772,23 @@ export default function RoundDetailPage() {
 
               {/* Verify Round Button. In-host, openUrl shows /verify as a browser
                   overlay the user closes to land back here with their place kept —
-                  navigating the webview away would lose it. On web, plain SPA nav. */}
-              {isInMiniApp ? (
-                <button
-                  onClick={() => sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`)}
-                  className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
-                >
-                  Verify round
-                </button>
-              ) : (
-                <Link
-                  href={`/verify?round=${round.roundNumber}`}
-                  className="block w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
-                >
-                  Verify round
-                </Link>
-              )}
+                  navigating the webview away would lose it. On web, plain SPA nav.
+                  The branch is decided at tap time with a fresh sdk.isInMiniApp()
+                  call: the render-time hook value can be a stale false in-host when
+                  the SDK loses its 1s handshake race at mount, and on web the SDK
+                  short-circuits synchronously so the await costs one microtask. */}
+              <button
+                onClick={async () => {
+                  if (isInMiniApp || (await sdk.isInMiniApp())) {
+                    sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`);
+                  } else {
+                    router.push(`/verify?round=${round.roundNumber}`);
+                  }
+                }}
+                className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
+              >
+                Verify round
+              </button>
             </>
           )}
         </div>

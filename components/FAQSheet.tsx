@@ -35,7 +35,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
-        if (!isInMiniApp) {
+        // Re-check at tap time: the hook value can be a stale false in-host
+        if (!isInMiniApp && !(await sdk.isInMiniApp())) {
           window.open(WORD_POOL_URL, '_blank', 'noopener,noreferrer');
           return;
         }
@@ -60,7 +61,8 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
-        if (!isInMiniApp) {
+        // Re-check at tap time: the hook value can be a stale false in-host
+        if (!isInMiniApp && !(await sdk.isInMiniApp())) {
           window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
           return;
         }

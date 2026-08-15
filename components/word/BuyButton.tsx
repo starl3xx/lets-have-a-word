@@ -20,8 +20,10 @@ export default function BuyButton({ className, size = 'md' }: BuyButtonProps) {
 
   const handleBuy = async () => {
     // On plain web viewToken has no host to answer it and never settles —
-    // the catch below is unreachable there — so branch before calling it
-    if (!isInMiniApp) {
+    // the catch below is unreachable there — so branch before calling it.
+    // The hook value is re-checked at tap time because it can be a stale
+    // false in-host; on web the re-check short-circuits synchronously.
+    if (!isInMiniApp && !(await sdk.isInMiniApp())) {
       window.open(WORD_POOL_URL, '_blank', 'noopener,noreferrer');
       return;
     }

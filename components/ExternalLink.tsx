@@ -31,7 +31,14 @@ export default function ExternalLink({ href, className, children }: ExternalLink
       rel="noopener noreferrer"
       className={className}
       onClick={(event) => {
-        if (isInMiniApp) {
+        // The hook value can be a stale false in-host during a slow handshake.
+        // window.ReactNativeWebView is the SDK's own synchronous host signal;
+        // a plain browser never has it, so it is a safe fallback check here
+        // (preventDefault must run synchronously, so an async re-check cannot).
+        const likelyRnHost =
+          typeof window !== 'undefined' &&
+          (window as unknown as { ReactNativeWebView?: unknown }).ReactNativeWebView != null;
+        if (isInMiniApp || likelyRnHost) {
           event.preventDefault();
           sdk.actions.openUrl(href);
         }
