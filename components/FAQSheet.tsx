@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 
 interface FAQSheetProps {
   onClose: () => void;
@@ -22,6 +23,7 @@ interface FAQItem {
  */
 export default function FAQSheet({ onClose }: FAQSheetProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const isInMiniApp = useIsInMiniApp();
 
   const toggleQuestion = (index: number) => {
     setExpandedIndex(expandedIndex === index ? null : index);
@@ -53,6 +55,10 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
+        if (!isInMiniApp) {
+          window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
+          return;
+        }
         try {
           await sdk.actions.viewProfile({ fid });
         } catch (error) {

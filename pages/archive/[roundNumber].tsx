@@ -15,6 +15,8 @@ import Link from 'next/link';
 import Head from 'next/head';
 import sdk from '@farcaster/miniapp-sdk';
 import BadgeStack from '../../components/BadgeStack';
+import ExternalLink from '../../components/ExternalLink';
+import { useIsInMiniApp } from '../../src/hooks/useIsInMiniApp';
 
 // Bonus Words Feature: Enabled for Round 3+ (no feature flag needed)
 const BONUS_WORDS_START_ROUND = 3;
@@ -203,8 +205,15 @@ export default function RoundDetailPage() {
 
   const formatEth = (eth: string) => parseFloat(eth).toFixed(4);
 
-  // Open profile using Farcaster SDK (stays in-app)
+  const isInMiniApp = useIsInMiniApp();
+
+  // Open profile using Farcaster SDK (stays in-app); on plain web the SDK
+  // call has no host to answer it, so open the Farcaster profile page instead
   const openProfile = async (fid: number) => {
+    if (!isInMiniApp) {
+      window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
     try {
       await sdk.actions.viewProfile({ fid });
     } catch (error) {
@@ -579,12 +588,12 @@ export default function RoundDetailPage() {
                         </span>
                         {/* Transaction Link */}
                         {winner.txHash && (
-                          <button
-                            onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${winner.txHash}`)}
+                          <ExternalLink
+                            href={`https://basescan.org/tx/${winner.txHash}`}
                             className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
                             tx ↗
-                          </button>
+                          </ExternalLink>
                         )}
                       </div>
                     ))}
@@ -646,12 +655,12 @@ export default function RoundDetailPage() {
                         </span>
                         {/* Transaction Link */}
                         {finder.txHash && (
-                          <button
-                            onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${finder.txHash}`)}
+                          <ExternalLink
+                            href={`https://basescan.org/tx/${finder.txHash}`}
                             className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
                             tx ↗
-                          </button>
+                          </ExternalLink>
                         )}
                       </div>
                     ))}
@@ -705,25 +714,25 @@ export default function RoundDetailPage() {
                     <span className="text-gray-500 text-sm">Onchain commitment</span>
                     {round.hasOnChainCommitment ? (
                       round.startTxHash ? (
-                        <button
-                          onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${round.startTxHash}`)}
+                        <ExternalLink
+                          href={`https://basescan.org/tx/${round.startTxHash}`}
                           className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                         >
                           <span>View on BaseScan</span>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
-                        </button>
+                        </ExternalLink>
                       ) : (
-                        <button
-                          onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
+                        <ExternalLink
+                          href="https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5"
                           className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                         >
                           <span>View contract</span>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
-                        </button>
+                        </ExternalLink>
                       )
                     ) : (
                       <span className="text-gray-400 text-xs">Database only</span>
@@ -734,37 +743,37 @@ export default function RoundDetailPage() {
                   <div className="px-4 py-3 flex justify-between items-center border-t border-gray-100">
                     <span className="text-gray-500 text-sm">Distribution tx</span>
                     {round.resolveTxHash ? (
-                      <button
-                        onClick={() => sdk.actions.openUrl(`https://basescan.org/tx/${round.resolveTxHash}`)}
+                      <ExternalLink
+                        href={`https://basescan.org/tx/${round.resolveTxHash}`}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
                         <span>View on BaseScan</span>
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
-                      </button>
+                      </ExternalLink>
                     ) : (
-                      <button
-                        onClick={() => sdk.actions.openUrl(`https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`)}
+                      <ExternalLink
+                        href="https://basescan.org/address/0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5"
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs font-medium transition-colors"
                       >
                         <span>View contract</span>
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
-                      </button>
+                      </ExternalLink>
                     )}
                   </div>
                 </div>
               </Section>
 
-              {/* Verify Round Button */}
-              <button
-                onClick={() => sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`)}
-                className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
+              {/* Verify Round Button — in-app page, so navigate instead of opening externally */}
+              <Link
+                href={`/verify?round=${round.roundNumber}`}
+                className="block w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
               >
                 Verify round
-              </button>
+              </Link>
             </>
           )}
         </div>
