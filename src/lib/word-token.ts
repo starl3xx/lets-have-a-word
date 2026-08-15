@@ -42,9 +42,41 @@ export const WORD_TOKEN_THRESHOLD = ethers.parseUnits('100000000', 18);
  *
  * @returns Ethers provider for Base network
  */
+const RPC_TIMEOUT_MS = 8_000;
+
+/**
+ * Cached per RPC URL. The URL is read from the environment each call so a
+ * change still takes effect, but the common case reuses one provider.
+ */
+const providerCache = new Map<string, ethers.JsonRpcProvider>();
+
+function buildProvider(rpcUrl: string): ethers.JsonRpcProvider {
+  // ethers' default request timeout is 300 seconds. That is not a timeout in
+  // any useful sense on a request path — a serverless function is long dead by
+  // then, and every caller waiting on it is too.
+  //
+  // This provider is on the guess path (via the $WORD holder tier) and on every
+  // /api/user-state poll, so an unresponsive RPC endpoint does not degrade the
+  // game gracefully: it holds connections open until the platform kills them.
+  // 8 seconds is far longer than a healthy Base call and far shorter than
+  // anything a player will wait through.
+  const request = new ethers.FetchRequest(rpcUrl);
+  request.timeout = RPC_TIMEOUT_MS;
+  return new ethers.JsonRpcProvider(request);
+}
+
 export function getBaseProvider(): ethers.Provider {
   const rpcUrl = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
-  return new ethers.JsonRpcProvider(rpcUrl);
+
+  // Reused rather than constructed per call. Every call was building a fresh
+  // provider, which throws away connection reuse and re-runs network detection
+  // — on a path that runs for every guess.
+  let provider = providerCache.get(rpcUrl);
+  if (!provider) {
+    provider = buildProvider(rpcUrl);
+    providerCache.set(rpcUrl, provider);
+  }
+  return provider;
 }
 
 /**
@@ -55,7 +87,12 @@ export function getBaseProvider(): ethers.Provider {
  */
 export function getSepoliaProvider(): ethers.Provider {
   const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
-  return new ethers.JsonRpcProvider(rpcUrl);
+  let provider = providerCache.get(rpcUrl);
+  if (!provider) {
+    provider = buildProvider(rpcUrl);
+    providerCache.set(rpcUrl, provider);
+  }
+  return provider;
 }
 
 /**
@@ -96,6 +133,49 @@ export async function getEffectiveBalance(walletAddress: string): Promise<number
 }
 
 /**
+ * The effective balance, reporting whether it could actually be read.
+ *
+ * getEffectiveBalance above returns 0 on any RPC failure, which makes an outage
+ * indistinguishable from an empty wallet. That is fine for a caller that just
+ * wants a number to compare, and wrong for one that intends to remember the
+ * answer.
+ */
+export async function getEffectiveBalanceChecked(
+  walletAddress: string
+): Promise<{ balance: number; determined: boolean }> {
+  try {
+    const provider = getBaseProvider();
+    const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
+    const walletBalance = await contract.balanceOf(walletAddress);
+
+    // Staking is additive: if WordManager is unreachable the wallet balance is
+    // still a real reading, just a lower one. That is a determined answer.
+    let stakedBalance = 0n;
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
+    if (wordManagerAddress && wordManagerAddress !== '') {
+      try {
+        const wordManager = new ethers.Contract(
+          wordManagerAddress,
+          ['function stakedBalance(address) view returns (uint256)'],
+          provider
+        );
+        stakedBalance = await wordManager.stakedBalance(walletAddress);
+      } catch {
+        // stakedBalance unavailable — use wallet balance only
+      }
+    }
+
+    return {
+      balance: parseFloat(ethers.formatUnits(walletBalance + stakedBalance, 18)),
+      determined: true,
+    };
+  } catch (error) {
+    console.error(`[$WORD] Error getting effective balance for ${walletAddress}:`, error);
+    return { balance: 0, determined: false };
+  }
+}
+
+/**
  * Get $WORD holder bonus tier (0-3) based on effective balance and market cap
  * Milestone 14: Replaces binary hasWordTokenBonus()
  *
@@ -132,6 +212,48 @@ export async function getWordBonusTier(
   } catch (error) {
     console.error(`[$WORD] Error checking tier for ${walletAddress}:`, error);
     return 0;
+  }
+}
+
+/**
+ * The holder tier, distinguishing "holds nothing" from "could not tell".
+ *
+ * getWordBonusTier returns 0 for both, which is the right default for a caller
+ * that just needs a number — but not for one that wants to CACHE the answer.
+ * A zero that means "the RPC was down" must not be stored, or an outage on our
+ * side silently denies holders their bonus guesses for the life of the cache
+ * entry. The two cases are indistinguishable from the return value alone, so
+ * they need separate reporting.
+ *
+ * `determined: false` means the chain could not be reached, not that the wallet
+ * is empty.
+ */
+export async function getWordBonusTierChecked(
+  walletAddress: string | null,
+  marketCapUsd: number = WORD_MARKET_CAP_USD
+): Promise<{ tier: number; determined: boolean }> {
+  // A missing or malformed address is a real, cacheable zero: no network call
+  // is involved and the answer will not change until the wallet does.
+  if (!walletAddress || !ethers.isAddress(walletAddress)) {
+    return { tier: 0, determined: true };
+  }
+
+  try {
+    const balanceWholeTokens = await getEffectiveBalanceChecked(walletAddress);
+    if (!balanceWholeTokens.determined) {
+      return { tier: 0, determined: false };
+    }
+
+    const thresholds = getHolderTierThresholds(marketCapUsd);
+    let tier = 0;
+    if (balanceWholeTokens.balance >= thresholds.bonus3) tier = 3;
+    else if (balanceWholeTokens.balance >= thresholds.bonus2) tier = 2;
+    else if (balanceWholeTokens.balance >= thresholds.bonus1) tier = 1;
+
+    return { tier, determined: true };
+  } catch (error) {
+    console.error(`[$WORD] Error checking tier for ${walletAddress}:`, error);
+    return { tier: 0, determined: false };
   }
 }
 
