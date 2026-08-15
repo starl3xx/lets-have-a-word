@@ -167,6 +167,12 @@ describe('formatPrizeCompact (info bar, decided 2026-08-15)', () => {
     expect(formatPrizeCompact({ currency: 'word', word: word(750) })).toBe('750 $WORD');
   });
 
+  it('rolls up at unit boundaries instead of showing 1000M or 1000K', () => {
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_960_000) })).toBe('1B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_960) })).toBe('1M $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_940_000) })).toBe('999.9M $WORD');
+  });
+
   it('passes ETH through unchanged and survives malformed input', () => {
     expect(formatPrizeCompact({ currency: 'eth', eth: '0.0416' })).toBe('0.0416 ETH');
     expect(formatPrizeCompact({ currency: 'word', word: 'garbage' })).toBe('0 $WORD');

@@ -88,9 +88,23 @@ export function formatPrizeCompact(input: PrizeAmountInput): string {
 function compactWordAmount(wei: bigint): string {
   const whole = Number(wei / 10n ** 18n);
   if (!Number.isFinite(whole) || whole <= 0) return '0';
-  if (whole >= 1_000_000_000) return `${trimTrailingZero(whole / 1_000_000_000)}B`;
-  if (whole >= 1_000_000) return `${trimTrailingZero(whole / 1_000_000)}M`;
-  if (whole >= 1_000) return `${trimTrailingZero(whole / 1_000)}K`;
+  const tiers = [
+    { div: 1_000_000_000, suffix: 'B' },
+    { div: 1_000_000, suffix: 'M' },
+    { div: 1_000, suffix: 'K' },
+  ] as const;
+  for (let i = 0; i < tiers.length; i++) {
+    const { div, suffix } = tiers[i];
+    if (whole < div) continue;
+    // Round BEFORE choosing the label: 999.96M must roll up to 1B, not
+    // render as "1000M" — the one-decimal rounding can carry past the unit.
+    const rounded = Math.round((whole / div) * 10) / 10;
+    if (rounded >= 1000 && i > 0) {
+      const up = tiers[i - 1];
+      return `${trimTrailingZero(whole / up.div)}${up.suffix}`;
+    }
+    return `${trimTrailingZero(rounded)}${suffix}`;
+  }
   return whole.toLocaleString('en-US');
 }
 
