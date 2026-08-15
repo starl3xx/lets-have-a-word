@@ -562,7 +562,7 @@ export default function GuessPurchaseModal({
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-red-600 text-sm">
-                      $WORD
+                      ETH
                     </p>
                   </div>
                 </button>

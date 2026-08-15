@@ -3,8 +3,7 @@
  * Milestone 15: Purchase UI for Superguess mechanic
  *
  * Only accessible when superguessEligible: true (guess count >= 850)
- * Shows current tier + price in $WORD and USD
- * "50% burned . 50% to staking rewards" explainer
+ * Shows the current tier: a USD price, paid in ETH at the quoted rate
  * "Round pauses for all players" warning
  */
 
@@ -12,7 +11,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSuperguessPayment, type SuperguessPaymentPhase } from '../src/hooks/useSuperguessPayment';
 import { formatUnits } from 'viem';
 import sdk from '@farcaster/miniapp-sdk';
-import { WORD_POOL_URL } from '../config/economy';
 
 interface SuperguessStatusData {
   available: boolean;
@@ -219,7 +217,7 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
             <div className="bg-gray-800/50 rounded-lg p-3 mb-4 text-xs text-gray-400 space-y-1.5">
               <p>Timer starts immediately upon purchase — all 25 guesses must be used within the 10-minute window.</p>
               <p>One Superguess per round. Round pauses for all other players while active.</p>
-              <p className="text-gray-500">50% of payment burned · 50% to staking rewards</p>
+              <p className="text-gray-500">Paid in ETH · 80% of the payment grows the prize pool</p>
             </div>
 
             {/* Wallet balance + sufficiency check */}
@@ -268,18 +266,18 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
                       )}
                       {balanceNum !== null && !hasEnough && !isDevMode ? (
                         <button
-                          onClick={async () => {
-                            try {
-                              await sdk.actions.viewToken({
-                                token: 'eip155:8453/erc20:0x304e649e69979298bd1aee63e175adf07885fb4b',
-                              });
-                            } catch {
-                              window.open(WORD_POOL_URL, '_blank');
-                            }
+                          onClick={() => {
+                            // The shortfall is ETH — open the host's swap UI
+                            // targeting native ETH on Base. The old button here
+                            // said "Buy $WORD", steering players to an asset
+                            // that cannot pay for a Superguess.
+                            sdk.actions
+                              .swapToken({ buyToken: 'eip155:8453/native' })
+                              .catch(() => {});
                           }}
-                          className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white font-bold py-3 rounded-xl transition-colors"
+                          className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-bold py-3 rounded-xl transition-colors"
                         >
-                          Buy $WORD
+                          Get ETH
                         </button>
                       ) : isDevMode ? (
                         <button

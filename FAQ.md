@@ -55,11 +55,11 @@ Like bonus words, burn words are committed onchain as keccak256 hashes before th
 
 ## What is a Superguess?
 
-Superguess is a high-stakes late-game mechanic. After the round reaches **850 guesses**, any player can purchase a Superguess with $WORD tokens for an **exclusive 25-guess, 10-minute window**.
+Superguess is a high-stakes late-game mechanic. After the round reaches **850 guesses**, any player can purchase a Superguess with ETH for an **exclusive 25-guess, 10-minute window**.
 
 During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, normal play resumes immediately.
 
-50% of the $WORD payment is burned, and 50% goes to staking rewards. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
+Tiers are priced in USD ($20–$90) and convert to ETH at purchase. On a $WORD round, 80% of the payment grows the prize pool. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
 
 ## What are wordmarks?
 
