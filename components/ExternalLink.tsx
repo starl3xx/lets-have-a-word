@@ -22,7 +22,7 @@ interface ExternalLinkProps {
 }
 
 export default function ExternalLink({ href, className, children }: ExternalLinkProps) {
-  const isInMiniApp = useIsInMiniApp();
+  const { inMiniApp } = useIsInMiniApp();
 
   return (
     <a
@@ -31,14 +31,12 @@ export default function ExternalLink({ href, className, children }: ExternalLink
       rel="noopener noreferrer"
       className={className}
       onClick={(event) => {
-        // The hook value can be a stale false in-host during a slow handshake.
-        // window.ReactNativeWebView is the SDK's own synchronous host signal;
-        // a plain browser never has it, so it is a safe fallback check here
-        // (preventDefault must run synchronously, so an async re-check cannot).
-        const likelyRnHost =
-          typeof window !== 'undefined' &&
-          (window as unknown as { ReactNativeWebView?: unknown }).ReactNativeWebView != null;
-        if (isInMiniApp || likelyRnHost) {
+        // Intercept only on a CONFIRMED host. Anywhere else — plain web and
+        // non-host webviews such as in-app browsers — the real anchor is the
+        // path that works, and openUrl would never settle; nothing here may
+        // block it. Environment hints (iframe, ReactNativeWebView) are not
+        // confirmation and must not preventDefault.
+        if (inMiniApp) {
           event.preventDefault();
           sdk.actions.openUrl(href);
         }

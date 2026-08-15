@@ -24,7 +24,7 @@ interface FAQItem {
  */
 export default function FAQSheet({ onClose }: FAQSheetProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const isInMiniApp = useIsInMiniApp();
+  const { inMiniApp, resolved } = useIsInMiniApp();
 
   const toggleQuestion = (index: number) => {
     setExpandedIndex(expandedIndex === index ? null : index);
@@ -35,8 +35,9 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
-        // Re-check at tap time: the hook value can be a stale false in-host
-        if (!isInMiniApp && !(await sdk.isInMiniApp())) {
+        // Settled probe value is used synchronously so window.open keeps the
+        // click gesture; the SDK is asked again only while the probe pends
+        if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
           window.open(WORD_POOL_URL, '_blank', 'noopener,noreferrer');
           return;
         }
@@ -61,8 +62,9 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
-        // Re-check at tap time: the hook value can be a stale false in-host
-        if (!isInMiniApp && !(await sdk.isInMiniApp())) {
+        // Settled probe value is used synchronously so window.open keeps the
+        // click gesture; the SDK is asked again only while the probe pends
+        if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
           window.open(`https://farcaster.xyz/~/profiles/${fid}`, '_blank', 'noopener,noreferrer');
           return;
         }

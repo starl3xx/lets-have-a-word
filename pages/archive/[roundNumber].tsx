@@ -205,15 +205,15 @@ export default function RoundDetailPage() {
 
   const formatEth = (eth: string) => parseFloat(eth).toFixed(4);
 
-  const isInMiniApp = useIsInMiniApp();
+  const { inMiniApp, resolved } = useIsInMiniApp();
 
-  // Open profile using Farcaster SDK (stays in-app); on plain web the SDK
-  // call has no host to answer it, so open the Farcaster profile page instead.
-  // The hook value is re-checked at tap time because it can be a stale false
-  // in-host; on web the re-check short-circuits synchronously, so window.open
-  // still runs inside the click gesture.
+  // Open profile using Farcaster SDK (stays in-app); everywhere else open the
+  // Farcaster profile page. window.open must run synchronously in the click
+  // gesture or popup blockers stop it, so once the probe has settled its value
+  // is used as-is; only in the brief pending window after mount is the SDK
+  // asked again (a bounded ~1s worst case).
   const openProfile = async (fid: number) => {
-    if (isInMiniApp || (await sdk.isInMiniApp())) {
+    if (inMiniApp || (!resolved && (await sdk.isInMiniApp()))) {
       try {
         await sdk.actions.viewProfile({ fid });
       } catch (error) {
@@ -779,7 +779,7 @@ export default function RoundDetailPage() {
                   short-circuits synchronously so the await costs one microtask. */}
               <button
                 onClick={async () => {
-                  if (isInMiniApp || (await sdk.isInMiniApp())) {
+                  if (inMiniApp || (!resolved && (await sdk.isInMiniApp()))) {
                     sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`);
                   } else {
                     router.push(`/verify?round=${round.roundNumber}`);

@@ -16,14 +16,14 @@ interface BuyButtonProps {
 }
 
 export default function BuyButton({ className, size = 'md' }: BuyButtonProps) {
-  const isInMiniApp = useIsInMiniApp();
+  const { inMiniApp, resolved } = useIsInMiniApp();
 
   const handleBuy = async () => {
-    // On plain web viewToken has no host to answer it and never settles —
-    // the catch below is unreachable there — so branch before calling it.
-    // The hook value is re-checked at tap time because it can be a stale
-    // false in-host; on web the re-check short-circuits synchronously.
-    if (!isInMiniApp && !(await sdk.isInMiniApp())) {
+    // Outside a confirmed host viewToken never settles — the catch below is
+    // unreachable there — so branch before calling it. The settled probe
+    // value is used synchronously so window.open keeps the click gesture;
+    // the SDK is asked again only while the probe pends.
+    if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
       window.open(WORD_POOL_URL, '_blank', 'noopener,noreferrer');
       return;
     }
