@@ -11,7 +11,7 @@
 
 import { db } from '../db';
 import { guesses, rounds, packPurchases } from '../db/schema';
-import { eq, and, sum } from 'drizzle-orm';
+import { eq, and, sum, count } from 'drizzle-orm';
 import { getGuessWords } from './word-lists';
 import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
@@ -180,12 +180,19 @@ export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[
  * @returns Total number of guesses
  */
 export async function getGlobalGuessCount(roundId: number): Promise<number> {
-  const result = await db
-    .select({ count: guesses.id })
+  // COUNT(*) in the database, not every row over the wire.
+  //
+  // This selected one column for every guess in the round and returned
+  // `result.length` — so a late round shipped ~4,400 rows across the network to
+  // produce a single integer. It runs on /api/round-state, which the top ticker
+  // polls, so the cost is paid repeatedly by every connected player rather than
+  // once.
+  const [result] = await db
+    .select({ count: count() })
     .from(guesses)
     .where(eq(guesses.roundId, roundId));
 
-  return result.length;
+  return result?.count ?? 0;
 }
 
 /**

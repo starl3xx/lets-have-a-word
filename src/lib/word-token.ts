@@ -42,9 +42,41 @@ export const WORD_TOKEN_THRESHOLD = ethers.parseUnits('100000000', 18);
  *
  * @returns Ethers provider for Base network
  */
+const RPC_TIMEOUT_MS = 8_000;
+
+/**
+ * Cached per RPC URL. The URL is read from the environment each call so a
+ * change still takes effect, but the common case reuses one provider.
+ */
+const providerCache = new Map<string, ethers.JsonRpcProvider>();
+
+function buildProvider(rpcUrl: string): ethers.JsonRpcProvider {
+  // ethers' default request timeout is 300 seconds. That is not a timeout in
+  // any useful sense on a request path — a serverless function is long dead by
+  // then, and every caller waiting on it is too.
+  //
+  // This provider is on the guess path (via the $WORD holder tier) and on every
+  // /api/user-state poll, so an unresponsive RPC endpoint does not degrade the
+  // game gracefully: it holds connections open until the platform kills them.
+  // 8 seconds is far longer than a healthy Base call and far shorter than
+  // anything a player will wait through.
+  const request = new ethers.FetchRequest(rpcUrl);
+  request.timeout = RPC_TIMEOUT_MS;
+  return new ethers.JsonRpcProvider(request);
+}
+
 export function getBaseProvider(): ethers.Provider {
   const rpcUrl = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
-  return new ethers.JsonRpcProvider(rpcUrl);
+
+  // Reused rather than constructed per call. Every call was building a fresh
+  // provider, which throws away connection reuse and re-runs network detection
+  // — on a path that runs for every guess.
+  let provider = providerCache.get(rpcUrl);
+  if (!provider) {
+    provider = buildProvider(rpcUrl);
+    providerCache.set(rpcUrl, provider);
+  }
+  return provider;
 }
 
 /**
@@ -55,7 +87,12 @@ export function getBaseProvider(): ethers.Provider {
  */
 export function getSepoliaProvider(): ethers.Provider {
   const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
-  return new ethers.JsonRpcProvider(rpcUrl);
+  let provider = providerCache.get(rpcUrl);
+  if (!provider) {
+    provider = buildProvider(rpcUrl);
+    providerCache.set(rpcUrl, provider);
+  }
+  return provider;
 }
 
 /**

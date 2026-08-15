@@ -17,6 +17,7 @@ import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult, GuessSourceState } from '../types';
 import { hasWordTokenBonus, getWordBonusTier } from './word-token';
+import { cacheGet, cacheSet, CacheKeys, CacheTTL } from './redis';
 import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import {
@@ -145,6 +146,28 @@ export async function hasWORDTokenBonus(fid: number): Promise<boolean> {
  * @returns Tier level: 0 (none), 1, 2, or 3
  */
 export async function getWordBonusTierForFid(fid: number): Promise<number> {
+  const dateStr = getTodayUTC();
+  const cacheKey = CacheKeys.wordTier(fid, dateStr);
+
+  try {
+    // Cached for five minutes, because this is an onchain balance read that was
+    // happening on EVERY guess — getOrCreateDailyState calls it to re-check the
+    // tier, and that runs on the guess path. An RPC round trip in front of
+    // every guess is latency the player feels, for an answer that changes when
+    // they buy tokens and at no other time.
+    //
+    // Staleness is bounded in the direction that matters: the tier only moves
+    // UP within a day (the caller never downgrades an allocation), so a cached
+    // value can delay an upgrade by minutes but can never take away guesses a
+    // player has already been granted.
+    const cached = await cacheGet<number>(cacheKey);
+    if (typeof cached === 'number') {
+      return cached;
+    }
+  } catch {
+    // Cache unavailable — fall through and read it live.
+  }
+
   try {
     // Look up user's signer wallet address
     const [user] = await db
@@ -155,13 +178,21 @@ export async function getWordBonusTierForFid(fid: number): Promise<number> {
 
     if (!user || !user.signerWalletAddress) {
       console.log(`[$WORD] No signer wallet found for FID ${fid}`);
+      // Cached too. A player with no connected wallet is the common case, and
+      // it was paying a database lookup per guess to learn the same thing.
+      await cacheSet(cacheKey, 0, CacheTTL.wordTier).catch(() => {});
       return 0;
     }
 
     // Query onchain effective balance and compute tier
-    return await getWordBonusTier(user.signerWalletAddress);
+    const tier = await getWordBonusTier(user.signerWalletAddress);
+    await cacheSet(cacheKey, tier, CacheTTL.wordTier).catch(() => {});
+    return tier;
   } catch (error) {
     console.error(`[$WORD] Error checking tier for FID ${fid}:`, error);
+    // Deliberately NOT cached: a failed RPC call is not evidence the player
+    // holds nothing, and writing 0 here would deny them bonus guesses for five
+    // minutes because of an outage on our side.
     return 0;
   }
 }

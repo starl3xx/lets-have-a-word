@@ -129,6 +129,12 @@ export const CacheKeys = {
   /** User state (per user, per day) */
   userState: (fid: number, dateKey: string) => `${CACHE_PREFIX}user-state:${fid}:${dateKey}`,
 
+  /**
+   * A holder's $WORD bonus tier. Keyed by day, because the allocation it feeds
+   * is a daily one and only ever increases within a day.
+   */
+  wordTier: (fid: number, dateKey: string) => `${CACHE_PREFIX}word-tier:${fid}:${dateKey}`,
+
   /** User stats (per user) */
   userStats: (fid: number) => `${CACHE_PREFIX}user-stats:${fid}`,
 
@@ -179,6 +185,19 @@ export const CacheTTL = {
 
   /** User state - short TTL, invalidated on actions */
   userState: 10,
+
+  /**
+   * $WORD holder tier - 5 minutes.
+   *
+   * Long by the standards of everything above it, and deliberately: this is an
+   * onchain balance read that was happening on EVERY guess, and the thing it
+   * decides is how many bonus guesses someone gets today. A player who buys
+   * more $WORD mid-round waits at most five minutes for the upgrade, which is
+   * a far better trade than an RPC round trip in front of every guess. The tier
+   * only ever moves up within a day, so a stale value is never worse than
+   * yesterday's answer.
+   */
+  wordTier: 300,
 
   /** User stats - medium TTL, less volatile */
   userStats: 30,
