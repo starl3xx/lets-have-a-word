@@ -20,6 +20,8 @@ interface SyncResponse {
   roundId?: number;
   oldPrizePoolEth?: string;
   newPrizePoolEth?: string;
+  /** Set when the sync is refused because the round does not pay in ETH. */
+  prizeCurrency?: string;
   error?: string;
 }
 
@@ -66,6 +68,23 @@ export default async function handler(
       return res.status(404).json({
         success: false,
         message: 'No active round to sync',
+      });
+    }
+
+    // syncPrizePoolFromContract refuses $WORD rounds on its own, so the data is
+    // safe either way. Checking again here is for the operator: a silent no-op
+    // looks identical to a successful sync in the dashboard, and someone
+    // reaching for this button during a round is usually already worried about
+    // the pool being wrong. Say why nothing happened.
+    if (activeRound.prizeCurrency === 'word') {
+      return res.status(400).json({
+        success: false,
+        message:
+          `Round ${activeRound.id} pays in $WORD. Its prize pool lives in WordJackpot, ` +
+          `not JackpotManagerV3 — syncing from the ETH contract would write a balance ` +
+          `that was never this round's prize into prize_pool_eth.`,
+        roundId: activeRound.id,
+        prizeCurrency: activeRound.prizeCurrency,
       });
     }
 

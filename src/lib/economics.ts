@@ -146,6 +146,33 @@ export function validatePayoutMath(
  * @returns The synced prize pool amount in ETH
  */
 export async function syncPrizePoolFromContract(roundId: number): Promise<string> {
+  const [round] = await db
+    .select({ prizePoolEth: rounds.prizePoolEth, prizeCurrency: rounds.prizeCurrency })
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
+
+  if (!round) {
+    throw new Error(`Round ${roundId} not found`);
+  }
+
+  // A $WORD round's prize lives in WordJackpot, not JackpotManagerV3. Reading
+  // the ETH contract here and writing the result into prize_pool_eth stamps a
+  // balance that was never this round's prize into a column the archive later
+  // copies into the permanent record — and which the admin dashboards then sum
+  // into their ETH totals. Refuse rather than write.
+  //
+  // Called at round creation (rounds.ts) and from the sync-prize-pool admin
+  // endpoint, so the guard belongs here rather than at either call site: one
+  // place cannot be forgotten when a third caller appears.
+  if (round.prizeCurrency === 'word') {
+    console.warn(
+      `[economics] Round ${roundId} is a $WORD round — skipping ETH prize-pool sync. ` +
+        `Its pool is held in WordJackpot; prize_pool_eth is left untouched.`
+    );
+    return round.prizePoolEth;
+  }
+
   // Use Sepolia or mainnet based on simulation mode
   const contractJackpot = sepoliaSimulationMode
     ? await getCurrentJackpotOnSepolia()
@@ -197,6 +224,37 @@ export async function applyPaidGuessEconomicEffects(
 
   if (!round) {
     throw new Error(`Round ${roundId} not found`);
+  }
+
+  // EVERYTHING BELOW IS THE ETH ECONOMY. A $WORD round must not enter it.
+  //
+  // This function models JackpotManagerV3: ETH arrives via purchaseGuesses,
+  // 80% lands in the contract's jackpot and 20% is split between the DB-tracked
+  // seed and creator balance. None of that describes a $WORD round. There the
+  // pack is still paid in ETH, but it goes to WordPackSales and straight on to
+  // the treasury, while the prize sits in WordJackpot as tokens.
+  //
+  // Left unguarded this was the worst bug in the migration, because it needed
+  // nobody to do anything wrong: the three call sites in guesses.ts branch only
+  // on `isPaidGuess`, so the first pack purchase of round 34 would read the old
+  // ETH contract's balance and write it into prize_pool_eth. The column starts
+  // at '0' (rounds.ts), which reads as an obvious bug, and then quietly heals
+  // into a plausible non-zero ETH figure that was never that round's prize —
+  // which archive.ts copies into the permanent archive and the admin economics
+  // aggregates sum into their ETH totals.
+  //
+  // Growing a $WORD pool as packs sell is a separate question, not an omission
+  // here. It needs decisions this function cannot make — which tranche funds
+  // it, at what oracle price, and whether the pool should move between resolves
+  // at all — and the onchain half already exists as topUpWordPoolOnChain().
+  // Until that is designed, doing nothing is correct: the pool is whatever
+  // WordJackpot says it is.
+  if (round.prizeCurrency === 'word') {
+    console.log(
+      `[economics] Round ${roundId} is a $WORD round — no ETH economics applied. ` +
+        `Pack revenue goes to WordPackSales; the prize pool is held in WordJackpot.`
+    );
+    return;
   }
 
   // CRITICAL: Sync prize pool from contract (single source of truth)

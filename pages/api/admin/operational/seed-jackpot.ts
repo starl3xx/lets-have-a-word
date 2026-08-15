@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from '../me';
 import { seedJackpotOnChain, getContractRoundInfo } from '../../../../src/lib/jackpot-contract';
+import { getActiveRound } from '../../../../src/lib/rounds';
 import { ethers } from 'ethers';
 
 // Minimum seed required (same as contract constant)
@@ -68,6 +69,23 @@ export default async function handler(
     }
 
     try {
+      // The isActive check below reads JackpotManagerV3, which knows nothing
+      // about $WORD rounds — they start on WordJackpot, so it reports inactive
+      // and the guard waves this through while a round is very much live.
+      // Seeding here would put ETH into a contract this round never pays from.
+      const activeRound = await getActiveRound();
+      if (activeRound?.prizeCurrency === 'word') {
+        return res.status(400).json({
+          error:
+            `Round ${activeRound.id} pays in $WORD and is seeded through WordJackpot. ` +
+            `Seeding JackpotManagerV3 would move ETH into a contract this round ` +
+            `does not pay from. The check below cannot catch this: it asks the ETH ` +
+            `contract whether a round is active, and by its reckoning none is.`,
+          roundId: activeRound.id,
+          prizeCurrency: activeRound.prizeCurrency,
+        });
+      }
+
       // Check current state
       const beforeInfo = await getContractRoundInfo();
 
