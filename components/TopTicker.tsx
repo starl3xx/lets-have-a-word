@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { formatPrize } from '../src/lib/prize-display';
+import { formatPrizeCompact } from '../src/lib/prize-display';
 import type { RoundStatus } from '../src/lib/wheel';
 
 // Total words in the game dictionary (for percentage calculation)
@@ -263,14 +263,14 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
             Prize Pool
           </p>
           <p className="text-lg font-bold">
-            {formatPrize({
+            {formatPrizeCompact({
               currency: status.prizeCurrency ?? 'eth',
               eth: status.prizePoolEth,
               word: status.prizePoolWord,
             })}
             {status.prizePoolUsd && (
               <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                ({formatUsd(status.prizePoolUsd)})
+                (≈{formatUsd(status.prizePoolUsd)})
               </span>
             )}
           </p>

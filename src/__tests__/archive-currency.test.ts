@@ -3,7 +3,7 @@ import { db } from '../db';
 import { rounds, roundArchive, roundPayouts, guesses } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { archiveRound, getArchivedRounds } from '../lib/archive';
-import { archiveCurrency, formatArchiveJackpot } from '../lib/prize-display';
+import { archiveCurrency, formatArchiveJackpot, formatPrizeCompact } from '../lib/prize-display';
 
 /**
  * A $WORD round must survive the archive round-trip without turning into ETH.
@@ -153,5 +153,22 @@ describe('a $WORD round archives as a $WORD round', () => {
     } finally {
       await cleanup(round.id);
     }
+  });
+});
+
+describe('formatPrizeCompact (info bar, decided 2026-08-15)', () => {
+  const word = (tokens: number) => (BigInt(tokens) * 10n ** 18n).toString();
+
+  it('compacts $WORD amounts to M/B/K notation', () => {
+    expect(formatPrizeCompact({ currency: 'word', word: word(120_000_000) })).toBe('120M $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(78_125_000) })).toBe('78.1M $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(1_500_000_000) })).toBe('1.5B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(2_500) })).toBe('2.5K $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(750) })).toBe('750 $WORD');
+  });
+
+  it('passes ETH through unchanged and survives malformed input', () => {
+    expect(formatPrizeCompact({ currency: 'eth', eth: '0.0416' })).toBe('0.0416 ETH');
+    expect(formatPrizeCompact({ currency: 'word', word: 'garbage' })).toBe('0 $WORD');
   });
 });

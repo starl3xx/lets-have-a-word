@@ -67,6 +67,40 @@ export function formatPrize(input: PrizeAmountInput): string {
 }
 
 /**
+ * Compact prize for the info bar (decided 2026-08-15): "120M $WORD" instead
+ * of "120,000,000 $WORD". The bar is the tightest surface in the app and
+ * never wraps; every other surface keeps the full-separator form. ETH
+ * amounts are short already and pass through unchanged.
+ */
+export function formatPrizeCompact(input: PrizeAmountInput): string {
+  if (input.currency === 'word') {
+    let wei: bigint;
+    try {
+      wei = BigInt(input.word ?? '0');
+    } catch {
+      wei = 0n;
+    }
+    return `${compactWordAmount(wei)} $WORD`;
+  }
+  return `${formatEthAmount(input.eth ?? '0')} ETH`;
+}
+
+function compactWordAmount(wei: bigint): string {
+  const whole = Number(wei / 10n ** 18n);
+  if (!Number.isFinite(whole) || whole <= 0) return '0';
+  if (whole >= 1_000_000_000) return `${trimTrailingZero(whole / 1_000_000_000)}B`;
+  if (whole >= 1_000_000) return `${trimTrailingZero(whole / 1_000_000)}M`;
+  if (whole >= 1_000) return `${trimTrailingZero(whole / 1_000)}K`;
+  return whole.toLocaleString('en-US');
+}
+
+/** "120.0" reads worse than "120"; one decimal only when it carries signal. */
+function trimTrailingZero(n: number): string {
+  const s = n.toFixed(1);
+  return s.endsWith('.0') ? s.slice(0, -2) : s;
+}
+
+/**
  * USD in parentheses, e.g. "($20.00)", or null when there is no value to show.
  *
  * $WORD amounts are large and unitless to most players, so the USD equivalent
