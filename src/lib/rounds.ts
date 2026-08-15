@@ -541,6 +541,14 @@ export async function getRoundById(roundId: number): Promise<Round | null> {
     salt: round.salt,
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
+    // The fourth hand-written field list in this codebase to drop the currency
+    // discriminator. Without it, the ROUND_RESOLVED analytics event reads its
+    // currency off this object and records every $WORD resolve as 'eth' — so
+    // the discriminator added for the growth chart never reaches the stream it
+    // was added for.
+    prizeCurrency: round.prizeCurrency,
+    prizePoolWord: round.prizePoolWord,
+    seedPriceE18: round.seedPriceE18,
     seedNextRoundEth: round.seedNextRoundEth,
     winnerFid: round.winnerFid,
     referrerFid: round.referrerFid,
@@ -595,10 +603,20 @@ export async function resolveRound(
   console.log(`✅ Resolved round ${roundId} with winner FID: ${winnerFid}`);
 
   // Milestone 5.2: Log analytics event (non-blocking)
+  // The currency and the $WORD pool travel with the event.
+  //
+  // view_jackpot_growth (drizzle/0001_analytics_views.sql) charts
+  // `data->>'prizePoolEth'` and filters on IS NOT NULL. A $WORD round emits '0'
+  // there, which passes the filter — so the admin "Prize Pool Evolution" chart
+  // plots round 34+ at zero rather than omitting it, and the trend line falls
+  // off a cliff that never happened. Fixing the view alone cannot help while
+  // the event itself carries no way to tell the two cases apart.
   logRoundEvent(AnalyticsEventTypes.ROUND_RESOLVED, roundId, {
     winnerFid,
     referrerFid: updatedRound.referrerFid,
+    prizeCurrency: updatedRound.prizeCurrency ?? 'eth',
     prizePoolEth: updatedRound.prizePoolEth,
+    prizePoolWord: updatedRound.prizePoolWord ?? null,
     seedNextRoundEth: updatedRound.seedNextRoundEth,
   });
 

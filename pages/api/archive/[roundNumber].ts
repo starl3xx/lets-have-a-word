@@ -180,8 +180,13 @@ export default async function handler(
 function serializeArchiveRow(row: ArchivedRoundWithUsernames): any {
   return {
     ...row,
-    seedEth: row.seedEth.toString(),
-    finalJackpotEth: row.finalJackpotEth.toString(),
+    // Nullable since migration 0022, and actually null from round 34: a $WORD
+    // round records its prize in seed_word / final_jackpot_word and leaves the
+    // ETH pair empty. Calling .toString() on that threw, so the endpoint 500'd
+    // on the whole page rather than the one row. Null passes through as null;
+    // the read side already branches on `currency`.
+    seedEth: row.seedEth?.toString() ?? null,
+    finalJackpotEth: row.finalJackpotEth?.toString() ?? null,
     startTime: row.startTime.toISOString(),
     endTime: row.endTime.toISOString(),
     createdAt: row.createdAt.toISOString(),

@@ -28,6 +28,7 @@ import { getPlaintextAnswer } from './encryption';
 import { getTop10LockForRound } from './top10-lock';
 import { getTotalWordTokenDistributed } from './jackpot-contract';
 import { isRealFcUsername } from './farcaster';
+import { usdCentsForTokens } from './word-amounts';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
 function getRows<T = any>(result: any): T[] {
@@ -95,9 +96,17 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     console.log(`[archive] Step 2: Fetching round ${roundId} using raw SQL to avoid ORM issues`);
     // Get the round using raw SQL to bypass any Drizzle type coercion issues
     // Cast ALL text fields to ::text to ensure they come back as strings
+    // The $WORD columns are selected explicitly. They were missing, and because
+    // this is a hand-written column list rather than `select()`, nothing warned:
+    // `rawRound.prize_currency` came back undefined, so `archiveIsWord` below
+    // was ALWAYS false. Every currency branch downstream of it — the payout
+    // amount mapping, the top-guesser pool accumulator — read as ETH no matter
+    // what the round actually paid. The code looked migrated and never ran.
     const roundResult = await db.execute(sql`
       SELECT id, answer::text as answer, salt::text as salt, commit_hash::text as commit_hash,
              prize_pool_eth::text as prize_pool_eth, seed_next_round_eth::text as seed_next_round_eth,
+             prize_currency::text as prize_currency, prize_pool_word::text as prize_pool_word,
+             seed_price_e18::text as seed_price_e18, seed_usd_cents,
              winner_fid, referrer_fid, started_at, resolved_at, status::text as status
       FROM rounds
       WHERE id = ${roundId}
@@ -174,6 +183,7 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       prizeCurrency: rawRound.prize_currency,
       prizePoolWord: rawRound.prize_pool_word,
       seedPriceE18: rawRound.seed_price_e18,
+      seedUsdCents: rawRound.seed_usd_cents ?? null,
       winnerFid: rawRound.winner_fid,
       referrerFid: rawRound.referrer_fid,
       startedAt: rawRound.started_at instanceof Date ? rawRound.started_at : new Date(rawRound.started_at),
@@ -406,6 +416,13 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     // Compute seed ETH (this is the prize pool that existed at round start, i.e., from previous round's seed)
     // We need to look at the previous round's seedNextRoundEth
     let seedEth = '0';
+    // The $WORD sibling of seedEth, carried forward the same way. Null rather
+    // than '0' when there is nothing to carry: round 34 follows an ETH round,
+    // so no $WORD was seeded forward into it at all. Its opening pool came from
+    // the treasury tranche, which the round's own seedUsdCents records. Writing
+    // '0' would claim a carry-forward of zero happened, which is a different
+    // and untrue statement.
+    let seedWord: string | null = null;
     if (roundId > 1) {
       const [previousRound] = await db
         .select()
@@ -427,6 +444,17 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           };
         }
         seedEth = previousRound.seedNextRoundEth;
+        // Keyed on what the PREVIOUS round actually paid, not on the column
+        // being null — seed_next_round_word is NOT NULL DEFAULT '0', so an ETH
+        // predecessor yields '0', never null. Recording '0' would assert "a
+        // $WORD carry-forward of zero happened", which is a different and
+        // untrue statement from "no $WORD was carried forward at all". Round 34
+        // follows an ETH round: its opening pool came from the treasury
+        // tranche, and null is what says so.
+        seedWord =
+          previousRound.prizeCurrency === 'word'
+            ? previousRound.seedNextRoundWord ?? null
+            : null;
       }
     }
 
@@ -522,17 +550,56 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     // Force all string fields to be strings to avoid any Drizzle type issues
     const safeTargetWord = String(targetWord);
-    const safeSeedEth = String(seedEth);
-    const safeFinalJackpotEth = String(round.prizePoolEth);
     const safeSalt = String(round.salt);
 
-    console.log(`[archive] Safe field lengths: targetWord=${safeTargetWord.length}, seedEth=${safeSeedEth.length}, finalJackpotEth=${safeFinalJackpotEth.length}, salt=${safeSalt.length}`);
+    // Which currency this round actually paid in decides which pair of columns
+    // is meaningful, and the other pair must be NULL rather than '0'.
+    //
+    // This is the row nothing ever recomputes. Until now the write populated
+    // only seed_eth and final_jackpot_eth, and left `currency` to its 'eth'
+    // column default — so a round-34 archive would have claimed to be an ETH
+    // round paying out `prize_pool_eth`. The read side is already currency-aware
+    // (archiveCurrency, formatArchiveJackpot) and would have rendered that
+    // faithfully and wrongly, because it was told 'eth'.
+    //
+    // NULL, not '0', for the currency that did not apply: '0' asserts "this
+    // round paid zero ETH", which reads as a real measurement and is what
+    // getArchiveStats would sum into the public "ETH distributed" total. NULL
+    // says the question does not apply, and SUM skips it. That is also why the
+    // archive serializers get null-guarded in this same change — writing
+    // honest NULLs is what makes their unguarded .toString() calls reachable.
+    const safeSeedEth = archiveIsWord ? null : String(seedEth);
+    const safeFinalJackpotEth = archiveIsWord ? null : String(round.prizePoolEth);
+    const safeSeedWord = archiveIsWord ? seedWord : null;
+    const safeFinalJackpotWord = archiveIsWord ? (round.prizePoolWord ?? null) : null;
+
+    // The USD snapshot is what makes a $WORD round comparable to an ETH one
+    // years later, when the token price is nothing like today's. seedUsdCents
+    // was recorded at seed time; the final figure is derived from the same
+    // price snapshot so both sides of the round are quoted on one basis.
+    let finalJackpotUsdCents: number | null = null;
+    if (archiveIsWord && round.prizePoolWord && round.seedPriceE18) {
+      try {
+        finalJackpotUsdCents = Number(
+          usdCentsForTokens(BigInt(round.prizePoolWord), BigInt(round.seedPriceE18))
+        );
+      } catch (err) {
+        console.warn(`[archive] Could not derive final USD value for round ${roundId}:`, err);
+      }
+    }
+
+    console.log(`[archive] Currency=${archiveIsWord ? 'word' : 'eth'} seedEth=${safeSeedEth} finalJackpotEth=${safeFinalJackpotEth} seedWord=${safeSeedWord} finalJackpotWord=${safeFinalJackpotWord}`);
 
     const archiveData: RoundArchiveInsert = {
       roundNumber: roundId,
       targetWord: safeTargetWord,
+      currency: archiveIsWord ? 'word' : 'eth',
       seedEth: safeSeedEth,
       finalJackpotEth: safeFinalJackpotEth,
+      seedWord: safeSeedWord,
+      finalJackpotWord: safeFinalJackpotWord,
+      seedUsdCents: archiveIsWord ? (round.seedUsdCents ?? null) : null,
+      finalJackpotUsdCents,
       totalGuesses,
       uniquePlayers,
       winnerFid: round.winnerFid,
@@ -954,6 +1021,16 @@ export async function getArchivedRounds(options: {
         targetWord: roundArchive.targetWord,
         seedEth: roundArchive.seedEth,
         finalJackpotEth: roundArchive.finalJackpotEth,
+        // The third hand-written column list in this file to have dropped the
+        // discriminator. Without these, /api/archive/list hands the archive
+        // index a row with no currency, and formatArchiveJackpot defaults it to
+        // ETH — so a $WORD round renders as ETH however correctly it was
+        // written. Fixing the write path alone would not have shown up here.
+        currency: roundArchive.currency,
+        seedWord: roundArchive.seedWord,
+        finalJackpotWord: roundArchive.finalJackpotWord,
+        seedUsdCents: roundArchive.seedUsdCents,
+        finalJackpotUsdCents: roundArchive.finalJackpotUsdCents,
         totalGuesses: roundArchive.totalGuesses,
         uniquePlayers: roundArchive.uniquePlayers,
         winnerFid: roundArchive.winnerFid,
