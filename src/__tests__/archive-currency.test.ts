@@ -162,14 +162,14 @@ describe('formatPrizeCompact (info bar, decided 2026-08-15)', () => {
   it('compacts $WORD amounts to M/B/K notation', () => {
     expect(formatPrizeCompact({ currency: 'word', word: word(120_000_000) })).toBe('120M $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(78_125_000) })).toBe('78.1M $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(1_500_000_000) })).toBe('1.50B $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(6_460_000_000) })).toBe('6.46B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(1_500_000_000) })).toBe('1.500B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(6_460_000_000) })).toBe('6.460B $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(2_500) })).toBe('2.5K $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(750) })).toBe('750 $WORD');
   });
 
   it('rolls up at unit boundaries instead of showing 1000M or 1000K', () => {
-    expect(formatPrizeCompact({ currency: 'word', word: word(999_960_000) })).toBe('1.00B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_960_000) })).toBe('1.000B $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(999_960) })).toBe('1M $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(999_940_000) })).toBe('999.9M $WORD');
   });
