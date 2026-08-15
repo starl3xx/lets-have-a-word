@@ -93,35 +93,31 @@ function compactWordAmount(wei: bigint): string {
     { div: 1_000_000, suffix: 'M' },
     { div: 1_000, suffix: 'K' },
   ] as const;
-  // Billions carry three fixed decimals ("1.000B", "6.460B") — at that scale
-  // a thousandth is still millions of tokens, and the fixed decimals read as
-  // precision rather than noise (decided 2026-08-15). M and K keep one
-  // trimmed decimal.
-  if (whole >= 1_000_000_000) {
-    return `${(whole / 1_000_000_000).toFixed(3)}B`;
-  }
-  for (let i = 1; i < tiers.length; i++) {
+  // THREE SIGNIFICANT DIGITS, always (decided 2026-08-15): 999M, 78.1M,
+  // 1.00B — the digit count stays constant across magnitudes, the decimal
+  // appears only when the magnitude calls for it. A value that rounds past
+  // its unit rolls up (999.6M becomes 1.00B, never 1000M).
+  for (let i = 0; i < tiers.length; i++) {
     const { div, suffix } = tiers[i];
     if (whole < div) continue;
-    // Round BEFORE choosing the label: 999.96M must roll up to 1.00B, not
-    // render as "1000M" — the one-decimal rounding can carry past the unit.
-    const rounded = Math.round((whole / div) * 10) / 10;
-    if (rounded >= 1000) {
-      const up = tiers[i - 1];
-      return up.suffix === 'B'
-        ? `${(whole / up.div).toFixed(3)}B`
-        : `${trimTrailingZero(whole / up.div)}${up.suffix}`;
+    let value = whole / div;
+    let unit = suffix;
+    if (value >= 999.5 && i > 0) {
+      value = whole / tiers[i - 1].div;
+      unit = tiers[i - 1].suffix;
     }
-    return `${trimTrailingZero(rounded)}${suffix}`;
+    return `${threeSignificantDigits(value)}${unit}`;
   }
   return whole.toLocaleString('en-US');
 }
 
-/** "120.0" reads worse than "120"; one decimal only when it carries signal. */
-function trimTrailingZero(n: number): string {
-  const s = n.toFixed(1);
-  return s.endsWith('.0') ? s.slice(0, -2) : s;
+/** 1.00–9.99 → two decimals; 10.0–99.9 → one; 100–999 → none. */
+function threeSignificantDigits(value: number): string {
+  if (value >= 99.95) return Math.round(value).toString();
+  if (value >= 9.995) return value.toFixed(1);
+  return value.toFixed(2);
 }
+
 
 /**
  * USD in parentheses, e.g. "($20.00)", or null when there is no value to show.

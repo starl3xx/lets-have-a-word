@@ -159,19 +159,19 @@ describe('a $WORD round archives as a $WORD round', () => {
 describe('formatPrizeCompact (info bar, decided 2026-08-15)', () => {
   const word = (tokens: number) => (BigInt(tokens) * 10n ** 18n).toString();
 
-  it('compacts $WORD amounts to M/B/K notation', () => {
+  it('always shows three significant digits, decimal only as needed', () => {
     expect(formatPrizeCompact({ currency: 'word', word: word(120_000_000) })).toBe('120M $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(78_125_000) })).toBe('78.1M $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(1_500_000_000) })).toBe('1.500B $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(6_460_000_000) })).toBe('6.460B $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(2_500) })).toBe('2.5K $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(1_500_000_000) })).toBe('1.50B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(6_460_000_000) })).toBe('6.46B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(2_500) })).toBe('2.50K $WORD');
     expect(formatPrizeCompact({ currency: 'word', word: word(750) })).toBe('750 $WORD');
   });
 
   it('rolls up at unit boundaries instead of showing 1000M or 1000K', () => {
-    expect(formatPrizeCompact({ currency: 'word', word: word(999_960_000) })).toBe('1.000B $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(999_960) })).toBe('1M $WORD');
-    expect(formatPrizeCompact({ currency: 'word', word: word(999_940_000) })).toBe('999.9M $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_960_000) })).toBe('1.00B $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_960) })).toBe('1.00M $WORD');
+    expect(formatPrizeCompact({ currency: 'word', word: word(999_400_000) })).toBe('999M $WORD');
   });
 
   it('passes ETH through unchanged and survives malformed input', () => {
