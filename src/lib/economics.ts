@@ -29,6 +29,7 @@ import {
   tokensForUsdCents,
   formatWordAmount,
 } from './word-jackpot-contract';
+import { getUnflushedCreditTotal, flushWordPoolCredits } from './word-pool-credits';
 import { WORD_SEED_USD_CENTS } from '../../config/economy';
 
 /**
@@ -476,6 +477,51 @@ export async function resolveRoundAndCreatePayouts(
   let jackpotWei: bigint;
 
   if (isWordRound) {
+    // Every purchase credit must have reached the contract before we compute a
+    // payout, because the payout is validated against the contract's pool.
+    //
+    // Pack and Superguess credits accumulate in the database and reach
+    // WordJackpot in one batched top-up, so that buying a pack never waits on a
+    // transaction. The cost of that choice is this window: between a purchase
+    // and the flush, the pool players can see is larger than the pool the
+    // contract will pay from.
+    //
+    // Refusing here converts the failure from a revert during payout — with a
+    // winner already found, the round already announced, and the operator
+    // improvising — into a refusal beforehand that names the missing amount.
+    // Same outage, vastly better moment to have it.
+    // Flush first, then verify. Nothing else calls this — a round that sold a
+    // pack would otherwise refuse to resolve forever, since the credits it is
+    // waiting on have no other route to the contract.
+    //
+    // The check below is not made redundant by the flush: it is what happens
+    // when the flush fails. Attempting the send and then asserting it worked is
+    // the whole point — a refusal here names the outstanding amount, whereas
+    // proceeding on the assumption that the flush succeeded produces a reverted
+    // payout with a winner already found.
+    try {
+      const flush = await flushWordPoolCredits(roundId);
+      if (flush.creditCount > 0) {
+        console.log(
+          `[economics] Flushed ${formatWordAmount(flush.amountWei)} $WORD of purchase credits ` +
+            `for round ${roundId} before resolving — tx ${flush.txHash}`
+        );
+      }
+    } catch (error) {
+      console.error(`[economics] Credit flush failed for round ${roundId}:`, error);
+      // Deliberately swallowed: the check below turns this into a refusal that
+      // states the amount, which is more useful than this stack trace.
+    }
+
+    const unflushed = await getUnflushedCreditTotal(roundId);
+    if (unflushed > 0n) {
+      throw new Error(
+        `Cannot resolve round ${roundId}: ${formatWordAmount(unflushed)} $WORD of purchase ` +
+          `credits have not reached WordJackpot. Flush them first — resolving now would ` +
+          `compute payouts against a pool the contract does not have.`
+      );
+    }
+
     // WordJackpot tracks `pool` explicitly rather than inferring it from
     // balanceOf, so there is no balance-vs-internal reconciliation to do here —
     // that entire class of mismatch is designed out. The pool IS the number the

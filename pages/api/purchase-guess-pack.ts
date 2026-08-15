@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { awardPaidPack, getOrCreateDailyState, getTodayUTC, DAILY_LIMITS_RULES } from '../../src/lib/daily-limits';
+import { creditWordPool } from '../../src/lib/word-pool-credits';
 import { logAnalyticsEvent, AnalyticsEventTypes } from '../../src/lib/analytics';
 import { getActiveRound } from '../../src/lib/rounds';
 import { logXpEvent } from '../../src/lib/xp';
@@ -387,6 +388,21 @@ export default async function handler(
           // Which event in that transaction this row credits. Null on the
           // legacy rail, where a transaction only ever carries one purchase.
           logIndex: verification.logIndex ?? null,
+        });
+        // Credit 80% of this purchase to the prize pool in $WORD, at the price
+        // in force right now. No-ops on an ETH round, where the pool is the
+        // contract's own balance and grows onchain.
+        //
+        // After the guesses have been granted, deliberately. The player has
+        // paid and been served by this point, so a stale oracle here is the
+        // house's problem — creditWordPool never throws and never rejects, and
+        // an uncredited purchase is visible as a pack_purchases row with no
+        // matching ledger entry.
+        await creditWordPool({
+          roundId: activeRound.id,
+          source: 'pack',
+          sourceRef: `${txHash}:${verification.logIndex ?? 'legacy'}`,
+          ethAmountWei: paidWei,
         });
       } catch (purchaseLogError) {
         // Don't fail the request if purchase logging fails

@@ -966,3 +966,62 @@ export const wordConversions = pgTable('word_conversions', {
 
 export type WordConversionRow = typeof wordConversions.$inferSelect;
 export type WordConversionInsert = typeof wordConversions.$inferInsert;
+
+/**
+ * $WORD credited to a round's prize pool from player purchases (migration 0027).
+ *
+ * Guess packs and Superguesses are paid in ETH, which goes to the treasury —
+ * so nothing reaches the prize pool by itself. 80% of each purchase is credited
+ * here in $WORD at the price in force when it was bought, and the remaining 20%
+ * is creator revenue, mirroring the split the ETH economy ran inside
+ * JackpotManagerV3.
+ *
+ * WHY A LEDGER RATHER THAN A RUNNING TOTAL. Credits accumulate in the database
+ * and reach WordJackpot in a single topUpWordPoolOnChain() before the round
+ * resolves, so no player waits on a transaction to buy a pack. That makes
+ * "which credits have reached the contract" a real question, and resolveRound
+ * validates its payout sum against the contract's currentPool — so an unflushed
+ * credit means resolution reverts with a winner already found. The rows carry
+ * their own flush state so that condition is checkable before payout rather
+ * than discovered during it.
+ *
+ * Each row also records the price it used. A credit is a conversion at a moment
+ * in time, and without the rate it was struck at there is no way to audit
+ * whether the treasury's later ETH->$WORD buyback kept pace.
+ */
+export const wordPoolCredits = pgTable('word_pool_credits', {
+  id: serial('id').primaryKey(),
+  roundId: integer('round_id').notNull().references(() => rounds.id),
+  /** 'pack' | 'superguess' */
+  source: varchar('source', { length: 16 }).notNull(),
+  /**
+   * Identifies the payment this credit came from, as `txHash:logIndex`.
+   * Unique with `source`, so a retried webhook or a double-submitted purchase
+   * credits the pool exactly once.
+   */
+  sourceRef: varchar('source_ref', { length: 128 }).notNull(),
+  ethAmountWei: numeric('eth_amount_wei', { precision: 78, scale: 0 }).notNull(),
+  /** The 80% share, in $WORD wei. */
+  wordAmountWei: numeric('word_amount_wei', { precision: 78, scale: 0 }).notNull(),
+  /** USD-per-$WORD, 1e18-scaled, at credit time. */
+  priceE18: numeric('price_e18', { precision: 78, scale: 0 }).notNull(),
+  /**
+   * 'contract' when WordJackpot's own price was used, 'round_seed' when it was
+   * unavailable and the round's seed snapshot stood in. The purchase is already
+   * paid by this point, so a missing price must never reject the credit — but
+   * it must be visible afterwards.
+   */
+  priceSource: varchar('price_source', { length: 16 }).notNull(),
+  ethUsdPrice: decimal('eth_usd_price', { precision: 20, scale: 8 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  flushedAt: timestamp('flushed_at'),
+  flushTxHash: varchar('flush_tx_hash', { length: 66 }),
+}, (table) => ({
+  paymentUnique: unique('word_pool_credits_source_unique').on(table.source, table.sourceRef),
+  roundIdx: index('word_pool_credits_round_idx').on(table.roundId),
+  // Drives the unflushed-total check on the resolve path.
+  unflushedIdx: index('word_pool_credits_unflushed_idx').on(table.roundId, table.flushedAt),
+}));
+
+export type WordPoolCreditRow = typeof wordPoolCredits.$inferSelect;
+export type WordPoolCreditInsert = typeof wordPoolCredits.$inferInsert;
