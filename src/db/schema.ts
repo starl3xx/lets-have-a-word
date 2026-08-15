@@ -41,9 +41,9 @@ export const users = pgTable('users', {
   coinbaseAttestedCheckedAt: timestamp('coinbase_attested_checked_at'),
   xp: integer('xp').default(0).notNull(),
   // Reward gate grandfather column: the round of this user's first-ever guess.
-  // Backfilled once from MIN(guesses.round_id); written at first guess for new
-  // players. <= 27 means pre-farm and exempt from the play bar. NULL = not
-  // grandfathered (no guess before the backfill, or a brand-new account).
+  // Backfilled once from MIN(guesses.round_id) by the admin backfill endpoint;
+  // nothing maintains it afterwards, because NULL already means exactly "not
+  // grandfathered". <= 27 means pre-farm and exempt from the play bar.
   firstGuessRound: integer('first_guess_round'),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal

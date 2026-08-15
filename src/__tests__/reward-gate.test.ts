@@ -157,6 +157,14 @@ describe('Reward Gate', () => {
       expect(again.eligible).toBe(true);
     });
 
+    it('treats a malformed stored wallet as no wallet, not as an outage', async () => {
+      const fid = await makeUser({ wallet: '0xnotanaddress' });
+      const result = await checkPlayEligibility(fid);
+      expect(result.eligible).toBe(false);
+      expect(result.reason).toBe('no_wallet');
+      expect(result.determined).toBe(true);
+    });
+
     it('fails open, marked undetermined, when the chain cannot be reached', async () => {
       mockBalance(0, /* determined */ false);
       const fid = await makeUser({ wallet: randomWallet() });
@@ -181,6 +189,22 @@ describe('Reward Gate', () => {
       mockBalance(BAR_FALLBACK);
       const ungated = await getOrCreateDailyState(fid, dateStr);
       expect(ungated.freeAllocatedBase).toBe(DAILY_LIMITS_RULES.freeGuessesPerDayBase);
+
+      await db.delete(dailyGuessState).where(eq(dailyGuessState.fid, fid));
+    });
+
+    it('restores the base allocation when the gate is disabled mid-day', async () => {
+      mockBalance(0);
+      const fid = await makeUser({ wallet: randomWallet() });
+      const dateStr = getTodayUTC();
+
+      const gated = await getOrCreateDailyState(fid, dateStr);
+      expect(gated.freeAllocatedBase).toBe(0);
+
+      // The operational rollback: turn the flag off mid-day.
+      delete process.env.REWARD_GATE_ENABLED;
+      const restored = await getOrCreateDailyState(fid, dateStr);
+      expect(restored.freeAllocatedBase).toBe(DAILY_LIMITS_RULES.freeGuessesPerDayBase);
 
       await db.delete(dailyGuessState).where(eq(dailyGuessState.fid, fid));
     });

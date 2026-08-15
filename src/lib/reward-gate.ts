@@ -19,6 +19,7 @@
  * player's win; the kill switch is the backstop.
  */
 import * as Sentry from '@sentry/nextjs';
+import { ethers } from 'ethers';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { users, rewardGateClaims } from '../db/schema';
@@ -119,6 +120,10 @@ export async function checkPlayEligibility(
 
   const { round = null, useCache = false, claimWallet = true } = opts;
   const dateStr = getTodayUTC();
+  // The cache key carries no round, so a cached entry may hold a verdict
+  // computed against the oracle-fallback bar rather than this round's frozen
+  // bar. That is accepted for the cached (guess/allocation) path — the two
+  // bars differ by pennies — and is why every money point runs uncached.
   const cacheKey = CacheKeys.rewardGate(fid, dateStr);
 
   if (useCache) {
@@ -152,7 +157,12 @@ export async function checkPlayEligibility(
   }
 
   const barTokens = getPlayBarTokens(round);
-  const wallet = user?.signerWalletAddress ?? null;
+  // A malformed stored address must read as "no wallet", not as an RPC
+  // failure: getEffectiveBalanceChecked throws on it internally and reports
+  // determined:false, which would turn one bad row into a permanent,
+  // uncached, Sentry-spamming fail-open.
+  const stored = user?.signerWalletAddress ?? null;
+  const wallet = stored && ethers.isAddress(stored) ? stored : null;
 
   if (!wallet) {
     const result: RewardGateResult = {

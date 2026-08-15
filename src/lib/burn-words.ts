@@ -144,12 +144,14 @@ export async function handleBurnWordWin(
       createdAt: new Date(),
     });
 
-    // Mark burn word as found
+    // Mark burn word as found. rewardWithheld cleared explicitly — a real,
+    // executed burn must never stay hidden by a racing withheld mark.
     await tx
       .update(roundBurnWords)
       .set({
         finderFid: fid,
         foundAt: new Date(),
+        rewardWithheld: false,
       })
       .where(eq(roundBurnWords.id, burnWord.id));
   });

@@ -77,7 +77,13 @@ export function getHolderTierThresholds(marketCapUsd: number): HolderTierThresho
  * held or staked, to play. Frozen into a token amount per round from the
  * round's seed price (see src/lib/reward-gate.ts).
  */
-export const REWARD_GATE_PLAY_USD = Number(process.env.REWARD_GATE_MIN_USD ?? '3');
+export const REWARD_GATE_PLAY_USD = (() => {
+  // Validated: garbage, an empty string, zero or a negative value would each
+  // silently zero the bar while the gate flag still reads enabled — a
+  // gate-wide fail-open caused by an env typo. Bad input falls back to $3.
+  const parsed = Number(process.env.REWARD_GATE_MIN_USD ?? '3');
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+})();
 
 /** Last round of the grandfather window: first guess in rounds 1–27 plays free. */
 export const REWARD_GATE_GRANDFATHER_LAST_ROUND = 27;

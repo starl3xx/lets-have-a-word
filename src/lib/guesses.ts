@@ -333,12 +333,15 @@ async function handleBonusWordWin(
     }).returning();
     guessId = insertedGuess.id;
 
-    // 2. Mark bonus word as claimed
+    // 2. Mark bonus word as claimed. rewardWithheld is cleared explicitly:
+    // a gated finder racing this claim can stamp the flag in the same window,
+    // and a real, paid claim must never stay hidden by a stray withheld mark.
     await tx
       .update(roundBonusWords)
       .set({
         claimedByFid: fid,
         claimedAt: new Date(),
+        rewardWithheld: false,
       })
       .where(eq(roundBonusWords.id, bonusWord.id));
 
@@ -366,6 +369,7 @@ async function handleBonusWordWin(
           and(
             eq(roundBonusWords.roundId, roundId),
             eq(roundBonusWords.claimedByFid, fid),
+            eq(roundBonusWords.rewardWithheld, false),
             // Exclude the current bonus word (already marked claimed above)
             sql`${roundBonusWords.id} != ${bonusWord.id}`
           )
@@ -376,7 +380,8 @@ async function handleBonusWordWin(
         .where(
           and(
             eq(roundBurnWords.roundId, roundId),
-            eq(roundBurnWords.finderFid, fid)
+            eq(roundBurnWords.finderFid, fid),
+            eq(roundBurnWords.rewardWithheld, false)
           )
         ),
     ]);
@@ -1088,16 +1093,31 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         const gate = await checkPlayEligibility(fid, { round, useCache: false });
         if (!gate.eligible) {
           rewardWithheld = true;
+          // Guarded on "still unclaimed": the gate check above is an RPC away
+          // from the match, and an eligible finder can complete a real claim
+          // in that window. Without the guard this write would overwrite a
+          // paid claim with a withheld mark. Zero rows updated means someone
+          // else claimed first; the fall-through below is correct either way.
           if (bonusWordMatch) {
             await db
               .update(roundBonusWords)
               .set({ claimedByFid: fid, claimedAt: new Date(), rewardWithheld: true })
-              .where(eq(roundBonusWords.id, bonusWordMatch.id));
+              .where(
+                and(
+                  eq(roundBonusWords.id, bonusWordMatch.id),
+                  isNull(roundBonusWords.claimedByFid)
+                )
+              );
           } else if (burnWordMatch) {
             await db
               .update(roundBurnWords)
               .set({ finderFid: fid, foundAt: new Date(), rewardWithheld: true })
-              .where(eq(roundBurnWords.id, burnWordMatch.id));
+              .where(
+                and(
+                  eq(roundBurnWords.id, burnWordMatch.id),
+                  isNull(roundBurnWords.finderFid)
+                )
+              );
           }
           Sentry.captureMessage('[RewardGate] Bonus/burn find withheld', {
             level: 'warning',

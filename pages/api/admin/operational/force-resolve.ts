@@ -47,15 +47,22 @@ export default async function handler(
     const roundId = activeRound.id;
     const answer = activeRound.answer;
 
-    // Ensure the force-resolve user exists
+    // Ensure the force-resolve user exists. firstGuessRound: 1 grandfathers
+    // it past the reward gate — with the zero wallet and no $WORD it would
+    // otherwise fail winner eligibility, record an ineligible-winner audit
+    // row, and leave the stuck round unwinnable for its own answer.
     await db
       .insert(users)
       .values({
         fid: FORCE_RESOLVE_FID,
         username: 'force_resolve_admin',
         signerWalletAddress: `0x${'0'.repeat(40)}`,
+        firstGuessRound: 1,
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: users.fid,
+        set: { firstGuessRound: 1 },
+      });
 
     // Submit the winning guess to resolve the round
     const result = await submitGuess({

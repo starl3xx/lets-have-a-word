@@ -231,22 +231,26 @@ export async function getOrCreateDailyState(
     // same only-upgrades-within-a-day contract the tier bump below follows.
     if (state.freeAllocatedBase === 0) {
       const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
-      if (isRewardGateEnabled()) {
-        const gate = await checkPlayEligibility(fid, { useCache: true });
-        if (!gate.eligible) {
-          return state;
-        }
-        const [ungated] = await db
-          .update(dailyGuessState)
-          .set({
-            freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
-            updatedAt: new Date(),
-          })
-          .where(eq(dailyGuessState.id, state.id))
-          .returning();
-        console.log(`🔓 [RewardGate] FID ${fid} cleared the bar; base allocation granted`);
-        return ungated;
+      // Restore the base allocation when the player clears the bar — OR when
+      // the gate flag was turned off mid-day. Without the second arm, the
+      // natural operational rollback (disable the flag) would strand every
+      // already-gated player at zero guesses until the next 11:00 UTC reset.
+      const restore = !isRewardGateEnabled()
+        ? true
+        : (await checkPlayEligibility(fid, { useCache: true })).eligible;
+      if (!restore) {
+        return state;
       }
+      const [ungated] = await db
+        .update(dailyGuessState)
+        .set({
+          freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyGuessState.id, state.id))
+        .returning();
+      console.log(`🔓 [RewardGate] FID ${fid} base allocation restored (bar cleared or gate off)`);
+      return ungated;
     }
 
     // Milestone 14 upgrade: Re-check tier and bump allocation if higher.

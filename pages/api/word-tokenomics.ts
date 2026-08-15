@@ -103,6 +103,8 @@ export default async function handler(
       }).from(roundBonusWords).where(
         and(
           isNotNull(roundBonusWords.claimedByFid),
+          // Reward gate: withheld finds claimed the word but moved no tokens
+          eq(roundBonusWords.rewardWithheld, false),
           sql`${roundBonusWords.roundId} IN (SELECT DISTINCT round_id FROM round_burn_words)`
         )
       ),
