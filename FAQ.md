@@ -96,20 +96,21 @@ You can also purchase paid guess packs (3 guesses per pack, unlimited purchases 
 
 ## What's the $WORD bonus?
 
-Holding [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b) tokens gives you bonus free guesses every day. The number of bonus guesses depends on your balance and the current market cap:
+Holding [$WORD](https://farcaster.xyz/~/token/eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b) tokens gives you bonus free guesses every day. The tiers are set in **USD value**, so they stay fair as the token price moves:
 
-**When market cap is below $150K:**
-- 100M tokens → **+1 guess/day** (Tier 1)
-- 200M tokens → **+2 guesses/day** (Tier 2)
-- 300M tokens → **+3 guesses/day** (Tier 3)
+- ~$25 of $WORD → **+1 guess/day** (Tier 1)
+- ~$50 of $WORD → **+2 guesses/day** (Tier 2)
+- ~$75 of $WORD → **+3 guesses/day** (Tier 3)
 
-**When market cap is $150K–$300K:**
-- 50M → +1, 100M → +2, 150M → +3
+Staked tokens count toward your effective balance. The USD value converts to a token amount with the live onchain oracle, updated every 15 minutes.
 
-**When market cap is above $300K:**
-- 25M → +1, 50M → +2, 75M → +3
+## Why do I need $WORD to play? (round 34+)
 
-Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.
+From round 34, playing requires about **$3 of $WORD** in your wallet — held or staked, your choice. You keep the tokens; playing spends nothing.
+
+**Played before round 28?** You are grandfathered in and play free forever.
+
+This keeps the prize pool safe from bot farms: thousands of throwaway accounts each need their own funded wallet, which makes farming unprofitable. Buying an ETH guess pack does not replace the requirement — the $3 of $WORD is what proves an account is real.
 
 ## What is $WORD?
 
@@ -121,7 +122,7 @@ Tap the **$WORD** button in the nav bar to view your balance, staking, and token
 
 $WORD is the game's token on Base. It ties into gameplay in a few ways:
 
-- **Bonus guesses**: Hold 100M+ $WORD to earn extra free guesses daily
+- **Bonus guesses**: Hold ~$25+ of $WORD to earn extra free guesses daily
 - **Bonus word rewards**: Find a bonus word and receive 5M $WORD
 - **Burn word deflation**: Burn words permanently destroy 5M $WORD from the supply
 - **Top 10 $WORD rewards**: The top 10 guessers in each round earn $WORD payouts on top of their share of the prize pool

@@ -48,6 +48,7 @@ export const users = pgTable('users', {
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
   hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: Superguess feature announcement
+  hasSeenRound34Announcement: boolean('has_seen_round34_announcement').default(false).notNull(), // Round 34: $WORD-era announcement; only offered while a $WORD round is active
   addedMiniAppAt: timestamp('added_mini_app_at'), // OG Hunter: When user added the mini app via SDK
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

@@ -69,6 +69,9 @@ export interface UserStateResponse {
   sourceState: GuessSourceState;
   // Milestone 15: Superguess status
   isSuperguessing: boolean;
+  // Round 34+ reward gate. enabled=false until the launch flag flips;
+  // locked=true means the player must hold/stake the bar to play.
+  rewardGate: { enabled: boolean; locked: boolean; grandfathered: boolean };
 }
 
 interface ErrorResponse {
@@ -353,6 +356,25 @@ export default async function handler(
       }
     }
 
+    // Reward gate status for the guess bar (round 34+). Cached read, same
+    // 5-minute posture as the tier; dormant while the flag is off.
+    let rewardGate: UserStateResponse['rewardGate'] = {
+      enabled: false,
+      locked: false,
+      grandfathered: false,
+    };
+    {
+      const { checkPlayEligibility, isRewardGateEnabled } = await import('../../src/lib/reward-gate');
+      if (isRewardGateEnabled()) {
+        const gate = await checkPlayEligibility(fid, { useCache: true });
+        rewardGate = {
+          enabled: true,
+          locked: !gate.eligible,
+          grandfathered: gate.grandfathered,
+        };
+      }
+    }
+
     const response: UserStateResponse = {
       fid,
       freeGuessesRemaining: freeRemaining,
@@ -376,6 +398,7 @@ export default async function handler(
       sourceState,
       // Milestone 15: Superguess
       isSuperguessing,
+      rewardGate,
     };
 
     return res.status(200).json(response);

@@ -190,6 +190,7 @@ export default function UserState({ fid, onGetMore, onWordHintTap }: UserStatePr
       sourceState={displaySourceState}
       onGetMore={onGetMore}
       onWordHintTap={onWordHintTap}
+      rewardGateLocked={userState?.rewardGate?.locked ?? false}
     />
   );
 }
