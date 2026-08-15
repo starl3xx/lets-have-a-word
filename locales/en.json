@@ -114,10 +114,10 @@
       "title": "Jackpots",
       "won": "Jackpots won",
       "topPlacements": "Top 10 placements",
-      "ethFromTop": "ETH from top 10",
+      "ethFromTop": "From top 10",
       "referralWins": "Referral wins",
-      "ethFromReferrals": "ETH from referrals",
-      "allTimeEth": "All-time ETH won"
+      "ethFromReferrals": "From referrals",
+      "allTimeEth": "All-time won"
     },
     "guessDistribution": {
       "title": "Guesses per round",
