@@ -9,8 +9,8 @@
     "splashImageUrl": "https://letshaveaword.fun/LHAW-splash.png",
     "splashBackgroundColor": "#8c81a8",
     "webhookUrl": "https://api.neynar.com/f/app/64ddc4ee-b993-4a64-bc76-b96af4a1ec32/event",
-    "subtitle": "Global word game. ETH prizes",
-    "description": "A global word game where players compete to guess the word and win ETH. Thousands of guesses per round. One winner takes the prize.",
+    "subtitle": "Global word game. Real prizes",
+    "description": "A global word game where players compete to guess the word and win $WORD. Thousands of guesses per round. One winner takes the prize.",
     "primaryCategory": "games",
     "screenshotUrls": [
       "https://letshaveaword.fun/screenshot3.png"
@@ -23,9 +23,9 @@
       "multiplayer",
       "crypto"
     ],
-    "tagline": "Find the word, win the ETH",
+    "tagline": "Find the word, win the pot",
     "ogTitle": "Let’s Have A Word!",
-    "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot",
+    "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the jackpot",
     "ogImageUrl": "https://letshaveaword.fun/LHAW-hero3.png"
   },
   "accountAssociation": {

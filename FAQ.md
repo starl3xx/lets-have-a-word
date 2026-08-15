@@ -1,10 +1,16 @@
 # Let's Have A Word! – FAQ
 
+> **Prize currency.** Rounds 1–33 paid **ETH**. From round 34 the prize pool is
+> denominated in **$WORD**. Guess packs and Superguesses are bought with **ETH**
+> in both eras — 80% of each purchase is converted and credited to the pool.
+> Where this document says ETH about the prize pool, it is describing rounds
+> 1–33.
+
 ## How does the game work?
 
 Every **Let's Have A Word!** player worldwide is hunting the same secret 5-letter word. Every incorrect guess helps everyone else by removing that word from play.
 
-The **prize pool** is the total ETH collected during a round as players purchase guess packs. When someone guesses correctly, the round ends and the **jackpot** — the winner's share of the prize pool — is paid out automatically onchain. A new round then starts with a new secret word.
+The **prize pool** is the total value collected during a round as players purchase guess packs — ETH in rounds 1–33, $WORD from round 34. When someone guesses correctly, the round ends and the **jackpot** — the winner's share of the prize pool — is paid out automatically onchain. A new round then starts with a new secret word.
 
 ## Can I see the word after someone wins?
 
@@ -118,7 +124,7 @@ $WORD is the game's token on Base. It ties into gameplay in a few ways:
 - **Bonus guesses**: Hold 100M+ $WORD to earn extra free guesses daily
 - **Bonus word rewards**: Find a bonus word and receive 5M $WORD
 - **Burn word deflation**: Burn words permanently destroy 5M $WORD from the supply
-- **Top 10 $WORD rewards**: The top 10 guessers in each round earn $WORD payouts in addition to ETH
+- **Top 10 $WORD rewards**: The top 10 guessers in each round earn $WORD payouts on top of their share of the prize pool
 - **Staking**: Lock your $WORD in the WordManager contract to earn streaming staking rewards
 
 ## How does the share bonus work?
@@ -168,7 +174,7 @@ When a round is won, the prize pool is distributed atomically onchain in a singl
 If the winner **does not** have a referrer:
 - **2.5%** of the referrer share is added to the Top 10 pool
 - **2.5%** is added to the next round seed
-- Next round seed is capped at 0.02 ETH
+- Next round seed is capped at 0.02 ETH on ETH rounds (1–33). $WORD rounds cap the carry at a multiple of the round's own oracle-priced seed
 - Any overflow above the cap goes to the treasury
 
 Self-referrals are blocked. Null or zero referrers are treated as "no referrer."
@@ -210,7 +216,7 @@ You can track your referrals and earnings in the Refer sheet.
 
 Let's Have A Word uses **two smart contracts on Base** to handle different parts of the game's onchain mechanics:
 
-- **JackpotManager** (`0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`) — Manages ETH prize pools, payouts, and the secret word's SHA-256 commitment. When a round is won, this contract distributes the jackpot, Top 10 rewards, referrer share, and next round seed in a single atomic transaction.
+- **JackpotManager** (`0xfcb0D07a5BB5f004A1580D5Ae903E33c4A79EdB5`) — Managed **ETH** prize pools for rounds 1–33, and holds the secret-word commitments for those rounds, which is why it stays readable for verification. From round 34, prizes are held by **WordJackpot** and packs are bought through **WordPackSales**. When a round is won, this contract distributes the jackpot, Top 10 rewards, referrer share, and next round seed in a single atomic transaction.
 
 - **WordManager** — Manages $WORD token mechanics including bonus word rewards, burn word destruction, keccak256 word commitments, and Synthetix-style streaming staking rewards. All 15 bonus and burn words are committed to this contract before a round starts. When a player finds one, the contract verifies the guess against the committed hash before releasing or burning tokens.
 
@@ -220,7 +226,7 @@ Together, these contracts ensure that both ETH prizes and $WORD token mechanics 
 
 ## Why can't I play? / What are the eligibility requirements?
 
-Let's Have A Word has multiple layers of bot prevention. To play, your account needs to clear all of them. They exist because — like any game with real ETH payouts — coordinated bot farms try to flood guesses to win the jackpot by chance. Each layer below targets a different sybil signal, so a real player passes all of them while an attacker has to defeat each one.
+Let's Have A Word has multiple layers of bot prevention. To play, your account needs to clear all of them. They exist because — like any game with real payouts — coordinated bot farms try to flood guesses to win the jackpot by chance. Each layer below targets a different sybil signal, so a real player passes all of them while an attacker has to defeat each one.
 
 **1. Neynar user quality score ≥ 0.55**
 
@@ -274,7 +280,7 @@ Manage staking from the $WORD sheet (tap $WORD in the nav).
 
 ## Do top 10 players earn $WORD too?
 
-**Yes!** In addition to ETH payouts, the Top 10 Early Guessers receive $WORD token rewards distributed via the WordManager contract.
+**Yes!** On top of their share of the prize pool, the Top 10 Early Guessers receive $WORD token rewards. First place is worth $3.00 of $WORD, USD-denominated and priced at payout.
 
 The $WORD Top 10 distribution follows the same ranking percentages as ETH (19% for #1, 16% for #2, etc.), with the total pool amount scaling with market cap.
 

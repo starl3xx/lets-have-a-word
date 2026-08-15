@@ -32,7 +32,10 @@ export default function Document() {
         />
         {/* Open Graph meta tags for rich embeds */}
         <meta property="og:title" content="Let's Have A Word!" />
-        <meta property="og:description" content="A global word hunt where everyone eliminates wrong answers until one player hits the ETH jackpot" />
+        {/* Currency-neutral: this is the description on every embed of the site,
+            and it outlives any one era of the prize pool. splash.tsx already said
+            "the jackpot" — this was the copy that still said ETH. */}
+        <meta property="og:description" content="A global word hunt where everyone eliminates wrong answers until one player hits the jackpot" />
         <meta property="og:image" content="https://letshaveaword.fun/LHAW-hero3.png" />
         <meta property="og:url" content="https://letshaveaword.fun" />
         <meta property="og:type" content="website" />

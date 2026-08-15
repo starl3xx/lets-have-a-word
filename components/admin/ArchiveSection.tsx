@@ -11,6 +11,7 @@ import {
   formatArchiveSeed,
   formatArchivePayoutEntry,
 } from '../../src/lib/prize-display';
+import { formatWordAmount } from '../../src/lib/word-amounts';
 import { AnalyticsChart } from "./AnalyticsChart"
 
 // =============================================================================
@@ -31,6 +32,7 @@ interface ArchiveStats {
   totalGuessesAllTime: number
   uniqueWinners: number
   totalJackpotDistributed: string
+  totalJackpotDistributedWord?: string
   avgGuessesPerRound: number
   avgPlayersPerRound: number
   avgRoundLengthMinutes: number
@@ -627,7 +629,11 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             <StatCard
               label="Total Jackpot"
               value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
-              subtext="Distributed"
+              subtext={
+                stats.totalJackpotDistributedWord && stats.totalJackpotDistributedWord !== '0'
+                  ? `Distributed · + ${formatWordAmount(BigInt(stats.totalJackpotDistributedWord))} $WORD`
+                  : 'Distributed'
+              }
               loading={loading}
             />
             <StatCard

@@ -37,6 +37,9 @@ export interface DashboardSummary {
   currentRound: {
     roundId: number | null;
     prizePoolEth: string;
+    /** 'eth' | 'word' — which of the two pool fields is meaningful. */
+    prizeCurrency: string;
+    prizePoolWord: string | null;
     totalGuesses: number;
     pricingPhase: 'BASE' | 'LATE_1' | 'LATE_2';
     pricingPhaseLabel: string;
@@ -80,6 +83,12 @@ export default async function handler(
           .select({
             id: rounds.id,
             prizePoolEth: rounds.prizePoolEth,
+            // Without these the live tile renders "0.0000 ETH prize" through a
+            // whole $WORD round: prize_pool_eth is '0' on those rounds, and the
+            // tile had no way to know it was reading the wrong column.
+            prizeCurrency: rounds.prizeCurrency,
+            prizePoolWord: rounds.prizePoolWord,
+            seedPriceE18: rounds.seedPriceE18,
             startedAt: rounds.startedAt,
           })
           .from(rounds)
@@ -200,6 +209,8 @@ export default async function handler(
           currentRound: {
             roundId: activeRound?.id || null,
             prizePoolEth: activeRound?.prizePoolEth || '0',
+            prizeCurrency: activeRound?.prizeCurrency ?? 'eth',
+            prizePoolWord: activeRound?.prizePoolWord ?? null,
             totalGuesses: totalGuessesInRound,
             pricingPhase,
             pricingPhaseLabel: phaseLabels[pricingPhase] || pricingPhase,

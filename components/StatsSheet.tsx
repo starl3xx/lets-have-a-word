@@ -48,16 +48,47 @@ function EarningsStat({
     wordWei = 0n;
   }
 
+  const ethValue = parseFloat(eth || '0');
+  const hasEth = ethValue > 0;
+  const hasWord = wordWei > 0n;
+
   return (
     <div>
       <p className="text-sm text-success-700">{label}</p>
-      <p className="text-2xl font-bold text-success-900 tabular-nums">
-        {parseFloat(eth || '0').toFixed(4)}
-      </p>
-      {wordWei > 0n && (
-        <p className="text-sm font-semibold text-success-800 tabular-nums">
-          {formatWordAmount(wordWei)} $WORD
+
+      {/*
+        $WORD leads because it is the currency the game pays in now, and ETH
+        appears only for the players who actually won some. Nearly everyone has
+        zero pre-34 earnings, and showing them a permanent "0.0000 ETH" line
+        would make the panel look like it was reporting a loss.
+      */}
+      {hasWord && (
+        <p className="text-2xl font-bold text-success-900 tabular-nums">
+          {formatWordAmount(wordWei)}{' '}
+          <span className="text-base font-semibold">$WORD</span>
         </p>
+      )}
+
+      {hasEth && (
+        <p
+          className={
+            hasWord
+              ? 'text-sm font-semibold text-success-800 tabular-nums'
+              : 'text-2xl font-bold text-success-900 tabular-nums'
+          }
+        >
+          {ethValue.toFixed(4)}{' '}
+          <span className={hasWord ? '' : 'text-base font-semibold'}>ETH</span>
+        </p>
+      )}
+
+      {/*
+        Neither is not the same as zero-of-one: with no earnings at all there is
+        no currency to name, and picking one would imply the player had played
+        in that era.
+      */}
+      {!hasEth && !hasWord && (
+        <p className="text-2xl font-bold text-success-900 tabular-nums">0</p>
       )}
     </div>
   );
@@ -155,8 +186,15 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         `🔥 ${stats.burnWordsFound || 0} Burn words found\n` +
         `🔝 ${stats.topGuesserPlacements} Top 10 early guessers\n` +
         `🤝 ${stats.referralWins} referral wins\n` +
-        `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH earned\n` +
-        `🪙 ${totalWordEarned} $WORD earned\n` +
+        // Only the lines a player actually has. This unconditionally cast
+        // "0.0000 ETH earned" for anyone who never played a pre-34 round —
+        // publicly announcing a zero for a currency the game no longer pays in.
+        (parseFloat(stats.totalEthWon) > 0
+          ? `💰 ${parseFloat(stats.totalEthWon).toFixed(4)} ETH earned\n`
+          : '') +
+        (totalWordEarned && totalWordEarned !== '0'
+          ? `🪙 ${totalWordEarned} $WORD earned\n`
+          : '') +
         `⚡ ${xp.toLocaleString()} XP\n\n` +
         `@letshaveaword`;
 
@@ -382,7 +420,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-2xl font-bold text-success-900 tabular-nums">{stats.topGuesserPlacements}</p>
                 </div>
                 <EarningsStat
-                  label="ETH from top 10"
+                  label="From top 10"
                   eth={stats.topGuesserEthWon}
                   word={stats.topGuesserWordWon}
                 />
@@ -391,12 +429,12 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                   <p className="text-2xl font-bold text-success-900 tabular-nums">{stats.referralWins}</p>
                 </div>
                 <EarningsStat
-                  label="ETH from referrals"
+                  label="From referrals"
                   eth={stats.referralEthWon}
                   word={stats.referralWordWon}
                 />
                 <EarningsStat
-                  label="All-time ETH won"
+                  label="All-time won"
                   eth={stats.totalEthWon}
                   word={stats.totalWordWon}
                 />

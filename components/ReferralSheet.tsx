@@ -36,6 +36,15 @@ export default function ReferralSheet({
 
   // For ETH earned animation
   const [displayedEth, setDisplayedEth] = useState('0.0000');
+  /**
+   * The real total, separate from the animated counter above.
+   *
+   * `displayedEth` counts up from 0, so deciding whether to SHOW the ETH line
+   * from it means an ETH earner sees the empty "0" state on first paint and the
+   * line pops in partway through the animation. What to render and whether to
+   * render it are different questions, and only the first one is animated.
+   */
+  const [ethEarnedTotal, setEthEarnedTotal] = useState(0);
   const [wordEarnedWei, setWordEarnedWei] = useState('0');
   const [displayedReferrals, setDisplayedReferrals] = useState(0);
   const animationRef = useRef<number | null>(null);
@@ -76,6 +85,8 @@ export default function ReferralSheet({
         }
 
         setWordEarnedWei(data.referralWordEarned ?? '0');
+
+        setEthEarnedTotal(parseFloat(data.referralEthEarned) || 0);
 
         // Animate counters
         animateCounters(
@@ -304,23 +315,46 @@ export default function ReferralSheet({
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-accent-100">
                   <p className="text-sm text-accent-700">{t('referral.stats.ethEarned')}<span className="text-accent-500">*</span></p>
-                  <p className="text-3xl font-bold text-accent-900 tabular-nums">
-                    {displayedEth}
-                  </p>
                   {(() => {
-                    // Only rendered once a referrer has earned in a $WORD
-                    // round, so a purely pre-34 history looks unchanged.
                     let wei = 0n;
                     try {
                       wei = BigInt(wordEarnedWei || '0');
                     } catch {
                       wei = 0n;
                     }
-                    return wei > 0n ? (
-                      <p className="text-sm font-semibold text-accent-800 tabular-nums">
-                        {formatWordAmount(wei)} $WORD
-                      </p>
-                    ) : null;
+                    const hasWord = wei > 0n;
+                    const hasEth = ethEarnedTotal > 0;
+
+                    // The number here carried NO unit at all — a bare 4-decimal
+                    // figure under a label reading only "Earned". That reads as
+                    // ETH by convention, which was right until round 34 and is
+                    // now a guess the player has to make. Both lines name their
+                    // currency, and each appears only when it is non-zero.
+                    return (
+                      <>
+                        {hasWord && (
+                          <p className="text-3xl font-bold text-accent-900 tabular-nums">
+                            {formatWordAmount(wei)}{' '}
+                            <span className="text-lg font-semibold">$WORD</span>
+                          </p>
+                        )}
+                        {hasEth && (
+                          <p
+                            className={
+                              hasWord
+                                ? 'text-sm font-semibold text-accent-800 tabular-nums'
+                                : 'text-3xl font-bold text-accent-900 tabular-nums'
+                            }
+                          >
+                            {displayedEth}{' '}
+                            <span className={hasWord ? '' : 'text-lg font-semibold'}>ETH</span>
+                          </p>
+                        )}
+                        {!hasWord && !hasEth && (
+                          <p className="text-3xl font-bold text-accent-900 tabular-nums">0</p>
+                        )}
+                      </>
+                    );
                   })()}
                 </div>
               </div>

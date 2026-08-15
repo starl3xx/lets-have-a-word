@@ -104,6 +104,15 @@ export default async function handler(
             commitHash: rounds.commitHash,
             prizePoolEth: rounds.prizePoolEth,
             seedNextRoundEth: rounds.seedNextRoundEth,
+            // The payouts export was given these columns and this one was
+            // missed in the same edit. Without them a round-34 row exports with
+            // a prize pool of 0 and nothing anywhere in the CSV saying it was
+            // a $WORD round — which is the worst place to lose the
+            // discriminator, since a spreadsheet has no way to recover it.
+            prizeCurrency: rounds.prizeCurrency,
+            prizePoolWord: rounds.prizePoolWord,
+            seedNextRoundWord: rounds.seedNextRoundWord,
+            seedUsdCents: rounds.seedUsdCents,
             winnerFid: rounds.winnerFid,
             referrerFid: rounds.referrerFid,
             isDevTestRound: rounds.isDevTestRound,

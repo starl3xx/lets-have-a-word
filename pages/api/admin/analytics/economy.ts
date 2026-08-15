@@ -135,6 +135,11 @@ export default async function handler(
           WHERE started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
             AND is_dev_test_round = false
             AND resolved_at IS NOT NULL
+            -- The sustainability score divides ETH creator+seed revenue by an
+            -- average jackpot. Including $WORD rounds as zero-value rounds
+            -- deflates the denominator and inflates the score — a ratio of two
+            -- things measured over different populations.
+            AND prize_currency = 'eth'
         ),
         payout_data AS (
           SELECT
@@ -178,6 +183,8 @@ export default async function handler(
         WHERE started_at >= NOW() - INTERVAL '7 days'
           AND is_dev_test_round = false
           AND resolved_at IS NOT NULL
+          -- ETH rounds only; see the note in the sustainability query above.
+          AND prize_currency = 'eth'
       `);
     } catch (err) {
       console.error('[analytics/economy] 7-day jackpot query failed:', err);
@@ -194,7 +201,9 @@ export default async function handler(
       }>(sql`
         SELECT
           DATE(r.started_at) as day,
-          AVG(CAST(r.prize_pool_eth AS NUMERIC)) as avg_jackpot,
+          -- FILTER rather than a WHERE, because the payout sums beside this
+          -- are already dual-currency and must keep counting $WORD rounds.
+          AVG(CAST(r.prize_pool_eth AS NUMERIC)) FILTER (WHERE r.prize_currency = 'eth') as avg_jackpot,
           COUNT(DISTINCT r.winner_fid) as winners,
           COALESCE(SUM(CAST(rp.amount_eth AS NUMERIC)) FILTER (WHERE rp.role = 'winner'), 0) as total_payout,
           COALESCE(SUM(CAST(NULLIF(rp.amount_word, '') AS NUMERIC)) FILTER (WHERE rp.role = 'winner'), 0)::text as total_payout_word

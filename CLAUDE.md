@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Let's Have A Word is a massively multiplayer 5-letter word guessing game on Farcaster with ETH jackpots. All players worldwide hunt the same secret word, with incorrect guesses displayed on a spinning wheel. Winners receive proportional ETH payouts from a global prize pool.
+Let's Have A Word is a massively multiplayer 5-letter word guessing game on Farcaster. All players worldwide hunt the same secret word, with incorrect guesses displayed on a spinning wheel. Winners receive proportional payouts from a global prize pool.
+
+**Prize currency is per-round, and both eras are live at once.** Rounds 1–33 paid ETH; round 34 onward pays $WORD. Never infer the currency from a build flag or a global constant — read `rounds.prize_currency`, because the archive renders both eras on one screen. Guess packs and Superguesses are bought with **ETH** in both eras; 80% of each purchase is converted and credited to the $WORD pool.
+
+Several bugs have come from a hand-written field list silently dropping `prize_currency` — `Round.prizeCurrency` is optional, so nothing type-checks the omission and a missing value reads as an ETH round. If you `select()` a round and rebuild it into an object, carry the currency columns.
 
 ## Commands
 
@@ -42,6 +46,10 @@ npm run oracle:cron            # Update $WORD market cap oracle
 - `rounds.ts` - Round lifecycle management
 - `jackpot-contract.ts` - Base smart contract interactions
 - `economics.ts` - Prize pool calculations and payouts
+- `prize-display.ts` - How to render a prize; one place, so components do not each grow a currency branch
+- `round-prize.ts` / `word-amounts.ts` - Currency-aware prize reads and $WORD arithmetic
+- `word-jackpot-contract.ts` - WordJackpot (round 34+ prizes); `jackpot-contract.ts` is the ETH-era contract
+- `word-pool-credits.ts` - Credits purchases to the $WORD pool, batched and flushed before resolve
 - `encryption.ts` - AES-256-GCM answer encryption at rest
 - `appErrors.ts` - 40+ unified error codes with user-facing messages
 
@@ -64,7 +72,7 @@ Core tables: `users`, `rounds`, `guesses`, `daily_guess_state`, `round_payouts`,
 
 ### Game Economics
 - **Prize Split**: 80% winner | 10% Top 10 | 5% seed | 5% referrer (no referrer: 2.5% each → Top 10 & seed)
-- **Seed Cap**: 0.02 ETH (overflow → creator wallet)
+- **Seed Cap**: 0.02 ETH for ETH rounds (overflow → creator wallet). $WORD rounds cap the carry at `WORD_SEED_CARRY_MULTIPLE` × the round's own seed, priced by oracle at seed time.
 - **Top 10 Lock**: Only guesses 1-850 count for rankings; later guesses win but don't rank (was 750 for rounds 1-3)
 - **Guess Types**: Free (base) → $WORD bonus → Share bonus → Paid (consumed in order)
 - **Daily Reset**: 11:00 UTC for free guesses

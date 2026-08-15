@@ -1255,7 +1255,15 @@ export interface ArchiveStats {
   totalGuessesAllTime: number;
   totalPlayers: number;
   uniqueWinners: number;
+  /** ETH paid out across rounds 1-33. Excludes $WORD rounds. */
   totalJackpotDistributed: string;
+  /** $WORD paid out as jackpots, in wei. Excludes ETH rounds. */
+  totalJackpotDistributedWord: string;
+  /**
+   * $WORD distributed as BONUS-WORD rewards, read from WordManager. Not
+   * jackpots, and not comparable with the two figures above — it was already
+   * being rendered beside them as though it were a matching pair.
+   */
   totalWordTokenBonuses: number;
   avgGuessesPerRound: number;
   avgPlayersPerRound: number;
@@ -1274,6 +1282,7 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       total_players: string;
       unique_winners: string;
       total_jackpot_distributed: string;
+      total_jackpot_distributed_word: string;
       avg_guesses_per_round: string;
       avg_players_per_round: string;
       avg_round_length_minutes: string;
@@ -1283,7 +1292,16 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
         COALESCE(SUM(total_guesses), 0) as total_guesses_all_time,
         COALESCE(SUM(unique_players), 0) as total_players,
         COUNT(DISTINCT winner_fid) as unique_winners,
+        -- Each sum covers only its own era, and does so without a WHERE
+        -- clause because the columns are NULL for the currency that does not
+        -- apply and SUM skips NULLs. That property is created by the archive
+        -- write path, which records NULL rather than '0' for the inapplicable
+        -- pair precisely so these totals stay honest. If that ever changes to
+        -- '0', both of these silently start counting the other era's rounds as
+        -- zero-value rounds — which does not change the sum, but does make
+        -- "average per round" wrong everywhere it is derived.
         COALESCE(SUM(final_jackpot_eth), 0) as total_jackpot_distributed,
+        COALESCE(SUM(final_jackpot_word), 0) as total_jackpot_distributed_word,
         COALESCE(AVG(total_guesses), 0) as avg_guesses_per_round,
         COALESCE(AVG(unique_players), 0) as avg_players_per_round,
         COALESCE(AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60), 0) as avg_round_length_minutes
@@ -1303,6 +1321,7 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
       totalPlayers: parseInt(row?.total_players ?? '0', 10),
       uniqueWinners: parseInt(row?.unique_winners ?? '0', 10),
       totalJackpotDistributed: row?.total_jackpot_distributed ?? '0',
+      totalJackpotDistributedWord: row?.total_jackpot_distributed_word ?? '0',
       totalWordTokenBonuses: totalWordToken,
       avgGuessesPerRound: parseFloat(row?.avg_guesses_per_round ?? '0'),
       avgPlayersPerRound: parseFloat(row?.avg_players_per_round ?? '0'),

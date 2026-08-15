@@ -253,9 +253,9 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What is a Superguess?",
       answer: (
         <>
-          Superguess is a high-stakes late-game mechanic. After the round reaches <strong>850 guesses</strong>, any player can purchase a Superguess with $WORD tokens for an <strong>exclusive 25-guess, 10-minute window</strong>.
+          Superguess is a high-stakes late-game mechanic. After the round reaches <strong>850 guesses</strong>, any player can purchase a Superguess with <strong>ETH</strong> for an <strong>exclusive 25-guess, 10-minute window</strong>.
           <p className="mt-2">During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, normal play resumes immediately.</p>
-          <p className="mt-2">50% of the $WORD payment is burned, and 50% goes to staking rewards. Purchasing a Superguess earns the <strong>Showstopper</strong> Wordmark. One Superguess per round.</p>
+          <p className="mt-2">Purchasing a Superguess earns the <strong>Showstopper</strong> Wordmark. One Superguess per round.</p>
         </>
       ),
     },
