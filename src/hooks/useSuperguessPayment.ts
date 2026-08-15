@@ -25,9 +25,6 @@ import { useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance 
 import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
 
-// $WORD token address (ERC-20)
-const WORD_TOKEN_ADDRESS = '0x304e649e69979298bd1aee63e175adf07885fb4b' as `0x${string}`;
-
 const WORD_PACK_SALES_ADDRESS = process.env
   .NEXT_PUBLIC_WORD_PACK_SALES_ADDRESS as `0x${string}` | undefined;
 
@@ -39,42 +36,6 @@ const WORD_PACK_SALES_ABI = [
     stateMutability: 'payable',
     inputs: [{ name: 'roundId', type: 'uint256' }],
     outputs: [],
-  },
-] as const;
-
-// Operator wallet for receiving Superguess payments
-// Uses NEXT_PUBLIC_ prefix because this runs client-side (Wagmi hook)
-const OPERATOR_WALLET = (process.env.NEXT_PUBLIC_OPERATOR_WALLET ||
-  process.env.NEXT_PUBLIC_WORD_MANAGER_ADDRESS || '') as `0x${string}`;
-
-// Minimal ABI for ERC-20 transfer + approve
-const ERC20_ABI = [
-  {
-    name: 'transfer',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-  {
-    name: 'approve',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-  {
-    name: 'balanceOf',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
   },
 ] as const;
 
