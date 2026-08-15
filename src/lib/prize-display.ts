@@ -93,15 +93,24 @@ function compactWordAmount(wei: bigint): string {
     { div: 1_000_000, suffix: 'M' },
     { div: 1_000, suffix: 'K' },
   ] as const;
-  for (let i = 0; i < tiers.length; i++) {
+  // Billions carry two fixed decimals ("1.00B", "6.46B") — at that scale a
+  // hundredth is tens of millions of tokens, and the trailing zeros read as
+  // precision rather than noise (decided 2026-08-15). M and K keep one
+  // trimmed decimal.
+  if (whole >= 1_000_000_000) {
+    return `${(whole / 1_000_000_000).toFixed(2)}B`;
+  }
+  for (let i = 1; i < tiers.length; i++) {
     const { div, suffix } = tiers[i];
     if (whole < div) continue;
-    // Round BEFORE choosing the label: 999.96M must roll up to 1B, not
+    // Round BEFORE choosing the label: 999.96M must roll up to 1.00B, not
     // render as "1000M" — the one-decimal rounding can carry past the unit.
     const rounded = Math.round((whole / div) * 10) / 10;
-    if (rounded >= 1000 && i > 0) {
+    if (rounded >= 1000) {
       const up = tiers[i - 1];
-      return `${trimTrailingZero(whole / up.div)}${up.suffix}`;
+      return up.suffix === 'B'
+        ? `${(whole / up.div).toFixed(2)}B`
+        : `${trimTrailingZero(whole / up.div)}${up.suffix}`;
     }
     return `${trimTrailingZero(rounded)}${suffix}`;
   }
