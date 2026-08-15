@@ -663,7 +663,29 @@ export async function resolveRoundAndCreatePayouts(
     .where(eq(users.fid, winnerFid))
     .limit(1);
 
-  const referrerFid = winner?.referrerFid || null;
+  let referrerFid = winner?.referrerFid || null;
+
+  // Reward gate: a referrer must pass the same bar as everyone earning money.
+  // An ineligible referrer is treated exactly like no referrer — the 5%
+  // redirects 2.5/2.5 to the Top 10 and the seed, the established split.
+  if (referrerFid !== null) {
+    const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
+    if (isRewardGateEnabled()) {
+      // claimWallet off: a payout is not a new play (same rule as Top 10)
+      const gate = await checkPlayEligibility(referrerFid, {
+        round,
+        useCache: false,
+        claimWallet: false,
+      });
+      if (!gate.eligible) {
+        console.warn(
+          `🚧 [RewardGate] Referrer ${referrerFid} below the bar at resolve (${gate.reason}); redirecting the referrer share`
+        );
+        referrerFid = null;
+      }
+    }
+  }
+
   const hasReferrer = referrerFid !== null;
 
   // ============================================================================
@@ -785,9 +807,23 @@ export async function resolveRoundAndCreatePayouts(
   if (topGuesserFids.length > 0) {
     // Resolve wallet addresses for all top guessers
     const guesserWallets: { fid: number; wallet: string }[] = [];
+    const seenWallets = new Set<string>();
     for (const fid of topGuesserFids) {
       const wallet = await getWinnerPayoutAddress(fid);
       logWalletResolution('PAYOUT', fid, wallet);
+      // One payout per wallet. calculateTopGuesserPayouts throws on a
+      // duplicate address, which would abort the whole resolve — and the
+      // schema allows two FIDs to share a signer wallet, so the payout path
+      // must not crash on it. The higher-ranked FID keeps the payout. This
+      // hazard predates the reward gate; the gate merely made it visible.
+      const normalized = wallet.toLowerCase();
+      if (seenWallets.has(normalized)) {
+        console.warn(
+          `[economics] Skipping duplicate top-guesser wallet for FID ${fid} (${wallet}); higher-ranked FID keeps it`
+        );
+        continue;
+      }
+      seenWallets.add(normalized);
       guesserWallets.push({ fid, wallet });
     }
 
@@ -1307,8 +1343,58 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
       return a[1].lastGuessIndex - b[1].lastGuessIndex;
     });
 
-  // Return top 10 FIDs
-  return sorted.slice(0, 10).map(([fid]) => fid);
+  const rankedFids = sorted.map(([fid]) => fid);
+
+  // Reward gate: ineligible accounts do not rank; the next eligible account
+  // moves up. Uncached, against the round's frozen seed price — resolve is
+  // exactly the moment a farm's dumped balance must count against it.
+  const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
+  if (!isRewardGateEnabled()) {
+    return rankedFids.slice(0, 10);
+  }
+
+  const [roundRow] = await db
+    .select({ id: rounds.id, seedPriceE18: rounds.seedPriceE18 })
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
+
+  // Bounded and parallel. An unbounded serial walk would let a large farm
+  // cohort force hundreds of sequential RPC reads during resolve and stall
+  // the payout. Only the top slice is checked, all at once; if fewer than
+  // ten of them pass, the round pays fewer than ten — the split already
+  // handles short lists (small rounds produce them today) — instead of
+  // resolve hanging on the farm's tail. claimWallet is off: a payout is not
+  // a new play, so it must neither consume a (day, wallet) claim nor be
+  // blocked by one made under the resolve day.
+  const MAX_TOP10_GATE_CHECKS = 30;
+  const candidates = rankedFids.slice(0, MAX_TOP10_GATE_CHECKS);
+  const checks = await Promise.all(
+    candidates.map((fid) =>
+      checkPlayEligibility(fid, {
+        round: roundRow ?? null,
+        useCache: false,
+        claimWallet: false,
+      }).then(
+        (gate) => ({ fid, eligible: gate.eligible, reason: gate.reason }),
+        // Consistent with the decided fail-open policy on infrastructure error
+        () => ({ fid, eligible: true, reason: undefined })
+      )
+    )
+  );
+
+  const top10: number[] = [];
+  for (const check of checks) {
+    if (top10.length >= 10) break;
+    if (check.eligible) {
+      top10.push(check.fid);
+    } else {
+      console.warn(
+        `🚧 [RewardGate] FID ${check.fid} excluded from Top 10 at resolve (${check.reason}); next eligible moves up`
+      );
+    }
+  }
+  return top10;
 }
 
 /**

@@ -190,13 +190,13 @@ export default async function handler(
           db
             .select({ count: count() })
             .from(roundBonusWords)
-            .where(eq(roundBonusWords.claimedByFid, fid)),
+            .where(and(eq(roundBonusWords.claimedByFid, fid), eq(roundBonusWords.rewardWithheld, false))),
 
           // Burn words found
           db
             .select({ count: count() })
             .from(roundBurnWords)
-            .where(eq(roundBurnWords.finderFid, fid)),
+            .where(and(eq(roundBurnWords.finderFid, fid), eq(roundBurnWords.rewardWithheld, false))),
 
           // Total $WORD earned (top10 + bonus_word + staking; excludes burn which destroys tokens)
           db

@@ -452,6 +452,34 @@ export default async function handler(
       }
     }
 
+    // Reward gate (round 34+): hold or stake the play bar in $WORD, unless
+    // grandfathered. Runs after the identity gates and covers FREE and PAID
+    // guessing alike — the allocation floor alone would let paid credits
+    // through, and there is deliberately no pack bypass. Uses the round's
+    // frozen seed price for the bar and the 5-minute cache for the read.
+    {
+      const { checkPlayEligibility, isRewardGateEnabled } = await import('../../src/lib/reward-gate');
+      if (isRewardGateEnabled()) {
+        const { getActiveRound } = await import('../../src/lib/rounds');
+        const activeRound = await getActiveRound().catch(() => null);
+        const gate = await checkPlayEligibility(fid, {
+          round: activeRound,
+          useCache: true,
+        });
+        if (!gate.eligible) {
+          console.log(
+            `🚧 [RewardGate] Guess blocked: FID=${fid}, reason=${gate.reason}, bar=${gate.barTokens}`
+          );
+          return res.status(403).json({
+            error: 'REWARD_GATE_LOCKED',
+            message: 'Playing needs about $3 of $WORD, held or staked.',
+            reason: gate.reason,
+            barTokens: gate.barTokens,
+          } as any);
+        }
+      }
+    }
+
     // Milestone 9.6: Check for duplicate submission (same FID + same word within 10s)
     // This catches accidental double-submits and flaky network retries
     const duplicateCheck = await checkDuplicateGuess(fid, normalizedWord);

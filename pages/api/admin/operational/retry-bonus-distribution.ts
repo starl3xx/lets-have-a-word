@@ -17,6 +17,44 @@ import { distributeBonusWordRewardOnChain, getBonusWordRewardsBalanceOnChain } f
 import { isAdminFid } from '../../admin/me';
 import { getUserByFid as getNeynarUserByFid } from '../../../../src/lib/farcaster';
 
+
+/**
+ * Reward gate re-check for this admin path. A pending claim created before an
+ * account went below the bar must not pay out through the side door — this
+ * endpoint is a second route to distributeBonusWordRewardOnChain, so it runs
+ * the same award-time check the guess path runs. Withheld words never get
+ * this far (no claim row is created), but the rewardWithheld flag is checked
+ * anyway in case a row was hand-crafted.
+ */
+async function rewardGateBlocks(
+  fid: number | null | undefined,
+  roundId?: number | null
+): Promise<boolean> {
+  const { checkPlayEligibility, isRewardGateEnabled } = await import('../../../../src/lib/reward-gate');
+  if (!isRewardGateEnabled() || fid == null) return false;
+  // Retries can run days after the round: use the round's frozen seed price
+  // like every other money point, and do not consume a (day, wallet) claim —
+  // a retry is a re-send of an already-earned reward, not a new play.
+  let round: { id: number; seedPriceE18: string | null } | null = null;
+  if (roundId != null) {
+    const { db } = await import('../../../../src/db');
+    const { rounds } = await import('../../../../src/db/schema');
+    const { eq } = await import('drizzle-orm');
+    const [row] = await db
+      .select({ id: rounds.id, seedPriceE18: rounds.seedPriceE18 })
+      .from(rounds)
+      .where(eq(rounds.id, roundId))
+      .limit(1);
+    round = row ?? null;
+  }
+  const gate = await checkPlayEligibility(fid, {
+    round,
+    useCache: false,
+    claimWallet: false,
+  });
+  return !gate.eligible;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -115,6 +153,11 @@ export default async function handler(
               continue;
             }
 
+            if (bonusWord.rewardWithheld || (await rewardGateBlocks(claim.fid, bonusWord.roundId))) {
+              results.push({ claimId: claim.id, skipped: 'reward_gate' });
+              continue;
+            }
+
             const txHash = await distributeBonusWordRewardOnChain(
               claim.walletAddress,
               bonusWord.wordIndex
@@ -173,6 +216,10 @@ export default async function handler(
 
         if (!bonusWord) {
           return res.status(404).json({ error: 'Bonus word not found' });
+        }
+
+        if (bonusWord.rewardWithheld || (await rewardGateBlocks(claim.fid, bonusWord.roundId))) {
+          return res.status(403).json({ error: 'Reward gate blocks this claim', claimId: claim.id });
         }
 
         const txHash = await distributeBonusWordRewardOnChain(
@@ -241,6 +288,10 @@ export default async function handler(
             error: 'User has no wallet address (not in database and not found via Neynar)',
             fid: bonusWord.claimedByFid,
           });
+        }
+
+        if (bonusWord.rewardWithheld || (await rewardGateBlocks(bonusWord.claimedByFid, bonusWord.roundId))) {
+          return res.status(403).json({ error: 'Reward gate blocks this distribution', bonusWordId: bonusWord.id });
         }
 
         const txHash = await distributeBonusWordRewardOnChain(

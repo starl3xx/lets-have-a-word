@@ -25,6 +25,7 @@ import {
 
 import { logXpEvent } from './xp';
 import { getUserByFid as getNeynarUserByFid } from './farcaster';
+import { isRewardGateEnabled } from '../../config/economy';
 
 /**
  * Normalize a guess word
@@ -332,12 +333,15 @@ async function handleBonusWordWin(
     }).returning();
     guessId = insertedGuess.id;
 
-    // 2. Mark bonus word as claimed
+    // 2. Mark bonus word as claimed. rewardWithheld is cleared explicitly:
+    // a gated finder racing this claim can stamp the flag in the same window,
+    // and a real, paid claim must never stay hidden by a stray withheld mark.
     await tx
       .update(roundBonusWords)
       .set({
         claimedByFid: fid,
         claimedAt: new Date(),
+        rewardWithheld: false,
       })
       .where(eq(roundBonusWords.id, bonusWord.id));
 
@@ -365,6 +369,7 @@ async function handleBonusWordWin(
           and(
             eq(roundBonusWords.roundId, roundId),
             eq(roundBonusWords.claimedByFid, fid),
+            eq(roundBonusWords.rewardWithheld, false),
             // Exclude the current bonus word (already marked claimed above)
             sql`${roundBonusWords.id} != ${bonusWord.id}`
           )
@@ -375,7 +380,8 @@ async function handleBonusWordWin(
         .where(
           and(
             eq(roundBurnWords.roundId, roundId),
-            eq(roundBurnWords.finderFid, fid)
+            eq(roundBurnWords.finderFid, fid),
+            eq(roundBurnWords.rewardWithheld, false)
           )
         ),
     ]);
@@ -661,10 +667,11 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     if (
       process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
       process.env.ACCOUNT_AGE_GATING_ENABLED === 'true' ||
-      process.env.WALLET_CLUSTER_GATING_ENABLED === 'true'
+      process.env.WALLET_CLUSTER_GATING_ENABLED === 'true' ||
+      isRewardGateEnabled()
     ) {
       const { checkWinnerEligibility } = await import('./winner-eligibility');
-      const eligibility = await checkWinnerEligibility(fid);
+      const eligibility = await checkWinnerEligibility(fid, round);
       if (!eligibility.eligible) {
         // Audit row: correct word, but flagged as ineligible.
         // Wrap index-fetch + insert in a transaction so concurrent guesses
@@ -1069,17 +1076,75 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // Check if this is an unclaimed bonus word
     const bonusWordMatch = await checkBonusWordMatch(round.id, word);
 
-    if (bonusWordMatch) {
-      // 🎣 BONUS WORD FOUND!
-      return await handleBonusWordWin(round.id, fid, word, bonusWordMatch, isPaidGuess);
-    }
-
     // Milestone 14: Check if this is an unclaimed burn word
-    const burnWordMatch = await checkBurnWordMatch(round.id, word);
+    const burnWordMatch = bonusWordMatch ? null : await checkBurnWordMatch(round.id, word);
 
-    if (burnWordMatch) {
-      // 🔥 BURN WORD FOUND!
-      return await handleBurnWordWin(round.id, fid, word, burnWordMatch, isPaidGuess);
+    if (bonusWordMatch || burnWordMatch) {
+      // Reward gate at award time, uncached: the allocation check may have
+      // passed on a balance that was dumped since, and bonus/burn transfers
+      // are instant and irreversible — this is the last moment to decide.
+      // A withheld find marks the word claimed (global dedup kills it either
+      // way), pays nothing, burns nothing, and FALLS THROUGH to the ordinary
+      // wrong-guess path below, so the response is indistinguishable from a
+      // plain miss — the same invariant the ineligible-winner path keeps.
+      let rewardWithheld = false;
+      if (isRewardGateEnabled()) {
+        const { checkPlayEligibility } = await import('./reward-gate');
+        const gate = await checkPlayEligibility(fid, { round, useCache: false });
+        if (!gate.eligible) {
+          rewardWithheld = true;
+          // Guarded on "still unclaimed": the gate check above is an RPC away
+          // from the match, and an eligible finder can complete a real claim
+          // in that window. Without the guard this write would overwrite a
+          // paid claim with a withheld mark. Zero rows updated means someone
+          // else claimed first; the fall-through below is correct either way.
+          if (bonusWordMatch) {
+            await db
+              .update(roundBonusWords)
+              .set({ claimedByFid: fid, claimedAt: new Date(), rewardWithheld: true })
+              .where(
+                and(
+                  eq(roundBonusWords.id, bonusWordMatch.id),
+                  isNull(roundBonusWords.claimedByFid)
+                )
+              );
+          } else if (burnWordMatch) {
+            await db
+              .update(roundBurnWords)
+              .set({ finderFid: fid, foundAt: new Date(), rewardWithheld: true })
+              .where(
+                and(
+                  eq(roundBurnWords.id, burnWordMatch.id),
+                  isNull(roundBurnWords.finderFid)
+                )
+              );
+          }
+          Sentry.captureMessage('[RewardGate] Bonus/burn find withheld', {
+            level: 'warning',
+            tags: { type: 'reward_withheld' },
+            extra: {
+              roundId: round.id,
+              fid,
+              word,
+              kind: bonusWordMatch ? 'bonus' : 'burn',
+              reason: gate.reason,
+            },
+          });
+          console.warn(
+            `🚧 [RewardGate] ${bonusWordMatch ? 'Bonus' : 'Burn'} word find withheld: FID ${fid}, word "${word}", reason=${gate.reason}`
+          );
+        }
+      }
+
+      if (!rewardWithheld) {
+        if (bonusWordMatch) {
+          // 🎣 BONUS WORD FOUND!
+          return await handleBonusWordWin(round.id, fid, word, bonusWordMatch, isPaidGuess);
+        }
+        // 🔥 BURN WORD FOUND!
+        return await handleBurnWordWin(round.id, fid, word, burnWordMatch!, isPaidGuess);
+      }
+      // Withheld: continue into the plain incorrect-guess path.
     }
 
     // INCORRECT GUESS (not secret word, not bonus word, not burn word)

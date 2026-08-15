@@ -21,34 +21,76 @@ export const MCAP_TIER_1 = 150_000; // $150K
 export const MCAP_TIER_2 = 300_000; // $300K
 
 /**
- * Balance thresholds in whole tokens (without 18 decimals) per market cap tier
- * Each tier has 3 levels: +1, +2, +3 bonus guesses
+ * The holder ladder is USD-denominated (decided 2026-08-15): $25 / $50 / $75
+ * of $WORD, held or staked, for +1 / +2 / +3 daily guesses. This replaced the
+ * token-fixed bracket matrix (100M/200M/300M stepping down at mcap tiers);
+ * the chosen USD amounts sit within a dollar of the old token rungs at the
+ * decision-day price, so holders kept their tiers at the switch.
  */
-export const HOLDER_TIER_MATRIX = {
-  low: {   // mcap < $150K
-    bonus1: 100_000_000,  // 100M tokens → +1
-    bonus2: 200_000_000,  // 200M tokens → +2
-    bonus3: 300_000_000,  // 300M tokens → +3
-  },
-  mid: {   // $150K <= mcap < $300K
-    bonus1: 50_000_000,   // 50M tokens → +1
-    bonus2: 100_000_000,  // 100M tokens → +2
-    bonus3: 150_000_000,  // 150M tokens → +3
-  },
-  high: {  // mcap >= $300K
-    bonus1: 25_000_000,   // 25M tokens → +1
-    bonus2: 50_000_000,   // 50M tokens → +2
-    bonus3: 75_000_000,   // 75M tokens → +3
-  },
-};
+export const HOLDER_TIER_USD = {
+  bonus1: 25,
+  bonus2: 50,
+  bonus3: 75,
+} as const;
+
+export interface HolderTierThresholds {
+  bonus1: number;
+  bonus2: number;
+  bonus3: number;
+}
 
 /**
- * Get the tier thresholds (in whole tokens) for a given market cap
+ * Total $WORD supply in whole tokens, for USD→token conversion. Burns nibble
+ * at this (~0.2% so far); the ladder is a threshold, not an accounting figure,
+ * so a fixed constant is fine and avoids an onchain read on the tier path.
  */
-export function getHolderTierThresholds(marketCapUsd: number): typeof HOLDER_TIER_MATRIX.low {
-  if (marketCapUsd >= MCAP_TIER_2) return HOLDER_TIER_MATRIX.high;
-  if (marketCapUsd >= MCAP_TIER_1) return HOLDER_TIER_MATRIX.mid;
-  return HOLDER_TIER_MATRIX.low;
+export const WORD_TOTAL_SUPPLY_TOKENS = 99_900_000_000;
+
+/**
+ * Fallback market cap when the oracle env is unset or zero. Tiers must never
+ * divide by zero, and holders keep their bonuses through an oracle outage —
+ * the same fail-open direction every gate in this codebase takes.
+ */
+export const WORD_MCAP_FALLBACK_USD = 25_000;
+
+/**
+ * Get the tier thresholds (in whole tokens) for a given market cap.
+ * USD targets divided by the implied token price (mcap / supply).
+ */
+export function getHolderTierThresholds(marketCapUsd: number): HolderTierThresholds {
+  const mcap = marketCapUsd > 0 ? marketCapUsd : WORD_MCAP_FALLBACK_USD;
+  const priceUsd = mcap / WORD_TOTAL_SUPPLY_TOKENS;
+  return {
+    bonus1: Math.ceil(HOLDER_TIER_USD.bonus1 / priceUsd),
+    bonus2: Math.ceil(HOLDER_TIER_USD.bonus2 / priceUsd),
+    bonus3: Math.ceil(HOLDER_TIER_USD.bonus3 / priceUsd),
+  };
+}
+
+// =============================================================================
+// Reward Gate (round 34+): hold or stake $3 of $WORD to play
+// =============================================================================
+
+/**
+ * The play bar in USD. Anyone whose first guess predates round 28 (the first
+ * botted round) is grandfathered past it; everyone else needs this much $WORD,
+ * held or staked, to play. Frozen into a token amount per round from the
+ * round's seed price (see src/lib/reward-gate.ts).
+ */
+export const REWARD_GATE_PLAY_USD = (() => {
+  // Validated: garbage, an empty string, zero or a negative value would each
+  // silently zero the bar while the gate flag still reads enabled — a
+  // gate-wide fail-open caused by an env typo. Bad input falls back to $3.
+  const parsed = Number(process.env.REWARD_GATE_MIN_USD ?? '3');
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+})();
+
+/** Last round of the grandfather window: first guess in rounds 1–27 plays free. */
+export const REWARD_GATE_GRANDFATHER_LAST_ROUND = 27;
+
+/** Master switch. Ships off; enabled with the round-34 launch. */
+export function isRewardGateEnabled(): boolean {
+  return process.env.REWARD_GATE_ENABLED === 'true';
 }
 
 /**
@@ -150,7 +192,7 @@ export function getWordBonusTierInfo(
   bonusGuesses: number;
   tier: 'low' | 'mid' | 'high';
   marketCapUsd: number;
-  thresholds: typeof HOLDER_TIER_MATRIX.low;
+  thresholds: HolderTierThresholds;
 } {
   const tier = marketCapUsd >= MCAP_TIER_2 ? 'high'
     : marketCapUsd >= MCAP_TIER_1 ? 'mid'

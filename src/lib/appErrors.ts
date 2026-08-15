@@ -37,6 +37,7 @@ export const AppErrorCodes = {
   ACCOUNT_TOO_NEW: 'ACCOUNT_TOO_NEW',
   WALLET_TOO_FRESH: 'WALLET_TOO_FRESH',
   WALLET_IN_BOT_CLUSTER: 'WALLET_IN_BOT_CLUSTER',
+  REWARD_GATE_LOCKED: 'REWARD_GATE_LOCKED',
   FARCASTER_CONTEXT_MISSING: 'FARCASTER_CONTEXT_MISSING',
   AUTHENTICATION_REQUIRED: 'AUTHENTICATION_REQUIRED',
 
@@ -265,6 +266,17 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
     userTitle: 'Account flagged for review',
     userBody:
       'Your account couldn’t be verified for play. If you think this is a mistake, reach out to support.',
+    primaryCtaLabel: 'Learn more',
+    primaryCtaAction: 'open_help',
+    bannerVariant: 'warning',
+    logToAnalytics: true,
+  },
+  [AppErrorCodes.REWARD_GATE_LOCKED]: {
+    // The play bar (round 34+): about $3 of $WORD, held or staked, unless the
+    // account is grandfathered. The copy names the fix, not the defense.
+    userTitle: 'Hold $WORD to play',
+    userBody:
+      'Playing needs about $3 of $WORD, held or staked. Top up and you’re in within a few minutes.',
     primaryCtaLabel: 'Learn more',
     primaryCtaAction: 'open_help',
     bannerVariant: 'warning',

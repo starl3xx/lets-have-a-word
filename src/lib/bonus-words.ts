@@ -51,6 +51,7 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
       claimedByFid: roundBonusWords.claimedByFid,
       claimedAt: roundBonusWords.claimedAt,
       txHash: roundBonusWords.txHash,
+      rewardWithheld: roundBonusWords.rewardWithheld,
     })
     .from(roundBonusWords)
     .where(eq(roundBonusWords.roundId, roundId))
@@ -62,8 +63,11 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
   }
 
   const totalBonusWords = bonusWords.length;
-  const claimedWords = bonusWords.filter(bw => bw.claimedByFid !== null);
-  const claimedCount = claimedWords.length;
+  // A reward-withheld find (reward gate) counts as claimed — the word is dead
+  // to dedup either way — but the finder is never displayed and nothing paid.
+  const allClaimed = bonusWords.filter(bw => bw.claimedByFid !== null);
+  const claimedWords = allClaimed.filter(bw => !bw.rewardWithheld);
+  const claimedCount = allClaimed.length;
 
   // Get user info for all claimed bonus words
   const claimedFids = claimedWords.map(bw => bw.claimedByFid!);

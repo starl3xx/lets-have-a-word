@@ -135,6 +135,12 @@ export const CacheKeys = {
    */
   wordTier: (fid: number, dateKey: string) => `${CACHE_PREFIX}word-tier:${fid}:${dateKey}`,
 
+  /**
+   * Reward-gate play eligibility. Keyed by day like the tier: the cached copy
+   * serves the guess path; every money point re-checks uncached.
+   */
+  rewardGate: (fid: number, dateKey: string) => `${CACHE_PREFIX}reward-gate:${fid}:${dateKey}`,
+
   /** User stats (per user) */
   userStats: (fid: number) => `${CACHE_PREFIX}user-stats:${fid}`,
 
@@ -198,6 +204,14 @@ export const CacheTTL = {
    * yesterday's answer.
    */
   wordTier: 300,
+
+  /**
+   * Reward-gate play eligibility - same 5 minutes and the same reasoning as
+   * the tier above: an onchain balance read that must not sit on every guess.
+   * A player who tops up waits at most five minutes; money points never read
+   * this cache.
+   */
+  rewardGate: 300,
 
   /** User stats - medium TTL, less volatile */
   userStats: 30,
