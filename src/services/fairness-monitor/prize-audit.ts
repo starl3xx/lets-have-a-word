@@ -415,7 +415,11 @@ export async function getPrizeAuditSummary(): Promise<{
       count: count(),
     })
     .from(rounds)
-    .where(sql`${rounds.resolvedAt} IS NOT NULL`);
+    // ETH rounds only. prize_pool_eth is NOT NULL DEFAULT '0', so a $WORD round
+    // would enter the average and max as a zero-value round — and this is the
+    // fairness monitor, where a quietly wrong baseline is worse than a missing
+    // one.
+    .where(sql`${rounds.resolvedAt} IS NOT NULL AND ${rounds.prizeCurrency} = 'eth'`);
 
   return {
     totalJackpotDistributed: parseFloat(jackpotStats[0]?.totalJackpot || '0'),

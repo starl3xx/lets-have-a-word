@@ -81,7 +81,10 @@ export default async function handler(
       sql`
         SELECT
           AVG(EXTRACT(EPOCH FROM (COALESCE(resolved_at, NOW()) - started_at)) / 60) as avg_length_minutes,
-          AVG(CAST(prize_pool_eth AS NUMERIC)) as avg_jackpot,
+          -- ETH rounds only: prize_pool_eth is NOT NULL DEFAULT '0', so a
+          -- $WORD round enters this average as a zero-value round rather than
+          -- being excluded, dragging it down without changing any sum.
+          AVG(CAST(prize_pool_eth AS NUMERIC)) FILTER (WHERE prize_currency = 'eth') as avg_jackpot,
           COUNT(*) as total_rounds
         FROM rounds
         WHERE started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'

@@ -4,12 +4,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import { formatArchiveJackpot } from '../../src/lib/prize-display';
+import { formatWordAmount } from '../../src/lib/word-amounts';
 
 interface ArchivedRound {
   id: number;
   roundNumber: number;
   targetWord: string;
-  finalJackpotEth: string;
+  // Nullable from round 34: a $WORD round records its prize in
+  // finalJackpotWord and leaves the ETH pair empty.
+  finalJackpotEth: string | null;
+  currency?: string | null;
+  finalJackpotWord?: string | null;
   totalGuesses: number;
   uniquePlayers: number;
   winnerFid: number | null;
@@ -23,7 +29,12 @@ interface ArchiveStats {
   totalGuessesAllTime: number;
   totalPlayers: number;
   uniqueWinners: number;
+  /** ETH jackpots, rounds 1-33. */
   totalJackpotDistributed: string;
+  /** $WORD jackpots in wei, round 34+. Optional: a response cached before this
+   *  shipped arrives without it. */
+  totalJackpotDistributedWord?: string;
+  /** Bonus-word rewards — not jackpots, and not comparable with either above. */
   totalWordTokenBonuses: number;
   avgGuessesPerRound: number;
   avgPlayersPerRound: number;
@@ -133,13 +144,28 @@ export default function ArchiveListPage() {
                 <StatChip label="rounds" value={stats.totalRounds.toLocaleString()} />
                 <StatChip label="guesses" value={formatCompactNumber(stats.totalGuessesAllTime)} />
                 <StatChip label="players" value={stats.totalPlayers.toLocaleString()} />
+                {/*
+                  Three separate quantities that were previously two chips
+                  implying a matched pair. "ETH distributed" and "$WORD
+                  distributed" sat side by side, but the first was jackpots and
+                  the second was bonus-word rewards — different things, and the
+                  $WORD jackpot total was not shown at all.
+                */}
                 <StatChip
-                  label="ETH distributed"
+                  label="ETH jackpots"
                   value={formatEth(stats.totalJackpotDistributed)}
                   variant="green"
                 />
+                {stats.totalJackpotDistributedWord &&
+                  stats.totalJackpotDistributedWord !== '0' && (
+                    <StatChip
+                      label="$WORD jackpots"
+                      value={formatWordAmount(BigInt(stats.totalJackpotDistributedWord))}
+                      variant="purple"
+                    />
+                  )}
                 <StatChip
-                  label="$WORD distributed"
+                  label="$WORD bonuses"
                   value={formatCompactNumber(stats.totalWordTokenBonuses)}
                   variant="purple"
                 />
@@ -203,7 +229,7 @@ export default function ArchiveListPage() {
                       <div className="flex items-center gap-2 pl-3">
                         <div className="text-right">
                           <div className="font-bold text-green-600 text-sm">
-                            {formatEth(round.finalJackpotEth)} ETH
+                            {formatArchiveJackpot(round)}
                           </div>
                           <div className="text-xs text-gray-400">
                             {round.winnerUsername ? `@${round.winnerUsername}` : 'No winner'}

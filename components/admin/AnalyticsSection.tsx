@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { AnalyticsChart } from "./AnalyticsChart"
+import { formatPrize, formatPrizeValue } from "../../src/lib/prize-display"
 import { AnalyticsControls, TimeRange } from "./AnalyticsControls"
 
 // =============================================================================
@@ -33,6 +34,8 @@ interface DashboardSummary {
   currentRound: {
     roundId: number | null
     prizePoolEth: string
+    prizeCurrency?: string
+    prizePoolWord?: string | null
     totalGuesses: number
     pricingPhase: string
     pricingPhaseLabel: string
@@ -759,10 +762,19 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
               <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', fontFamily }}>
                 Prize Pool
               </div>
+              {/* Value and unit come from the round's own currency, not a
+                  hardcoded "ETH" label under a number read from the ETH
+                  column — which showed 0.0000 through an entire $WORD round. */}
               <div style={{ fontSize: '32px', fontWeight: 700, color: '#059669', fontFamily }}>
-                {formatEth(summary.currentRound.prizePoolEth)}
+                {formatPrizeValue({
+                  currency: summary.currentRound.prizeCurrency === 'word' ? 'word' : 'eth',
+                  eth: summary.currentRound.prizePoolEth,
+                  word: summary.currentRound.prizePoolWord,
+                })}
               </div>
-              <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>ETH</div>
+              <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily }}>
+                {summary.currentRound.prizeCurrency === 'word' ? '$WORD' : 'ETH'}
+              </div>
             </div>
 
             {/* Total Guesses */}
@@ -943,7 +955,11 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           <StatCard
             label="Current Round"
             value={summary?.currentRound.roundId ? `#${summary.currentRound.roundId}` : 'None'}
-            subtext={`${formatEth(summary?.currentRound.prizePoolEth || '0')} ETH prize`}
+            subtext={`${formatPrize({
+              currency: summary?.currentRound.prizeCurrency === 'word' ? 'word' : 'eth',
+              eth: summary?.currentRound.prizePoolEth,
+              word: summary?.currentRound.prizePoolWord,
+            })} prize`}
             loading={loading}
           />
         </div>
