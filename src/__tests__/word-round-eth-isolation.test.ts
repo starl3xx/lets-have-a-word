@@ -107,3 +107,42 @@ describe('a $WORD round is quarantined from the ETH economy', () => {
     }
   });
 });
+
+/**
+ * The guards above read `prizeCurrency` off the round they are handed. That
+ * only works if the round actually carries it.
+ *
+ * `getActiveRound` does `select()` — every column is fetched — and then
+ * rebuilds a `Round` from a hand-written field list that omitted the $WORD
+ * columns. `Round` declares `prizeCurrency` optional, so nothing type-checked
+ * the omission, and the type's own comment reads a missing value as "an ETH
+ * round". Every one of its ~50 callers got `undefined`, and any check of the
+ * form `round.prizeCurrency === 'word'` silently never fired.
+ */
+describe('getActiveRound carries the currency discriminator', () => {
+  it('returns prizeCurrency for a $WORD round', async () => {
+    const { getActiveRound } = await import('../lib/rounds');
+    const round = await createRound('word');
+
+    try {
+      const active = await getActiveRound();
+      expect(active?.id).toBe(round.id);
+      // The whole point: not undefined.
+      expect(active?.prizeCurrency).toBe('word');
+    } finally {
+      await db.delete(rounds).where(eq(rounds.id, round.id));
+    }
+  });
+
+  it('returns prizeCurrency for an ETH round', async () => {
+    const { getActiveRound } = await import('../lib/rounds');
+    const round = await createRound('eth');
+
+    try {
+      const active = await getActiveRound();
+      expect(active?.prizeCurrency).toBe('eth');
+    } finally {
+      await db.delete(rounds).where(eq(rounds.id, round.id));
+    }
+  });
+});

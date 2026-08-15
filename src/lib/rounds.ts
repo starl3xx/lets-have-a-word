@@ -360,6 +360,10 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
     seedNextRoundEth: round.seedNextRoundEth,
+    // Same omission as getActiveRound above — see the note there.
+    prizeCurrency: round.prizeCurrency,
+    prizePoolWord: round.prizePoolWord,
+    seedPriceE18: round.seedPriceE18,
     winnerFid: round.winnerFid,
     referrerFid: round.referrerFid,
     startedAt: round.startedAt,
@@ -404,6 +408,15 @@ export async function getActiveRound(): Promise<Round | null> {
       commitHash: round.commitHash,
       prizePoolEth: round.prizePoolEth,
       seedNextRoundEth: round.seedNextRoundEth,
+      // Carry the $WORD fields. The select above is `select()` — every column
+      // is already fetched — and this object literal was quietly dropping
+      // them, so `prizeCurrency` came back undefined for all ~50 callers.
+      // `Round` declares it optional, so nothing type-checks the omission, and
+      // the type's own comment reads a missing value as "an ETH round": the
+      // failure is silent and defaults the wrong way for round 34+.
+      prizeCurrency: round.prizeCurrency,
+      prizePoolWord: round.prizePoolWord,
+      seedPriceE18: round.seedPriceE18,
       winnerFid: round.winnerFid,
       referrerFid: round.referrerFid,
       startedAt: round.startedAt,
