@@ -8,8 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * paid repeatedly rather than once.
  */
 
-const { mockTier, cacheStore } = vi.hoisted(() => ({
+const { mockTier, mockTierChecked, cacheStore } = vi.hoisted(() => ({
   mockTier: vi.fn(),
+  mockTierChecked: vi.fn(),
   cacheStore: new Map<string, unknown>(),
 }));
 
@@ -32,7 +33,7 @@ vi.mock('../lib/redis', async (importOriginal) => {
 
 vi.mock('../lib/word-token', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/word-token')>();
-  return { ...actual, getWordBonusTier: mockTier };
+  return { ...actual, getWordBonusTier: mockTier, getWordBonusTierChecked: mockTierChecked };
 });
 
 import { db } from '../db';
@@ -120,6 +121,7 @@ describe('the $WORD holder tier', () => {
 
   beforeEach(async () => {
     mockTier.mockReset().mockResolvedValue(2);
+    mockTierChecked.mockReset().mockResolvedValue({ tier: 2, determined: true });
     await cacheDel(CacheKeys.wordTier(FID, getTodayUTC())).catch(() => {});
     await db.delete(users).where(eq(users.fid, FID));
     await db.insert(users).values({
@@ -138,20 +140,38 @@ describe('the $WORD holder tier', () => {
     expect(first).toBe(2);
     expect(second).toBe(2);
     expect(third).toBe(2);
-    expect(mockTier).toHaveBeenCalledTimes(1);
+    expect(mockTierChecked).toHaveBeenCalledTimes(1);
 
     await db.delete(users).where(eq(users.fid, FID));
   });
 
-  it('does not cache a zero produced by an RPC failure', async () => {
-    // A failed call is not evidence the player holds nothing. Caching it would
-    // deny them bonus guesses for five minutes because of an outage on our
+  it('does not cache a zero the RPC returned without throwing', async () => {
+    // The real failure shape, and the reason this needed a separate function.
+    // getEffectiveBalance and getWordBonusTier both catch their own errors and
+    // return 0, so an outage NEVER throws — a try/catch here would not see it,
+    // and caching on the non-throwing path stores "the chain was down" as
+    // though it were "this wallet is empty". A holder would then lose their
+    // bonus guesses for the life of the cache entry because of an outage on our
     // side, which is the one direction this must never fail in.
-    mockTier.mockRejectedValueOnce(new Error('RPC down'));
+    mockTierChecked.mockResolvedValueOnce({ tier: 0, determined: false });
     expect(await getWordBonusTierForFid(FID)).toBe(0);
 
-    mockTier.mockResolvedValue(3);
+    // Nothing was remembered, so the next call asks again and gets the truth.
+    mockTierChecked.mockResolvedValue({ tier: 3, determined: true });
     expect(await getWordBonusTierForFid(FID)).toBe(3);
+
+    await db.delete(users).where(eq(users.fid, FID));
+  });
+
+  it('does cache a genuine zero', async () => {
+    // The distinction has to cut both ways, or a non-holder pays an RPC call
+    // per guess forever — which is the cost this change exists to remove, and
+    // non-holders are the common case.
+    mockTierChecked.mockResolvedValue({ tier: 0, determined: true });
+
+    expect(await getWordBonusTierForFid(FID)).toBe(0);
+    expect(await getWordBonusTierForFid(FID)).toBe(0);
+    expect(mockTierChecked).toHaveBeenCalledTimes(1);
 
     await db.delete(users).where(eq(users.fid, FID));
   });

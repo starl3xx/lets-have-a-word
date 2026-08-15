@@ -16,7 +16,7 @@ import { submitGuess } from './guesses';
 import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult, GuessSourceState } from '../types';
-import { hasWordTokenBonus, getWordBonusTier } from './word-token';
+import { hasWordTokenBonus, getWordBonusTier, getWordBonusTierChecked } from './word-token';
 import { cacheGet, cacheSet, CacheKeys, CacheTTL } from './redis';
 import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
@@ -184,15 +184,20 @@ export async function getWordBonusTierForFid(fid: number): Promise<number> {
       return 0;
     }
 
-    // Query onchain effective balance and compute tier
-    const tier = await getWordBonusTier(user.signerWalletAddress);
-    await cacheSet(cacheKey, tier, CacheTTL.wordTier).catch(() => {});
-    return tier;
+    // The *Checked variant, because the ordinary one returns 0 for both "holds
+    // nothing" and "the chain could not be reached" — and those must not be
+    // cached alike. The RPC layer swallows its own failures and returns 0, so a
+    // try/catch here never sees them: caching on the non-throwing path would
+    // store an outage as a real answer and deny holders their bonus guesses for
+    // the life of the entry.
+    const result = await getWordBonusTierChecked(user.signerWalletAddress);
+
+    if (result.determined) {
+      await cacheSet(cacheKey, result.tier, CacheTTL.wordTier).catch(() => {});
+    }
+    return result.tier;
   } catch (error) {
     console.error(`[$WORD] Error checking tier for FID ${fid}:`, error);
-    // Deliberately NOT cached: a failed RPC call is not evidence the player
-    // holds nothing, and writing 0 here would deny them bonus guesses for five
-    // minutes because of an outage on our side.
     return 0;
   }
 }

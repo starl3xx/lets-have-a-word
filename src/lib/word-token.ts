@@ -133,6 +133,49 @@ export async function getEffectiveBalance(walletAddress: string): Promise<number
 }
 
 /**
+ * The effective balance, reporting whether it could actually be read.
+ *
+ * getEffectiveBalance above returns 0 on any RPC failure, which makes an outage
+ * indistinguishable from an empty wallet. That is fine for a caller that just
+ * wants a number to compare, and wrong for one that intends to remember the
+ * answer.
+ */
+export async function getEffectiveBalanceChecked(
+  walletAddress: string
+): Promise<{ balance: number; determined: boolean }> {
+  try {
+    const provider = getBaseProvider();
+    const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
+    const walletBalance = await contract.balanceOf(walletAddress);
+
+    // Staking is additive: if WordManager is unreachable the wallet balance is
+    // still a real reading, just a lower one. That is a determined answer.
+    let stakedBalance = 0n;
+    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
+    if (wordManagerAddress && wordManagerAddress !== '') {
+      try {
+        const wordManager = new ethers.Contract(
+          wordManagerAddress,
+          ['function stakedBalance(address) view returns (uint256)'],
+          provider
+        );
+        stakedBalance = await wordManager.stakedBalance(walletAddress);
+      } catch {
+        // stakedBalance unavailable — use wallet balance only
+      }
+    }
+
+    return {
+      balance: parseFloat(ethers.formatUnits(walletBalance + stakedBalance, 18)),
+      determined: true,
+    };
+  } catch (error) {
+    console.error(`[$WORD] Error getting effective balance for ${walletAddress}:`, error);
+    return { balance: 0, determined: false };
+  }
+}
+
+/**
  * Get $WORD holder bonus tier (0-3) based on effective balance and market cap
  * Milestone 14: Replaces binary hasWordTokenBonus()
  *
@@ -169,6 +212,48 @@ export async function getWordBonusTier(
   } catch (error) {
     console.error(`[$WORD] Error checking tier for ${walletAddress}:`, error);
     return 0;
+  }
+}
+
+/**
+ * The holder tier, distinguishing "holds nothing" from "could not tell".
+ *
+ * getWordBonusTier returns 0 for both, which is the right default for a caller
+ * that just needs a number — but not for one that wants to CACHE the answer.
+ * A zero that means "the RPC was down" must not be stored, or an outage on our
+ * side silently denies holders their bonus guesses for the life of the cache
+ * entry. The two cases are indistinguishable from the return value alone, so
+ * they need separate reporting.
+ *
+ * `determined: false` means the chain could not be reached, not that the wallet
+ * is empty.
+ */
+export async function getWordBonusTierChecked(
+  walletAddress: string | null,
+  marketCapUsd: number = WORD_MARKET_CAP_USD
+): Promise<{ tier: number; determined: boolean }> {
+  // A missing or malformed address is a real, cacheable zero: no network call
+  // is involved and the answer will not change until the wallet does.
+  if (!walletAddress || !ethers.isAddress(walletAddress)) {
+    return { tier: 0, determined: true };
+  }
+
+  try {
+    const balanceWholeTokens = await getEffectiveBalanceChecked(walletAddress);
+    if (!balanceWholeTokens.determined) {
+      return { tier: 0, determined: false };
+    }
+
+    const thresholds = getHolderTierThresholds(marketCapUsd);
+    let tier = 0;
+    if (balanceWholeTokens.balance >= thresholds.bonus3) tier = 3;
+    else if (balanceWholeTokens.balance >= thresholds.bonus2) tier = 2;
+    else if (balanceWholeTokens.balance >= thresholds.bonus1) tier = 1;
+
+    return { tier, determined: true };
+  } catch (error) {
+    console.error(`[$WORD] Error checking tier for ${walletAddress}:`, error);
+    return { tier: 0, determined: false };
   }
 }
 
