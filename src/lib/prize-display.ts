@@ -67,6 +67,59 @@ export function formatPrize(input: PrizeAmountInput): string {
 }
 
 /**
+ * Compact prize for the info bar (decided 2026-08-15): "120M $WORD" instead
+ * of "120,000,000 $WORD". The bar is the tightest surface in the app and
+ * never wraps; every other surface keeps the full-separator form. ETH
+ * amounts are short already and pass through unchanged.
+ */
+export function formatPrizeCompact(input: PrizeAmountInput): string {
+  if (input.currency === 'word') {
+    let wei: bigint;
+    try {
+      wei = BigInt(input.word ?? '0');
+    } catch {
+      wei = 0n;
+    }
+    return `${compactWordAmount(wei)} $WORD`;
+  }
+  return `${formatEthAmount(input.eth ?? '0')} ETH`;
+}
+
+function compactWordAmount(wei: bigint): string {
+  const whole = Number(wei / 10n ** 18n);
+  if (!Number.isFinite(whole) || whole <= 0) return '0';
+  const tiers = [
+    { div: 1_000_000_000, suffix: 'B' },
+    { div: 1_000_000, suffix: 'M' },
+    { div: 1_000, suffix: 'K' },
+  ] as const;
+  // THREE SIGNIFICANT DIGITS, always (decided 2026-08-15): 999M, 78.1M,
+  // 1.00B — the digit count stays constant across magnitudes, the decimal
+  // appears only when the magnitude calls for it. A value that rounds past
+  // its unit rolls up (999.6M becomes 1.00B, never 1000M).
+  for (let i = 0; i < tiers.length; i++) {
+    const { div, suffix } = tiers[i];
+    if (whole < div) continue;
+    let value = whole / div;
+    let unit = suffix;
+    if (value >= 999.5 && i > 0) {
+      value = whole / tiers[i - 1].div;
+      unit = tiers[i - 1].suffix;
+    }
+    return `${threeSignificantDigits(value)}${unit}`;
+  }
+  return whole.toLocaleString('en-US');
+}
+
+/** 1.00–9.99 → two decimals; 10.0–99.9 → one; 100–999 → none. */
+function threeSignificantDigits(value: number): string {
+  if (value >= 99.95) return Math.round(value).toString();
+  if (value >= 9.995) return value.toFixed(1);
+  return value.toFixed(2);
+}
+
+
+/**
  * USD in parentheses, e.g. "($20.00)", or null when there is no value to show.
  *
  * $WORD amounts are large and unitless to most players, so the USD equivalent
