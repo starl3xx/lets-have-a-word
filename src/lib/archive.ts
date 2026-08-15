@@ -444,7 +444,17 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           };
         }
         seedEth = previousRound.seedNextRoundEth;
-        seedWord = previousRound.seedNextRoundWord ?? null;
+        // Keyed on what the PREVIOUS round actually paid, not on the column
+        // being null — seed_next_round_word is NOT NULL DEFAULT '0', so an ETH
+        // predecessor yields '0', never null. Recording '0' would assert "a
+        // $WORD carry-forward of zero happened", which is a different and
+        // untrue statement from "no $WORD was carried forward at all". Round 34
+        // follows an ETH round: its opening pool came from the treasury
+        // tranche, and null is what says so.
+        seedWord =
+          previousRound.prizeCurrency === 'word'
+            ? previousRound.seedNextRoundWord ?? null
+            : null;
       }
     }
 

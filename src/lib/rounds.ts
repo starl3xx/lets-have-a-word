@@ -541,6 +541,14 @@ export async function getRoundById(roundId: number): Promise<Round | null> {
     salt: round.salt,
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
+    // The fourth hand-written field list in this codebase to drop the currency
+    // discriminator. Without it, the ROUND_RESOLVED analytics event reads its
+    // currency off this object and records every $WORD resolve as 'eth' — so
+    // the discriminator added for the growth chart never reaches the stream it
+    // was added for.
+    prizeCurrency: round.prizeCurrency,
+    prizePoolWord: round.prizePoolWord,
+    seedPriceE18: round.seedPriceE18,
     seedNextRoundEth: round.seedNextRoundEth,
     winnerFid: round.winnerFid,
     referrerFid: round.referrerFid,

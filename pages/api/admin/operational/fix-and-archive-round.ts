@@ -106,6 +106,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const rawRound = roundRows[0];
 
+    // BEFORE the DELETE below, not after it.
+    //
+    // This repair path writes seed_eth / final_jackpot_eth only and lets
+    // `currency` fall to its 'eth' column default, so on a $WORD round it would
+    // bake an ETH payout that never happened into the one record nothing
+    // recomputes. But it also deletes the existing archive row first, to
+    // re-derive it — so refusing further down meant a mistaken repair attempt
+    // on a correctly archived $WORD round destroyed that row and wrote nothing
+    // back. A guard placed after the destructive step is not a guard.
+    //
+    // Refusing is deliberate rather than a gap: archiveRound() handles $WORD
+    // correctly, so a stuck $WORD round should be fixed at the cause and put
+    // through the normal path.
+    if (rawRound.prize_currency === 'word') {
+      return res.status(400).json({
+        error: `Round ${roundId} pays in $WORD, and this repair path can only write ETH archive rows.`,
+        detail:
+          'It would record an ETH payout that never happened, permanently. ' +
+          'Use the standard archive path, which is currency-aware.',
+        prizeCurrency: rawRound.prize_currency,
+      });
+    }
+
     // Log ALL field types
     console.log(`[fix-and-archive] Raw round ${roundId} data:`);
     for (const [key, value] of Object.entries(rawRound)) {
@@ -248,25 +271,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error('[fix-and-archive] Failed to decrypt answer:', e);
         return res.status(500).json({ error: 'Failed to decrypt answer', details: String(e) });
       }
-    }
-
-    // This repair path writes seed_eth / final_jackpot_eth only, and lets
-    // `currency` fall to its 'eth' column default. On a $WORD round that
-    // produces a permanently wrong archive row — the one record nothing ever
-    // recomputes — claiming an ETH payout that never happened.
-    //
-    // Refusing is not the same as supporting it, and the gap is deliberate:
-    // archiveRound() handles $WORD correctly, so the answer for a stuck $WORD
-    // round is to fix the underlying problem and use the normal path, not to
-    // reach for a tool that would bake in the wrong currency.
-    if (rawRound.prize_currency === 'word') {
-      return res.status(400).json({
-        error: `Round ${roundId} pays in $WORD, and this repair path can only write ETH archive rows.`,
-        detail:
-          'It would record an ETH payout that never happened, permanently. ' +
-          'Use the standard archive path, which is currency-aware.',
-        prizeCurrency: rawRound.prize_currency,
-      });
     }
 
     // Step 8: Insert archive record
