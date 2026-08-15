@@ -221,7 +221,7 @@ export async function proxy(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-// Configure which paths the middleware runs on
+// Configure which paths the proxy runs on
 export const config = {
   matcher: [
     /*

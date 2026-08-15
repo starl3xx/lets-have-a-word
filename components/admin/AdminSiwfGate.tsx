@@ -23,7 +23,7 @@ const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-s
  * Not this component. The browser holds no credential it could forge: the
  * signed SIWF message goes to /api/auth/verify, which checks the signature
  * against Optimism, confirms the FID is an admin, and sets an HttpOnly session
- * cookie this code cannot read. Middleware checks that cookie on every
+ * cookie this code cannot read. The proxy checks that cookie on every
  * /api/admin/* request. So the UI below decides what to render, and the server
  * decides what is allowed — which is the split the old `?devFid=6500` flow got
  * wrong, since the admin FIDs ship in this very bundle.
