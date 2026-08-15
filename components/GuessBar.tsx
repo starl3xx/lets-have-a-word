@@ -25,11 +25,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { GuessSourceState } from '../src/types';
+import BuyButton from './word/BuyButton';
 
 interface GuessBarProps {
   sourceState: GuessSourceState;
   onGetMore?: () => void;
   onWordHintTap?: () => void;
+  /** Round 34+ reward gate: the player must hold/stake the bar to play */
+  rewardGateLocked?: boolean;
 }
 
 /**
@@ -83,8 +86,9 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-export default function GuessBar({ sourceState, onGetMore, onWordHintTap }: GuessBarProps) {
+export default function GuessBar({ sourceState, onGetMore, onWordHintTap, rewardGateLocked }: GuessBarProps) {
   const { totalRemaining, free, wordToken, share, paid } = sourceState;
+
 
   // Track decrement pulse animation
   const [justDecremented, setJustDecremented] = useState(false);
@@ -111,6 +115,25 @@ export default function GuessBar({ sourceState, onGetMore, onWordHintTap }: Gues
     // Always update ref to current value
     lastRemainingRef.current = totalRemaining;
   }, [totalRemaining, prefersReducedMotion]);
+
+  // Reward gate (round 34+): the locked state replaces the whole bar. The
+  // shortfall is $WORD, so the CTA buys $WORD — not a guess pack, which
+  // deliberately does not bypass the gate. Placed AFTER every hook: the flag
+  // flips once /api/user-state loads, and an early return above the hooks
+  // would change the hook count between renders and crash React.
+  if (rewardGateLocked) {
+    return (
+      <div
+        className="flex items-center justify-center gap-3 py-2"
+        style={{ minHeight: '2.5rem' }}
+      >
+        <span className="text-sm text-gray-600">
+          Hold or stake <strong className="text-gray-900">$3 of $WORD</strong> to play
+        </span>
+        <BuyButton size="sm" />
+      </div>
+    );
+  }
 
   // Determine which segments to show
   // $WORD is always shown (as hint for non-holders, normally for holders)

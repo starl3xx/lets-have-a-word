@@ -15,11 +15,22 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../src/db';
 import { users, ogHunterCastProofs, userBadges } from '../../../src/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getActiveRound } from '../../../src/lib/rounds';
+import { REWARD_GATE_GRANDFATHER_LAST_ROUND } from '../../../config/economy';
 
 export interface OnboardingStatusResponse {
   hasSeenIntro: boolean;
   hasSeenOgHunterThanks: boolean;
   hasSeenSuperguessAnnouncement: boolean;
+  hasSeenRound34Announcement: boolean;
+  /**
+   * True only while the ACTIVE round pays $WORD. This is the leak guard: the
+   * round-34 announcement is never offered before round 34 actually starts,
+   * so opening the app early cannot reveal the update.
+   */
+  wordEraActive: boolean;
+  /** First guess in rounds 1–27 — plays free under the reward gate */
+  grandfathered: boolean;
   isOgHunter: boolean;
   ogHunterAwarded: boolean;
   /** Whether user has installed the mini app (addedMiniAppAt is set) */
@@ -48,7 +59,7 @@ export default async function handler(
   try {
     // OPTIMIZATION: Run all queries in parallel instead of sequentially
     // This reduces total query time from ~150ms (3x50ms) to ~50ms
-    const [user, castProof, badge] = await Promise.all([
+    const [user, castProof, badge, activeRound] = await Promise.all([
       // Get user record
       db.query.users.findFirst({
         where: eq(users.fid, fid),
@@ -56,6 +67,8 @@ export default async function handler(
           hasSeenIntro: true,
           hasSeenOgHunterThanks: true,
           hasSeenSuperguessAnnouncement: true,
+          hasSeenRound34Announcement: true,
+          firstGuessRound: true,
           addedMiniAppAt: true,
         },
       }),
@@ -72,7 +85,12 @@ export default async function handler(
         ),
         columns: { id: true },
       }),
+      // The era signal for the round-34 announcement. prize_currency is the
+      // only truthful source (never a flag or a round number).
+      getActiveRound().catch(() => null),
     ]);
+
+    const wordEraActive = activeRound?.prizeCurrency === 'word';
 
     // If user doesn't exist, return defaults (not an error - user may be new)
     if (!user) {
@@ -80,6 +98,9 @@ export default async function handler(
         hasSeenIntro: false,
         hasSeenOgHunterThanks: false,
         hasSeenSuperguessAnnouncement: false,
+        hasSeenRound34Announcement: false,
+        wordEraActive,
+        grandfathered: false,
         isOgHunter: false,
         ogHunterAwarded: false,
         hasMiniAppInstalled: false,
@@ -94,6 +115,11 @@ export default async function handler(
       hasSeenIntro: user.hasSeenIntro,
       hasSeenOgHunterThanks: user.hasSeenOgHunterThanks,
       hasSeenSuperguessAnnouncement: user.hasSeenSuperguessAnnouncement,
+      hasSeenRound34Announcement: user.hasSeenRound34Announcement,
+      wordEraActive,
+      grandfathered:
+        user.firstGuessRound != null &&
+        user.firstGuessRound <= REWARD_GATE_GRANDFATHER_LAST_ROUND,
       isOgHunter,
       ogHunterAwarded,
       hasMiniAppInstalled: !!user.addedMiniAppAt,

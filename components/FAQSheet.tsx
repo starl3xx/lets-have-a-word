@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 import { WORD_POOL_URL } from '../config/economy';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
@@ -25,6 +25,20 @@ interface FAQItem {
 export default function FAQSheet({ onClose }: FAQSheetProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const { inMiniApp, resolved } = useIsInMiniApp();
+
+  // The "$WORD to play" entry appears only while a $WORD round is ACTIVE —
+  // the same leak guard as the round-34 announcement, so opening the FAQ
+  // before round 34 starts reveals nothing. prize_currency is the only
+  // truthful era signal.
+  const [wordEraActive, setWordEraActive] = useState(false);
+  useEffect(() => {
+    fetch('/api/round-state')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.prizeCurrency === 'word') setWordEraActive(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const toggleQuestion = (index: number) => {
     setExpandedIndex(expandedIndex === index ? null : index);
@@ -101,6 +115,21 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         </>
       ),
     },
+    ...(wordEraActive
+      ? [
+          {
+            question: "Why do I need $WORD to play?",
+            answer: (
+              <>
+                From round 34, playing requires about <strong>$3 of <WordTokenLink>$WORD</WordTokenLink></strong> in your wallet — held or staked, your choice. You keep the tokens; nothing is spent by playing.
+                <p className="mt-2"><strong>Played before round 28?</strong> You're grandfathered in and play free forever — no $WORD needed.</p>
+                <p className="mt-2">This keeps the prize pool safe from bot farms: thousands of throwaway accounts each need their own funded wallet, which makes farming unprofitable. Real players top up once and never think about it again.</p>
+                <p className="mt-2">Buying an ETH guess pack does not replace the requirement — the $3 of $WORD is what proves an account is real.</p>
+              </>
+            ),
+          },
+        ]
+      : []),
     // ── Guesses & Pricing ────────────────────────────────────────────
     {
       question: "What are free guesses?",
@@ -118,7 +147,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           You can earn bonus free guesses by:
           <ol className="list-decimal list-inside mt-2 space-y-1">
             <li>Sharing your daily guess on Farcaster (+1 guess/day)</li>
-            <li>Holding <WordTokenLink>$WORD</WordTokenLink> tokens (+1 to +3 guesses/day depending on balance and market cap tier)</li>
+            <li>Holding <WordTokenLink>$WORD</WordTokenLink> tokens (+1 to +3 guesses/day at ~$25 / $50 / $75 of $WORD, held or staked)</li>
           </ol>
           <p className="mt-2">You can also purchase paid guess packs (3 guesses per pack, unlimited purchases with volume-based pricing).</p>
         </>
@@ -288,22 +317,13 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "How do $WORD holder tiers work?",
       answer: (
         <>
-          Holding <WordTokenLink>$WORD</WordTokenLink> tokens gives you bonus free guesses every day. The number of bonus guesses depends on your <strong>balance</strong> and the <strong>current market cap</strong>:
-          <p className="mt-2"><strong>When market cap is below $150K:</strong></p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>100M tokens → <strong>+1 guess/day</strong> (Tier 1)</li>
-            <li>200M tokens → <strong>+2 guesses/day</strong> (Tier 2)</li>
-            <li>300M tokens → <strong>+3 guesses/day</strong> (Tier 3)</li>
+          Holding <WordTokenLink>$WORD</WordTokenLink> tokens gives you bonus free guesses every day. The tiers are set in <strong>USD value</strong>, so they stay fair as the token price moves:
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>~$25 of $WORD → <strong>+1 guess/day</strong> (Tier 1)</li>
+            <li>~$50 of $WORD → <strong>+2 guesses/day</strong> (Tier 2)</li>
+            <li>~$75 of $WORD → <strong>+3 guesses/day</strong> (Tier 3)</li>
           </ul>
-          <p className="mt-2"><strong>When market cap is $150K–$300K:</strong></p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>50M → +1, 100M → +2, 150M → +3</li>
-          </ul>
-          <p className="mt-2"><strong>When market cap is above $300K:</strong></p>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>25M → +1, 50M → +2, 75M → +3</li>
-          </ul>
-          <p className="mt-2">Staked tokens count toward your effective balance. Market cap is updated every 15 minutes via a live onchain oracle.</p>
+          <p className="mt-2">Staked tokens count toward your effective balance. The USD value converts to a token amount using the live onchain oracle, updated every 15 minutes.</p>
         </>
       ),
     },

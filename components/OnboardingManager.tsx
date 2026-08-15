@@ -21,6 +21,7 @@ import { useState, useEffect, useCallback } from 'react';
 import FirstTimeOverlay from './FirstTimeOverlay';
 import OgHunterThanksModal from './OgHunterThanksModal';
 import SuperguessAnnouncementModal from './SuperguessAnnouncementModal';
+import Round34AnnouncementModal from './Round34AnnouncementModal';
 import type { OnboardingStatusResponse } from '../pages/api/onboarding/status';
 
 interface OnboardingManagerProps {
@@ -30,7 +31,7 @@ interface OnboardingManagerProps {
   disabled?: boolean;
 }
 
-type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'superguessAnnouncement' | 'done';
+type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'superguessAnnouncement' | 'round34Announcement' | 'done';
 
 export default function OnboardingManager({
   fid,
@@ -58,13 +59,18 @@ export default function OnboardingManager({
         const data: OnboardingStatusResponse = await response.json();
         setStatus(data);
 
-        // Determine first step to show
+        // Determine first step to show. The round-34 announcement is offered
+        // only while the server says a $WORD round is ACTIVE (wordEraActive) —
+        // the leak guard: opening the app before round 34 starts never
+        // reveals the update.
         if (!data.hasSeenIntro) {
           setStep('howItWorks');
         } else if (data.isOgHunter && !data.hasSeenOgHunterThanks) {
           setStep('ogHunterThanks');
         } else if (!data.hasSeenSuperguessAnnouncement) {
           setStep('superguessAnnouncement');
+        } else if (data.wordEraActive && !data.hasSeenRound34Announcement) {
+          setStep('round34Announcement');
         } else {
           setStep('done');
         }
@@ -78,7 +84,7 @@ export default function OnboardingManager({
   }, [fid, disabled]);
 
   // Mark a modal as seen
-  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks' | 'superguessAnnouncement') => {
+  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks' | 'superguessAnnouncement' | 'round34Announcement') => {
     try {
       await fetch('/api/onboarding/mark-seen', {
         method: 'POST',
@@ -92,17 +98,28 @@ export default function OnboardingManager({
 
   // Advance to the next unseen step, or finish
   const advanceFrom = useCallback((currentStep: OnboardingStep) => {
+    const round34Pending = !!status?.wordEraActive && !status?.hasSeenRound34Announcement;
     if (currentStep === 'howItWorks') {
       if (status?.isOgHunter && !status?.hasSeenOgHunterThanks) {
         setStep('ogHunterThanks');
       } else if (!status?.hasSeenSuperguessAnnouncement) {
         setStep('superguessAnnouncement');
+      } else if (round34Pending) {
+        setStep('round34Announcement');
       } else {
         setStep('done');
       }
     } else if (currentStep === 'ogHunterThanks') {
       if (!status?.hasSeenSuperguessAnnouncement) {
         setStep('superguessAnnouncement');
+      } else if (round34Pending) {
+        setStep('round34Announcement');
+      } else {
+        setStep('done');
+      }
+    } else if (currentStep === 'superguessAnnouncement') {
+      if (round34Pending) {
+        setStep('round34Announcement');
       } else {
         setStep('done');
       }
@@ -126,6 +143,12 @@ export default function OnboardingManager({
   // Handle Superguess Announcement dismissal
   const handleSuperguessAnnouncementDismiss = useCallback(async () => {
     await markSeen('superguessAnnouncement');
+    advanceFrom('superguessAnnouncement');
+  }, [markSeen, advanceFrom]);
+
+  // Handle Round 34 Announcement dismissal
+  const handleRound34AnnouncementDismiss = useCallback(async () => {
+    await markSeen('round34Announcement');
     setStep('done');
   }, [markSeen]);
 
@@ -157,6 +180,14 @@ export default function OnboardingManager({
         <SuperguessAnnouncementModal
           fid={fid}
           onDismiss={handleSuperguessAnnouncementDismiss}
+        />
+      )}
+
+      {step === 'round34Announcement' && (
+        <Round34AnnouncementModal
+          fid={fid}
+          onDismiss={handleRound34AnnouncementDismiss}
+          grandfathered={status?.grandfathered ?? false}
         />
       )}
     </>
