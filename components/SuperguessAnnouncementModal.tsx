@@ -42,15 +42,11 @@ export default function SuperguessAnnouncementModal({
         <ul className="space-y-4 text-gray-700">
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>After <strong>850 guesses</strong>, any player can purchase a <strong>Superguess</strong> with $WORD tokens for an exclusive 25-guess, 10-minute window.</span>
+            <span>After <strong>850 guesses</strong>, any player can purchase a <strong>Superguess</strong> with <strong>ETH</strong> for an exclusive 25-guess, 10-minute window.</span>
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
             <span>During a Superguess, all other players are paused and watch live as spectators.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>50% of your $WORD payment is <strong>burned</strong>, and 50% goes to <strong>staking rewards</strong>.</span>
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>

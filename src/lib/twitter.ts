@@ -115,8 +115,19 @@ export function convertToTwitterText(farcasterText: string): string {
   });
 
   // Twitter has a 280 character limit (vs Farcaster's 320)
+  //
+  // Truncate at a word boundary, not mid-token. A blind slice(0, 277) cuts
+  // wherever character 277 lands, and every announcer cast that names the token
+  // is cross-posted through here — so a cut landing inside "$WORD" yields
+  // "$WO..." and the cashtag silently stops being a cashtag on X. The milestone
+  // casts carry "$WORD" mid-string and sit close to the limit, which is exactly
+  // where this bites.
   if (text.length > 280) {
-    text = text.slice(0, 277) + '...';
+    const clipped = text.slice(0, 277);
+    const lastBreak = clipped.search(/\s\S*$/);
+    // Only back off to the boundary if one exists reasonably near the end;
+    // a single 277-character token should still be cut rather than emptied.
+    text = (lastBreak > 200 ? clipped.slice(0, lastBreak) : clipped).trimEnd() + '...';
   }
 
   return text;
