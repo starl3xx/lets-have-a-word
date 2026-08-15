@@ -236,6 +236,12 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       round.startTxHash = seed.txHash;
       round.prizeCurrency = 'word';
       round.prizePoolWord = seed.seedTokensWei.toString();
+      // The DB write above records the price snapshot; mirror it here too.
+      // Every $WORD USD figure is derived from it, and a null reads as "no
+      // price available" — so the round would come back from createRound
+      // showing no USD value despite a real snapshot one row away.
+      round.seedPriceE18 = seed.priceE18.toString();
+      round.seedUsdCents = seed.seedUsdCents;
 
       console.log(
         `[rounds] ✅ Round ${round.id} seeded with ${formatWordAmount(seed.seedTokensWei)} $WORD ` +
@@ -463,6 +469,12 @@ export async function getActiveRoundForUpdate(tx: typeof db): Promise<Round | nu
     commitHash: round.commitHash,
     prizePoolEth: round.prizePoolEth,
     seedNextRoundEth: round.seedNextRoundEth,
+    // Same omission as getActiveRound — see the note there. This variant feeds
+    // the resolution transaction, so a missing discriminator here decides which
+    // contract pays out.
+    prizeCurrency: round.prizeCurrency,
+    prizePoolWord: round.prizePoolWord,
+    seedPriceE18: round.seedPriceE18,
     winnerFid: round.winnerFid,
     referrerFid: round.referrerFid,
     startedAt: round.startedAt,

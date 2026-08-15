@@ -145,4 +145,21 @@ describe('getActiveRound carries the currency discriminator', () => {
       await db.delete(rounds).where(eq(rounds.id, round.id));
     }
   });
+
+  it('carries it through the locking variant too', async () => {
+    // getActiveRoundForUpdate feeds the resolution transaction, so a missing
+    // discriminator here decides which contract pays the winner. It has the
+    // same hand-written field list and was missed on the first pass precisely
+    // because its return shape is textually identical to createRound's.
+    const { getActiveRoundForUpdate } = await import('../lib/rounds');
+    const round = await createRound('word');
+
+    try {
+      const locked = await getActiveRoundForUpdate(db);
+      expect(locked?.id).toBe(round.id);
+      expect(locked?.prizeCurrency).toBe('word');
+    } finally {
+      await db.delete(rounds).where(eq(rounds.id, round.id));
+    }
+  });
 });
