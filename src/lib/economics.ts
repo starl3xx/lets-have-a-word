@@ -671,7 +671,12 @@ export async function resolveRoundAndCreatePayouts(
   if (referrerFid !== null) {
     const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
     if (isRewardGateEnabled()) {
-      const gate = await checkPlayEligibility(referrerFid, { round, useCache: false });
+      // claimWallet off: a payout is not a new play (same rule as Top 10)
+      const gate = await checkPlayEligibility(referrerFid, {
+        round,
+        useCache: false,
+        claimWallet: false,
+      });
       if (!gate.eligible) {
         console.warn(
           `🚧 [RewardGate] Referrer ${referrerFid} below the bar at resolve (${gate.reason}); redirecting the referrer share`
@@ -1328,9 +1333,7 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
 
   // Reward gate: ineligible accounts do not rank; the next eligible account
   // moves up. Uncached, against the round's frozen seed price — resolve is
-  // exactly the moment a farm's dumped balance must count against it. The
-  // walk is bounded: it stops at ten passes and checks at most the ranked
-  // list once.
+  // exactly the moment a farm's dumped balance must count against it.
   const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
   if (!isRewardGateEnabled()) {
     return rankedFids.slice(0, 10);
@@ -1342,15 +1345,38 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
     .where(eq(rounds.id, roundId))
     .limit(1);
 
+  // Bounded and parallel. An unbounded serial walk would let a large farm
+  // cohort force hundreds of sequential RPC reads during resolve and stall
+  // the payout. Only the top slice is checked, all at once; if fewer than
+  // ten of them pass, the round pays fewer than ten — the split already
+  // handles short lists (small rounds produce them today) — instead of
+  // resolve hanging on the farm's tail. claimWallet is off: a payout is not
+  // a new play, so it must neither consume a (day, wallet) claim nor be
+  // blocked by one made under the resolve day.
+  const MAX_TOP10_GATE_CHECKS = 30;
+  const candidates = rankedFids.slice(0, MAX_TOP10_GATE_CHECKS);
+  const checks = await Promise.all(
+    candidates.map((fid) =>
+      checkPlayEligibility(fid, {
+        round: roundRow ?? null,
+        useCache: false,
+        claimWallet: false,
+      }).then(
+        (gate) => ({ fid, eligible: gate.eligible, reason: gate.reason }),
+        // Consistent with the decided fail-open policy on infrastructure error
+        () => ({ fid, eligible: true, reason: undefined })
+      )
+    )
+  );
+
   const top10: number[] = [];
-  for (const fid of rankedFids) {
+  for (const check of checks) {
     if (top10.length >= 10) break;
-    const gate = await checkPlayEligibility(fid, { round: roundRow ?? null, useCache: false });
-    if (gate.eligible) {
-      top10.push(fid);
+    if (check.eligible) {
+      top10.push(check.fid);
     } else {
       console.warn(
-        `🚧 [RewardGate] FID ${fid} excluded from Top 10 at resolve (${gate.reason}); next eligible moves up`
+        `🚧 [RewardGate] FID ${check.fid} excluded from Top 10 at resolve (${check.reason}); next eligible moves up`
       );
     }
   }
