@@ -122,13 +122,16 @@ export default function GuessBar({ sourceState, onGetMore, onWordHintTap, reward
   // flips once /api/user-state loads, and an early return above the hooks
   // would change the hook count between renders and crash React.
   if (rewardGateLocked) {
+    // NON-NEGOTIABLE: the guess bar never wraps to two lines, on any state,
+    // down to a 320px viewport. Copy is budgeted for that width next to the
+    // button; "held or staked" nuance lives in the FAQ and the announcement.
     return (
       <div
-        className="flex items-center justify-center gap-3 py-2"
+        className="flex items-center justify-center gap-2 py-2 whitespace-nowrap overflow-hidden px-2"
         style={{ minHeight: '2.5rem' }}
       >
-        <span className="text-sm text-gray-600">
-          Hold or stake <strong className="text-gray-900">$3 of $WORD</strong> to play
+        <span className="text-sm text-gray-600 whitespace-nowrap">
+          Hold <strong className="text-gray-900">$3 of $WORD</strong> to play
         </span>
         <BuyButton size="sm" />
       </div>
