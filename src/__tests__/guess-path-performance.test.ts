@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * Three costs that sat on the hot path.
@@ -63,6 +63,44 @@ describe('the RPC provider', () => {
     expect(timeout).toBeDefined();
     expect(timeout).toBeLessThanOrEqual(15_000);
     expect(timeout).toBeGreaterThan(0);
+  });
+});
+
+describe('the Sepolia RPC endpoint', () => {
+  const saved = {
+    base: process.env.BASE_SEPOLIA_RPC_URL,
+    legacy: process.env.SEPOLIA_RPC_URL,
+  };
+
+  afterEach(() => {
+    if (saved.base === undefined) delete process.env.BASE_SEPOLIA_RPC_URL;
+    else process.env.BASE_SEPOLIA_RPC_URL = saved.base;
+    if (saved.legacy === undefined) delete process.env.SEPOLIA_RPC_URL;
+    else process.env.SEPOLIA_RPC_URL = saved.legacy;
+  });
+
+  function urlOf(provider: unknown): string {
+    return (provider as any)._getConnection().url;
+  }
+
+  it('accepts either variable name', () => {
+    // The deployment had SEPOLIA_RPC_URL set; the code read
+    // BASE_SEPOLIA_RPC_URL. So every Sepolia call silently used the public
+    // fallback instead of the configured endpoint — and nothing failed, which
+    // is why it survived. Nothing is a louder symptom than "it works, slowly,
+    // against someone else's rate limit".
+    delete process.env.BASE_SEPOLIA_RPC_URL;
+    process.env.SEPOLIA_RPC_URL = 'https://legacy-name.example/v2/key';
+    expect(urlOf(getSepoliaProvider())).toBe('https://legacy-name.example/v2/key');
+
+    process.env.BASE_SEPOLIA_RPC_URL = 'https://preferred-name.example/v2/key';
+    expect(urlOf(getSepoliaProvider())).toBe('https://preferred-name.example/v2/key');
+  });
+
+  it('falls back to the public endpoint only when neither is set', () => {
+    delete process.env.BASE_SEPOLIA_RPC_URL;
+    delete process.env.SEPOLIA_RPC_URL;
+    expect(urlOf(getSepoliaProvider())).toBe('https://sepolia.base.org');
   });
 });
 
