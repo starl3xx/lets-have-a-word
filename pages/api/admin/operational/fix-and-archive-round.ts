@@ -87,6 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         commit_hash::text as commit_hash,
         prize_pool_eth::text as prize_pool_eth,
         seed_next_round_eth::text as seed_next_round_eth,
+        prize_currency::text as prize_currency,
         winner_fid,
         referrer_fid,
         started_at,
@@ -247,6 +248,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error('[fix-and-archive] Failed to decrypt answer:', e);
         return res.status(500).json({ error: 'Failed to decrypt answer', details: String(e) });
       }
+    }
+
+    // This repair path writes seed_eth / final_jackpot_eth only, and lets
+    // `currency` fall to its 'eth' column default. On a $WORD round that
+    // produces a permanently wrong archive row — the one record nothing ever
+    // recomputes — claiming an ETH payout that never happened.
+    //
+    // Refusing is not the same as supporting it, and the gap is deliberate:
+    // archiveRound() handles $WORD correctly, so the answer for a stuck $WORD
+    // round is to fix the underlying problem and use the normal path, not to
+    // reach for a tool that would bake in the wrong currency.
+    if (rawRound.prize_currency === 'word') {
+      return res.status(400).json({
+        error: `Round ${roundId} pays in $WORD, and this repair path can only write ETH archive rows.`,
+        detail:
+          'It would record an ETH payout that never happened, permanently. ' +
+          'Use the standard archive path, which is currency-aware.',
+        prizeCurrency: rawRound.prize_currency,
+      });
     }
 
     // Step 8: Insert archive record

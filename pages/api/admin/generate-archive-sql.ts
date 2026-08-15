@@ -50,6 +50,21 @@ export default async function handler(
       return res.status(404).json({ error: `Round ${roundId} not found` });
     }
 
+    // The INSERT this builds names only seed_eth and final_jackpot_eth, and
+    // leaves `currency` to its 'eth' column default. Handing an operator SQL
+    // that silently mislabels a $WORD round is worse than handing them nothing:
+    // it is designed to be pasted into a production console, so the mistake
+    // arrives pre-approved and lands in the one row nothing recomputes.
+    if (round.prizeCurrency === 'word') {
+      return res.status(400).json({
+        error: `Round ${roundId} pays in $WORD, and this generator only emits ETH archive columns.`,
+        detail:
+          'The generated SQL would record an ETH payout that never happened. ' +
+          'Use the standard archive path, which handles both currencies.',
+        prizeCurrency: round.prizeCurrency,
+      });
+    }
+
     // Get previous round's seedNextRoundEth (this is the seed for THIS round)
     let seedEthForThisRound = '0';
     if (roundId > 1) {
