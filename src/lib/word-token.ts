@@ -86,7 +86,16 @@ export function getBaseProvider(): ethers.Provider {
  * @returns Ethers provider for Base Sepolia network
  */
 export function getSepoliaProvider(): ethers.Provider {
-  const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
+  // Both spellings, because both exist in the wild. The code read
+  // BASE_SEPOLIA_RPC_URL while the deployment had SEPOLIA_RPC_URL set, so
+  // nothing read the configured endpoint and every Sepolia call silently used
+  // the public rate-limited fallback instead of Alchemy. Nothing failed — it
+  // just quietly stopped using what was paid for, which is the kind of
+  // misconfiguration that survives indefinitely because it produces no error.
+  const rpcUrl =
+    process.env.BASE_SEPOLIA_RPC_URL ||
+    process.env.SEPOLIA_RPC_URL ||
+    'https://sepolia.base.org';
   let provider = providerCache.get(rpcUrl);
   if (!provider) {
     provider = buildProvider(rpcUrl);

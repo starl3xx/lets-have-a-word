@@ -25,7 +25,13 @@ const config: HardhatUserConfig = {
     },
     // Base Sepolia Testnet
     baseSepolia: {
-      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+      // Accepts either name — see the note in src/lib/word-token.ts. Hardhat
+      // is what runs the WordManagerV3 upgrade rehearsal, so this is the one
+      // that most wants a real endpoint rather than a public fallback.
+      url:
+        process.env.BASE_SEPOLIA_RPC_URL ||
+        process.env.SEPOLIA_RPC_URL ||
+        "https://sepolia.base.org",
       accounts: process.env.DEPLOYER_PRIVATE_KEY
         ? [process.env.DEPLOYER_PRIVATE_KEY]
         : [],
