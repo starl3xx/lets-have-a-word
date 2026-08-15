@@ -1,5 +1,5 @@
 /**
- * Sentry Client Configuration
+ * Sentry Client Configuration (instrumentation-client.ts, the Turbopack-era location)
  * Milestone 9.1 - Error Monitoring
  *
  * This file configures the initialization of Sentry on the client.
@@ -49,3 +49,6 @@ Sentry.init({
     return event;
   },
 });
+
+// Next 16 / Turbopack navigation instrumentation hook
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

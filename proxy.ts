@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware - Prelaunch Splash Routing
+ * Next.js Proxy (formerly middleware.ts) - Prelaunch Splash Routing
  * OG Hunter Campaign: Route gate for prelaunch mode
  *
  * When NEXT_PUBLIC_PRELAUNCH_MODE=1:
@@ -146,7 +146,7 @@ async function guardAdminApi(request: NextRequest): Promise<NextResponse | null>
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Before anything else, and independent of prelaunch mode.

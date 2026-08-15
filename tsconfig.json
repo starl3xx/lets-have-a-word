@@ -8,7 +8,7 @@
     ],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,

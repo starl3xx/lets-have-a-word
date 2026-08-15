@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue, useLayoutEffect } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue, useLayoutEffect, type JSX } from 'react';
 import type { InputState } from '../src/lib/input-state';
 import type { WheelWord, WheelWordStatus } from '../src/types';
 import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '../src/lib/perf-debug';

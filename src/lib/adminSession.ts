@@ -2,7 +2,7 @@
  * Signed admin session tokens.
  *
  * Issued by /api/auth/verify after a Sign In With Farcaster signature has been
- * checked, and verified by middleware.ts on every /api/admin/* request.
+ * checked, and verified by proxy.ts on every /api/admin/* request.
  *
  * WHY A SIGNED TOKEN RATHER THAN A FID
  *
