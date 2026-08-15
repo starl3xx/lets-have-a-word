@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
+import { WORD_POOL_URL } from '../config/economy';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 
 interface FAQSheetProps {
@@ -34,6 +35,10 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
     <button
       onClick={async (e) => {
         e.stopPropagation();
+        if (!isInMiniApp) {
+          window.open(WORD_POOL_URL, '_blank', 'noopener,noreferrer');
+          return;
+        }
         try {
           console.log('[FAQ] Attempting to view token...');
           const result = await sdk.actions.viewToken({

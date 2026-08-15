@@ -767,13 +767,24 @@ export default function RoundDetailPage() {
                 </div>
               </Section>
 
-              {/* Verify Round Button — in-app page, so navigate instead of opening externally */}
-              <Link
-                href={`/verify?round=${round.roundNumber}`}
-                className="block w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
-              >
-                Verify round
-              </Link>
+              {/* Verify Round Button. In-host, openUrl shows /verify as a browser
+                  overlay the user closes to land back here with their place kept —
+                  navigating the webview away would lose it. On web, plain SPA nav. */}
+              {isInMiniApp ? (
+                <button
+                  onClick={() => sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`)}
+                  className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
+                >
+                  Verify round
+                </button>
+              ) : (
+                <Link
+                  href={`/verify?round=${round.roundNumber}`}
+                  className="block w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center"
+                >
+                  Verify round
+                </Link>
+              )}
             </>
           )}
         </div>

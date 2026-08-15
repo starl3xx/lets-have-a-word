@@ -12,26 +12,27 @@
 import { useEffect, useState } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
 
-// Module-level cache so late-mounting components get the answer synchronously.
-let cachedResult: boolean | null = null;
+// Caches only a confirmed `true`, mirroring the SDK: a `false` inside a host
+// iframe can be transient (slow context handshake losing the SDK's 1s race),
+// so it must be re-asked on the next mount rather than remembered forever.
+let confirmedInMiniApp = false;
 
 export function useIsInMiniApp(): boolean {
-  const [isInMiniApp, setIsInMiniApp] = useState<boolean>(cachedResult === true);
+  const [isInMiniApp, setIsInMiniApp] = useState<boolean>(confirmedInMiniApp);
 
   useEffect(() => {
-    if (cachedResult !== null) {
-      setIsInMiniApp(cachedResult);
+    if (confirmedInMiniApp) {
+      setIsInMiniApp(true);
       return;
     }
     let mounted = true;
     sdk
       .isInMiniApp()
       .then((result) => {
-        cachedResult = result;
+        if (result) confirmedInMiniApp = true;
         if (mounted) setIsInMiniApp(result);
       })
       .catch(() => {
-        cachedResult = false;
         if (mounted) setIsInMiniApp(false);
       });
     return () => {

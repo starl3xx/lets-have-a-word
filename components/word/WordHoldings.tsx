@@ -98,7 +98,7 @@ export default function WordHoldings({
         Upgraded from $CLANKTON but haven{'\u2019'}t received $WORD?{' '}
         <ExternalLink
           href="https://upgrader.co/2"
-          className="text-accent-600 hover:text-accent-800 underline"
+          className="inline-block text-accent-600 hover:text-accent-800 underline"
         >
           Claim here
         </ExternalLink>
