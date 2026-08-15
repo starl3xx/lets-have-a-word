@@ -36,6 +36,15 @@ export default function ReferralSheet({
 
   // For ETH earned animation
   const [displayedEth, setDisplayedEth] = useState('0.0000');
+  /**
+   * The real total, separate from the animated counter above.
+   *
+   * `displayedEth` counts up from 0, so deciding whether to SHOW the ETH line
+   * from it means an ETH earner sees the empty "0" state on first paint and the
+   * line pops in partway through the animation. What to render and whether to
+   * render it are different questions, and only the first one is animated.
+   */
+  const [ethEarnedTotal, setEthEarnedTotal] = useState(0);
   const [wordEarnedWei, setWordEarnedWei] = useState('0');
   const [displayedReferrals, setDisplayedReferrals] = useState(0);
   const animationRef = useRef<number | null>(null);
@@ -76,6 +85,8 @@ export default function ReferralSheet({
         }
 
         setWordEarnedWei(data.referralWordEarned ?? '0');
+
+        setEthEarnedTotal(parseFloat(data.referralEthEarned) || 0);
 
         // Animate counters
         animateCounters(
@@ -312,7 +323,7 @@ export default function ReferralSheet({
                       wei = 0n;
                     }
                     const hasWord = wei > 0n;
-                    const hasEth = parseFloat(displayedEth || '0') > 0;
+                    const hasEth = ethEarnedTotal > 0;
 
                     // The number here carried NO unit at all — a bare 4-decimal
                     // figure under a label reading only "Earned". That reads as
