@@ -225,6 +225,30 @@ export async function getOrCreateDailyState(
   if (existing.length > 0) {
     const state = existing[0];
 
+    // Reward gate: a state created while the player was below the bar carries
+    // freeAllocatedBase 0 (unambiguous — everyone else gets the full base).
+    // Re-check on each touch so buying $WORD upgrades within ~5 minutes, the
+    // same only-upgrades-within-a-day contract the tier bump below follows.
+    if (state.freeAllocatedBase === 0) {
+      const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
+      if (isRewardGateEnabled()) {
+        const gate = await checkPlayEligibility(fid, { useCache: true });
+        if (!gate.eligible) {
+          return state;
+        }
+        const [ungated] = await db
+          .update(dailyGuessState)
+          .set({
+            freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
+            updatedAt: new Date(),
+          })
+          .where(eq(dailyGuessState.id, state.id))
+          .returning();
+        console.log(`🔓 [RewardGate] FID ${fid} cleared the bar; base allocation granted`);
+        return ungated;
+      }
+    }
+
     // Milestone 14 upgrade: Re-check tier and bump allocation if higher.
     // We only upgrade (never downgrade) within a day.
     // freeAllocatedClankton stores the tier value (0-3), which IS the bonus guess count.
@@ -257,7 +281,21 @@ export async function getOrCreateDailyState(
 
   // Create new state for today
   // Milestone 14: Use tier-based allocation (0-3 bonus guesses)
-  const wordBonusTier = await getWordBonusTierForFid(fid);
+  //
+  // Reward gate: below the bar, the day starts with ZERO base guesses and no
+  // tier bonus. freeAllocatedBase 0 doubles as the gated marker the
+  // existing-state path re-checks. The bar here uses the oracle-fallback
+  // conversion (no round in scope); the guess path and every money point
+  // check against the round's frozen seed price.
+  let gatedToZero = false;
+  {
+    const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
+    if (isRewardGateEnabled()) {
+      const gate = await checkPlayEligibility(fid, { useCache: true });
+      gatedToZero = !gate.eligible;
+    }
+  }
+  const wordBonusTier = gatedToZero ? 0 : await getWordBonusTierForFid(fid);
 
   // Generate random wheel start index (Milestone 4.14)
   // Random index between 0 and (total GUESS_WORDS - 1)
@@ -267,7 +305,7 @@ export async function getOrCreateDailyState(
   const newState: DailyGuessStateInsert = {
     fid,
     date: dateStr,
-    freeAllocatedBase: DAILY_LIMITS_RULES.freeGuessesPerDayBase,
+    freeAllocatedBase: gatedToZero ? 0 : DAILY_LIMITS_RULES.freeGuessesPerDayBase,
     freeAllocatedClankton: wordBonusTier, // Legacy DB column name — stores tier value (0-3)
     freeAllocatedShareBonus: 0,
     freeUsed: 0,

@@ -40,6 +40,11 @@ export const users = pgTable('users', {
   coinbaseAttested: boolean('coinbase_attested'),
   coinbaseAttestedCheckedAt: timestamp('coinbase_attested_checked_at'),
   xp: integer('xp').default(0).notNull(),
+  // Reward gate grandfather column: the round of this user's first-ever guess.
+  // Backfilled once from MIN(guesses.round_id); written at first guess for new
+  // players. <= 27 means pre-farm and exempt from the play bar. NULL = not
+  // grandfathered (no guess before the backfill, or a brand-new account).
+  firstGuessRound: integer('first_guess_round'),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
   hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: Superguess feature announcement
@@ -718,6 +723,10 @@ export const roundBonusWords = pgTable('round_bonus_words', {
   claimedByFid: integer('claimed_by_fid'), // FK to users.fid (null if unclaimed)
   claimedAt: timestamp('claimed_at'),
   txHash: varchar('tx_hash', { length: 66 }), // $WORD transfer tx hash (was CLANKTON)
+  // Reward gate: found by an account that failed the play bar at award time.
+  // The word is claimed (dedup kills it either way) but no $WORD moved.
+  // Finder displays exclude withheld rows; this flag is the audit trail.
+  rewardWithheld: boolean('reward_withheld').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundWordIndexUnique: unique('round_bonus_words_round_word_index_unique').on(table.roundId, table.wordIndex),
@@ -775,6 +784,9 @@ export const roundBurnWords = pgTable('round_burn_words', {
   finderFid: integer('finder_fid'), // FK to users.fid (null if unclaimed)
   foundAt: timestamp('found_at'),
   txHash: varchar('tx_hash', { length: 66 }), // Burn transaction hash
+  // Reward gate: found by an account that failed the play bar at award time.
+  // The word is marked found (dedup kills it either way) but nothing burned.
+  rewardWithheld: boolean('reward_withheld').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   roundWordIndexUnique: unique('round_burn_words_round_word_index_unique').on(table.roundId, table.wordIndex),
@@ -785,6 +797,29 @@ export const roundBurnWords = pgTable('round_burn_words', {
 
 export type RoundBurnWordRow = typeof roundBurnWords.$inferSelect;
 export type RoundBurnWordInsert = typeof roundBurnWords.$inferInsert;
+
+/**
+ * Reward Gate Claims Table
+ *
+ * One wallet vouches for at most one FID per game-day. Nothing else in the
+ * schema constrains wallet↔fid (users.fid is unique, the wallet column is
+ * not), so without this row a single funded wallet could clear the play bar
+ * for a thousand accounts. UNIQUE(date, wallet) is the defense; fid records
+ * who claimed the wallet, for audit.
+ */
+export const rewardGateClaims = pgTable('reward_gate_claims', {
+  id: serial('id').primaryKey(),
+  date: date('date').notNull(), // Game-day (11:00 UTC boundary), same key as daily_guess_state
+  wallet: varchar('wallet', { length: 42 }).notNull(),
+  fid: integer('fid').notNull(),
+  roundId: integer('round_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  dateWalletUnique: unique('reward_gate_claims_date_wallet_unique').on(table.date, table.wallet),
+  fidDateIdx: index('reward_gate_claims_fid_date_idx').on(table.fid, table.date),
+}));
+
+export type RewardGateClaimRow = typeof rewardGateClaims.$inferSelect;
 
 /**
  * Word Rewards Table

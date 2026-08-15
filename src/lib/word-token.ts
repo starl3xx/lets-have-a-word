@@ -12,8 +12,6 @@
 import { ethers } from 'ethers';
 import {
   WORD_MARKET_CAP_USD,
-  MCAP_TIER_1,
-  MCAP_TIER_2,
   getHolderTierThresholds,
 } from '../../config/economy';
 

@@ -25,6 +25,7 @@ import {
 
 import { logXpEvent } from './xp';
 import { getUserByFid as getNeynarUserByFid } from './farcaster';
+import { isRewardGateEnabled } from '../../config/economy';
 
 /**
  * Normalize a guess word
@@ -661,10 +662,11 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     if (
       process.env.WALLET_HISTORY_GATING_ENABLED === 'true' ||
       process.env.ACCOUNT_AGE_GATING_ENABLED === 'true' ||
-      process.env.WALLET_CLUSTER_GATING_ENABLED === 'true'
+      process.env.WALLET_CLUSTER_GATING_ENABLED === 'true' ||
+      isRewardGateEnabled()
     ) {
       const { checkWinnerEligibility } = await import('./winner-eligibility');
-      const eligibility = await checkWinnerEligibility(fid);
+      const eligibility = await checkWinnerEligibility(fid, round);
       if (!eligibility.eligible) {
         // Audit row: correct word, but flagged as ineligible.
         // Wrap index-fetch + insert in a transaction so concurrent guesses
@@ -1069,17 +1071,60 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // Check if this is an unclaimed bonus word
     const bonusWordMatch = await checkBonusWordMatch(round.id, word);
 
-    if (bonusWordMatch) {
-      // 🎣 BONUS WORD FOUND!
-      return await handleBonusWordWin(round.id, fid, word, bonusWordMatch, isPaidGuess);
-    }
-
     // Milestone 14: Check if this is an unclaimed burn word
-    const burnWordMatch = await checkBurnWordMatch(round.id, word);
+    const burnWordMatch = bonusWordMatch ? null : await checkBurnWordMatch(round.id, word);
 
-    if (burnWordMatch) {
-      // 🔥 BURN WORD FOUND!
-      return await handleBurnWordWin(round.id, fid, word, burnWordMatch, isPaidGuess);
+    if (bonusWordMatch || burnWordMatch) {
+      // Reward gate at award time, uncached: the allocation check may have
+      // passed on a balance that was dumped since, and bonus/burn transfers
+      // are instant and irreversible — this is the last moment to decide.
+      // A withheld find marks the word claimed (global dedup kills it either
+      // way), pays nothing, burns nothing, and FALLS THROUGH to the ordinary
+      // wrong-guess path below, so the response is indistinguishable from a
+      // plain miss — the same invariant the ineligible-winner path keeps.
+      let rewardWithheld = false;
+      if (isRewardGateEnabled()) {
+        const { checkPlayEligibility } = await import('./reward-gate');
+        const gate = await checkPlayEligibility(fid, { round, useCache: false });
+        if (!gate.eligible) {
+          rewardWithheld = true;
+          if (bonusWordMatch) {
+            await db
+              .update(roundBonusWords)
+              .set({ claimedByFid: fid, claimedAt: new Date(), rewardWithheld: true })
+              .where(eq(roundBonusWords.id, bonusWordMatch.id));
+          } else if (burnWordMatch) {
+            await db
+              .update(roundBurnWords)
+              .set({ finderFid: fid, foundAt: new Date(), rewardWithheld: true })
+              .where(eq(roundBurnWords.id, burnWordMatch.id));
+          }
+          Sentry.captureMessage('[RewardGate] Bonus/burn find withheld', {
+            level: 'warning',
+            tags: { type: 'reward_withheld' },
+            extra: {
+              roundId: round.id,
+              fid,
+              word,
+              kind: bonusWordMatch ? 'bonus' : 'burn',
+              reason: gate.reason,
+            },
+          });
+          console.warn(
+            `🚧 [RewardGate] ${bonusWordMatch ? 'Bonus' : 'Burn'} word find withheld: FID ${fid}, word "${word}", reason=${gate.reason}`
+          );
+        }
+      }
+
+      if (!rewardWithheld) {
+        if (bonusWordMatch) {
+          // 🎣 BONUS WORD FOUND!
+          return await handleBonusWordWin(round.id, fid, word, bonusWordMatch, isPaidGuess);
+        }
+        // 🔥 BURN WORD FOUND!
+        return await handleBurnWordWin(round.id, fid, word, burnWordMatch!, isPaidGuess);
+      }
+      // Withheld: continue into the plain incorrect-guess path.
     }
 
     // INCORRECT GUESS (not secret word, not bonus word, not burn word)

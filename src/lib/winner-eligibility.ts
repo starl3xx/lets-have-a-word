@@ -18,6 +18,12 @@ import {
   checkWalletCluster,
   type WalletClusterCheckResult,
 } from './wallet-cluster';
+import {
+  checkPlayEligibility,
+  isRewardGateEnabled,
+  type RewardGateResult,
+  type RoundPriceSource,
+} from './reward-gate';
 
 export interface WinnerEligibilityResult {
   eligible: boolean;
@@ -25,9 +31,13 @@ export interface WinnerEligibilityResult {
   ageCheck?: AccountAgeCheckResult;
   walletCheck?: WalletHistoryCheckResult;
   clusterCheck?: WalletClusterCheckResult;
+  rewardGateCheck?: RewardGateResult;
 }
 
-export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibilityResult> {
+export async function checkWinnerEligibility(
+  fid: number,
+  round?: RoundPriceSource | null
+): Promise<WinnerEligibilityResult> {
   const reasons: string[] = [];
 
   // Run the two checks in parallel. They write to different column groups on
@@ -41,7 +51,9 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
   const walletEnabled = process.env.WALLET_HISTORY_GATING_ENABLED === 'true';
   const clusterEnabled = process.env.WALLET_CLUSTER_GATING_ENABLED === 'true';
 
-  const [ageCheck, walletCheck, clusterCheck] = await Promise.all([
+  const gateEnabled = isRewardGateEnabled();
+
+  const [ageCheck, walletCheck, clusterCheck, rewardGateCheck] = await Promise.all([
     ageEnabled
       ? checkAccountAge(fid, /* forceRefresh */ true)
       : (undefined as AccountAgeCheckResult | undefined),
@@ -51,6 +63,12 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
     clusterEnabled
       ? checkWalletCluster(fid, /* forceRefresh */ true)
       : (undefined as WalletClusterCheckResult | undefined),
+    // Reward gate at win time, uncached: a wallet that cleared the bar at
+    // allocation and dumped its tokens must still hold the bar at the moment
+    // of the win. Uses the round's frozen seed price when provided.
+    gateEnabled
+      ? checkPlayEligibility(fid, { round, useCache: false })
+      : (undefined as RewardGateResult | undefined),
   ]);
 
   if (ageCheck && !ageCheck.eligible) {
@@ -62,6 +80,11 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
   if (clusterCheck && !clusterCheck.eligible) {
     reasons.push(`wallet_in_bot_cluster (clusterSize=${clusterCheck.clusterSize ?? '?'})`);
   }
+  if (rewardGateCheck && !rewardGateCheck.eligible) {
+    reasons.push(
+      `below_play_bar (reason=${rewardGateCheck.reason ?? '?'}, bar=${rewardGateCheck.barTokens})`
+    );
+  }
 
   return {
     eligible: reasons.length === 0,
@@ -69,5 +92,6 @@ export async function checkWinnerEligibility(fid: number): Promise<WinnerEligibi
     ageCheck,
     walletCheck,
     clusterCheck,
+    rewardGateCheck,
   };
 }

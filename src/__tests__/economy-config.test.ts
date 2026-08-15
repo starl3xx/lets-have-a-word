@@ -9,7 +9,9 @@ import {
   formatMarketCap,
   MCAP_TIER_1,
   MCAP_TIER_2,
-  HOLDER_TIER_MATRIX,
+  HOLDER_TIER_USD,
+  WORD_TOTAL_SUPPLY_TOKENS,
+  WORD_MCAP_FALLBACK_USD,
   getHolderTierThresholds,
   getXpStakingTier,
   XP_STAKING_TIERS,
@@ -51,38 +53,38 @@ describe('$WORD Economy Config', () => {
       expect(MCAP_TIER_2).toBe(300_000);  // $300K
     });
 
-    it('should have correct holder tier matrix structure', () => {
-      expect(HOLDER_TIER_MATRIX.low.bonus1).toBe(100_000_000);
-      expect(HOLDER_TIER_MATRIX.low.bonus2).toBe(200_000_000);
-      expect(HOLDER_TIER_MATRIX.low.bonus3).toBe(300_000_000);
-
-      expect(HOLDER_TIER_MATRIX.mid.bonus1).toBe(50_000_000);
-      expect(HOLDER_TIER_MATRIX.mid.bonus2).toBe(100_000_000);
-      expect(HOLDER_TIER_MATRIX.mid.bonus3).toBe(150_000_000);
-
-      expect(HOLDER_TIER_MATRIX.high.bonus1).toBe(25_000_000);
-      expect(HOLDER_TIER_MATRIX.high.bonus2).toBe(50_000_000);
-      expect(HOLDER_TIER_MATRIX.high.bonus3).toBe(75_000_000);
+    it('should have the USD ladder decided 2026-08-15: $25/$50/$75', () => {
+      expect(HOLDER_TIER_USD.bonus1).toBe(25);
+      expect(HOLDER_TIER_USD.bonus2).toBe(50);
+      expect(HOLDER_TIER_USD.bonus3).toBe(75);
     });
   });
 
   describe('getHolderTierThresholds()', () => {
-    it('should return low tier thresholds below $150K', () => {
-      expect(getHolderTierThresholds(0)).toBe(HOLDER_TIER_MATRIX.low);
-      expect(getHolderTierThresholds(100_000)).toBe(HOLDER_TIER_MATRIX.low);
-      expect(getHolderTierThresholds(149_999)).toBe(HOLDER_TIER_MATRIX.low);
+    it('converts USD targets to tokens at the implied price (mcap / supply)', () => {
+      // A market cap equal to supply/1e6 makes the token price exactly $1e-6,
+      // so the USD rungs land on round token counts.
+      const mcap = WORD_TOTAL_SUPPLY_TOKENS / 1_000_000; // price = $0.000001
+      const t = getHolderTierThresholds(mcap);
+      expect(t.bonus1).toBe(25_000_000);
+      expect(t.bonus2).toBe(50_000_000);
+      expect(t.bonus3).toBe(75_000_000);
     });
 
-    it('should return mid tier thresholds at/above $150K', () => {
-      expect(getHolderTierThresholds(150_000)).toBe(HOLDER_TIER_MATRIX.mid);
-      expect(getHolderTierThresholds(200_000)).toBe(HOLDER_TIER_MATRIX.mid);
-      expect(getHolderTierThresholds(299_999)).toBe(HOLDER_TIER_MATRIX.mid);
+    it('halves the token rungs when the market cap doubles (USD-fixed)', () => {
+      const mcap = WORD_TOTAL_SUPPLY_TOKENS / 1_000_000;
+      const low = getHolderTierThresholds(mcap);
+      const high = getHolderTierThresholds(mcap * 2);
+      expect(high.bonus1).toBe(low.bonus1 / 2);
+      expect(high.bonus3).toBe(low.bonus3 / 2);
     });
 
-    it('should return high tier thresholds at/above $300K', () => {
-      expect(getHolderTierThresholds(300_000)).toBe(HOLDER_TIER_MATRIX.high);
-      expect(getHolderTierThresholds(500_000)).toBe(HOLDER_TIER_MATRIX.high);
-      expect(getHolderTierThresholds(1_000_000)).toBe(HOLDER_TIER_MATRIX.high);
+    it('falls back to the fallback mcap on zero, so tiers never divide by zero', () => {
+      const fromZero = getHolderTierThresholds(0);
+      const fromFallback = getHolderTierThresholds(WORD_MCAP_FALLBACK_USD);
+      expect(fromZero).toEqual(fromFallback);
+      expect(Number.isFinite(fromZero.bonus1)).toBe(true);
+      expect(fromZero.bonus1).toBeGreaterThan(0);
     });
   });
 
@@ -116,7 +118,7 @@ describe('$WORD Economy Config', () => {
       expect(info.bonusGuesses).toBe(3);
       expect(info.tier).toBe('low');
       expect(info.marketCapUsd).toBe(100_000);
-      expect(info.thresholds).toBe(HOLDER_TIER_MATRIX.low);
+      expect(info.thresholds).toEqual(getHolderTierThresholds(100_000));
     });
 
     it('should return mid tier info at $150K–$300K', () => {
@@ -125,7 +127,7 @@ describe('$WORD Economy Config', () => {
       expect(info.bonusGuesses).toBe(3);
       expect(info.tier).toBe('mid');
       expect(info.marketCapUsd).toBe(250_000);
-      expect(info.thresholds).toBe(HOLDER_TIER_MATRIX.mid);
+      expect(info.thresholds).toEqual(getHolderTierThresholds(250_000));
     });
 
     it('should return high tier info at/above $300K', () => {
@@ -134,7 +136,7 @@ describe('$WORD Economy Config', () => {
       expect(info.bonusGuesses).toBe(3);
       expect(info.tier).toBe('high');
       expect(info.marketCapUsd).toBe(500_000);
-      expect(info.thresholds).toBe(HOLDER_TIER_MATRIX.high);
+      expect(info.thresholds).toEqual(getHolderTierThresholds(500_000));
     });
   });
 
@@ -176,10 +178,10 @@ describe('$WORD Economy Config', () => {
   });
 
   describe('getMinStakeForBoost()', () => {
-    it('should return bonus1 threshold from holder tier matrix', () => {
-      expect(getMinStakeForBoost(0)).toBe(100_000_000);       // low tier
-      expect(getMinStakeForBoost(150_000)).toBe(50_000_000);   // mid tier
-      expect(getMinStakeForBoost(300_000)).toBe(25_000_000);   // high tier
+    it('follows the +1 rung of the USD ladder ($25 of $WORD)', () => {
+      expect(getMinStakeForBoost(0)).toBe(getHolderTierThresholds(0).bonus1);
+      const mcap = WORD_TOTAL_SUPPLY_TOKENS / 1_000_000; // price $0.000001
+      expect(getMinStakeForBoost(mcap)).toBe(25_000_000);
     });
   });
 

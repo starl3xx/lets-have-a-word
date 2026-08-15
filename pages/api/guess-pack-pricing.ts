@@ -127,7 +127,21 @@ export default async function handler(
     const hoursUntilReset = Math.floor(millisUntilReset / (1000 * 60 * 60));
     const minutesUntilReset = Math.floor((millisUntilReset % (1000 * 60 * 60)) / (1000 * 60));
 
+    // Reward gate: tell the client BEFORE money moves. Purchases are never
+    // refused server-side (the payment verifies after it lands onchain, and
+    // taking ETH to credit nothing is worse than crediting guesses that stay
+    // locked until the bar clears) — the purchase UI uses this flag to warn.
+    let rewardGateLocked = false;
+    {
+      const { checkPlayEligibility, isRewardGateEnabled } = await import('../../src/lib/reward-gate');
+      if (isRewardGateEnabled() && fid != null && !isNaN(fid)) {
+        const gate = await checkPlayEligibility(fid, { useCache: true });
+        rewardGateLocked = !gate.eligible;
+      }
+    }
+
     return res.status(200).json({
+      rewardGateLocked,
       // Stage-based pricing info
       basePriceWei: pricingDetails.basePriceWei,
       basePriceEth: pricingDetails.basePriceEth,

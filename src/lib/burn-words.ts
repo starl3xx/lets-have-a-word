@@ -298,8 +298,10 @@ export async function getBurnWordStatus(roundId: number): Promise<{
     .where(eq(roundBurnWords.roundId, roundId));
 
   const found = burnWords.filter(bw => bw.finderFid !== null).length;
+  // Withheld finds (reward gate) count as found — the word is dead — but
+  // nothing was actually burned, so they stay out of the burned total.
   const totalBurned = burnWords
-    .filter(bw => bw.finderFid !== null)
+    .filter(bw => bw.finderFid !== null && !bw.rewardWithheld)
     .reduce((sum, bw) => sum + BigInt(bw.burnAmount), 0n);
 
   return {
@@ -345,7 +347,9 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     .where(
       and(
         eq(roundBurnWords.roundId, roundId),
-        isNotNull(roundBurnWords.finderFid)
+        isNotNull(roundBurnWords.finderFid),
+        // Reward gate: withheld finds burned nothing and list no finder
+        eq(roundBurnWords.rewardWithheld, false)
       )
     );
 

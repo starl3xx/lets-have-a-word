@@ -663,7 +663,24 @@ export async function resolveRoundAndCreatePayouts(
     .where(eq(users.fid, winnerFid))
     .limit(1);
 
-  const referrerFid = winner?.referrerFid || null;
+  let referrerFid = winner?.referrerFid || null;
+
+  // Reward gate: a referrer must pass the same bar as everyone earning money.
+  // An ineligible referrer is treated exactly like no referrer — the 5%
+  // redirects 2.5/2.5 to the Top 10 and the seed, the established split.
+  if (referrerFid !== null) {
+    const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
+    if (isRewardGateEnabled()) {
+      const gate = await checkPlayEligibility(referrerFid, { round, useCache: false });
+      if (!gate.eligible) {
+        console.warn(
+          `🚧 [RewardGate] Referrer ${referrerFid} below the bar at resolve (${gate.reason}); redirecting the referrer share`
+        );
+        referrerFid = null;
+      }
+    }
+  }
+
   const hasReferrer = referrerFid !== null;
 
   // ============================================================================
@@ -1307,8 +1324,37 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
       return a[1].lastGuessIndex - b[1].lastGuessIndex;
     });
 
-  // Return top 10 FIDs
-  return sorted.slice(0, 10).map(([fid]) => fid);
+  const rankedFids = sorted.map(([fid]) => fid);
+
+  // Reward gate: ineligible accounts do not rank; the next eligible account
+  // moves up. Uncached, against the round's frozen seed price — resolve is
+  // exactly the moment a farm's dumped balance must count against it. The
+  // walk is bounded: it stops at ten passes and checks at most the ranked
+  // list once.
+  const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
+  if (!isRewardGateEnabled()) {
+    return rankedFids.slice(0, 10);
+  }
+
+  const [roundRow] = await db
+    .select({ id: rounds.id, seedPriceE18: rounds.seedPriceE18 })
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
+
+  const top10: number[] = [];
+  for (const fid of rankedFids) {
+    if (top10.length >= 10) break;
+    const gate = await checkPlayEligibility(fid, { round: roundRow ?? null, useCache: false });
+    if (gate.eligible) {
+      top10.push(fid);
+    } else {
+      console.warn(
+        `🚧 [RewardGate] FID ${fid} excluded from Top 10 at resolve (${gate.reason}); next eligible moves up`
+      );
+    }
+  }
+  return top10;
 }
 
 /**
