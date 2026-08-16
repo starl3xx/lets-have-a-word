@@ -9,6 +9,7 @@ import { AnalyticsChart } from "./AnalyticsChart"
 import { formatPrize, formatPrizeValue } from "../../src/lib/prize-display"
 import { AnalyticsControls, TimeRange } from "./AnalyticsControls"
 import FarmMonitor from "./FarmMonitor"
+import { Module, StatCard } from "./ui"
 
 // =============================================================================
 // Types
@@ -339,29 +340,8 @@ const styles = {
 // Helper Components
 // =============================================================================
 
-function StatCard({ label, value, subtext, loading }: {
-  label: string
-  value: string | number
-  subtext?: string
-  loading?: boolean
-}) {
-  return (
-    <div style={styles.statCard}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{loading ? "..." : value}</div>
-      {subtext && <div style={styles.statSubtext}>{subtext}</div>}
-    </div>
-  )
-}
-
-function Module({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={styles.section}>
-      <h3 style={styles.sectionTitle}>{title}</h3>
-      {children}
-    </div>
-  )
-}
+// StatCard and Module now come from the shared admin vocabulary (./ui) —
+// Phase 0 of the admin redesign. Same props, one source of truth.
 
 function formatEth(value: number | string, decimals = 4): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
