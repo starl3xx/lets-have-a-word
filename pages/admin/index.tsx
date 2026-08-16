@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/router"
+import { StatusPill, UpdatedStamp, type Severity } from "../../components/admin/ui"
 
 // Dynamically import the auth gate (client-only).
 //
@@ -314,6 +315,18 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
     }
   }
 
+  // Shared-vocabulary severity for the one header verdict (Phase 0 rules:
+  // color + icon + word, red only when action is needed now).
+  const getStatusSeverity = (s: string): Severity => {
+    switch (s) {
+      case 'NORMAL': return 'ok'
+      case 'KILL_SWITCH_ACTIVE': return 'alert'
+      case 'DEAD_DAY_ACTIVE': return 'watch'
+      case 'PAUSED_BETWEEN_ROUNDS': return 'watch'
+      default: return 'info'
+    }
+  }
+
   const getSinceTimestamp = () => {
     if (!status) return null
     if (status.status === 'KILL_SWITCH_ACTIVE' && status.killSwitch.activatedAt) {
@@ -358,10 +371,9 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
           {/* Status */}
           <div style={styles.statusItem}>
             <span style={styles.statusLabel}>Status</span>
-            <span style={styles.statusBadge(status.status)}>
-              <span style={styles.statusDot(status.status)} />
+            <StatusPill severity={getStatusSeverity(status.status)}>
               {getStatusLabel(status.status)}
-            </span>
+            </StatusPill>
           </div>
 
           {/* Active Round */}
@@ -404,10 +416,9 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
           </div>
         </div>
 
-        {/* Last updated */}
-        <div style={{ fontSize: "11px", color: "#9ca3af" }}>
-          Updated {formatTime(status.timestamp)}
-        </div>
+        {/* Last updated — turns amber when polling silently stops. This week's
+            failure mode: the strip said Normal while dead day was armed. */}
+        <UpdatedStamp updatedAt={status.timestamp} staleAfterMs={2 * 60 * 1000} />
       </div>
     </div>
   )
