@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { worstSeverity, isStale } from '../../components/admin/ui';
+import { worstSeverity, isStale, formatStampTime } from '../../components/admin/ui';
 
 describe('worstSeverity', () => {
   it('rolls a mixed strip up to the worst child', () => {
@@ -28,5 +28,12 @@ describe('isStale', () => {
 
   it('an unparseable timestamp reads as stale, never as fresh', () => {
     expect(isStale('garbage', now)).toBe(true);
+  });
+});
+
+describe('formatStampTime', () => {
+  it('renders UTC wall time for valid input and null for garbage', () => {
+    expect(formatStampTime('2026-08-16T14:32:05.000Z')).toBe('14:32:05');
+    expect(formatStampTime('garbage')).toBeNull();
   });
 });

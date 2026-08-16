@@ -216,6 +216,13 @@ export function isStale(
   return now - t > staleAfterMs;
 }
 
+/** Exported for tests: "14:32:05" UTC wall time, or null if unparseable. */
+export function formatStampTime(updatedAt: Date | string | number): string | null {
+  const t = new Date(updatedAt).getTime();
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toISOString().slice(11, 19);
+}
+
 /** "updated 14:32:05 UTC" — turns amber past the staleness threshold. */
 export function UpdatedStamp({
   updatedAt,
@@ -226,7 +233,9 @@ export function UpdatedStamp({
 }) {
   if (!updatedAt) return null;
   const stale = isStale(updatedAt, Date.now(), staleAfterMs);
-  const time = new Date(updatedAt).toISOString().slice(11, 19);
+  // An unparseable timestamp reads as stale (isStale already said so) and
+  // must not crash the panel — toISOString throws on an Invalid Date.
+  const time = formatStampTime(updatedAt);
   return (
     <span
       style={{
@@ -241,7 +250,8 @@ export function UpdatedStamp({
       }}
     >
       {stale ? '⚠ stale — updated ' : 'updated '}
-      {time} UTC
+      {time ?? 'unknown time'}
+      {time ? ' UTC' : ''}
     </span>
   );
 }
