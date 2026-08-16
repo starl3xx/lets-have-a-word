@@ -51,7 +51,7 @@ export default async function handler(
     } else {
       return res.status(200).json({
         success: false,
-        reason: 'Twitter posting is disabled or failed (check TWITTER_ENABLED and credentials)'
+        reason: 'Posting is disabled or failed (check TWITTER_ENABLED and TYPEFULLY_API_KEY; Sentry has the error detail)'
       });
     }
   } catch (error) {
