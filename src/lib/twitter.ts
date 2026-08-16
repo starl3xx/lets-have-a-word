@@ -9,6 +9,7 @@
  */
 
 import { TwitterApi } from 'twitter-api-v2';
+import * as Sentry from '@sentry/nextjs';
 
 // Configuration from environment variables
 const TWITTER_API_KEY = process.env.TWITTER_API_KEY;
@@ -166,9 +167,21 @@ export async function postTweet(
     }
 
     return { id: tweet.data.id };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[twitter] ERROR: Failed to post tweet:', error);
-    // Don't throw - Twitter failures should never break the game
+    // Don't throw - Twitter failures should never break the game. But DO
+    // report: tweets failed silently from March to August 2026 because this
+    // catch was the only witness. The X API error body names the real cause
+    // (expired token, revoked app, tier limit) — send it to Sentry.
+    Sentry.captureMessage('[twitter] Tweet failed', {
+      level: 'warning',
+      tags: { component: 'twitter' },
+      extra: {
+        code: error?.code ?? null,
+        detail: error?.data?.detail ?? error?.message ?? String(error),
+        rateLimit: error?.rateLimit ?? null,
+      },
+    });
     return null;
   }
 }
