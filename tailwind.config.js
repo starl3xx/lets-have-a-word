@@ -22,18 +22,17 @@ module.exports = {
   				DEFAULT: '#2D68C7'
   			},
   			accent: {
-  				'50': '#f5f3ff',
-  				'100': '#ede9fe',
-  				'200': '#ddd6fe',
-  				'300': '#c4b5fd',
-  				'400': '#a78bfa',
-  				'500': '#8b5cf6',
-  				'600': '#7c3aed',
-  				'700': '#6d28d9',
-  				'800': '#5b21b6',
-  				'900': '#4c1d95',
-  				DEFAULT: 'hsl(var(--accent))',
-  				foreground: 'hsl(var(--accent-foreground))'
+  				DEFAULT: '#7c3aed',
+  				50: '#f5f3ff',
+  				100: '#ede9fe',
+  				200: '#ddd6fe',
+  				300: '#c4b5fd',
+  				400: '#a78bfa',
+  				500: '#8b5cf6',
+  				600: '#7c3aed', // $WORD purple
+  				700: '#6d28d9',
+  				800: '#5b21b6',
+  				900: '#4c1d95',
   			},
   			success: {
   				'50': '#f0fdf4',
@@ -96,7 +95,10 @@ module.exports = {
   				DEFAULT: 'hsl(var(--muted))',
   				foreground: 'hsl(var(--muted-foreground))'
   			},
-  			destructive: 'hsl(var(--destructive))',
+  			destructive: {
+  				DEFAULT: 'hsl(var(--destructive))',
+  				foreground: 'hsl(var(--destructive-foreground))'
+  			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
