@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { postViaTypefully, convertToTwitterText } from '../lib/twitter';
+import { postViaTypefully, convertToTwitterText, getTypefullyPublishedUrl } from '../lib/twitter';
 
 const realFetch = global.fetch;
 
@@ -42,6 +42,7 @@ describe('postViaTypefully', () => {
     expect(result).toEqual({
       id: 'typefully:9912',
       url: 'https://typefully.com/draft/9912',
+      draftId: 9912,
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.typefully.com/v2/social-sets/326839/drafts');
@@ -74,6 +75,39 @@ describe('postViaTypefully', () => {
 
     expect(await postViaTypefully('text')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('getTypefullyPublishedUrl', () => {
+  it('returns the x.com URL once publishing is finished', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 9912,
+          publish_state: 'finished',
+          x_published_url: 'https://x.com/letshaveaword_/status/123',
+        }),
+        { status: 200 }
+      )
+    ) as any;
+    expect(await getTypefullyPublishedUrl(9912)).toBe(
+      'https://x.com/letshaveaword_/status/123'
+    );
+  });
+
+  it('returns null while publishing is still in progress', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: 9912, publish_state: 'in_progress', x_published_url: null }),
+        { status: 200 }
+      )
+    ) as any;
+    expect(await getTypefullyPublishedUrl(9912)).toBeNull();
+  });
+
+  it('returns null on API errors instead of throwing', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNRESET')) as any;
+    expect(await getTypefullyPublishedUrl(9912)).toBeNull();
   });
 });
 

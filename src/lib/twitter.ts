@@ -106,7 +106,7 @@ export function twitterIsActive(): boolean {
  */
 export async function postViaTypefully(
   text: string
-): Promise<{ id: string; url?: string } | null> {
+): Promise<{ id: string; url?: string; draftId?: number } | null> {
   const apiKey = getTypefullyKey();
   if (!apiKey) return null;
 
@@ -145,8 +145,10 @@ export async function postViaTypefully(
     return {
       id: `typefully:${body?.id ?? 'unknown'}`,
       // The draft's Typefully URL — there is no X status id yet, publish is
-      // asynchronous on their side. Callers link here, never to x.com.
+      // asynchronous on their side. Callers that want the real x.com link
+      // poll getTypefullyPublishedUrl with draftId until publish finishes.
       url: typeof body?.private_url === 'string' ? body.private_url : undefined,
+      draftId: typeof body?.id === 'number' ? body.id : undefined,
     };
   } catch (error: any) {
     console.error('[twitter] Typefully request failed:', error);
@@ -155,6 +157,33 @@ export async function postViaTypefully(
       tags: { component: 'twitter', transport: 'typefully' },
       extra: { detail: error?.message ?? String(error) },
     });
+    return null;
+  }
+}
+
+/**
+ * Resolve the real x.com status URL for a Typefully draft. Publishing is
+ * asynchronous on their side: returns the URL once publish_state is
+ * "finished" (verified live 2026-08-16 against draft 10361711), null while
+ * still in progress or on any failure. Callers poll briefly and fall back
+ * to the draft URL — never block a posting path on this.
+ */
+export async function getTypefullyPublishedUrl(draftId: number): Promise<string | null> {
+  const apiKey = getTypefullyKey();
+  if (!apiKey) return null;
+  try {
+    const response = await fetch(
+      `https://api.typefully.com/v2/social-sets/${getTypefullySocialSetId()}/drafts/${draftId}`,
+      {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    if (!response.ok) return null;
+    const body = await response.json();
+    if (body?.publish_state !== 'finished') return null;
+    return typeof body?.x_published_url === 'string' ? body.x_published_url : null;
+  } catch {
     return null;
   }
 }

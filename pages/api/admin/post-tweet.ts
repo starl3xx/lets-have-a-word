@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from './me';
-import { postTweet, convertToTwitterText } from '../../../src/lib/twitter';
+import { postTweet, convertToTwitterText, getTypefullyPublishedUrl } from '../../../src/lib/twitter';
 
 export default async function handler(
   req: NextApiRequest,
@@ -42,15 +42,31 @@ export default async function handler(
 
     if (result) {
       console.log(`[post-tweet] Tweet posted by FID ${fid}: ${result.id}`);
+
+      // Typefully publishes asynchronously. A human is waiting on this
+      // response, so poll briefly for the real x.com status URL; the draft
+      // URL is only the fallback when publishing outruns the wait.
+      let tweetUrl: string | undefined = (result as { url?: string }).url;
+      const draftId = (result as { draftId?: number }).draftId;
+      if (draftId) {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const publishedUrl = await getTypefullyPublishedUrl(draftId);
+          if (publishedUrl) {
+            tweetUrl = publishedUrl;
+            break;
+          }
+        }
+      } else if (!tweetUrl) {
+        // Legacy X transport: the id IS the status id.
+        tweetUrl = `https://twitter.com/letshaveaword_/status/${result.id}`;
+      }
+
       return res.status(200).json({
         success: true,
         tweetId: result.id,
         postedText: twitterText,
-        // Typefully returns its own draft URL; only the legacy X transport
-        // yields a real status id an x.com link can point at.
-        tweetUrl:
-          (result as { url?: string }).url ??
-          `https://twitter.com/letshaveaword_/status/${result.id}`
+        tweetUrl
       });
     } else {
       return res.status(200).json({
