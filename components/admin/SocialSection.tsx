@@ -615,7 +615,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
               label: "Round Live",
               text: `🔵 New round is live in @letshaveaword_!
 
-One secret word. One winner takes the ETH jackpot.
+One secret word. One winner takes the $WORD jackpot.
 
 Every wrong guess removes a word from the global pool.
 
@@ -633,7 +633,7 @@ letshaveaword.fun`
               label: "General Promo",
               text: `🎯 @letshaveaword_ - a massively multiplayer word guessing game on Farcaster
 
-One secret word. One winner. ETH jackpots.
+One secret word. One winner. $WORD jackpots.
 
 Play now: letshaveaword.fun`
             },
