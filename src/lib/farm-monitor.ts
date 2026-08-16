@@ -18,8 +18,8 @@
  *
  * The verdict rests on two legs:
  *  1. NAME LEG — suspicious username share among new guessers (`.base.eth`,
- *     `!`-prefixed Neynar placeholder, or none). Waves 28/29/33 measure
- *     91–99% suspicious; round 13's organic cohort measures 19%.
+ *     `!`-prefixed or `user-<fid>` placeholders, or none). Waves 28/29/33
+ *     measure 91–99% suspicious; round 13's organic cohort measures 19%.
  *  2. FUNDING LEG — one sender seeding $WORD into many reward-gate claim
  *     wallets. This is the only leg that sees the round-32 class: real-shaped
  *     usernames, Neynar scores 0.62–0.99, rows created in batches months
@@ -63,14 +63,18 @@ export interface FarmSignals {
 export type UsernameShape = 'base_eth' | 'placeholder' | 'none' | 'real';
 
 /**
- * The two known farm shapes plus the no-username case. Neynar returns
- * "!<fid>" for users who never set a username (src/lib/farcaster.ts).
+ * The known farm shapes plus the no-username case. Neynar returns "!<fid>"
+ * for users who never set a username (src/lib/farcaster.ts). "user-<fid>" is
+ * the auto-generated shape the round-31/32 winners carried: all 500 in
+ * production have suffix = own FID, 445 sit in the wave rounds 28/29/33, and
+ * round 13's organic cohort has zero (verified 2026-08-15).
  * NOTE: a 'real' shape is NOT evidence of a real player — the round-32 farm
  * had real-shaped names throughout. Only the funding leg sees that class.
  */
 export function classifyUsername(username: string | null | undefined): UsernameShape {
   if (!username) return 'none';
   if (username.startsWith('!')) return 'placeholder';
+  if (/^user-\d+$/.test(username)) return 'placeholder';
   if (username.toLowerCase().endsWith('.base.eth')) return 'base_eth';
   return 'real';
 }

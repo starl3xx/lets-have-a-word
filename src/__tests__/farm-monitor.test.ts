@@ -20,6 +20,8 @@ describe('classifyUsername', () => {
     expect(classifyUsername('swarm042.base.eth')).toBe('base_eth');
     expect(classifyUsername('SWARM042.BASE.ETH')).toBe('base_eth');
     expect(classifyUsername('!891234')).toBe('placeholder');
+    expect(classifyUsername('user-2924790')).toBe('placeholder'); // round-31/32 winners' shape
+    expect(classifyUsername('user2924790')).toBe('real'); // no dash — not the auto-generated shape
     expect(classifyUsername(null)).toBe('none');
     expect(classifyUsername(undefined)).toBe('none');
     expect(classifyUsername('')).toBe('none');

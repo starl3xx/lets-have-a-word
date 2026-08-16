@@ -1,0 +1,22 @@
+{
+  "name": "lhaw-promo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion promo video for Let's Have A Word",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Promo out/lhaw-promo.mp4",
+    "still": "remotion still"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.*",
+    "@remotion/fonts": "4.0.*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.4.0"
+  }
+}

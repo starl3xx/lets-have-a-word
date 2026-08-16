@@ -109,6 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             (u.created_at < ${agedCutoffIso}::timestamptz) as aged_row,
             (u.username is null
               or u.username like '!%'
+              or u.username ~ '^user-[0-9]+$'
               or u.username ilike '%.base.eth') as suspicious_name
           from round_guessers rg
           left join users u on u.fid = rg.fid
@@ -122,7 +123,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           count(*) filter (where gated)::int as gated_guessers,
           count(*) filter (where not gated)::int as grandfathered_guessers,
           count(*) filter (where username ilike '%.base.eth')::int as base_eth,
-          count(*) filter (where username like '!%')::int as placeholder,
+          count(*) filter (where username like '!%'
+            or username ~ '^user-[0-9]+$')::int as placeholder,
           count(*) filter (where username is null)::int as no_username
         from e
       `)
@@ -248,7 +250,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         driveBy:
           'guessed in no other round — data only, not in the verdict ' +
           '(trivially true for the latest round)',
-        suspiciousName: 'no username, !-prefixed placeholder, or .base.eth',
+        suspiciousName:
+          'no username, !-prefixed or user-<fid> placeholder, or .base.eth',
         agedRow: `user row created more than ${AGED_ROW_DAYS} days before round start`,
         gated: `first_guess_round NULL or > ${REWARD_GATE_GRANDFATHER_LAST_ROUND}`,
       },
