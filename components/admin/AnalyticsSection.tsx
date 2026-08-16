@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react"
 import { AnalyticsChart } from "./AnalyticsChart"
 import { formatPrize, formatPrizeValue } from "../../src/lib/prize-display"
 import { AnalyticsControls, TimeRange } from "./AnalyticsControls"
+import FarmMonitor from "./FarmMonitor"
 
 // =============================================================================
 // Types
@@ -1819,6 +1820,9 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
           </div>
         )}
       </Module>
+
+      {/* ===== Farm Monitor ===== */}
+      {user?.fid && <FarmMonitor fid={user.fid} />}
 
     </div>
   )
