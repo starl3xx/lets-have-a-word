@@ -178,29 +178,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ENRICH_MAX
       );
 
-      const walletRows: { wallet: string; fid: number }[] = rowsOf(
+      // One row per WALLET — a wallet claimed by different FIDs on
+      // different game-days must count once toward fan-out, not once per FID.
+      const walletRows: { wallet: string; fids: number[] }[] = rowsOf(
         await db.execute(sql`
-          select distinct c.wallet, c.fid
+          select c.wallet, array_agg(distinct c.fid) as fids
           from reward_gate_claims c
           join users u on u.fid = c.fid
           where c.round_id = ${roundId}
             and (u.first_guess_round is null
               or u.first_guess_round > ${REWARD_GATE_GRANDFATHER_LAST_ROUND})
+          group by c.wallet
           order by c.wallet
           limit ${enrichLimit}
         `)
-      );
+      ).map((r: any) => ({ wallet: r.wallet, fids: r.fids ?? [] }));
 
-      const funderMap = new Map<string, { wallets: string[]; fids: number[] }>();
+      const funderMap = new Map<string, { wallets: Set<string>; fids: Set<number> }>();
       let unverified = 0;
       // Sequential with a small gap — Blockscout throttles bursts.
-      for (const { wallet, fid } of walletRows) {
+      for (const { wallet, fids } of walletRows) {
         const result = await fetchWordFunders(wallet);
         if (!result.verified) unverified++;
         for (const sender of result.senders) {
-          const entry = funderMap.get(sender) ?? { wallets: [], fids: [] };
-          entry.wallets.push(wallet);
-          entry.fids.push(fid);
+          const entry = funderMap.get(sender) ?? { wallets: new Set(), fids: new Set() };
+          entry.wallets.add(wallet);
+          for (const f of fids) entry.fids.add(f);
           funderMap.set(sender, entry);
         }
         await new Promise((resolve) => setTimeout(resolve, 250));
@@ -209,8 +212,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const funders = [...funderMap.entries()]
         .map(([sender, entry]) => ({
           sender,
-          walletsFunded: entry.wallets.length,
-          fids: entry.fids,
+          walletsFunded: entry.wallets.size,
+          fids: [...entry.fids],
         }))
         .filter((f) => f.walletsFunded >= 2)
         .sort((a, b) => b.walletsFunded - a.walletsFunded)
@@ -227,11 +230,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     }
 
+    // Enrichment that ran but verified nothing is NOT a trace — every
+    // Blockscout lookup failing must not read as "no shared funder".
+    const enrichmentFailed =
+      funding !== null &&
+      funding.walletsChecked > 0 &&
+      funding.walletsUnverified === funding.walletsChecked;
     const signals = {
       newGuessers: cohorts?.new_guessers ?? 0,
       newGuessersSuspicious: cohorts?.new_suspicious ?? 0,
       topFunderFanout: funding?.funders?.[0]?.walletsFunded ?? 0,
-      fundingUntraced: funding === null && claimCount > 0,
+      fundingUntraced: (funding === null || enrichmentFailed) && claimCount > 0,
     };
     const assessment = computeAssessment(signals);
 
