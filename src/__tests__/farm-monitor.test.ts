@@ -21,7 +21,8 @@ describe('classifyUsername', () => {
     expect(classifyUsername('SWARM042.BASE.ETH')).toBe('base_eth');
     expect(classifyUsername('!891234')).toBe('placeholder');
     expect(classifyUsername('user-2924790')).toBe('placeholder'); // round-31/32 winners' shape
-    expect(classifyUsername('user2924790')).toBe('real'); // no dash — not the auto-generated shape
+    expect(classifyUsername('user1251667')).toBe('placeholder'); // 2025-09-14 dormant cohort shape
+    expect(classifyUsername('username42')).toBe('real'); // trailing letters — a human handle
     expect(classifyUsername(null)).toBe('none');
     expect(classifyUsername(undefined)).toBe('none');
     expect(classifyUsername('')).toBe('none');
