@@ -4,6 +4,12 @@
  * Posts announcements to @letshaveaword_ on Twitter/X
  * in sync with the Farcaster announcer bot.
  *
+ * Transport: Typefully (api.typefully.com) when TYPEFULLY_API_KEY is set —
+ * the direct X API access died silently in early March 2026 (Jan 73/80
+ * events tweeted, Feb 40/44, Mar onward 0/176 while casts kept posting).
+ * The legacy twitter-api-v2 client remains as the fallback transport when
+ * only the X credentials are configured.
+ *
  * CRITICAL: This bot is COMPLETELY DISABLED in dev mode (NODE_ENV !== 'production')
  * to prevent accidental posts from non-production environments.
  */
@@ -17,6 +23,10 @@ const TWITTER_API_SECRET = process.env.TWITTER_API_SECRET;
 const TWITTER_ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN;
 const TWITTER_ACCESS_SECRET = process.env.TWITTER_ACCESS_SECRET;
 const TWITTER_ENABLED = process.env.TWITTER_ENABLED;
+// Typefully transport (preferred). Read lazily so tests can inject env.
+const getTypefullyKey = () => process.env.TYPEFULLY_API_KEY;
+// The LHAW social set (Settings → API → Development mode shows the id).
+const getTypefullySocialSetId = () => process.env.TYPEFULLY_SOCIAL_SET_ID || '326839';
 const TWITTER_DEBUG_LOGS = process.env.TWITTER_DEBUG_LOGS === 'true';
 const NODE_ENV = process.env.NODE_ENV;
 
@@ -43,19 +53,15 @@ function getTwitterClient(): TwitterApi | null {
   return twitterClient;
 }
 
-// Startup validation (fail fast in production if misconfigured)
+// Startup validation (fail fast in production if misconfigured):
+// one full transport must exist — Typefully key, or all four X credentials.
 if (NODE_ENV === 'production' && TWITTER_ENABLED === 'true') {
-  if (!TWITTER_API_KEY) {
-    throw new Error('[twitter] FATAL: TWITTER_API_KEY is required when TWITTER_ENABLED=true in production');
-  }
-  if (!TWITTER_API_SECRET) {
-    throw new Error('[twitter] FATAL: TWITTER_API_SECRET is required when TWITTER_ENABLED=true in production');
-  }
-  if (!TWITTER_ACCESS_TOKEN) {
-    throw new Error('[twitter] FATAL: TWITTER_ACCESS_TOKEN is required when TWITTER_ENABLED=true in production');
-  }
-  if (!TWITTER_ACCESS_SECRET) {
-    throw new Error('[twitter] FATAL: TWITTER_ACCESS_SECRET is required when TWITTER_ENABLED=true in production');
+  const hasXCreds =
+    TWITTER_API_KEY && TWITTER_API_SECRET && TWITTER_ACCESS_TOKEN && TWITTER_ACCESS_SECRET;
+  if (!process.env.TYPEFULLY_API_KEY && !hasXCreds) {
+    throw new Error(
+      '[twitter] FATAL: TWITTER_ENABLED=true needs TYPEFULLY_API_KEY or the four TWITTER_* credentials in production'
+    );
   }
 }
 
@@ -81,16 +87,76 @@ export function twitterIsActive(): boolean {
     return false;
   }
 
-  // Check credentials are present
-  const client = getTwitterClient();
-  if (!client) {
+  // Check a transport is configured (Typefully preferred, X client fallback)
+  if (!getTypefullyKey() && !getTwitterClient()) {
     if (TWITTER_DEBUG_LOGS) {
-      console.log('[twitter] inactive: missing API credentials');
+      console.log('[twitter] inactive: no Typefully key and no X API credentials');
     }
     return false;
   }
 
   return true;
+}
+
+/**
+ * Publish a single X post through Typefully (transport only — postTweet owns
+ * the gating). Creates a draft in the LHAW social set with publish_at "now";
+ * Typefully publishes asynchronously, so the returned id is the Typefully
+ * draft id (prefixed), not an X status id.
+ */
+export async function postViaTypefully(
+  text: string
+): Promise<{ id: string; url?: string } | null> {
+  const apiKey = getTypefullyKey();
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch(
+      `https://api.typefully.com/v2/social-sets/${getTypefullySocialSetId()}/drafts`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platforms: { x: { enabled: true, posts: [{ text }] } },
+          publish_at: 'now',
+        }),
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      console.error('[twitter] Typefully error:', response.status, detail.slice(0, 300));
+      Sentry.captureMessage('[twitter] Typefully publish failed', {
+        level: 'warning',
+        tags: { component: 'twitter', transport: 'typefully' },
+        extra: { status: response.status, detail: detail.slice(0, 500) },
+      });
+      return null;
+    }
+
+    const body = await response.json();
+    if (TWITTER_DEBUG_LOGS) {
+      console.log('[twitter] Typefully draft created:', body?.id, 'state:', body?.publish_state);
+    }
+    return {
+      id: `typefully:${body?.id ?? 'unknown'}`,
+      // The draft's Typefully URL — there is no X status id yet, publish is
+      // asynchronous on their side. Callers link here, never to x.com.
+      url: typeof body?.private_url === 'string' ? body.private_url : undefined,
+    };
+  } catch (error: any) {
+    console.error('[twitter] Typefully request failed:', error);
+    Sentry.captureMessage('[twitter] Typefully publish failed', {
+      level: 'warning',
+      tags: { component: 'twitter', transport: 'typefully' },
+      extra: { detail: error?.message ?? String(error) },
+    });
+    return null;
+  }
 }
 
 /**
@@ -150,15 +216,20 @@ export async function postTweet(
     return null;
   }
 
+  // Convert text for Twitter format (both transports)
+  const twitterText = convertToTwitterText(text);
+
+  // Preferred transport: Typefully
+  if (getTypefullyKey()) {
+    return postViaTypefully(twitterText);
+  }
+
   const client = getTwitterClient();
   if (!client) {
     return null;
   }
 
   try {
-    // Convert text for Twitter format
-    const twitterText = convertToTwitterText(text);
-
     // Post tweet using Twitter API v2
     const tweet = await client.v2.tweet(twitterText);
 

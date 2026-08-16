@@ -450,7 +450,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
         {/* ================================================================== */}
         <Module title="Twitter/X Post">
           <p style={styles.description}>
-            Post a tweet from @letshaveaword_. Farcaster mentions will be converted automatically.
+            Post a tweet from @letshaveaword_ via Typefully. Farcaster mentions will be converted automatically.
           </p>
 
           {tweetResult && (
