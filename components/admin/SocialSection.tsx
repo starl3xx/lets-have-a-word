@@ -5,6 +5,11 @@
  */
 
 import React, { useState, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { AlertBanner, Module } from "./ui"
 
 // =============================================================================
 // Types
@@ -32,91 +37,16 @@ interface TopGuesser {
 const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
-  section: {
-    background: "white",
-    borderRadius: "12px",
-    border: "1px solid #e5e7eb",
-    padding: "24px",
-    marginBottom: "24px",
-  },
-  sectionTitle: {
-    fontSize: "15px",
-    fontWeight: 600,
-    color: "#111827",
-    margin: "0 0 16px 0",
-    letterSpacing: "-0.01em",
-    fontFamily,
-  },
   description: {
     fontSize: "13px",
     color: "#6b7280",
     marginBottom: "12px",
     fontFamily,
   },
-  button: (loading: boolean, color: string = "#6366f1") => ({
-    padding: "8px 16px",
-    borderRadius: "8px",
-    border: "none",
-    background: loading ? "#d1d5db" : color,
-    color: "white",
-    fontWeight: 500,
-    cursor: loading ? "not-allowed" : "pointer",
-    fontFamily,
-    fontSize: "13px",
-  }),
-  secondaryButton: (active: boolean) => ({
-    padding: "8px 16px",
-    borderRadius: "8px",
-    border: "1px solid #e5e7eb",
-    background: active ? "#dcfce7" : "white",
-    color: active ? "#16a34a" : "#374151",
-    fontWeight: 500,
-    cursor: "pointer",
-    fontFamily,
-    fontSize: "13px",
-  }),
-  textarea: {
-    width: "100%",
-    minHeight: "160px",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "1px solid #e5e7eb",
-    background: "#f9fafb",
-    fontFamily: "monospace",
-    fontSize: "13px",
-    lineHeight: "1.5",
-    resize: "vertical" as const,
-  },
-  editableTextarea: {
-    width: "100%",
-    minHeight: "160px",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "1px solid #d1d5db",
-    background: "white",
-    fontFamily: "monospace",
-    fontSize: "13px",
-    lineHeight: "1.5",
-    resize: "vertical" as const,
-  },
   buttonRow: {
     display: "flex" as const,
     gap: "8px",
     marginBottom: "12px",
-  },
-  alert: (type: 'success' | 'error' | 'info') => ({
-    padding: "12px 16px",
-    borderRadius: "8px",
-    marginBottom: "12px",
-    fontFamily,
-    fontSize: "13px",
-    background: type === 'success' ? "#dcfce7" : type === 'error' ? "#fee2e2" : "#dbeafe",
-    color: type === 'success' ? "#166534" : type === 'error' ? "#991b1b" : "#1e40af",
-    border: `1px solid ${type === 'success' ? "#bbf7d0" : type === 'error' ? "#fecaca" : "#bfdbfe"}`,
-  }),
-  link: {
-    color: "#2563eb",
-    textDecoration: "underline",
   },
   grid: {
     display: "grid" as const,
@@ -129,14 +59,7 @@ const styles = {
 // Helper Components
 // =============================================================================
 
-function Module({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={styles.section}>
-      <h3 style={styles.sectionTitle}>{title}</h3>
-      {children}
-    </div>
-  )
-}
+// Module now comes from the shared admin vocabulary (./ui).
 
 // =============================================================================
 // Social Section Component
@@ -412,35 +335,29 @@ export default function SocialSection({ user }: SocialSectionProps) {
             Generate a formatted status update for Farcaster with current game stats.
           </p>
           <div style={styles.buttonRow}>
-            <button
-              onClick={generateStatusCast}
-              disabled={statusCastLoading}
-              style={styles.button(statusCastLoading)}
-            >
+            <Button size="sm" onClick={generateStatusCast} disabled={statusCastLoading}>
               {statusCastLoading ? "Generating..." : "Generate Status Cast"}
-            </button>
+            </Button>
             {statusCastText && (
               <>
-                <button
+                <Button
+                  size="sm"
+                  variant={statusCastCopied ? "secondary" : "outline"}
                   onClick={copyStatusCast}
-                  style={styles.secondaryButton(statusCastCopied)}
                 >
                   {statusCastCopied ? "Copied!" : "Copy to Clipboard"}
-                </button>
-                <button
-                  onClick={loadStatusCastToTweet}
-                  style={styles.secondaryButton(false)}
-                >
+                </Button>
+                <Button size="sm" variant="outline" onClick={loadStatusCastToTweet}>
                   Copy to Tweet
-                </button>
+                </Button>
               </>
             )}
           </div>
           {statusCastText && (
-            <textarea
+            <Textarea
               value={statusCastText}
               readOnly
-              style={styles.textarea}
+              className="min-h-40 bg-muted font-mono text-[13px] leading-relaxed"
             />
           )}
         </Module>
@@ -454,24 +371,29 @@ export default function SocialSection({ user }: SocialSectionProps) {
           </p>
 
           {tweetResult && (
-            <div style={styles.alert(tweetResult.success ? 'success' : 'error')}>
+            <AlertBanner kind={tweetResult.success ? "success" : "error"}>
               {tweetResult.message}
               {tweetResult.tweetUrl && (
                 <>
                   {" "}
-                  <a href={tweetResult.tweetUrl} target="_blank" rel="noopener noreferrer" style={styles.link}>
+                  <a
+                    href={tweetResult.tweetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
                     View tweet
                   </a>
                 </>
               )}
-            </div>
+            </AlertBanner>
           )}
 
-          <textarea
+          <Textarea
             value={tweetText}
             onChange={(e) => setTweetText(e.target.value)}
             placeholder="Write your tweet here... (max 280 characters)"
-            style={styles.editableTextarea}
+            className="min-h-40 font-mono text-[13px] leading-relaxed"
           />
 
           <div style={{
@@ -487,13 +409,13 @@ export default function SocialSection({ user }: SocialSectionProps) {
             }}>
               {tweetText.length}/280 characters
             </span>
-            <button
+            <Button
+              size="sm"
               onClick={postTweet}
               disabled={tweetLoading || !tweetText.trim() || tweetText.length > 280}
-              style={styles.button(tweetLoading || !tweetText.trim() || tweetText.length > 280, "#1DA1F2")}
             >
               {tweetLoading ? "Posting..." : "Post to Twitter/X"}
-            </button>
+            </Button>
           </div>
         </Module>
       </div>
@@ -507,30 +429,22 @@ export default function SocialSection({ user }: SocialSectionProps) {
         </p>
 
         {notifResult && (
-          <div style={styles.alert(notifResult.success ? 'success' : 'error')}>
+          <AlertBanner kind={notifResult.success ? "success" : "error"}>
             {notifResult.message}
-          </div>
+          </AlertBanner>
         )}
 
         <div style={{ marginBottom: "12px" }}>
-          <label style={{ display: "block", fontSize: "12px", color: "#6b7280", marginBottom: "4px", fontFamily }}>
+          <Label htmlFor="notif-title" className="mb-1 block text-xs text-muted-foreground">
             Title (max 50 characters)
-          </label>
-          <input
+          </Label>
+          <Input
+            id="notif-title"
             type="text"
             value={notifTitle}
             onChange={(e) => setNotifTitle(e.target.value)}
             placeholder="e.g., Round #3 is live!"
             maxLength={50}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: "8px",
-              border: "1px solid #d1d5db",
-              background: "white",
-              fontFamily,
-              fontSize: "14px",
-            }}
           />
           <div style={{ fontSize: "11px", color: notifTitle.length > 50 ? "#dc2626" : "#9ca3af", textAlign: "right", marginTop: "4px" }}>
             {notifTitle.length}/50
@@ -538,25 +452,16 @@ export default function SocialSection({ user }: SocialSectionProps) {
         </div>
 
         <div style={{ marginBottom: "12px" }}>
-          <label style={{ display: "block", fontSize: "12px", color: "#6b7280", marginBottom: "4px", fontFamily }}>
+          <Label htmlFor="notif-body" className="mb-1 block text-xs text-muted-foreground">
             Body (max 200 characters)
-          </label>
-          <textarea
+          </Label>
+          <Textarea
+            id="notif-body"
             value={notifBody}
             onChange={(e) => setNotifBody(e.target.value)}
             placeholder="e.g., The hunt for the secret word begins. One correct guess wins the jackpot."
             maxLength={200}
-            style={{
-              width: "100%",
-              minHeight: "80px",
-              padding: "10px 12px",
-              borderRadius: "8px",
-              border: "1px solid #d1d5db",
-              background: "white",
-              fontFamily,
-              fontSize: "14px",
-              resize: "vertical",
-            }}
+            className="min-h-20"
           />
           <div style={{ fontSize: "11px", color: notifBody.length > 200 ? "#dc2626" : "#9ca3af", textAlign: "right", marginTop: "4px" }}>
             {notifBody.length}/200
@@ -570,35 +475,26 @@ export default function SocialSection({ user }: SocialSectionProps) {
               { label: "Daily Reset", title: "Today's guesses are live", body: "Your daily free guesses have been refreshed. Good luck!" },
               { label: "New Day", title: "New day, new guesses", body: "A fresh batch of guesses awaits. Will you find today's word?" },
             ].map((template, idx) => (
-              <button
+              <Button
                 key={idx}
+                size="sm"
+                variant="outline"
                 onClick={() => {
                   setNotifTitle(template.title)
                   setNotifBody(template.body)
                 }}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "4px",
-                  border: "1px solid #e5e7eb",
-                  background: "#f9fafb",
-                  color: "#374151",
-                  fontSize: "11px",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily,
-                }}
               >
                 {template.label}
-              </button>
+              </Button>
             ))}
           </div>
-          <button
+          <Button
+            size="sm"
             onClick={sendNotification}
             disabled={notifLoading || !notifTitle.trim() || !notifBody.trim()}
-            style={styles.button(notifLoading || !notifTitle.trim() || !notifBody.trim(), "#8b5cf6")}
           >
             {notifLoading ? "Sending..." : "Send Notification"}
-          </button>
+          </Button>
         </div>
       </Module>
 
@@ -638,23 +534,9 @@ One secret word. One winner. $WORD jackpots.
 Play now: letshaveaword.fun`
             },
           ].map((template, idx) => (
-            <button
-              key={idx}
-              onClick={() => setTweetText(template.text)}
-              style={{
-                padding: "8px 14px",
-                borderRadius: "6px",
-                border: "1px solid #e5e7eb",
-                background: "#f9fafb",
-                color: "#374151",
-                fontSize: "12px",
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily,
-              }}
-            >
+            <Button key={idx} size="sm" variant="outline" onClick={() => setTweetText(template.text)}>
               {template.label}
-            </button>
+            </Button>
           ))}
         </div>
       </Module>
