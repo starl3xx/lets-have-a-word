@@ -145,7 +145,11 @@ export default function FarmMonitor({ fid }: FarmMonitorProps) {
                   `, ${report.funding.walletsUnverified} unverified`}
                 )
               </div>
-              {funders.length === 0 ? (
+              {report.funding.traceFailed ? (
+                <div style={styles.error}>
+                  Funding trace failed — every Blockscout lookup errored. Run the check again.
+                </div>
+              ) : funders.length === 0 ? (
                 <div style={styles.muted}>No sender funded two or more of the checked wallets.</div>
               ) : (
                 <table style={styles.table}>

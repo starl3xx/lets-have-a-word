@@ -236,11 +236,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       funding !== null &&
       funding.walletsChecked > 0 &&
       funding.walletsUnverified === funding.walletsChecked;
+    if (funding !== null) {
+      funding.traceFailed = enrichmentFailed;
+    }
     const signals = {
       newGuessers: cohorts?.new_guessers ?? 0,
       newGuessersSuspicious: cohorts?.new_suspicious ?? 0,
       topFunderFanout: funding?.funders?.[0]?.walletsFunded ?? 0,
-      fundingUntraced: (funding === null || enrichmentFailed) && claimCount > 0,
+      fundingUntraced: funding === null && claimCount > 0,
+      fundingTraceFailed: enrichmentFailed,
     };
     const assessment = computeAssessment(signals);
 

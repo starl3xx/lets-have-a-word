@@ -109,6 +109,18 @@ describe('computeAssessment', () => {
     expect(verdict).toBe('watch');
   });
 
+  it('a failed trace is named, not read as all-clear', () => {
+    const { verdict, reasons } = computeAssessment({
+      newGuessers: 59,
+      newGuessersSuspicious: 1,
+      topFunderFanout: 0,
+      fundingTraceFailed: true,
+    });
+    expect(verdict).toBe('quiet');
+    expect(reasons.join(' ')).toContain('funding trace failed');
+    expect(reasons.join(' ')).not.toContain('run with enrichment');
+  });
+
   it('puts moderate funding fan-out on watch', () => {
     const { verdict } = computeAssessment({
       newGuessers: 3,

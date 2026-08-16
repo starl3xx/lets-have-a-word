@@ -58,6 +58,8 @@ export interface FarmSignals {
   topFunderFanout: number;
   /** True when funding was not traced but claim wallets exist to trace. */
   fundingUntraced?: boolean;
+  /** True when the trace ran but every Blockscout lookup failed. */
+  fundingTraceFailed?: boolean;
 }
 
 export type UsernameShape = 'base_eth' | 'placeholder' | 'none' | 'real';
@@ -90,7 +92,13 @@ export function computeAssessment(signals: FarmSignals): {
   verdict: FarmVerdict;
   reasons: string[];
 } {
-  const { newGuessers, newGuessersSuspicious, topFunderFanout, fundingUntraced } = signals;
+  const {
+    newGuessers,
+    newGuessersSuspicious,
+    topFunderFanout,
+    fundingUntraced,
+    fundingTraceFailed,
+  } = signals;
   const T = FARM_MONITOR_THRESHOLDS;
   const nameShare = newGuessers > 0 ? newGuessersSuspicious / newGuessers : 0;
   const reasons: string[] = [];
@@ -124,14 +132,17 @@ export function computeAssessment(signals: FarmSignals): {
       `one sender funded ${topFunderFanout} claim wallets (threshold ${T.funderFanoutWatch})`
     );
   }
-  if (fundingUntraced) {
-    // The round-32 class is invisible to the name leg — say so instead of
-    // reading "quiet" while the only leg that can see it never ran.
+  // The round-32 class is invisible to the name leg — say so instead of
+  // reading "quiet" while the only leg that can see it never ran (or ran
+  // and produced nothing verifiable).
+  if (fundingTraceFailed) {
+    reasons.push('funding trace failed — every Blockscout lookup errored; the funding leg has no data');
+  } else if (fundingUntraced) {
     reasons.push('funding not traced — run with enrichment to check the funded-farm class');
   }
   if (reasons.length > 0) {
-    const onlyUntraced = reasons.length === 1 && fundingUntraced;
-    return { verdict: onlyUntraced ? 'quiet' : 'watch', reasons };
+    const onlyInfo = reasons.length === 1 && (fundingUntraced || fundingTraceFailed);
+    return { verdict: onlyInfo ? 'quiet' : 'watch', reasons };
   }
 
   return { verdict: 'quiet', reasons: ['no farm signature in this round'] };
