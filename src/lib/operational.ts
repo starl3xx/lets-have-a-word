@@ -93,6 +93,17 @@ const REDIS_KEYS = {
 // ============================================================
 
 /**
+ * A flag set with redis.set(key, 'true') comes back as BOOLEAN true: the
+ * Upstash SDK stores the raw bytes and auto-JSON.parses them on read. A
+ * string comparison against 'true' therefore never matches, which silently
+ * disarmed the kill switch and dead day in production until 2026-08-16.
+ * Accept both shapes; never compare a Redis flag to a string directly.
+ */
+function isFlagOn(value: unknown): boolean {
+  return value === true || value === 'true';
+}
+
+/**
  * Check if kill switch is enabled
  */
 export async function isKillSwitchEnabled(): Promise<boolean> {
@@ -101,7 +112,7 @@ export async function isKillSwitchEnabled(): Promise<boolean> {
 
   try {
     const enabled = await redis.get(REDIS_KEYS.killSwitchEnabled);
-    return enabled === 'true';
+    return isFlagOn(enabled);
   } catch (error) {
     console.error('[Ops] Failed to check kill switch:', error);
     return false;
@@ -117,7 +128,7 @@ export async function isDeadDayEnabled(): Promise<boolean> {
 
   try {
     const enabled = await redis.get(REDIS_KEYS.deadDayEnabled);
-    return enabled === 'true';
+    return isFlagOn(enabled);
   } catch (error) {
     console.error('[Ops] Failed to check dead day:', error);
     return false;
@@ -143,7 +154,7 @@ export async function getKillSwitchState(): Promise<KillSwitchState> {
     ]);
 
     return {
-      enabled: enabled === 'true',
+      enabled: isFlagOn(enabled),
       activatedAt: activatedAt || undefined,
       reason: reason || undefined,
       roundId: roundId ? parseInt(roundId, 10) : undefined,
@@ -175,7 +186,7 @@ export async function getDeadDayState(): Promise<DeadDayState> {
     ]);
 
     return {
-      enabled: enabled === 'true',
+      enabled: isFlagOn(enabled),
       activatedAt: activatedAt || undefined,
       reason: reason || undefined,
       reopenAt: reopenAt || undefined,
