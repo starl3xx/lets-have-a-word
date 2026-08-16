@@ -46,7 +46,11 @@ export default async function handler(
         success: true,
         tweetId: result.id,
         postedText: twitterText,
-        tweetUrl: `https://twitter.com/letshaveaword_/status/${result.id}`
+        // Typefully returns its own draft URL; only the legacy X transport
+        // yields a real status id an x.com link can point at.
+        tweetUrl:
+          (result as { url?: string }).url ??
+          `https://twitter.com/letshaveaword_/status/${result.id}`
       });
     } else {
       return res.status(200).json({

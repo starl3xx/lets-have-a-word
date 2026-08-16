@@ -25,15 +25,24 @@ afterEach(() => {
 describe('postViaTypefully', () => {
   it('creates a publish-now draft in the social set and returns the draft id', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 9912, status: 'draft', publish_state: 'in_progress' }), {
-        status: 201,
-      })
+      new Response(
+        JSON.stringify({
+          id: 9912,
+          status: 'draft',
+          publish_state: 'in_progress',
+          private_url: 'https://typefully.com/draft/9912',
+        }),
+        { status: 201 }
+      )
     );
     global.fetch = fetchMock as any;
 
     const result = await postViaTypefully('🟣 Round 34 is live');
 
-    expect(result).toEqual({ id: 'typefully:9912' });
+    expect(result).toEqual({
+      id: 'typefully:9912',
+      url: 'https://typefully.com/draft/9912',
+    });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.typefully.com/v2/social-sets/326839/drafts');
     expect(init.headers.Authorization).toBe('Bearer test-key');

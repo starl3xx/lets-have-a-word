@@ -104,7 +104,9 @@ export function twitterIsActive(): boolean {
  * Typefully publishes asynchronously, so the returned id is the Typefully
  * draft id (prefixed), not an X status id.
  */
-export async function postViaTypefully(text: string): Promise<{ id: string } | null> {
+export async function postViaTypefully(
+  text: string
+): Promise<{ id: string; url?: string } | null> {
   const apiKey = getTypefullyKey();
   if (!apiKey) return null;
 
@@ -140,7 +142,12 @@ export async function postViaTypefully(text: string): Promise<{ id: string } | n
     if (TWITTER_DEBUG_LOGS) {
       console.log('[twitter] Typefully draft created:', body?.id, 'state:', body?.publish_state);
     }
-    return { id: `typefully:${body?.id ?? 'unknown'}` };
+    return {
+      id: `typefully:${body?.id ?? 'unknown'}`,
+      // The draft's Typefully URL — there is no X status id yet, publish is
+      // asynchronous on their side. Callers link here, never to x.com.
+      url: typeof body?.private_url === 'string' ? body.private_url : undefined,
+    };
   } catch (error: any) {
     console.error('[twitter] Typefully request failed:', error);
     Sentry.captureMessage('[twitter] Typefully publish failed', {
