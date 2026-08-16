@@ -4,6 +4,15 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react"
+import { AlertBanner, InfoRow, StatusPill, type Severity } from "./ui"
+
+// One severity scale for every operational state (shared vocabulary, Phase 1).
+const OP_SEVERITY: Record<string, Severity> = {
+  NORMAL: 'ok',
+  KILL_SWITCH_ACTIVE: 'alert',
+  DEAD_DAY_ACTIVE: 'watch',
+  PAUSED_BETWEEN_ROUNDS: 'watch',
+}
 
 // =============================================================================
 // Types
@@ -169,19 +178,6 @@ const styles = {
     margin: "0 0 16px 0",
     fontFamily,
   },
-  statusBadge: (status: string) => ({
-    display: "inline-block",
-    padding: "4px 12px",
-    borderRadius: "9999px",
-    fontSize: "13px",
-    fontWeight: 500,
-    background: status === 'NORMAL' ? "#dcfce7" :
-                status === 'KILL_SWITCH_ACTIVE' ? "#fef3c7" :
-                "#dbeafe",
-    color: status === 'NORMAL' ? "#166534" :
-           status === 'KILL_SWITCH_ACTIVE' ? "#92400e" :
-           "#1e40af",
-  }),
   label: {
     display: "block",
     fontSize: "13px",
@@ -1162,7 +1158,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     <div>
       {/* Alerts */}
       {error && (
-        <div style={styles.alert('error')}>
+        <AlertBanner kind="error">
           {error}
           <button
             onClick={() => setError(null)}
@@ -1170,10 +1166,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           >
             &times;
           </button>
-        </div>
+        </AlertBanner>
       )}
       {success && (
-        <div style={styles.alert('success')}>
+        <AlertBanner kind="success">
           {success}
           <button
             onClick={() => setSuccess(null)}
@@ -1181,7 +1177,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           >
             &times;
           </button>
-        </div>
+        </AlertBanner>
       )}
 
       {loading && !status ? (
@@ -1201,12 +1197,12 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 {status.status === 'PAUSED_BETWEEN_ROUNDS' && '⏸️'}
               </span>
               <div>
-                <span style={styles.statusBadge(status.status)}>
+                <StatusPill severity={OP_SEVERITY[status.status] ?? 'info'}>
                   {status.status === 'NORMAL' && 'Normal Operations'}
                   {status.status === 'KILL_SWITCH_ACTIVE' && 'Kill Switch Active'}
                   {status.status === 'DEAD_DAY_ACTIVE' && 'Dead Day (Round Active)'}
                   {status.status === 'PAUSED_BETWEEN_ROUNDS' && 'Paused Between Rounds'}
-                </span>
+                </StatusPill>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                   {status.status === 'KILL_SWITCH_ACTIVE' && status.killSwitch.activatedAt &&
                     `Since ${formatDate(status.killSwitch.activatedAt)}`}
@@ -1223,16 +1219,8 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 </div>
               </div>
             </div>
-            <div style={styles.infoRow}>
-              <span style={styles.infoLabel}>Active Round</span>
-              <span style={styles.infoValue}>
-                {status.activeRoundId ? `Round #${status.activeRoundId}` : 'None'}
-              </span>
-            </div>
-            <div style={styles.infoRow}>
-              <span style={styles.infoLabel}>Last Updated</span>
-              <span style={styles.infoValue}>{formatDate(status.timestamp)}</span>
-            </div>
+            <InfoRow label={<>Active Round</>} value={<>{status.activeRoundId ? `Round #${status.activeRoundId}` : 'None'}</>} />
+            <InfoRow label={<>Last Updated</>} value={<>{formatDate(status.timestamp)}</>} />
             <div style={{ display: 'flex', gap: '12px', marginTop: '12px', alignItems: 'center' }}>
               <button
                 onClick={fetchStatus}
@@ -1281,9 +1269,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </p>
 
               {roundHealthError && (
-                <div style={styles.alert('error')}>
-                  {roundHealthError}
-                </div>
+                <AlertBanner kind="error">{roundHealthError}</AlertBanner>
               )}
 
               {roundHealthLoading && !roundHealth ? (
@@ -1547,17 +1533,17 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             <h2 style={styles.cardTitle}>
               Kill Switch
               {status.killSwitch.enabled && (
-                <span style={{ ...styles.statusBadge('KILL_SWITCH_ACTIVE'), marginLeft: '12px', fontSize: '12px' }}>
-                  ACTIVE
+                <span style={{ marginLeft: '12px' }}>
+                  <StatusPill severity="alert">Active</StatusPill>
                 </span>
               )}
             </h2>
 
             {status.killSwitch.enabled ? (
               <>
-                <div style={styles.alert('warning')}>
+                <AlertBanner kind="warning">
                   Kill switch is currently active. All gameplay is blocked.
-                </div>
+                </AlertBanner>
 
                 {/* Refund Monitoring Panel */}
                 {(() => {
@@ -1671,20 +1657,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   ) : null
                 })()}
 
-                <div style={styles.infoRow}>
-                  <span style={styles.infoLabel}>Activated At</span>
-                  <span style={styles.infoValue}>{formatDate(status.killSwitch.activatedAt)}</span>
-                </div>
-                <div style={styles.infoRow}>
-                  <span style={styles.infoLabel}>Reason</span>
-                  <span style={styles.infoValue}>{status.killSwitch.reason || '-'}</span>
-                </div>
-                <div style={styles.infoRow}>
-                  <span style={styles.infoLabel}>Cancelled Round</span>
-                  <span style={styles.infoValue}>
-                    {status.killSwitch.roundId ? `#${status.killSwitch.roundId}` : '-'}
-                  </span>
-                </div>
+                <InfoRow label={<>Activated At</>} value={<>{formatDate(status.killSwitch.activatedAt)}</>} />
+                <InfoRow label={<>Reason</>} value={<>{status.killSwitch.reason || '-'}</>} />
+                <InfoRow label={<>Cancelled Round</>} value={<>{status.killSwitch.roundId ? `#${status.killSwitch.roundId}` : '-'}</>} />
                 <button
                   onClick={handleDisableKillSwitch}
                   style={{ ...styles.btnSuccess, marginTop: '16px' }}
@@ -1794,31 +1769,20 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             <h2 style={styles.cardTitle}>
               Dead Day
               {status.deadDay.enabled && (
-                <span style={{ ...styles.statusBadge('PAUSED_BETWEEN_ROUNDS'), marginLeft: '12px', fontSize: '12px' }}>
-                  ACTIVE
+                <span style={{ marginLeft: '12px' }}>
+                  <StatusPill severity="watch">Active</StatusPill>
                 </span>
               )}
             </h2>
 
             {status.deadDay.enabled ? (
               <>
-                <div style={styles.alert('warning')}>
+                <AlertBanner kind="warning">
                   Dead day is active. No new rounds will be created after the current round ends.
-                </div>
-                <div style={styles.infoRow}>
-                  <span style={styles.infoLabel}>Activated At</span>
-                  <span style={styles.infoValue}>{formatDate(status.deadDay.activatedAt)}</span>
-                </div>
-                <div style={styles.infoRow}>
-                  <span style={styles.infoLabel}>Reason</span>
-                  <span style={styles.infoValue}>{status.deadDay.reason || '-'}</span>
-                </div>
-                <div style={styles.infoRow}>
-                  <span style={styles.infoLabel}>Scheduled Reopen</span>
-                  <span style={styles.infoValue}>
-                    {status.deadDay.reopenAt ? formatDate(status.deadDay.reopenAt) : 'Manual'}
-                  </span>
-                </div>
+                </AlertBanner>
+                <InfoRow label={<>Activated At</>} value={<>{formatDate(status.deadDay.activatedAt)}</>} />
+                <InfoRow label={<>Reason</>} value={<>{status.deadDay.reason || '-'}</>} />
+                <InfoRow label={<>Scheduled Reopen</>} value={<>{status.deadDay.reopenAt ? formatDate(status.deadDay.reopenAt) : 'Manual'}</>} />
                 <button
                   onClick={handleDisableDeadDay}
                   style={{ ...styles.btnSuccess, marginTop: '16px' }}
@@ -1878,21 +1842,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   <div style={{ fontWeight: 600, marginBottom: '8px' }}>
                     Round #{round.roundId}
                   </div>
-                  <div style={styles.infoRow}>
-                    <span style={styles.infoLabel}>Cancelled At</span>
-                    <span style={styles.infoValue}>{formatDate(round.cancelledAt)}</span>
-                  </div>
-                  <div style={styles.infoRow}>
-                    <span style={styles.infoLabel}>Reason</span>
-                    <span style={styles.infoValue}>{round.cancelledReason || '-'}</span>
-                  </div>
-                  <div style={styles.infoRow}>
-                    <span style={styles.infoLabel}>Refund Status</span>
-                    <span style={styles.infoValue}>
-                      {round.refundsCompletedAt ? 'Completed' :
-                       round.refundsStartedAt ? 'In Progress' : 'Pending'}
-                    </span>
-                  </div>
+                  <InfoRow label={<>Cancelled At</>} value={<>{formatDate(round.cancelledAt)}</>} />
+                  <InfoRow label={<>Reason</>} value={<>{round.cancelledReason || '-'}</>} />
+                  <InfoRow label={<>Refund Status</>} value={<>{round.refundsCompletedAt ? 'Completed' :
+                       round.refundsStartedAt ? 'In Progress' : 'Pending'}</>} />
                   {round.refunds ? (
                     <>
                       <div style={{
@@ -2002,60 +1955,28 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
                 {recoverDiagnosis.round && (
                   <>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Status</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.round.status}</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Winner FID</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.round.winnerFid ?? 'none'}</span>
-                    </div>
+                    <InfoRow label={<>Status</>} value={<>{recoverDiagnosis.round.status}</>} />
+                    <InfoRow label={<>Winner FID</>} value={<>{recoverDiagnosis.round.winnerFid ?? 'none'}</>} />
                     <div style={styles.infoRow}>
                       <span style={styles.infoLabel}>Answer</span>
                       <span style={{ ...styles.infoValue, fontFamily: 'monospace' }}>{recoverDiagnosis.round.answer}</span>
                     </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Prize Pool</span>
-                      <span style={styles.infoValue}>
-                        {recoverDiagnosis.round.prizeCurrency === 'word'
+                    <InfoRow label={<>Prize Pool</>} value={<>{recoverDiagnosis.round.prizeCurrency === 'word'
                           ? `${recoverDiagnosis.round.prizePoolWord ?? '0'} $WORD (wei)`
-                          : `${recoverDiagnosis.round.prizePoolEth} ETH`}
-                      </span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Resolved At</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.round.resolvedAt ?? 'null'}</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>TX Hash</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.round.txHash ?? 'null'}</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Payouts</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.payoutCount} records</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Total Guesses</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.totalGuesses?.toLocaleString()}</span>
-                    </div>
+                          : `${recoverDiagnosis.round.prizePoolEth} ETH`}</>} />
+                    <InfoRow label={<>Resolved At</>} value={<>{recoverDiagnosis.round.resolvedAt ?? 'null'}</>} />
+                    <InfoRow label={<>TX Hash</>} value={<>{recoverDiagnosis.round.txHash ?? 'null'}</>} />
+                    <InfoRow label={<>Payouts</>} value={<>{recoverDiagnosis.payoutCount} records</>} />
+                    <InfoRow label={<>Total Guesses</>} value={<>{recoverDiagnosis.totalGuesses?.toLocaleString()}</>} />
                   </>
                 )}
 
                 {recoverDiagnosis.contract && (
                   <>
                     <div style={{ fontWeight: 600, marginTop: '12px', marginBottom: '8px', fontSize: '13px' }}>Contract State</div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Contract Round</span>
-                      <span style={styles.infoValue}>#{recoverDiagnosis.contract.roundNumber} {recoverDiagnosis.contract.isActive ? '(active)' : '(inactive)'}</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Contract Jackpot</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.contract.jackpotEth} ETH</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Contract Balance</span>
-                      <span style={styles.infoValue}>{recoverDiagnosis.contract.balanceEth} ETH</span>
-                    </div>
+                    <InfoRow label={<>Contract Round</>} value={<>#{recoverDiagnosis.contract.roundNumber} {recoverDiagnosis.contract.isActive ? '(active)' : '(inactive)'}</>} />
+                    <InfoRow label={<>Contract Jackpot</>} value={<>{recoverDiagnosis.contract.jackpotEth} ETH</>} />
+                    <InfoRow label={<>Contract Balance</>} value={<>{recoverDiagnosis.contract.balanceEth} ETH</>} />
                   </>
                 )}
 
@@ -2157,20 +2078,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                           {contractState.mainnet.rpcUrl?.includes('sepolia') ? '⚠️ SEPOLIA!' : contractState.mainnet.rpcUrl?.replace('https://', '')}
                         </span>
                       </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Round</span>
-                        <span style={styles.infoValue}>
-                          #{contractState.mainnet.roundNumber} {contractState.mainnet.isActive ? '(active)' : '(inactive)'}
-                        </span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Internal Jackpot</span>
-                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.internalJackpot || '0').toFixed(6)} ETH</span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Actual Balance</span>
-                        <span style={styles.infoValue}>{parseFloat(contractState.mainnet.actualBalance || '0').toFixed(6)} ETH</span>
-                      </div>
+                      <InfoRow label={<>Round</>} value={<>#{contractState.mainnet.roundNumber} {contractState.mainnet.isActive ? '(active)' : '(inactive)'}</>} />
+                      <InfoRow label={<>Internal Jackpot</>} value={<>{parseFloat(contractState.mainnet.internalJackpot || '0').toFixed(6)} ETH</>} />
+                      <InfoRow label={<>Actual Balance</>} value={<>{parseFloat(contractState.mainnet.actualBalance || '0').toFixed(6)} ETH</>} />
                       {contractState.mainnet.hasMismatch && (
                         <div style={{
                           marginTop: '12px',
@@ -2252,18 +2162,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                         <span style={styles.infoLabel}>$WORD Balance</span>
                         <span style={{ ...styles.infoValue, fontWeight: 700 }}>{contractState.wordManager.tokenBalance} $WORD</span>
                       </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Total Staked</span>
-                        <span style={styles.infoValue}>{contractState.wordManager.totalStaked} $WORD</span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Total Burned</span>
-                        <span style={styles.infoValue}>{contractState.wordManager.totalBurned} $WORD</span>
-                      </div>
-                      <div style={styles.infoRow}>
-                        <span style={styles.infoLabel}>Total Distributed</span>
-                        <span style={styles.infoValue}>{contractState.wordManager.totalDistributed} $WORD</span>
-                      </div>
+                      <InfoRow label={<>Total Staked</>} value={<>{contractState.wordManager.totalStaked} $WORD</>} />
+                      <InfoRow label={<>Total Burned</>} value={<>{contractState.wordManager.totalBurned} $WORD</>} />
+                      <InfoRow label={<>Total Distributed</>} value={<>{contractState.wordManager.totalDistributed} $WORD</>} />
                       <div style={styles.infoRow}>
                         <span style={styles.infoLabel}>Operator</span>
                         <span style={{ ...styles.infoValue, color: contractState.wordManager.operatorAuthorized ? '#166534' : '#dc2626' }}>
@@ -2284,10 +2185,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                         </span>
                       </div>
                       {contractState.wordManager.rewardPeriodActive && (
-                        <div style={styles.infoRow}>
-                          <span style={styles.infoLabel}>Reward Rate</span>
-                          <span style={styles.infoValue}>
-                            {(() => {
+                        <InfoRow label={<>Reward Rate</>} value={<>{(() => {
                               try {
                                 const rateWei = BigInt(contractState.wordManager.rewardRate || '0');
                                 const ratePerDay = rateWei * 86400n / 1000000000000000000n;
@@ -2297,9 +2195,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                               } catch {
                                 return 'N/A';
                               }
-                            })()}
-                          </span>
-                        </div>
+                            })()}</>} />
                       )}
                     </>
                   )}
@@ -2465,22 +2361,13 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
                 {simResult.roundId && (
                   <div style={{ marginBottom: '12px' }}>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Round ID</span>
-                      <span style={styles.infoValue}>#{simResult.roundId}</span>
-                    </div>
+                    <InfoRow label={<>Round ID</>} value={<>#{simResult.roundId}</>} />
                     <div style={styles.infoRow}>
                       <span style={styles.infoLabel}>Answer</span>
                       <span style={{ ...styles.infoValue, fontFamily: 'monospace' }}>{simResult.answer}</span>
                     </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Total Guesses</span>
-                      <span style={styles.infoValue}>{simResult.totalGuesses}</span>
-                    </div>
-                    <div style={styles.infoRow}>
-                      <span style={styles.infoLabel}>Winner FID</span>
-                      <span style={styles.infoValue}>{simResult.winnerFid}</span>
-                    </div>
+                    <InfoRow label={<>Total Guesses</>} value={<>{simResult.totalGuesses}</>} />
+                    <InfoRow label={<>Winner FID</>} value={<>{simResult.winnerFid}</>} />
                   </div>
                 )}
 
@@ -2793,9 +2680,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             {/* Execute Results */}
             {airdropResult && (
               <div style={{ marginTop: '16px' }}>
-                <div style={styles.alert(airdropResult.failureCount === 0 ? 'success' : 'warning')}>
+                <AlertBanner kind={airdropResult.failureCount === 0 ? 'success' : 'warning'}>
                   <strong>Airdrop Complete:</strong> {airdropResult.successCount} sent, {airdropResult.failureCount} failed — {airdropResult.totalEthSent} ETH total
-                </div>
+                </AlertBanner>
 
                 <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
                   <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
