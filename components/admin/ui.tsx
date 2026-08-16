@@ -18,7 +18,7 @@
  * - Data gets a timestamp, and a stale timestamp LOOKS stale.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export const adminFont =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -231,8 +231,16 @@ export function UpdatedStamp({
   updatedAt: Date | string | number | null;
   staleAfterMs?: number;
 }) {
+  // Re-evaluate staleness on a slow tick: the whole point of the stamp is
+  // that stale data LOOKS stale, even when nothing else re-renders.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   if (!updatedAt) return null;
-  const stale = isStale(updatedAt, Date.now(), staleAfterMs);
+  const stale = isStale(updatedAt, now, staleAfterMs);
   // An unparseable timestamp reads as stale (isStale already said so) and
   // must not crash the panel — toISOString throws on an Invalid Date.
   const time = formatStampTime(updatedAt);
