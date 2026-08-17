@@ -673,6 +673,159 @@ export async function runJackpotRunwaySimulation(options?: {
   const recommendations: string[] = [];
 
   try {
+    // ==================================================================
+    // $WORD era: the question is TRANCHE runway, not ETH pool velocity.
+    // Rounds seed themselves from WordJackpot's unallocated balance, and
+    // 80% of pack ETH comes back as pool credits priced by the oracle —
+    // so the model is: how many rounds can unallocated fund at the
+    // configured USD seed, offset by expected credit inflow.
+    // ==================================================================
+    const { isWordEconomyConfigured } = await import('../../lib/word-jackpot-contract');
+    if (isWordEconomyConfigured()) {
+      const { getWordJackpotReadOnly, getRewardPriceE18 } = await import('../../lib/word-jackpot-contract');
+      const jackpot = getWordJackpotReadOnly();
+      const [, poolWei, , , unallocatedWei] =
+        (await jackpot.solvency()) as [bigint, bigint, bigint, bigint, bigint];
+      const priceE18 = await getRewardPriceE18().catch(() => null);
+
+      const endEarly = (status: 'warning' | 'error', summary: string): RunwayResult => ({
+        simulationId,
+        type: 'jackpot_runway',
+        status,
+        startTime,
+        endTime: new Date(),
+        summary,
+        details: {},
+        recommendations,
+        currentJackpot: 0,
+        projectedRounds: [],
+        sustainabilityScore: 0,
+        daysToDepletion: null,
+        scenarioResults: [],
+      });
+
+      if (!priceE18) {
+        recommendations.push('Push an oracle price to WordJackpot before modeling the tranche.');
+        return endEarly('warning', '$WORD era: oracle price unavailable — cannot model tranche runway.');
+      }
+
+      const wordUsd = Number(priceE18) / 1e18;
+      const unallocatedTokens = Number(unallocatedWei) / 1e18;
+      const poolTokens = Number(poolWei) / 1e18;
+      const seedUsd = Number(process.env.WORD_SEED_USD_CENTS ?? '2000') / 100;
+      const seedTokens = seedUsd / wordUsd;
+
+      // Historical paid-guess volume drives the credit inflow.
+      const historicalData = await db
+        .select({
+          roundId: rounds.id,
+          paidGuessCount: sql<number>`(
+            SELECT COUNT(*) FROM ${guesses}
+            WHERE ${guesses.roundId} = ${rounds.id} AND ${guesses.isPaid} = true
+          )`,
+        })
+        .from(rounds)
+        .where(sql`${rounds.resolvedAt} IS NOT NULL`)
+        .orderBy(desc(rounds.resolvedAt))
+        .limit(30);
+      const avgPaidGuesses = historicalData.length > 0
+        ? historicalData.reduce((sum, r) => sum + r.paidGuessCount, 0) / historicalData.length
+        : 5;
+
+      const GUESS_PRICE_ETH = 0.0003;
+      const POOL_SHARE = 0.8;
+      const ethUsd = parseFloat(process.env.ETH_USD_RATE || '3000');
+      const creditTokensPerGuess = (GUESS_PRICE_ETH * ethUsd * POOL_SHARE) / wordUsd;
+
+      const scenarioConfigsWord: Record<string, { guessMultiplier: number; probability: number }> = {
+        optimistic: { guessMultiplier: 2.0, probability: 0.15 },
+        baseline: { guessMultiplier: 1.0, probability: 0.50 },
+        pessimistic: { guessMultiplier: 0.5, probability: 0.25 },
+        stress: { guessMultiplier: 0.1, probability: 0.10 },
+      };
+
+      const scenarioResults: EconomicScenario[] = [];
+      for (const scenario of selectedScenarios) {
+        const config = scenarioConfigsWord[scenario];
+        if (!config) continue;
+        const guessesPerRound = avgPaidGuesses * config.guessMultiplier;
+        const creditsPerRound = guessesPerRound * creditTokensPerGuess;
+        const netDrainPerRound = seedTokens - creditsPerRound;
+        // Credits at or above the seed = the tranche self-sustains; cap the
+        // claim at 999 rounds instead of printing infinity.
+        const runwayRounds = netDrainPerRound > 0
+          ? Math.min(Math.floor(unallocatedTokens / netDrainPerRound), 999)
+          : 999;
+        scenarioResults.push({
+          name: scenario.charAt(0).toUpperCase() + scenario.slice(1),
+          description: `${Math.round(guessesPerRound)} paid guesses/round, ~${Math.round(creditsPerRound).toLocaleString()} $WORD credits vs ${Math.round(seedTokens).toLocaleString()} $WORD seed per round`,
+          projectedJackpot: poolTokens + creditsPerRound,
+          projectedRounds: runwayRounds,
+          probability: config.probability,
+        });
+      }
+
+      // Projection: tranche burn-down at baseline.
+      const baselineCredits = avgPaidGuesses * creditTokensPerGuess;
+      const baselineDrain = Math.max(seedTokens - baselineCredits, 0);
+      const projectedRoundsList: RunwayProjection[] = [];
+      for (let i = 1; i <= projectRounds; i++) {
+        projectedRoundsList.push({
+          round: i,
+          jackpot: Math.max(unallocatedTokens - baselineDrain * i, 0),
+          paidGuesses: Math.round(avgPaidGuesses),
+          revenue: baselineCredits,
+        });
+      }
+
+      const stress = scenarioResults.find(s => s.name === 'Stress');
+      const baseline = scenarioResults.find(s => s.name === 'Baseline');
+      // 30 stress-scenario rounds ≈ three months at the real cadence
+      // (~72h/round with the cooldown) — the bar for a healthy tranche.
+      const sustainabilityScore = stress ? Math.min(stress.projectedRounds / 30, 1) : 0.5;
+      const roundsPerDay = 1 / 3;
+      const daysToDepletion = stress && stress.projectedRounds < 999
+        ? Math.floor(stress.projectedRounds / roundsPerDay)
+        : null;
+
+      if (sustainabilityScore < 0.3) {
+        recommendations.push('CRITICAL: the tranche funds few rounds even before credits — plan the next treasury transfer.');
+      } else if (sustainabilityScore < 0.6) {
+        recommendations.push('Monitor the tranche; schedule the next treasury top-up before it thins.');
+      } else {
+        recommendations.push('Tranche economics appear healthy at the current seed and volume.');
+      }
+
+      const result: RunwayResult = {
+        simulationId,
+        type: 'jackpot_runway',
+        status: sustainabilityScore < 0.3 ? 'critical' : sustainabilityScore < 0.6 ? 'warning' : 'success',
+        startTime,
+        endTime: new Date(),
+        summary: `$WORD tranche runway: ~${baseline?.projectedRounds ?? '?'} rounds at baseline (${Math.round(unallocatedTokens).toLocaleString()} $WORD unallocated, seed ≈ ${Math.round(seedTokens).toLocaleString()} $WORD/round)`,
+        details: {
+          currency: 'word',
+          unallocatedTokens,
+          poolTokens,
+          seedTokens,
+          wordUsd,
+          avgPaidGuesses,
+          creditTokensPerGuess,
+        },
+        recommendations,
+        currentJackpot: poolTokens,
+        projectedRounds: projectedRoundsList,
+        sustainabilityScore,
+        daysToDepletion,
+        scenarioResults,
+      };
+
+      await logAnalyticsEvent(SimulationEventTypes.SIM_COMPLETED, {
+        data: { simulationId, type: 'jackpot_runway', status: result.status },
+      });
+      return result;
+    }
+
     // Get current jackpot and historical data
     const [activeRound] = await db
       .select()

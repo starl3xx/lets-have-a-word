@@ -620,6 +620,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
     if (status.activeRoundId) {
       lines.push(`Active Round: #${status.activeRoundId}`)
+      if (status.activeRoundPrize) {
+        lines.push(`Prize: ${status.activeRoundPrize}`)
+      }
     } else {
       lines.push('Active Round: None')
     }

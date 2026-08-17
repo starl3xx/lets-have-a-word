@@ -14,7 +14,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { rounds, guesses, packPurchases, roundEconomicsConfig } from '../../../../src/db/schema';
 import type { RoundEconomicsConfigData } from '../../../../src/db/schema';
-import { sql, desc, and, eq, gte, isNotNull, count, sum, avg, lt, lte } from 'drizzle-orm';
+import { sql, desc, and, eq, isNotNull, count, sum, avg, lt, lte } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 import {
@@ -247,8 +247,6 @@ export default async function handler(
 // =============================================================================
 
 async function computeEconomicsData(compareMode?: string): Promise<EconomicsData> {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   // Fetch resolved rounds
   const resolvedRounds = await db
@@ -263,7 +261,10 @@ async function computeEconomicsData(compareMode?: string): Promise<EconomicsData
     .from(rounds)
     .where(and(
       isNotNull(rounds.resolvedAt),
-      gte(rounds.startedAt, thirtyDaysAgo),
+      // No time window: the ETH era ended at round 33, so a rolling 30 days
+      // would silently zero this tab out a month after the $WORD launch. The
+      // tab is the ETH era's permanent record — all 33 rounds, always.
+      //
       // Every figure derived from this set is ETH-denominated — totalPoolEth,
       // ethPer100Guesses, the routed-ETH breakdown, medianPool. A $WORD round
       // carries prize_pool_eth = '0' (NOT NULL DEFAULT), so it would enter each

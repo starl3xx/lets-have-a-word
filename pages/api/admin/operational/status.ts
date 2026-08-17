@@ -80,10 +80,39 @@ export default async function handler(
       }))
     );
 
+    // The active round's prize, with its unit — so the incident summary and
+    // any status consumer are never currency-blind about the round they
+    // describe. One indexed read; null when no round is active.
+    let activeRoundPrize: string | null = null;
+    if (operationalState.activeRoundId) {
+      try {
+        const { formatPrize } = await import('../../../../src/lib/prize-display');
+        const [activeRound] = await db
+          .select({
+            prizeCurrency: rounds.prizeCurrency,
+            prizePoolEth: rounds.prizePoolEth,
+            prizePoolWord: rounds.prizePoolWord,
+          })
+          .from(rounds)
+          .where(eq(rounds.id, operationalState.activeRoundId))
+          .limit(1);
+        if (activeRound) {
+          activeRoundPrize = formatPrize({
+            currency: activeRound.prizeCurrency === 'word' ? 'word' : 'eth',
+            eth: activeRound.prizePoolEth,
+            word: activeRound.prizePoolWord,
+          });
+        }
+      } catch (err) {
+        console.warn('[admin/operational/status] Active round prize read failed:', err);
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       status: operationalState.status,
       activeRoundId: operationalState.activeRoundId,
+      activeRoundPrize,
       killSwitch: {
         ...killSwitchState,
         refundsRunning,

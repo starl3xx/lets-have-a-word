@@ -26,8 +26,9 @@ interface PurchaseEvent {
   ethAmount: string
   roundNumber: number
   isSmartWallet: boolean
-  toJackpot: string
-  toCreator: string
+  product?: 'guesses' | 'packs' | 'superguess'
+  toJackpot?: string
+  toCreator?: string
 }
 
 interface PurchaseEventsResponse {
@@ -70,7 +71,7 @@ export default function PurchaseEventsCard({
     <>
       <Module title="Onchain Purchase Events">
         <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "16px", fontFamily }}>
-          Query GuessesPurchased events directly from the contract. This captures ALL purchases including smart wallet transactions that don't appear in Basescan's external tx filter.
+          Query purchase events directly from the contracts — WordPackSales (packs + Superguesses, round 34+) and the legacy JackpotManager (rounds 1–33). This captures ALL purchases including smart wallet transactions that don't appear in Basescan's external tx filter.
         </div>
         <div style={{ display: "flex", gap: "12px", marginBottom: "16px", alignItems: "center" }}>
           <button
@@ -128,6 +129,7 @@ export default function PurchaseEventsCard({
                   <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Qty</th>
                   <th style={{ textAlign: "right", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>ETH</th>
                   <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Round</th>
+                  <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Product</th>
                   <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Type</th>
                   <th style={{ textAlign: "left", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Tx</th>
                 </tr>
@@ -153,6 +155,15 @@ export default function PurchaseEventsCard({
                     </td>
                     <td style={{ textAlign: "center", padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#6b7280" }}>
                       #{event.roundNumber}
+                    </td>
+                    <td style={{ textAlign: "center", padding: "8px", borderBottom: "1px solid #f3f4f6" }}>
+                      {event.product === 'superguess' ? (
+                        <span style={{ padding: "2px 6px", background: "#fee2e2", color: "#dc2626", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>SUPER</span>
+                      ) : event.product === 'packs' ? (
+                        <span style={{ padding: "2px 6px", background: "#d1fae5", color: "#065f46", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>PACKS</span>
+                      ) : (
+                        <span style={{ padding: "2px 6px", background: "#f3f4f6", color: "#6b7280", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>GUESSES</span>
+                      )}
                     </td>
                     <td style={{ textAlign: "center", padding: "8px", borderBottom: "1px solid #f3f4f6" }}>
                       {event.isSmartWallet ? (
