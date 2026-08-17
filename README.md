@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Sepolia simulation hard-blocked in the $WORD era**: the legacy simulator creates a real ETH round in the prod database and announces it — which is exactly what happened when it ran on launch prep day: a phantom "Round #34" went publicly live, the bot cast it, and six real players guessed before the round was purged and the id sequence reset. The endpoint now refuses while the word economy is configured, `createRound` gains a `skipAnnounce` option so no drill can ever cast again, and the winning-guess failure that left the round stuck turned out to be winner-eligibility working as designed (the gate blocked the seconds-old fake account). A word-era simulator is a post-launch project.
+
+
 - **No countdown between rounds**: the between-rounds bar says "Next round starting soon… Could be any moment 👀" instead of counting down, and `/api/next-round` stops returning the timestamp entirely (a boolean `nextRoundPending` replaces it) — hiding the timer in the UI would mean nothing while the public API handed the exact start time to anyone polling it. The point is the Trailblazer Wordmark: the first guess of a round should go to whoever shows up, not whoever camps a timer.
 
 
