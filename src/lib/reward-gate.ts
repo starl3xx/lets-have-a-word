@@ -132,6 +132,37 @@ interface CheckOptions {
 }
 
 /**
+ * Should a cached eligible verdict be bypassed so the live check can record
+ * the entry floor?
+ *
+ * True only when all of: the cached verdict is an eligible, non-grandfathered
+ * pass; this call carries a round-FROZEN bar (round-less callers never record
+ * floors); and the player's stored floor is missing or above that bar. Costs
+ * one indexed row read on the cached path, and only until the floor is
+ * recorded once. On a read error the cache verdict stands — the floor is an
+ * enhancement, never a reason to fail or slow the guess path.
+ */
+async function cachedPassNeedsFloorWrite(
+  cached: RewardGateResult,
+  fid: number,
+  round?: RoundPriceSource | null
+): Promise<boolean> {
+  if (!cached.eligible || cached.grandfathered) return false;
+  const { tokens, frozen } = getPlayBar(round);
+  if (!frozen) return false;
+  try {
+    const [row] = await db
+      .select({ floor: users.rewardGateBarTokens })
+      .from(users)
+      .where(eq(users.fid, fid))
+      .limit(1);
+    return row != null && (row.floor == null || row.floor > tokens);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The one decision: may this FID play (and earn) right now?
  */
 export async function checkPlayEligibility(
@@ -154,7 +185,17 @@ export async function checkPlayEligibility(
     try {
       const cached = await cacheGet<RewardGateResult>(cacheKey);
       if (cached && typeof cached.eligible === 'boolean') {
-        return cached;
+        // A cached eligible verdict normally stands for the day — but it was
+        // usually written by a ROUND-LESS caller (user-state, allocation),
+        // which returned before the floor logic ever ran. If this call
+        // carries a frozen round bar and the player's floor is missing or
+        // higher, bypass the cache once so the live check can record it;
+        // after that single recording the floor is <= the frozen bar and
+        // the cache short-circuits again.
+        const bypassForFloor = await cachedPassNeedsFloorWrite(cached, fid, round);
+        if (!bypassForFloor) {
+          return cached;
+        }
       }
     } catch {
       // Cache unavailable — fall through to the live check.
