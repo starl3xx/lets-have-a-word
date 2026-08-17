@@ -87,27 +87,43 @@ export function OperationalStatusProvider({
   const [status, setStatus] = useState<OperationalStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // The poll must never race a refresh() fired by an action.
-  const inFlight = useRef(false);
+  // Concurrency contract: never run two fetches at once, but never DROP a
+  // refresh either. A refresh() that arrives while a fetch is in flight
+  // (e.g. an action completing mid-poll) schedules exactly one follow-up
+  // fetch, so the caller always gets post-action state.
+  const inFlight = useRef<Promise<void> | null>(null);
+  const followUp = useRef(false);
 
-  const refresh = useCallback(async () => {
-    if (!fid || inFlight.current) return;
-    inFlight.current = true;
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/admin/operational/status?devFid=${fid}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to fetch status');
-      }
-      setStatus(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to fetch status');
-    } finally {
-      setLoading(false);
-      inFlight.current = false;
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!fid) return;
+    if (inFlight.current) {
+      followUp.current = true;
+      return inFlight.current;
     }
+    inFlight.current = (async () => {
+      try {
+        do {
+          followUp.current = false;
+          try {
+            setLoading(true);
+            const res = await fetch(`/api/admin/operational/status?devFid=${fid}`);
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data?.error || 'Failed to fetch status');
+            }
+            setStatus(data);
+            setError(null);
+          } catch (err: any) {
+            setError(err?.message ?? 'Failed to fetch status');
+          } finally {
+            setLoading(false);
+          }
+        } while (followUp.current);
+      } finally {
+        inFlight.current = null;
+      }
+    })();
+    return inFlight.current;
   }, [fid]);
 
   useEffect(() => {
