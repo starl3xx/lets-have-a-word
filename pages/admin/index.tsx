@@ -263,7 +263,9 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '💼', shortcut: '4' },
   { id: 'social', label: 'Social', color: '#1DA1F2', icon: '📣', shortcut: '5' },
   { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '6' },
-  { id: 'airdrop', label: 'Airdrop', color: '#f59e0b', icon: '🪂', shortcut: '7' },
+  // Airdrop tab is BURIED, not deleted (decided 2026-08-17): the CLANKTON→
+  // $WORD campaign is dormant but the operator wants the infra kept. No tab
+  // button, no shortcut — the manager still renders at /admin?tab=airdrop.
 ]
 
 // =============================================================================
@@ -469,7 +471,8 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   // Sync tab with URL query param on mount and when query changes
   useEffect(() => {
     const tabParam = router.query.tab as string
-    if (tabParam && tabs.some(t => t.id === tabParam)) {
+    // 'airdrop' has no tab button but stays deep-linkable (buried, not deleted).
+    if (tabParam && (tabs.some(t => t.id === tabParam) || tabParam === 'airdrop')) {
       setActiveTab(tabParam as TabId)
     } else if (!tabParam && isInitialized) {
       // If no tab param and already initialized, stay on current tab
