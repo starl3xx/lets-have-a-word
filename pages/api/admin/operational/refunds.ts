@@ -62,6 +62,7 @@ export default async function handler(
         .select({
           id: rounds.id,
           status: rounds.status,
+          prizeCurrency: rounds.prizeCurrency,
           cancelledAt: rounds.cancelledAt,
           cancelledReason: rounds.cancelledReason,
           cancelledBy: rounds.cancelledBy,
@@ -97,6 +98,9 @@ export default async function handler(
         round: {
           id: round.id,
           status: round.status,
+          // Refunds are ETH in both eras (players only ever pay ETH), but an
+          // incident view must say which era's round it is looking at.
+          prizeCurrency: round.prizeCurrency ?? 'eth',
           cancelledAt: round.cancelledAt,
           cancelledReason: round.cancelledReason,
           cancelledBy: round.cancelledBy,

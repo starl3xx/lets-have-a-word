@@ -218,6 +218,8 @@ export interface FlushResult {
   amountWei: bigint;
   txHash?: string;
   creditCount: number;
+  /** Set when nothing was sent for a reason other than "nothing pending". */
+  reason?: 'round_cancelled';
 }
 
 /**
@@ -235,6 +237,25 @@ export interface FlushResult {
  * which is not.
  */
 export async function flushWordPoolCredits(roundId: number): Promise<FlushResult> {
+  // A cancelled round must NEVER flush: the players are getting their full
+  // purchase ETH back (src/lib/refunds.ts), so sending the 80% credits to the
+  // WordJackpot pool would part the treasury from $WORD nobody can win. The
+  // unflushed rows stay as the audit trail. This guard is what lets the
+  // kill-switch + refund flow work unchanged for $WORD rounds.
+  const [round] = await db
+    .select({ status: rounds.status })
+    .from(rounds)
+    .where(eq(rounds.id, roundId))
+    .limit(1);
+  if (round?.status === 'cancelled') {
+    const pendingTotal = await getUnflushedCreditTotal(roundId);
+    console.warn(
+      `[word-pool-credits] Refusing to flush round ${roundId}: round is cancelled ` +
+        `(${ethers.formatUnits(pendingTotal, 18)} $WORD stays with the treasury)`
+    );
+    return { flushed: false, amountWei: pendingTotal, creditCount: 0, reason: 'round_cancelled' };
+  }
+
   const pending = await db
     .select({ id: wordPoolCredits.id, wordAmountWei: wordPoolCredits.wordAmountWei })
     .from(wordPoolCredits)

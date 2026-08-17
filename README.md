@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Incident tooling learns the $WORD era**: a cancelled $WORD round now refunds cleanly — the insight is that players only ever pay ETH (packs and Superguesses, both eras), so refunds stay ETH transfers; what needed building was the rest of the story. ETH Superguess sessions join the per-user refund aggregation (every session in a cancelled round refunds in full, used or not). `flushWordPoolCredits` refuses cancelled rounds, so the treasury never parts with the 80% pool credits for purchases being refunded — the unflushed rows stay as the audit trail. And `emergency-resolve` carries the currency columns (`prizeCurrency`, `prizePoolWord`, a currency-correct prize display) instead of reporting a $WORD round as a zero-ETH one; its actual payout path was already era-aware via the standard resolution pipeline. One $WORD casualty remains contract-side: a cancelled round's onchain seed needs manual recovery from WordJackpot.
+
+
 - **Reward gate: buying in once is honored (entry floor)**: the $3 play bar is a live check against the round's frozen price, which meant a price crash could lock out a player who had genuinely bought in. Now the first full pass records the token bar the player passed at (`users.reward_gate_bar_tokens`, ratcheting down on cheaper passes), and every later check passes at min(live bar, floor) — hold your entry tokens and no price move can ever gate you out. Selling below the floor forfeits it: the gate stays a holding requirement, never a badge. Rising prices already worked (the token bar shrinks as price climbs); this closes the falling-price half. Migration 0030.
 
 
