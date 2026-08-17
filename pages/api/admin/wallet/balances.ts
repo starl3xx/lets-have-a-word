@@ -99,6 +99,8 @@ export interface WalletBalancesResponse {
   };
   /** $WORD held by the treasury wallet — the tranche source. */
   treasuryWord?: string;
+  /** Live $WORD price in USD from the oracle, for ≈$ approximations. */
+  wordPriceUsd?: number;
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -347,6 +349,16 @@ export default async function handler(
       console.warn('[admin/wallet/balances] Treasury $WORD balance fetch failed:', err);
     }
 
+    // Live token price so the card can show ≈$ next to every $WORD figure.
+    let wordPriceUsd: number | undefined = undefined;
+    try {
+      const { fetchWordTokenMarketCap } = await import('../../../../src/lib/word-oracle');
+      const marketData = await fetchWordTokenMarketCap();
+      if (marketData && marketData.priceUsd > 0) wordPriceUsd = marketData.priceUsd;
+    } catch (err) {
+      console.warn('[admin/wallet/balances] Oracle price fetch failed:', err);
+    }
+
     // Database query for pending refunds
     let pendingRefunds = { count: 0, totalEth: '0' };
     try {
@@ -435,6 +447,7 @@ export default async function handler(
       ...(wordJackpotData && { wordJackpot: wordJackpotData }),
       ...(packSalesData && { packSales: packSalesData }),
       ...(treasuryWord !== undefined && { treasuryWord }),
+      ...(wordPriceUsd !== undefined && { wordPriceUsd }),
       pendingRefunds: {
         count: pendingRefunds.count,
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),
