@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Wordmark launch wiring: a dashboard button and the popup line**: The wordmark backfill gets a card in Operations under Player grants (dry run first; Execute unlocks after the counts are shown; the card names its own expiry), so launch day never touches curl. The round-34 announcement's "You're in free" variant now also tells Early Adopters the 💅 mark is on their profile — keyed to a new `earlyAdopter` flag (rounds 1–18) rather than the broader grandfather flag (rounds 1–27), because the ~209 organic players who joined in rounds 19–27 are in free but hold no mark.
+
+
 - **Two launch Wordmarks: Early Adopter 💅 and Trailblazer 🚩**: Early Adopter is complimentary — granted, not earned — to every account whose first guess landed in rounds 1–18. The cutoff is deliberately not the remembered round-28 wave: production data shows the farm's advance party seeded round 19 (194 fname-less accounts, all registered 2026-03-05, one guess each, then dormant until they reactivated inside the round-33 wave), so the pre-bot era ends at round 18 — 4,029 FIDs, frozen in `users.first_guess_round`. Trailblazer goes to the maker of a round's #1 global guess: recurring per round, a single item per player, awarded at round resolution from `MIN(guesses.id)` — a guess-time check would race with concurrent first guesses, which Bugbot caught — and announced by the bot when a new holder appears. Burn-word guess rows also finally carry `guess_index_in_round`. Rounds 1–33 backfill to 26 first guessers, every one verified organic. Both marks stay hidden from the wordmarks API until a $WORD round exists, so the one-shot backfill endpoint (`round34-wordmarks-backfill`, dry-run by default) can run ahead of launch without leaking the reveal.
 
 
