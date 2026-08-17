@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Treasury tab enters the $WORD era**: Balances Overview drops the dead ETH seed model (Next Seed bar, 0.02 ETH target, treasury/operator auto-top-up copy) for a word-era grid — Jackpot Fuel (WordJackpot unallocated), Live Pool + carry, Pack Sales ETH awaiting withdraw, Pending Refunds — with a treasury-wallet line (ETH + $WORD tranche source) and an ETH-era leftovers note that only appears while anything remains to sweep. Fund Operator Wallet is reframed as gas-only (the operator never fronts a seed anymore; thresholds drop to gas scale). WordManager funding becomes **$WORD across contracts**: WordManager (staking + per-round rewards), WordJackpot (unallocated/pool/carry/claims), and the treasury tranche in one card — plus the bonus-words switch, relocated from the retired "💬 $WORD management (legacy)" card because it is NOT legacy: createRound still reads that onchain flag at every round start. The legacy card's withdraw UI is gone (the old contract holds 0.75 $WORD — dust).
+
+
 - **Share your Wordmark**: earned Wordmarks gain a Share button in the detail popup (same composer flow as the Refer sheet) that pre-populates a cast — "I earned the “Baker’s Dozen” wordmark in @letshaveaword by guessing words starting with 13 different letters across 13 different days! Only 240 other players hold this Wordmark" — with a per-mark brag line, a live only-N-others rarity count (self excluded), and the site as the embed. Unearned marks keep their single "Challenge accepted 🫡" button. The Earned pill now shows round + date, and "Nice ✨" is now "Nice 👌".
 
 

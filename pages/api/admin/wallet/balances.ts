@@ -83,6 +83,22 @@ export interface WalletBalancesResponse {
     stakingHeadroom: string;
     stakingHealthy: boolean;
   };
+  /** Round 34+: the $WORD prize-pool contract. Absent until env is set. */
+  wordJackpot?: {
+    address: string;
+    balance: string;
+    pool: string;
+    carry: string;
+    claimable: string;
+    unallocated: string;
+  };
+  /** ETH from pack/Superguess sales awaiting the permissionless withdraw(). */
+  packSales?: {
+    address: string;
+    balanceEth: string;
+  };
+  /** $WORD held by the treasury wallet — the tranche source. */
+  treasuryWord?: string;
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -279,6 +295,58 @@ export default async function handler(
       }
     }
 
+    // $WORD-era contracts: WordJackpot solvency, WordPackSales accumulated
+    // ETH, and the treasury wallet's $WORD (the tranche source). Each block
+    // fails soft — a missing env or RPC error must not take down the ETH-era
+    // numbers the rest of the card still shows.
+    const formatWordWhole = (val: bigint) =>
+      Math.floor(parseFloat(ethers.formatEther(val))).toLocaleString();
+
+    let wordJackpotData: WalletBalancesResponse['wordJackpot'] = undefined;
+    if (process.env.WORD_JACKPOT_ADDRESS) {
+      try {
+        const { getWordJackpotReadOnly } = await import('../../../../src/lib/word-jackpot-contract');
+        const jackpot = getWordJackpotReadOnly();
+        const [jBalance, jPool, jCarry, jClaimable, jUnallocated] =
+          (await jackpot.solvency()) as [bigint, bigint, bigint, bigint, bigint];
+        wordJackpotData = {
+          address: process.env.WORD_JACKPOT_ADDRESS,
+          balance: formatWordWhole(jBalance),
+          pool: formatWordWhole(jPool),
+          carry: formatWordWhole(jCarry),
+          claimable: formatWordWhole(jClaimable),
+          unallocated: formatWordWhole(jUnallocated),
+        };
+      } catch (err) {
+        console.warn('[admin/wallet/balances] WordJackpot fetch failed:', err);
+      }
+    }
+
+    let packSalesData: WalletBalancesResponse['packSales'] = undefined;
+    if (process.env.WORD_PACK_SALES_ADDRESS) {
+      try {
+        const packSalesBalance = await provider.getBalance(process.env.WORD_PACK_SALES_ADDRESS);
+        packSalesData = {
+          address: process.env.WORD_PACK_SALES_ADDRESS,
+          balanceEth: ethers.formatEther(packSalesBalance),
+        };
+      } catch (err) {
+        console.warn('[admin/wallet/balances] WordPackSales balance fetch failed:', err);
+      }
+    }
+
+    let treasuryWord: string | undefined = undefined;
+    try {
+      const wordErc20 = new ethers.Contract(
+        WORD_ADDRESS_BASE,
+        ['function balanceOf(address) view returns (uint256)'],
+        provider
+      );
+      treasuryWord = formatWordWhole(await wordErc20.balanceOf(config.prizePoolWallet));
+    } catch (err) {
+      console.warn('[admin/wallet/balances] Treasury $WORD balance fetch failed:', err);
+    }
+
     // Database query for pending refunds
     let pendingRefunds = { count: 0, totalEth: '0' };
     try {
@@ -364,6 +432,9 @@ export default async function handler(
       },
       ...(feeRecipientsData && { feeRecipients: feeRecipientsData }),
       ...(wordManagerData && { wordManager: wordManagerData }),
+      ...(wordJackpotData && { wordJackpot: wordJackpotData }),
+      ...(packSalesData && { packSales: packSalesData }),
+      ...(treasuryWord !== undefined && { treasuryWord }),
       pendingRefunds: {
         count: pendingRefunds.count,
         totalEth: parseFloat(pendingRefunds.totalEth).toFixed(6),
