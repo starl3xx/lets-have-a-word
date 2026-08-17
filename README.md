@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Bonus/Burn Fuel tile in Balances Overview**: the Treasury tab's top grid now shows WordManager's availableForGames beside Jackpot Fuel, so both $WORD funding gauges — what seeds jackpots and what pays bonus/burn/top-10 rewards — read side by side at a glance.
+
+
 - **Round 34 announcement modal, final copy**: the user's own wording for all three cohort variants — "The jackpot and prizes (bonus words, Top 10) now pays out in $WORD, the game's native token"; grandfathered players read "You're in free since you played before rounds were botted"; Early Adopters additionally get "We also comped you the Early Adopter 💅 Wordmark for playing before the bots arrived"; "Let's have a word! 👉". Applies the day's copy rules (no em dashes, Wordmark capitalized), which an earlier pass had already enforced.
 
 
