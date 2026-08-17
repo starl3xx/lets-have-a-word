@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Every tool now lives where its work happens (cleanup Phase D, part 2)**: Operations gains four relocated tools — Round Data Repair and the bonus-distribution retry queue (from Treasury), Archive Maintenance with the three bulk sync/repair actions (from the Archive tab, which is now read-only browsing plus a contextual per-round re-archive), and Force Resolve, which was buried inside the Sepolia simulation card and now stands alone with a proper warning — the wrong place to hunt for a round-ending action during an incident. The player-grant tools (XP, share bonus, guess packs) sit under one labeled cluster. Treasury's static "Add ETH to Prize Pool" instruction card folds into the Balances overview as one caption line.
+
+
 - **The admin panel restructure begins (cleanup Phase D, part 1)**: One operational-status feed replaces three — the shell now owns the 30-second poll through a shared provider, and the header strip, Operations, and Treasury all read the same object, with `refresh()` after every mutating action; the header and a tab can no longer disagree. Modules move to where their work lives: Farm Monitor and Adversarial Simulations leave Analytics for Operations, Onchain Purchase Events leaves Analytics for the Wallet tab — renamed **Treasury** — and the Round Phase & Incentives module is gone outright (every number in it already renders in the Live Round hero). Analytics is now product analytics only.
 
 

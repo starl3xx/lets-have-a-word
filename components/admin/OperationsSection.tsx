@@ -8,6 +8,9 @@ import { AlertBanner, InfoRow, StatusPill, type Severity } from "./ui"
 import { useOperationalStatus } from "./operational-status"
 import FarmMonitor from "./FarmMonitor"
 import SimulationsCard from "./SimulationsCard"
+import RoundRepairCard from "./RoundRepairCard"
+import BonusDistributionsCard from "./BonusDistributionsCard"
+import ArchiveMaintenanceCard from "./ArchiveMaintenanceCard"
 
 // One severity scale for every operational state (shared vocabulary, Phase 1).
 const OP_SEVERITY: Record<string, Severity> = {
@@ -1464,6 +1467,26 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
             </div>
           )}
 
+          {/* Force Resolve — its own card (Phase D): it was buried inside
+              the Sepolia simulation card, which is the wrong place to find a
+              production round-ending action during an incident. */}
+          {status?.activeRoundId && (
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>Force Resolve</h2>
+              <AlertBanner kind="warning">
+                Ends the ACTIVE production round (#{status.activeRoundId}) immediately with a
+                random winner-less resolution. For test rounds and launch drills only.
+              </AlertBanner>
+              <button
+                onClick={handleForceResolve}
+                disabled={forceResolveLoading}
+                style={styles.btnDanger}
+              >
+                {forceResolveLoading ? 'Resolving...' : 'Force Resolve Round'}
+              </button>
+            </div>
+          )}
+
           {/* Kill Switch Card */}
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>
@@ -2168,6 +2191,13 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           </div>
 
           {/* Sepolia Simulation Card */}
+          {user?.fid && <RoundRepairCard fid={user.fid} />}
+          {user?.fid && <BonusDistributionsCard fid={user.fid} />}
+          {user?.fid && <ArchiveMaintenanceCard fid={user.fid} />}
+
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0' }}>
+            Player grants
+          </div>
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>
               Sepolia Test Simulation
@@ -2253,32 +2283,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </button>
             </div>
 
-            {status?.activeRoundId && (
-              <div style={{
-                ...styles.alert('info'),
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-                <span>
-                  Production has an active round (#{status.activeRoundId}).
-                  Sepolia simulation runs independently.
-                </span>
-                <button
-                  onClick={handleForceResolve}
-                  style={{
-                    ...styles.btnDanger,
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    marginLeft: '12px',
-                    flexShrink: 0,
-                  }}
-                  disabled={forceResolveLoading}
-                >
-                  {forceResolveLoading ? 'Resolving...' : 'Force Resolve'}
-                </button>
-              </div>
-            )}
 
             {simResult && (
               <div style={{
