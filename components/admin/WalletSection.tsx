@@ -184,15 +184,13 @@ function computeWalletHealth(
     issues.push('Contract connection error');
   }
 
-  // Warning issues
+  // Warning issues. Gas-only threshold — must match the Fund Operator card's
+  // amber line, or the badge and the card contradict each other on the same
+  // tab. The old ETH seed-shortfall issue is gone with the seed model: $WORD
+  // rounds seed themselves from WordJackpot, nothing auto-tops-up anymore.
   const operatorBalance = parseFloat(balances?.operatorWallet?.balanceEth || '0');
-  if (operatorBalance < 0.01 && balances) {
-    issues.push('Low operator wallet balance');
-  }
-
-  const seedShortfall = parseFloat(balances?.nextRoundSeed?.shortfallEth || '0');
-  if (seedShortfall > 0) {
-    issues.push(`Next round seed ${seedShortfall.toFixed(4)} ETH short — operator wallet will auto-top-up`);
+  if (operatorBalance < 0.005 && balances) {
+    issues.push('Low operator gas balance');
   }
 
   if (opStatus?.deadDay?.enabled) {
@@ -1396,11 +1394,15 @@ export default function WalletSection({ user }: WalletSectionProps) {
                   </span>
                 </div>
 
-                {/* ETH-era leftovers — show only while anything remains to sweep */}
+                {/* ETH-era leftovers — show only while anything remains. Only
+                    the creator pool is reachable from this tab; the old prize
+                    balance needs a contract action. */}
                 {legacyLeftoverEth > 0.0001 && (
                   <div style={{ marginTop: '8px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
-                    ETH era: JackpotManager still holds {legacyJackpotEth.toFixed(4)} ETH prize
-                    {legacyCreatorEth > 0.0001 ? ` + ${legacyCreatorEth.toFixed(4)} ETH creator pool` : ''} — withdraw below when convenient.
+                    ETH era: JackpotManager still holds
+                    {legacyCreatorEth > 0.0001 ? ` ${legacyCreatorEth.toFixed(4)} ETH creator pool (withdrawable below)` : ''}
+                    {legacyCreatorEth > 0.0001 && legacyJackpotEth > 0.0001 ? ' and' : ''}
+                    {legacyJackpotEth > 0.0001 ? ` ${legacyJackpotEth.toFixed(4)} ETH in the old prize pool (contract-side only, not withdrawable from here)` : ''}.
                   </div>
                 )}
               </>
@@ -1589,7 +1591,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
       )}
 
       {/* WordManager Funding */}
-      {balances?.wordManager && (
+      {/* Each contract section guards itself: the balances API fails soft per
+          block, so a WordManager RPC hiccup must not hide the WordJackpot
+          numbers or the live bonus-words switch. */}
+      {balances && (
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>📊 $WORD across contracts</h3>
           <p style={styles.cardSubtitle}>
@@ -1601,6 +1606,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
           <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '8px' }}>
             WordManager — staking + per-round rewards
           </div>
+          {!balances.wordManager && (
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px' }}>
+              WordManager data unavailable right now (RPC or config) — the sections below are independent.
+            </div>
+          )}
+          {balances.wordManager && (
           <div style={styles.grid4}>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Total $WORD</div>
@@ -1623,8 +1634,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statSubtext}>Top-10 / bonus / burn</div>
             </div>
           </div>
+          )}
 
           {/* Rounds available alert */}
+          {balances.wordManager && (
           <div style={{
             ...styles.alert(
               balances.wordManager.roundsAvailable >= 5 ? 'success' :
@@ -1642,6 +1655,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               )}
             </div>
           </div>
+          )}
 
           {/* WordJackpot — jackpot prizes */}
           <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' as const, letterSpacing: '0.5px', margin: '20px 0 8px 0' }}>
@@ -1717,7 +1731,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           )}
 
           {/* Staking depletion warning */}
-          {balances.wordManager.stakingHealthy === false && (
+          {balances.wordManager && balances.wordManager.stakingHealthy === false && (
             <div style={{
               ...styles.alert('error'),
               marginTop: '12px',
@@ -1730,7 +1744,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
             </div>
           )}
 
-          {/* Contract address and staking period */}
+          {/* Contract address, staking period, and activation — all
+              WordManager-backed */}
+          {balances.wordManager && (<>
           <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: '#6b7280', fontFamily }}>Contract</span>
@@ -1905,6 +1921,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               </div>
             )}
           </div>
+          </>)}
         </div>
       )}
 
@@ -1919,7 +1936,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>Withdraw from Treasury</h3>
         <p style={styles.cardSubtitle}>
-          Withdraw excess treasury funds. Treasury first covers seed shortfall, only remainder is withdrawable.
+          Withdraw the legacy contract&apos;s accumulated creator profit (ETH era). The contract
+          itself retains 0.02 ETH on withdrawal — a V3 contract rule, not a seed reservation.
         </p>
 
         {balances && (() => {
@@ -1961,8 +1979,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
         <div style={styles.alert('info')}>
           <span>ℹ️</span>
           <span>
-            Treasury funds first cover the seed shortfall (difference between 5% of jackpot and 0.02 ETH target).
-            Only funds above what's needed for seeding can be withdrawn.
+            The legacy V3 contract keeps a 0.02 ETH floor on withdrawal (onchain rule).
+            Everything above that floor is withdrawable.
           </span>
         </div>
 
@@ -1974,7 +1992,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           if (!treasury.isWithdrawable) {
             return (
               <div style={{ ...styles.alert('warning'), marginTop: '16px' }}>
-                ⚠️ No withdrawable balance. Treasury funds ({parseFloat(treasury.balanceEth).toFixed(4)} ETH) are reserved to help seed the next round.
+                ⚠️ No withdrawable balance. The remaining {parseFloat(treasury.balanceEth).toFixed(4)} ETH sits at or under the contract&apos;s 0.02 ETH withdrawal floor.
               </div>
             );
           }
