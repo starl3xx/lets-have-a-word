@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Share your Wordmark**: earned Wordmarks gain a Share button in the detail popup (same composer flow as the Refer sheet) that pre-populates a cast — "I earned the “Baker’s Dozen” wordmark in @letshaveaword by guessing words starting with 13 different letters across 13 different days! Only 240 other players hold this Wordmark" — with a per-mark brag line, a live only-N-others rarity count (self excluded), and the site as the embed. Unearned marks keep their single "Challenge accepted 🫡" button. The Earned pill now shows round + date, and "Nice ✨" is now "Nice 👌".
+
+
 - **WordJackpot in Contract Diagnostics**: Operations → Contract Diagnostics gains a third block for the $WORD jackpot contract — unallocated (where the tranche lands), balance, pool, carry, pending claims, active round, oracle-price freshness, operator authorization, and an explicit solvency line (balance vs pool + carry + claimable). Until now nothing in the admin read WordJackpot's live state, so "fund the tranche, then check it arrived" had no check-it-arrived half.
 
 
