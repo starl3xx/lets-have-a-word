@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Two design fixes**: the bottom nav row (Stats / Refer / $WORD / FAQ) is now truly evenly spaced — the gap between buttons equals the space at the edges (the row's own padding sat inside the container's, so edges were 24px against 6px gaps). And the between-rounds banner gains an 🗂️ Archive button: the Round #N ▼ chip disappears with the round, which left no way into the archive while the game is paused.
+
+
 - **Tap a Wordmark to see what it means — held or not**: every cell in the Lexicon grid is now a button. The detail card shows the mark, how it's earned, its rarity ("Only 4 players hold this" — a real number from a live count), and for held marks the story of the earn from the award metadata: "Won Round 4 with 'SCRIM'", "#1 early guesser in Round 1", "Your first guess was in Round 5". Unheld marks show the goal, which is the point — the Lexicon reads as a collection with visible goals (Trailblazer 🚩 exists, go chase it), not a row of icons. Metadata varies by era, so every detail line degrades to nothing rather than to a broken sentence; the color classes move to one shared home so the grid and the card can't drift.
 
 

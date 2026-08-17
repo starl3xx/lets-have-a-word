@@ -230,6 +230,17 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
           <p className="text-sm opacity-80 mt-1">
             Get ready for something new!
           </p>
+          {/* Between rounds the Round #N ▼ chip is gone, so this is the way
+              into the archive. Goes straight to /archive: the round modal
+              the chip opens needs a live round and errors on 204. */}
+          <div className="mt-3">
+            <a
+              href="/archive"
+              className="inline-block px-5 py-2 bg-white/15 hover:bg-white/25 text-white text-sm font-semibold rounded-lg transition-all"
+            >
+              🗂️ Archive
+            </a>
+          </div>
           {adminFid && (
             <div className="mt-3">
               <button
