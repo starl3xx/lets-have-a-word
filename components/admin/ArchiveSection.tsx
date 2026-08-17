@@ -534,6 +534,28 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
 
   return (
     <div>
+      {/* Archive errors — fetched since day one, rendered since 2026-08-17.
+          The quiet state stays quiet; errors get a banner with a resolve action. */}
+      {errors.length > 0 && (
+        <div style={{
+          padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
+          background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '13px',
+        }}>
+          <strong>{errors.length} archive error{errors.length === 1 ? '' : 's'} need review</strong>
+          {errors.map((e) => (
+            <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+              <span>Round #{e.roundNumber} · {e.errorType}: {e.errorMessage}</span>
+              <button
+                onClick={() => resolveError(e.id)}
+                disabled={resolvingErrorId === e.id}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: 'white', color: '#991b1b', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}
+              >
+                {resolvingErrorId === e.id ? 'Resolving…' : 'Mark resolved'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Error */}
       {error && <div style={styles.error}>{error}</div>}
 

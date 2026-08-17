@@ -7,20 +7,18 @@ interface AnalyticsControlsProps {
   timeRange: TimeRange
   onTimeRangeChange: (range: TimeRange) => void
   autoRefresh: boolean
-  onAutoRefreshToggle: () => void
-  onExport: (format: "csv" | "json") => void
+  onAutoRefreshChange: (enabled: boolean) => void
   onRefresh: () => void
-  isLoading?: boolean
+  loading?: boolean
 }
 
 export function AnalyticsControls({
   timeRange,
   onTimeRangeChange,
   autoRefresh,
-  onAutoRefreshToggle,
-  onExport,
+  onAutoRefreshChange,
   onRefresh,
-  isLoading = false
+  loading = false
 }: AnalyticsControlsProps) {
   return (
     <div style={{
@@ -68,7 +66,7 @@ export function AnalyticsControls({
           <input
             type="checkbox"
             checked={autoRefresh}
-            onChange={onAutoRefreshToggle}
+            onChange={() => onAutoRefreshChange(!autoRefresh)}
             style={{
               width: "16px",
               height: "16px",
@@ -81,13 +79,13 @@ export function AnalyticsControls({
         {/* Refresh Button */}
         <button
           onClick={onRefresh}
-          disabled={isLoading}
+          disabled={loading}
           style={{
             padding: "6px 12px",
-            background: isLoading ? "#e5e7eb" : "#f3f4f6",
+            background: loading ? "#e5e7eb" : "#f3f4f6",
             border: "1px solid #d1d5db",
             borderRadius: "6px",
-            cursor: isLoading ? "not-allowed" : "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
             fontSize: "13px",
             color: "#4b5563",
             display: "flex",
@@ -95,34 +93,9 @@ export function AnalyticsControls({
             gap: "6px",
           }}
         >
-          {isLoading ? "⟳" : "↻"} Refresh
+          {loading ? "⟳" : "↻"} Refresh
         </button>
 
-        {/* Export Dropdown */}
-        <div style={{ position: "relative" }}>
-          <select
-            onChange={(e) => {
-              const value = e.target.value as "csv" | "json"
-              if (value) {
-                onExport(value)
-                e.target.value = "" // Reset
-              }
-            }}
-            style={{
-              padding: "6px 12px",
-              background: "white",
-              border: "1px solid #d1d5db",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "13px",
-              color: "#4b5563",
-            }}
-          >
-            <option value="">Export...</option>
-            <option value="csv">Export as CSV</option>
-            <option value="json">Export as JSON</option>
-          </select>
-        </div>
       </div>
     </div>
   )

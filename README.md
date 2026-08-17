@@ -214,6 +214,8 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **~1,300 lines of dead admin code removed (cleanup Phase B)**: A second, never-imported analytics dashboard (550 lines on the retired auth pattern), two orphan components, five copies of an unreachable legacy treasury fallback, and two identical unused interfaces are gone. Two half-dead features come back to life instead of leaving: the Analytics auto-refresh toggle was one mis-named prop away from working (the "Live" mode could never turn on) and is now wired; the Archive tab fetched its error list on every load and never rendered it — errors now show as a banner with a resolve action. The broken Export dropdown is removed with its workflow (the endpoint retires in Phase C).
+
 - **Admin hardening, Phase A of the panel cleanup**: The full audit of the admin surface (83 endpoints, 7 tabs) starts paying down. The deprecated, unauthenticated, mutating `refresh-seed-words` endpoint is deleted. `diagnose-guess` and `xp-debug` gain the standard admin check; `award-xp` drops its private admin list for the shared one; `debug-round2` gains a method guard. Two round-34 correctness bugs die: the Social status-cast generator now follows the round's `prize_currency` instead of hardcoding ETH, and the Analytics top-10 cutoff reads `PRICE_RAMP_START_GUESSES` everywhere — the page previously showed both 750 and 850 as fact.
 
 ### 2026-08-16 (before Round 34)

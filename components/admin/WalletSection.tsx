@@ -1105,13 +1105,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
       return;
     }
 
-    // Get treasury data (with legacy creatorPool fallback)
-    const treasury = balances.treasury || (balances.creatorPool ? {
-      balanceEth: balances.creatorPool.accumulatedEth,
-      withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
-      isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
-      address: balances.creatorPool.address,
-    } : null);
+    // Treasury is always served by wallet/balances
+    const treasury = balances.treasury ?? null;
 
     if (!treasury || !treasury.isWithdrawable) {
       setWalletError('No withdrawable balance available');
@@ -1651,15 +1646,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
               ⚠️ <strong>Contract unavailable:</strong> {balances.contractError}. Jackpot and creator pool values may not be accurate.
             </div>
           )}
-          {/* Helper to get treasury data with legacy fallback */}
+          
           {(() => {
-            const treasury = balances.treasury || (balances.creatorPool ? {
-              address: balances.creatorPool.address,
-              balanceEth: balances.creatorPool.accumulatedEth,
-              withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
-              isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
-              contributingToSeedEth: balances.creatorPool.isWithdrawable ? '0' : balances.creatorPool.accumulatedEth,
-            } : null);
+            const treasury = balances.treasury ?? null;
 
             const seedTotal = balances.nextRoundSeed?.totalEth
               || balances.nextRoundSeed?.projectedEth
@@ -2482,12 +2471,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         </p>
 
         {balances && (() => {
-          const treasury = balances.treasury || (balances.creatorPool ? {
-            balanceEth: balances.creatorPool.accumulatedEth,
-            withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
-            isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
-            contributingToSeedEth: balances.creatorPool.isWithdrawable ? '0' : balances.creatorPool.accumulatedEth,
-          } : null);
+          const treasury = balances.treasury ?? null;
 
           if (!treasury) return null;
 
@@ -2531,11 +2515,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         </div>
 
         {(() => {
-          const treasury = balances?.treasury || (balances?.creatorPool ? {
-            withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
-            isWithdrawable: balances.creatorPool.isWithdrawable ?? false,
-            balanceEth: balances.creatorPool.accumulatedEth,
-          } : null);
+          const treasury = balances?.treasury ?? null;
 
           if (!treasury) return null;
 
@@ -3072,11 +3052,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
       {/* Withdraw Confirmation Modal */}
       {showWithdrawConfirm && balances && connectedWallet && (() => {
-        const treasury = balances.treasury || (balances.creatorPool ? {
-          balanceEth: balances.creatorPool.accumulatedEth,
-          withdrawableEth: balances.creatorPool.isWithdrawable ? balances.creatorPool.accumulatedEth : '0',
-          address: balances.creatorPool.address,
-        } : null);
+        const treasury = balances.treasury ?? null;
         if (!treasury) return null;
         return (
         <div style={styles.modal} onClick={() => setShowWithdrawConfirm(false)}>

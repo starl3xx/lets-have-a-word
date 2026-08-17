@@ -25,12 +25,6 @@ interface AnalyticsSectionProps {
   }
 }
 
-interface TopGuesser {
-  fid: number
-  username: string | null
-  guessCount: number
-}
-
 interface DashboardSummary {
   today: { dau: number; packPurchases: number; paidGuesses: number; revenueEth: number }
   avg7d: { dau: number; packPurchases: number; paidGuesses: number; revenueEth: number }
