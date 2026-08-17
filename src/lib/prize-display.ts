@@ -85,6 +85,15 @@ export function formatPrizeCompact(input: PrizeAmountInput): string {
   return `${formatEthAmount(input.eth ?? '0')} ETH`;
 }
 
+/**
+ * Public compact form for a bare $WORD amount ("78.7M", "1.50M") — the same
+ * three-significant-digit rule the info bar uses, so every surface rounds
+ * identically.
+ */
+export function formatWordAmountCompact(wei: bigint): string {
+  return compactWordAmount(wei);
+}
+
 function compactWordAmount(wei: bigint): string {
   const whole = Number(wei / 10n ** 18n);
   if (!Number.isFinite(whole) || whole <= 0) return '0';

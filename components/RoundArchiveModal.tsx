@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { formatPrize } from '../src/lib/prize-display';
-import { formatWordAmount } from '../src/lib/word-amounts';
+import { formatPrize, formatPrizeCompact, formatWordAmountCompact } from '../src/lib/prize-display';
 import Top10StatusChip from './Top10StatusChip';
 import BadgeStack from './BadgeStack';
 
@@ -322,7 +321,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
         } catch {
           wei = 0n;
         }
-        return formatWordAmount((wei * BigInt(bps)) / 10000n);
+        return formatWordAmountCompact((wei * BigInt(bps)) / 10000n);
       }
       return (parseFloat(totalEth) * (bps / 10000)).toFixed(4);
     };
@@ -376,11 +375,15 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
             {roundState && (
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-sm font-semibold text-green-600">
-                  {formatPrize({
-                    currency: prizeCurrency,
-                    eth: formatEthDisplay(roundState.prizePoolEth),
-                    word: roundState.prizePoolWord,
-                  })}
+                  {/* $WORD compacts to the info bar's three significant
+                      digits; ETH rounds 1-33 keep their exact historic look. */}
+                  {prizeCurrency === 'word'
+                    ? formatPrizeCompact({ currency: 'word', word: roundState.prizePoolWord })
+                    : formatPrize({
+                        currency: prizeCurrency,
+                        eth: formatEthDisplay(roundState.prizePoolEth),
+                        word: roundState.prizePoolWord,
+                      })}
                 </span>
                 <span className="text-xs text-gray-500">prize pool</span>
               </div>
@@ -528,7 +531,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                     // float ETH for the legacy path.
                     const rankPayout =
                       prizeCurrency === 'word'
-                        ? formatWordAmount(
+                        ? formatWordAmountCompact(
                             ((breakdown?.topGuessersPoolWei ?? 0n) *
                               BigInt(Math.round(TOP10_RANK_PERCENTAGES[rank - 1] * 10000))) /
                               10000n
@@ -566,10 +569,13 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                             hasEncyclopedicBadge={guesser.hasEncyclopedicBadge}
                             size="sm"
                           />
+                          {/* An arrow, not parentheses: "(1,495,474 $WORD)"
+                              read as the player's BALANCE. "→ 1.50M $WORD"
+                              reads as what this rank is set to receive. */}
                           <span className="text-gray-400 text-xs tabular-nums whitespace-nowrap">
-                            ({prizeCurrency === 'word'
-                              ? `${rankPayout} $WORD`
-                              : `.${rankPayout.replace('0.', '')} ETH`})
+                            {prizeCurrency === 'word'
+                              ? `→ ${rankPayout} $WORD`
+                              : `(.${rankPayout.replace('0.', '')} ETH)`}
                           </span>
                         </div>
                         {/* Guess Count */}
