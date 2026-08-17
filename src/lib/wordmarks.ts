@@ -228,28 +228,38 @@ export async function checkAndAwardQuickdraw(
 }
 
 /**
- * Check and award TRAILBLAZER wordmark
- * Awarded to the player who makes a round's #1 global guess. A new holder
- * can appear every round, but the mark itself is a single item — going first
- * again is a no-op. Rounds 1–33 are covered by the launch backfill endpoint
- * (round34-wordmarks-backfill); this handles every live round.
+ * Award TRAILBLAZER for a round — the maker of the round's #1 global guess.
+ * A new holder can appear every round, but the mark itself is a single item;
+ * going first again is a no-op.
+ *
+ * Called at round resolution, the first race-free moment: guessIndexInRound
+ * comes from an unlocked COUNT, so concurrent first guesses can all read
+ * index 1, and any guess-time check races with in-flight inserts whose lower
+ * ids are not yet visible. Once the round is locked, MIN(guesses.id) is the
+ * final truth — the same basis as the rounds 1–33 backfill. Ineligible-winner
+ * audit rows never earn the mark. Idempotent: re-resolving a recovered round
+ * is a no-op.
  */
-export async function checkAndAwardTrailblazer(
-  fid: number,
-  roundId: number,
-  guessIndexInRound: number | null | undefined
-): Promise<boolean> {
-  if (guessIndexInRound !== 1) return false;
+export async function awardTrailblazerForRound(roundId: number): Promise<boolean> {
+  const result = await db.execute<{ fid: number }>(sql`
+    SELECT fid FROM guesses
+    WHERE round_id = ${roundId}
+      AND is_ineligible_winner IS NOT TRUE
+    ORDER BY id
+    LIMIT 1
+  `);
+  const firstFid = result[0]?.fid;
+  if (!firstFid) return false;
 
-  const alreadyHas = await hasWordmark(fid, 'TRAILBLAZER');
+  const alreadyHas = await hasWordmark(firstFid, 'TRAILBLAZER');
   if (alreadyHas) return false;
 
-  const awarded = await awardWordmark(fid, 'TRAILBLAZER', { roundId });
+  const awarded = await awardWordmark(firstFid, 'TRAILBLAZER', { roundId });
 
   // Announce the wordmark earned (fire and forget)
   if (awarded) {
     import('./announcer').then(({ announceWordmarkEarned }) => {
-      announceWordmarkEarned(fid, 'TRAILBLAZER', roundId).catch(err => {
+      announceWordmarkEarned(firstFid, 'TRAILBLAZER', roundId).catch(err => {
         console.error('[wordmarks] Failed to announce Trailblazer wordmark:', err);
       });
     });

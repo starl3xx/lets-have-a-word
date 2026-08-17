@@ -1163,6 +1163,18 @@ export async function resolveRoundAndCreatePayouts(
     })();
   }
 
+  // Award TRAILBLAZER to the maker of the round's #1 guess (fire-and-forget).
+  // Resolution is the first race-free moment: the round is locked, so
+  // MIN(guesses.id) is final. See awardTrailblazerForRound for the why.
+  (async () => {
+    try {
+      const { awardTrailblazerForRound } = await import('./wordmarks');
+      await awardTrailblazerForRound(roundId);
+    } catch (error) {
+      console.error(`[Wordmark] Failed to award TRAILBLAZER for round ${roundId}:`, error);
+    }
+  })();
+
   // Mark round as resolved
   // Milestone 9.5: Also set status to 'resolved'
   await db
