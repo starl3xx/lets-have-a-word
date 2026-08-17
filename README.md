@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Endpoint rationalization (cleanup Phase E)**: Seven more endpoints retire — the curl-only analytics twins (`events`, `export`, `metrics`, `referral`, `performance`, `jackpot`; each duplicated a UI-wired sibling, and `export` selected round answers into its output) and `archive-round` (the surviving sync, fix-and-archive, and nightly cron cover every archive path). `fairness` and `word-token` stay deliberately: unique read-only capabilities with no twin. The `contract-state` header stops advertising a POST action that never existed, and the three resolution tools (`force-resolve`, `emergency-resolve`, `recover-stuck-round`) now carry one shared doc block stating which failure mode each serves. Admin endpoint count: 83 → 58, every survivor either UI-wired or a documented shell tool.
+
+
 - **Seventeen retired admin endpoints and a buried tab (cleanup Phase C, operator-approved)**: All six spent one-column backfills, the OG Hunter era (analytics + backfill + the XP-award option), the CLANKTON snapshot DDL endpoint, the round-2 incident cluster (`fix-round-answer`, `diagnose-round`, `generate-archive-sql` — the general-purpose `fix-round-field`, `debug-round2` and `fix-and-archive-round` stay), `clear-archive-cache`, `xp-debug`, and three of the five overlapping sybil diagnostics (`diagnose-sybil-round`, `wallet-cluster-report`, `cohort-engagement` — Farm Monitor and the cluster-gate dry run carry the mission). The Airdrop tab is buried, not deleted: no tab button, but the full manager still renders at `/admin?tab=airdrop`, and its endpoint and ledger table are untouched; only the long-spent migration bootstrap panel is gone. Git history keeps everything.
 
 
