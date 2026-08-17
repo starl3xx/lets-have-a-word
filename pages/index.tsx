@@ -2273,16 +2273,17 @@ function GameContent() {
           </div>
 
           {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav).
-              gap-4 matches the game container's px-4, so the space between
-              buttons equals the space at the row's edges — no row padding,
-              or the edges grow past the gaps again. */}
-          <div className="mt-4 mb-4 grid grid-cols-4 gap-4" style={{ position: 'relative', zIndex: 5 }}>
+              Even spacing at a uniform 8px: gap-2 between buttons, and -mx-2
+              pulls the row 8px into the game container's px-4 so the edge
+              space is also 8px. Keep gap and negative margin in lockstep or
+              the edges drift from the gaps again. */}
+          <div className="mt-4 mb-4 -mx-2 grid grid-cols-4 gap-2" style={{ position: 'relative', zIndex: 5 }}>
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-2 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
+                  className="py-2 px-1 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   📊 Stats
                 </button>
@@ -2291,7 +2292,7 @@ function GameContent() {
                     setShowReferralSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-2 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
+                  className="py-2 px-1 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   🤝 Refer
                 </button>
@@ -2300,7 +2301,7 @@ function GameContent() {
                     setShowWordSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-2 bg-white border-2 border-purple-200 rounded-lg text-xs font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all whitespace-nowrap"
+                  className="py-2 px-1 bg-white border-2 border-purple-200 rounded-lg text-xs font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   💰 $WORD
                 </button>
@@ -2309,7 +2310,7 @@ function GameContent() {
                     setShowFAQSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-2 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
+                  className="py-2 px-1 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   🤔 FAQ
                 </button>
