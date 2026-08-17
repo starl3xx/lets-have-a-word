@@ -108,6 +108,7 @@ interface WalletBalances {
     balanceEth: string;
   };
   treasuryWord?: string;
+  wordPriceUsd?: number;
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -1357,6 +1358,20 @@ export default function WalletSection({ user }: WalletSectionProps) {
             const legacyCreatorEth = parseFloat(balances.treasury?.balanceEth ?? '0');
             const legacyLeftoverEth = legacyJackpotEth + legacyCreatorEth;
             const packSalesEth = balances.packSales ? parseFloat(balances.packSales.balanceEth) : null;
+            // "2,500,000,000" → "≈$640" from the oracle price; null when the
+            // price or the figure is unavailable, so subtexts degrade cleanly.
+            const usdApprox = (tokens: string | undefined): string | null => {
+              if (!balances.wordPriceUsd || !tokens) return null;
+              const n = parseFloat(tokens.replace(/,/g, ''));
+              if (!Number.isFinite(n)) return null;
+              const usd = n * balances.wordPriceUsd;
+              // en-US pinned: in dot-grouping locales "≈$3.800" reads as $3.80.
+              return `≈$${usd >= 100 ? Math.round(usd).toLocaleString('en-US') : usd.toFixed(2)}`;
+            };
+            const jackpotUsd = usdApprox(balances.wordJackpot?.unallocated);
+            const bonusBurnUsd = usdApprox(balances.wordManager?.availableForGames);
+            const poolUsd = usdApprox(balances.wordJackpot?.pool);
+            const treasuryUsd = usdApprox(balances.treasuryWord);
 
             return (
               <>
@@ -1367,18 +1382,18 @@ export default function WalletSection({ user }: WalletSectionProps) {
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Jackpot Fuel</div>
                     <div style={styles.statValueSmall}>{balances.wordJackpot?.unallocated ?? '--'}</div>
-                    <div style={styles.statSubtext}>$WORD unallocated — seeds rounds</div>
+                    <div style={styles.statSubtext}>$WORD unallocated — seeds rounds{jackpotUsd ? ` · ${jackpotUsd}` : ''}</div>
                   </div>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Bonus/Burn Fuel</div>
                     <div style={styles.statValueSmall}>{balances.wordManager?.availableForGames ?? '--'}</div>
-                    <div style={styles.statSubtext}>$WORD for bonus + burn + top-10 rewards</div>
+                    <div style={styles.statSubtext}>$WORD for bonus + burn + top-10 rewards{bonusBurnUsd ? ` · ${bonusBurnUsd}` : ''}</div>
                   </div>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Live Pool</div>
                     <div style={styles.statValueSmall}>{balances.wordJackpot?.pool ?? '--'}</div>
                     <div style={styles.statSubtext}>
-                      {balances.wordJackpot ? `$WORD + ${balances.wordJackpot.carry} carry` : '$WORD'}
+                      {balances.wordJackpot ? `$WORD + ${balances.wordJackpot.carry} carry` : '$WORD'}{poolUsd ? ` · ${poolUsd}` : ''}
                     </div>
                   </div>
                   <div style={styles.statCard}>
@@ -1397,7 +1412,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 <div style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <span>
                     Treasury wallet: {parseFloat(balances.prizePool.balanceEth).toFixed(4)} ETH
-                    {balances.treasuryWord !== undefined ? ` · ${balances.treasuryWord} $WORD (tranche source)` : ''}
+                    {balances.treasuryWord !== undefined ? ` · ${balances.treasuryWord} $WORD (tranche source${treasuryUsd ? `, ${treasuryUsd}` : ''})` : ''}
                   </span>
                 </div>
 
