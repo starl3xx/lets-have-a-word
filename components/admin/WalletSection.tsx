@@ -1395,16 +1395,26 @@ export default function WalletSection({ user }: WalletSectionProps) {
                 </div>
 
                 {/* ETH-era leftovers — show only while anything remains. Only
-                    the creator pool is reachable from this tab; the old prize
-                    balance needs a contract action. */}
-                {legacyLeftoverEth > 0.0001 && (
+                    the creator pool is reachable from this tab, and the
+                    contract keeps a 0.02 ETH floor on it, so use the server's
+                    floor-aware withdrawable figure rather than the raw pool. */}
+                {legacyLeftoverEth > 0.0001 && (() => {
+                  const legacyWithdrawableEth = parseFloat(balances.treasury?.withdrawableEth ?? '0');
+                  return (
                   <div style={{ marginTop: '8px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
                     ETH era: JackpotManager still holds
-                    {legacyCreatorEth > 0.0001 ? ` ${legacyCreatorEth.toFixed(4)} ETH creator pool (withdrawable below)` : ''}
+                    {legacyCreatorEth > 0.0001
+                      ? ` ${legacyCreatorEth.toFixed(4)} ETH creator pool (${
+                          legacyWithdrawableEth > 0
+                            ? `${legacyWithdrawableEth.toFixed(4)} ETH withdrawable below`
+                            : 'at the contract’s 0.02 ETH floor, none withdrawable'
+                        })`
+                      : ''}
                     {legacyCreatorEth > 0.0001 && legacyJackpotEth > 0.0001 ? ' and' : ''}
                     {legacyJackpotEth > 0.0001 ? ` ${legacyJackpotEth.toFixed(4)} ETH in the old prize pool (contract-side only, not withdrawable from here)` : ''}.
                   </div>
-                )}
+                  );
+                })()}
               </>
             );
           })()}
