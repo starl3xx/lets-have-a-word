@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Archive chip stacked**: the between-rounds archive chip becomes two stacked, left-aligned lines ("ROUND" over "ARCHIVE ▼"), both in the thin label weight — the same anatomy as the Round chip it stands in for.
+
+
 - **$WORD sheet polish**: the $WORD nav button drops its purple accent and matches its three siblings; the Fee distribution tile is gone (the API still serves the split for the preview page); and the Market cap tile gains a ↑/↓ 24h change chip. The change had been dead since DexScreener delisted $WORD — it turns out GeckoTerminal does publish a 24h figure, just on the pools endpoint rather than the token endpoint the oracle was reading, so the oracle now asks both (pools best-effort, never at the cost of the market cap).
 
 

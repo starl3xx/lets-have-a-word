@@ -282,15 +282,19 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
             )}
 
             {/* Archive chip — sits where the Round #N ▼ chip lives during a
-                round. One line, label weight only. Goes straight to /archive:
-                the round modal the chip normally opens needs a live round
-                and errors on the 204 from /api/round-state. */}
+                round. Stacked and left-aligned like that chip's two-line
+                anatomy, but both lines in the label weight. Goes straight to
+                /archive: the round modal the chip normally opens needs a live
+                round and errors on the 204 from /api/round-state. */}
             <a
               href="/archive"
-              className="flex items-center pl-2.5 pr-2 py-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
+              className="block text-left pl-2.5 pr-2 py-1.5 -mr-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
             >
               <p className="text-xs uppercase font-light tracking-wide opacity-90">
-                Round archive
+                Round
+              </p>
+              <p className="text-xs uppercase font-light tracking-wide opacity-90">
+                Archive
                 <span className="ml-1 opacity-70">▼</span>
               </p>
             </a>
