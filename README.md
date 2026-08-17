@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Round-34 contracts deployed to Base**: WordJackpot proxy `0x550753Ed…` (impl `0x3439A33A…`), WordPackSales `0xF0B96933…`, GuessLog `0x2dDE6892…` — all Basescan-verified, all seven role checks green. The first run surfaced that the deployer is an EIP-7702 delegated EOA and the RPC allows delegated accounts one in-flight transaction: the deploy script now retries that refusal and can resume past an already-deployed implementation (`EXISTING_WORD_JACKPOT_IMPL`), which is exactly how the real deploy finished.
+
+
 - **Funding directory in Admin → Treasury**: one card that answers "where do I send $WORD for game use" without hunting — jackpot pool (WordJackpot), bonus/burn words and staking rewards (WordManagerV3) highlighted up top with full addresses, one-tap copy, Basescan links, and one line on what each destination funds; pack sales, guess log, treasury, operator, the ETH-era manager, and the token below. Undeployed contracts show which env var to set instead of an empty hole. Served by a no-RPC `?book=1` fast path on `contract-state`.
 
 
