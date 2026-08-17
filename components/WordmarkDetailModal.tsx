@@ -8,7 +8,14 @@
  *
  * Metadata shapes vary by mark and era (old awards can miss keys), so every
  * detail line degrades to nothing rather than to a broken sentence.
+ *
+ * Rendered through a portal to document.body: a `position: fixed` overlay
+ * inside the Stats sheet's `overflow-y-auto` container is mispositioned or
+ * clipped on mobile WebKit (the Farcaster/Base webviews). React portals
+ * still bubble events through the REACT tree, so the overlay's own
+ * stopPropagation keeps clicks from ever reaching the sheet's backdrop.
  */
+import { createPortal } from 'react-dom';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
 
@@ -111,7 +118,7 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
   const detail = wordmark.earned ? earnedDetail(wordmark) : null;
   const earnedDate = wordmark.earned ? formatEarnedDate(wordmark.earnedAt) : null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-6"
       onClick={(e) => {
@@ -160,6 +167,7 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
           {wordmark.earned ? 'Nice ✨' : 'Challenge accepted 🫡'}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

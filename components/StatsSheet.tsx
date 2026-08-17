@@ -496,8 +496,10 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
           Close
         </button>
 
-        {/* Wordmark detail — rendered inside modal-sheet so its clicks stop
-            at the sheet's stopPropagation and never close the whole sheet */}
+        {/* Wordmark detail — portals its DOM to document.body (a fixed
+            overlay inside this overflow-y-auto sheet clips on mobile WebKit)
+            while events still bubble through the React tree, so the sheet's
+            stopPropagation keeps detail clicks from closing the sheet */}
         {selectedWordmark && (
           <WordmarkDetailModal
             wordmark={selectedWordmark}
