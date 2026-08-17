@@ -139,8 +139,10 @@ export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
     // The token endpoint has price and FDV; the 24h change lives ONLY on the
     // pools endpoint (attributes.price_change_percentage.h24 of the top
     // pool). Verified live 2026-08-17 — the token endpoint has no change
-    // field at all. The pools fetch is best-effort: its failure must never
-    // cost us the market cap.
+    // field at all. The pools fetch is best-effort: it gets a much shorter
+    // timeout than the market-cap read, so a hanging pools endpoint costs a
+    // decorative chip, never seconds on the oracle cron or the $WORD sheet.
+    const POOLS_FETCH_TIMEOUT_MS = 2500;
     const [response, poolsResponse] = await Promise.all([
       fetch(
         `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}`,
@@ -148,7 +150,7 @@ export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
       ),
       fetch(
         `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}/pools`,
-        { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) }
+        { signal: AbortSignal.timeout(POOLS_FETCH_TIMEOUT_MS) }
       ).catch(() => null),
     ]);
 
