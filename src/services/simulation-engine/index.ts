@@ -791,8 +791,10 @@ export async function runJackpotRunwaySimulation(options?: {
       // 30 stress-scenario rounds ≈ three months at the real cadence
       // (~72h/round with the cooldown) — the bar for a healthy tranche.
       const sustainabilityScore = stress ? Math.min(stress.projectedRounds / 30, 1) : 0.5;
+      // The runway is finite in every scenario now (credits are a wash), so
+      // depletion is always computable — no sentinel.
       const roundsPerDay = 1 / 3;
-      const daysToDepletion = stress && stress.projectedRounds < 999
+      const daysToDepletion = stress
         ? Math.floor(stress.projectedRounds / roundsPerDay)
         : null;
 
