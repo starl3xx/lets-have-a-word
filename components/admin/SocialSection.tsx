@@ -238,7 +238,9 @@ export default function SocialSection({ user }: SocialSectionProps) {
       if (response.ok && data.success) {
         setTweetResult({
           success: true,
-          message: "Tweet posted successfully!",
+          // Typefully posts are scheduled ~2 minutes out (X blocks direct
+          // publishing of URL posts); the server says so via `message`.
+          message: data.message || "Tweet posted successfully!",
           tweetUrl: data.tweetUrl,
         })
         setTweetText("") // Clear after success
@@ -385,7 +387,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
                     rel="noopener noreferrer"
                     className="underline"
                   >
-                    View tweet
+                    View post
                   </a>
                 </>
               )}

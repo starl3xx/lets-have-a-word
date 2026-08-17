@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { isAdminFid } from './me';
-import { postTweet, convertToTwitterText, getTypefullyPublishedUrl } from '../../../src/lib/twitter';
+import { postTweet, convertToTwitterText } from '../../../src/lib/twitter';
 
 export default async function handler(
   req: NextApiRequest,
@@ -43,21 +43,15 @@ export default async function handler(
     if (result) {
       console.log(`[post-tweet] Tweet posted by FID ${fid}: ${result.id}`);
 
-      // Typefully publishes asynchronously. A human is waiting on this
-      // response, so poll briefly for the real x.com status URL; the draft
-      // URL is only the fallback when publishing outruns the wait.
+      // Typefully posts are now SCHEDULED ~2 minutes out (direct publishing
+      // of URL posts is blocked by X policy — see postViaTypefully), so
+      // polling for the x.com status URL here can never win; the old 10s
+      // poll just burned the window and returned the draft URL anyway. Hand
+      // back the Typefully URL immediately with the schedule made explicit.
       let tweetUrl: string | undefined = (result as { url?: string }).url;
       const draftId = (result as { draftId?: number }).draftId;
-      if (draftId) {
-        for (let attempt = 0; attempt < 5; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          const publishedUrl = await getTypefullyPublishedUrl(draftId);
-          if (publishedUrl) {
-            tweetUrl = publishedUrl;
-            break;
-          }
-        }
-      } else if (!tweetUrl) {
+      const scheduled = Boolean(draftId);
+      if (!draftId && !tweetUrl) {
         // Legacy X transport: the id IS the status id.
         tweetUrl = `https://twitter.com/letshaveaword_/status/${result.id}`;
       }
@@ -66,7 +60,11 @@ export default async function handler(
         success: true,
         tweetId: result.id,
         postedText: twitterText,
-        tweetUrl
+        tweetUrl,
+        scheduled,
+        ...(scheduled && {
+          message: 'Scheduled via Typefully — publishes to X within ~2 minutes. The link opens the Typefully draft.',
+        }),
       });
     } else {
       return res.status(200).json({
