@@ -517,9 +517,11 @@ export default async function handler(
                 ? '🚨 SOLVENCY VIOLATED: balance is below pool + carry + claimable. Investigate before any round action.'
                 : !wordJackpot.operatorAuthorized
                   ? '🚫 Operator mismatch on WordJackpot. Round starts and resolutions will fail.'
-                  : wordJackpot.unallocated === '0' && wordJackpot.pool === '0'
+                  : wordJackpot.unallocated === '0' && wordJackpot.pool === '0' && wordJackpot.carry === '0'
                     ? 'ℹ️ WordJackpot is deployed and empty — fund the tranche to seed rounds.'
-                    : `✅ WordJackpot is healthy. ${wordJackpot.unallocated} $WORD unallocated and ready to seed rounds.`,
+                    : wordJackpot.priceStale
+                      ? `⚠️ Oracle price ${wordJackpot.priceUpdatedAt === 0 ? 'never pushed' : 'stale'} — startRound will revert until the oracle cron updates it.`
+                      : `✅ WordJackpot is healthy. ${wordJackpot.unallocated} $WORD unallocated and ready to seed rounds.`,
         },
       });
     }

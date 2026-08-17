@@ -2295,9 +2295,14 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 <div style={{ marginBottom: '4px' }}>
                   <strong>Mainnet:</strong> {contractState.recommendations.mainnet}
                 </div>
-                <div>
+                <div style={{ marginBottom: '4px' }}>
                   <strong>WordManager:</strong> {contractState.recommendations.wordManager}
                 </div>
+                {contractState.recommendations.wordJackpot && (
+                  <div>
+                    <strong>WordJackpot:</strong> {contractState.recommendations.wordJackpot}
+                  </div>
+                )}
               </div>
             )}
           </div>
