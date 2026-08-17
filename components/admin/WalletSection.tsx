@@ -115,67 +115,13 @@ interface WalletAction {
   createdAt: string;
 }
 
-interface FailedBonusClaim {
-  claimId: number;
-  bonusWordId: number;
-  fid: number;
-  username: string | null;
-  walletAddress: string;
-  txStatus: string;
-  txHash: string | null;
-  errorMessage: string | null;
-  claimedAt: string;
-  retryCount: number;
-  wordIndex: number;
-  roundId: number;
-}
-
-interface BonusWordWithoutTx {
-  bonusWordId: number;
-  roundId: number;
-  wordIndex: number;
-  claimedByFid: number;
-  username: string | null;
-  claimedAt: string;
-  txHash: string | null;
-}
-
-interface RetrySuccess {
-  id: number | string;
-  txHash: string;
-  walletAddress?: string;
-}
-
-interface BonusDistributionStatus {
-  failedClaims: FailedBonusClaim[];
-  claimedWithoutTx: BonusWordWithoutTx[];
-  contractWordTokenBalance: string;
-  totalFailedOrPending: number;
-}
 
 
-interface RoundFieldAnalysis {
-  type: string;
-  isDate: boolean;
-  constructorName: string;
-  value: any;
-  length: number | null;
-}
 
-interface RoundDebugResult {
-  roundId: number;
-  status: string;
-  fieldAnalysis: Record<string, RoundFieldAnalysis>;
-  problemFields: Array<{ field: string } & RoundFieldAnalysis>;
-}
 
-interface FixFieldResult {
-  success: boolean;
-  field: string;
-  oldValue: any;
-  newValue: any;
-  error?: string;
-}
+
+
+
 
 interface ConnectedWallet {
   address: string;
@@ -593,23 +539,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [committedTransferTxHash, setCommittedTransferTxHash] = useState<string | null>(null);
 
   // Bonus distribution state
-  const [bonusDistStatus, setBonusDistStatus] = useState<BonusDistributionStatus | null>(null);
-  const [bonusDistLoading, setBonusDistLoading] = useState(false);
-  const [bonusDistError, setBonusDistError] = useState<string | null>(null);
-  const [retryingClaimId, setRetryingClaimId] = useState<number | null>(null);
-  const [retryingBonusWordId, setRetryingBonusWordId] = useState<number | null>(null);
-  const [retryingAll, setRetryingAll] = useState(false);
-  const [retrySuccesses, setRetrySuccesses] = useState<RetrySuccess[]>([]);
-  const [retryAllResult, setRetryAllResult] = useState<{ successful: number; failed: number } | null>(null);
 
   // Round data repair state
-  const [roundDebugId, setRoundDebugId] = useState<string>('');
-  const [roundDebugResult, setRoundDebugResult] = useState<RoundDebugResult | null>(null);
-  const [roundDebugLoading, setRoundDebugLoading] = useState(false);
-  const [roundDebugError, setRoundDebugError] = useState<string | null>(null);
-  const [fixingField, setFixingField] = useState<string | null>(null);
-  const [fixFieldValue, setFixFieldValue] = useState<string>('');
-  const [fixFieldResult, setFixFieldResult] = useState<FixFieldResult | null>(null);
 
   // $WORD withdrawal state
   interface WordTokenStatus {
@@ -781,26 +712,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
     }
   }, [user?.fid]);
 
-  const fetchBonusDistStatus = useCallback(async () => {
-    if (!user?.fid) return;
-
-    setBonusDistLoading(true);
-    setBonusDistError(null);
-    try {
-      const res = await fetch(`/api/admin/operational/retry-bonus-distribution?devFid=${user.fid}`);
-      if (res.ok) {
-        const data = await res.json();
-        setBonusDistStatus(data);
-      } else {
-        const err = await res.json();
-        setBonusDistError(err.error || 'Failed to fetch bonus distribution status');
-      }
-    } catch (err) {
-      setBonusDistError('Failed to fetch bonus distribution status');
-    } finally {
-      setBonusDistLoading(false);
-    }
-  }, [user?.fid]);
 
   const fetchWordTokenStatus = useCallback(async () => {
     if (!user?.fid) return;
@@ -893,170 +804,15 @@ export default function WalletSection({ user }: WalletSectionProps) {
     }
   };
 
-  const debugRound = async (roundId: string) => {
-    if (!user?.fid || !roundId) return;
 
-    setRoundDebugLoading(true);
-    setRoundDebugError(null);
-    setRoundDebugResult(null);
-    setFixFieldResult(null);
 
-    try {
-      const res = await fetch(`/api/admin/debug-round2?devFid=${user.fid}&roundId=${roundId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setRoundDebugResult(data);
-      } else {
-        const err = await res.json();
-        setRoundDebugError(err.error || 'Failed to debug round');
-      }
-    } catch (err) {
-      setRoundDebugError('Failed to debug round');
-    } finally {
-      setRoundDebugLoading(false);
-    }
-  };
 
-  const fixRoundField = async (roundId: number, field: string, value: string) => {
-    if (!user?.fid) return;
 
-    setFixingField(field);
-    setFixFieldResult(null);
-
-    try {
-      const res = await fetch('/api/admin/fix-round-field', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fid: user.fid,
-          roundId,
-          field,
-          value,
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setFixFieldResult({
-          success: true,
-          field,
-          oldValue: data.oldValue,
-          newValue: data.newValue,
-        });
-        // Refresh the debug info
-        await debugRound(String(roundId));
-      } else {
-        setFixFieldResult({
-          success: false,
-          field,
-          oldValue: null,
-          newValue: null,
-          error: data.error || 'Unknown error',
-        });
-      }
-    } catch (err: any) {
-      setFixFieldResult({
-        success: false,
-        field,
-        oldValue: null,
-        newValue: null,
-        error: err.message || 'Request failed',
-      });
-    } finally {
-      setFixingField(null);
-      setFixFieldValue('');
-    }
-  };
-
-  const retryBonusClaim = async (claimId: number) => {
-    if (!user?.fid) return;
-
-    setRetryingClaimId(claimId);
-    try {
-      const res = await fetch('/api/admin/operational/retry-bonus-distribution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid: user.fid, claimId }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setRetrySuccesses((prev) => [...prev, { id: `claim-${claimId}`, txHash: data.txHash }]);
-        await fetchBonusDistStatus();
-      } else {
-        alert(`Failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setRetryingClaimId(null);
-    }
-  };
-
-  const retryBonusWordWithoutTx = async (bonusWordId: number) => {
-    if (!user?.fid) return;
-
-    setRetryingBonusWordId(bonusWordId);
-    try {
-      const res = await fetch('/api/admin/operational/retry-bonus-distribution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid: user.fid, bonusWordId }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setRetrySuccesses((prev) => [...prev, { id: `bw-${bonusWordId}`, txHash: data.txHash, walletAddress: data.walletAddress }]);
-        await fetchBonusDistStatus();
-      } else {
-        alert(`Failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setRetryingBonusWordId(null);
-    }
-  };
-
-  const retryAllFailed = async () => {
-    if (!user?.fid) return;
-    if (!confirm('Retry all failed bonus word distributions?')) return;
-
-    setRetryingAll(true);
-    setRetryAllResult(null);
-    try {
-      const res = await fetch('/api/admin/operational/retry-bonus-distribution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid: user.fid, all: true }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.results) {
-        const successful = data.results.filter((r: any) => r.success).length;
-        const failed = data.results.filter((r: any) => r.error).length;
-        setRetryAllResult({ successful, failed });
-        // Add successful transactions to the list
-        const successfulTxs = data.results
-          .filter((r: any) => r.success)
-          .map((r: any) => ({ id: `claim-${r.claimId}`, txHash: r.txHash }));
-        setRetrySuccesses((prev) => [...prev, ...successfulTxs]);
-        await fetchBonusDistStatus();
-      } else {
-        alert(`Failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setRetryingAll(false);
-    }
-  };
 
   useEffect(() => {
     checkWalletConnection();
     fetchBalances();
     fetchActions();
-    fetchBonusDistStatus();
     fetchWordTokenStatus();
 
     // Listen for account/chain changes
@@ -1071,7 +827,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         window.ethereum.removeListener('chainChanged', checkWalletConnection);
       }
     };
-  }, [checkWalletConnection, fetchBalances, fetchActions, fetchBonusDistStatus, fetchWordTokenStatus]);
+  }, [checkWalletConnection, fetchBalances, fetchActions, fetchWordTokenStatus]);
 
   // =============================================================================
   // Withdrawal Handler
@@ -1617,6 +1373,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
             </button>
           </div>
         </div>
+        <p style={styles.cardSubtitle}>
+          To grow the prize pool directly, send ETH to the jackpot contract — it credits on the next sync.
+        </p>
 
         {balancesError ? (
           <div style={styles.alert('error')}>{balancesError}</div>
@@ -2143,312 +1902,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
         </div>
       )}
 
-      {/* Round Data Repair */}
       {user?.fid && (
         <PurchaseEventsCard fid={user.fid} currentRoundId={opStatus?.activeRoundId} />
       )}
 
-      <div style={styles.card}>
-        <h3 style={styles.cardTitle}>🔧 Round Data Repair</h3>
-        <p style={styles.cardSubtitle}>
-          Debug and fix corrupted round fields (e.g., string fields stored as Date objects)
-        </p>
-
-        {/* Debug Round Form */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-          <input
-            type="number"
-            placeholder="Round ID (e.g., 2)"
-            value={roundDebugId}
-            onChange={(e) => setRoundDebugId(e.target.value)}
-            style={{ ...styles.input, width: '200px' }}
-          />
-          <button
-            onClick={() => debugRound(roundDebugId)}
-            disabled={roundDebugLoading || !roundDebugId}
-            style={{
-              ...styles.btnPrimary,
-              ...(roundDebugLoading || !roundDebugId ? styles.btnDisabled : {}),
-            }}
-          >
-            {roundDebugLoading ? 'Loading...' : 'Debug Round'}
-          </button>
-        </div>
-
-        {/* Error */}
-        {roundDebugError && (
-          <div style={styles.alert('error')}>{roundDebugError}</div>
-        )}
-
-        {/* Fix Result */}
-        {fixFieldResult && (
-          <div style={styles.alert(fixFieldResult.success ? 'success' : 'error')}>
-            {fixFieldResult.success ? (
-              <>
-                <span>✅</span>
-                <span>
-                  Field "{fixFieldResult.field}" fixed! Changed from "{String(fixFieldResult.oldValue)}" to "{fixFieldResult.newValue}"
-                </span>
-              </>
-            ) : (
-              <>
-                <span>❌</span>
-                <span>Failed to fix field "{fixFieldResult.field}": {fixFieldResult.error}</span>
-              </>
-            )}
-            <button
-              onClick={() => setFixFieldResult(null)}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {/* Debug Results */}
-        {roundDebugResult && (
-          <div>
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-              <div style={{ ...styles.statCard, flex: 1 }}>
-                <div style={styles.statLabel}>Round</div>
-                <div style={styles.statValueSmall}>#{roundDebugResult.roundId}</div>
-              </div>
-              <div style={{ ...styles.statCard, flex: 1 }}>
-                <div style={styles.statLabel}>Status</div>
-                <div style={styles.statValueSmall}>{roundDebugResult.status}</div>
-              </div>
-              <div style={{ ...styles.statCard, flex: 1 }}>
-                <div style={styles.statLabel}>Problem Fields</div>
-                <div style={styles.statValueSmall}>
-                  <span style={{ color: roundDebugResult.problemFields.length > 0 ? '#dc2626' : '#16a34a' }}>
-                    {roundDebugResult.problemFields.length}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Problem Fields Alert */}
-            {roundDebugResult.problemFields.length > 0 && (
-              <div style={{ ...styles.alert('error'), marginBottom: '16px' }}>
-                <span>⚠️</span>
-                <span>
-                  <strong>Corrupted fields found:</strong>{' '}
-                  {roundDebugResult.problemFields.map(pf => pf.field).join(', ')}
-                </span>
-              </div>
-            )}
-
-            {/* Problem Fields Fix UI */}
-            {roundDebugResult.problemFields.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 600, color: '#374151' }}>
-                  Fix Corrupted Fields
-                </h4>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Field</th>
-                      <th style={styles.th}>Current Type</th>
-                      <th style={styles.th}>Current Value</th>
-                      <th style={styles.th}>New Value</th>
-                      <th style={styles.th}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roundDebugResult.problemFields.map((pf) => (
-                      <tr key={pf.field}>
-                        <td style={styles.td}>
-                          <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>
-                            {pf.field}
-                          </code>
-                        </td>
-                        <td style={styles.td}>
-                          <span style={styles.badge('red')}>
-                            {pf.isDate ? 'Date' : pf.constructorName || pf.type}
-                          </span>
-                        </td>
-                        <td style={{ ...styles.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: '11px' }} title={String(pf.value)}>
-                            {String(pf.value)}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <input
-                            type="text"
-                            placeholder="Enter correct value"
-                            onChange={(e) => setFixFieldValue(e.target.value)}
-                            style={{ ...styles.input, width: '150px', padding: '6px 8px', fontSize: '12px' }}
-                          />
-                        </td>
-                        <td style={styles.td}>
-                          <button
-                            onClick={() => fixRoundField(roundDebugResult.roundId, pf.field, fixFieldValue)}
-                            disabled={fixingField === pf.field || !fixFieldValue}
-                            style={{
-                              ...styles.btnDanger,
-                              ...styles.btnSmall,
-                              ...(fixingField === pf.field || !fixFieldValue ? styles.btnDisabled : {}),
-                            }}
-                          >
-                            {fixingField === pf.field ? 'Fixing...' : 'Fix Field'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* All Fields Table */}
-            <details style={{ marginTop: '16px' }}>
-              <summary style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: '#374151', marginBottom: '8px' }}>
-                View All Fields ({Object.keys(roundDebugResult.fieldAnalysis).length})
-              </summary>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.th}>Field</th>
-                    <th style={styles.th}>Type</th>
-                    <th style={styles.th}>Is Date?</th>
-                    <th style={styles.th}>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(roundDebugResult.fieldAnalysis).map(([field, info]) => {
-                    // Fields that SHOULD be strings (if these are Date, it's a problem)
-                    const shouldBeStringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth', 'txHash', 'bonusWordsCommitHash', 'cancelledReason', 'cancelledBy', 'status'];
-                    // Fields that SHOULD be dates (these are expected to be Date)
-                    const shouldBeDateFields = ['startedAt', 'resolvedAt', 'cancelledAt', 'refundsStartedAt', 'refundsCompletedAt', 'createdAt', 'updatedAt'];
-                    const isCorrupted = shouldBeStringFields.includes(field) && info.isDate;
-                    const isExpectedDate = shouldBeDateFields.includes(field) && info.isDate;
-
-                    return (
-                      <tr key={field} style={{ background: isCorrupted ? '#fef2f2' : undefined }}>
-                        <td style={styles.td}>
-                          <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>
-                            {field}
-                          </code>
-                        </td>
-                        <td style={styles.td}>{info.constructorName || info.type}</td>
-                        <td style={styles.td}>
-                          {info.isDate ? (
-                            isCorrupted ? (
-                              <span style={styles.badge('red')}>Yes ⚠️</span>
-                            ) : (
-                              <span style={styles.badge('green')}>Yes ✓</span>
-                            )
-                          ) : (
-                            <span style={styles.badge('green')}>No</span>
-                          )}
-                        </td>
-                        <td style={{ ...styles.td, maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: '11px' }} title={String(info.value)}>
-                            {String(info.value)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </details>
-
-            {/* No Problems */}
-            {roundDebugResult.problemFields.length === 0 && (
-              <div style={styles.alert('success')}>
-                <span>✅</span>
-                <span>No corrupted fields found! All string fields have correct types.</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Instructions */}
-        {!roundDebugResult && !roundDebugLoading && (
-          <div style={styles.alert('info')}>
-            <span>ℹ️</span>
-            <span>
-              Enter a round ID to debug its database fields. This will check for any fields that have been corrupted
-              (e.g., string fields accidentally stored as Date objects), which can cause archive sync failures.
-            </span>
-          </div>
-        )}
-      </div>
 
       {/* Prize Pool Injection Instructions */}
-      <div style={styles.card}>
-        <h3 style={styles.cardTitle}>Add ETH to Prize Pool</h3>
-        <p style={styles.cardSubtitle}>
-          To add ETH to the prize pool, send a transfer on Base from one of the authorized wallets.
-        </p>
-
-        <div style={{
-          background: '#f0f9ff',
-          border: '1px solid #bae6fd',
-          borderRadius: '8px',
-          padding: '16px',
-          marginBottom: '16px',
-        }}>
-          <div style={{ marginBottom: '12px' }}>
-            <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 500, marginBottom: '4px' }}>
-              Step 1: Send ETH from
-            </div>
-            <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#0c4a6e', wordBreak: 'break-all' }}>
-              {balances?.prizePool.address || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB'}
-            </div>
-            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-              (letshaveaword.eth — Prize Pool Wallet)
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '12px' }}>
-            <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 500, marginBottom: '4px' }}>
-              Step 2: To the contract
-            </div>
-            <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#0c4a6e', wordBreak: 'break-all' }}>
-              {balances?.contractAddress || '0xfcb0D07a5BB5B004A1580D5Ae903E33c4A79EdB5'}
-            </div>
-            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-              (JackpotManager Contract on Base)
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 500, marginBottom: '4px' }}>
-              Step 3: Any amount
-            </div>
-            <div style={{ fontSize: '13px', color: '#0c4a6e' }}>
-              The ETH will be added to the jackpot automatically.
-            </div>
-          </div>
-        </div>
-
-        <div style={styles.alert('info')}>
-          <span>ℹ️</span>
-          <span>
-            Only transfers from the Prize Pool Wallet or Operator Wallet are added to the jackpot.
-            Transfers from other addresses are accepted but won't increase the prize pool.
-          </span>
-        </div>
-
-        {balances && (
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-            <button
-              onClick={() => navigator.clipboard.writeText(balances.prizePool.address)}
-              style={{ ...styles.btnSecondary, ...styles.btnSmall }}
-            >
-              Copy Prize Pool Wallet
-            </button>
-            <button
-              onClick={() => navigator.clipboard.writeText(balances.contractAddress)}
-              style={{ ...styles.btnSecondary, ...styles.btnSmall }}
-            >
-              Copy Contract Address
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* Treasury Withdrawal */}
       <div style={styles.card}>
@@ -2601,219 +2060,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
       </div>
 
       {/* Bonus Word Distributions */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>🎣 Bonus word distributions</h3>
-            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Legacy JackpotManager — retry failed $WORD distributions for bonus word winners
-            </p>
-          </div>
-          <button
-            onClick={() => fetchBonusDistStatus()}
-            disabled={bonusDistLoading}
-            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
-          >
-            {bonusDistLoading ? 'Loading...' : 'Refresh'}
-          </button>
-        </div>
-
-        {bonusDistError ? (
-          <div style={styles.alert('error')}>{bonusDistError}</div>
-        ) : bonusDistLoading && !bonusDistStatus ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
-        ) : bonusDistStatus ? (
-          <>
-            {/* Summary Stats */}
-            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Contract $WORD</div>
-                <div style={styles.statValueSmall}>{formatTokenBalance(bonusDistStatus.contractWordTokenBalance)}</div>
-                <div style={styles.statSubtext}>Available for rewards</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Failed/Pending</div>
-                <div style={styles.statValueSmall}>
-                  {bonusDistStatus.failedClaims.length + bonusDistStatus.claimedWithoutTx.length}
-                </div>
-                <div style={styles.statSubtext}>Need attention</div>
-              </div>
-            </div>
-
-            {/* Retry All Result */}
-            {retryAllResult && (
-              <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
-                <span>✅</span>
-                <span>Retry complete: {retryAllResult.successful} successful, {retryAllResult.failed} failed</span>
-                <button
-                  onClick={() => setRetryAllResult(null)}
-                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            {/* Recent Success Messages */}
-            {retrySuccesses.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                {retrySuccesses.slice(-5).map((success) => (
-                  <div key={success.id} style={{ ...styles.alert('success'), marginBottom: '8px' }}>
-                    <span>✅</span>
-                    <span>
-                      Sent!{' '}
-                      <a
-                        href={`https://basescan.org/tx/${success.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={styles.link}
-                      >
-                        View on BaseScan →
-                      </a>
-                    </span>
-                    <button
-                      onClick={() => setRetrySuccesses((prev) => prev.filter((s) => s.id !== success.id))}
-                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Failed Claims Table */}
-            {bonusDistStatus.failedClaims.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#374151' }}>
-                    Failed Claims ({bonusDistStatus.failedClaims.length})
-                  </h4>
-                  <button
-                    onClick={retryAllFailed}
-                    disabled={retryingAll}
-                    style={{
-                      ...styles.btnSuccess,
-                      ...styles.btnSmall,
-                      ...(retryingAll ? styles.btnDisabled : {}),
-                    }}
-                  >
-                    {retryingAll ? 'Retrying...' : 'Retry All Failed'}
-                  </button>
-                </div>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Round</th>
-                      <th style={styles.th}>User</th>
-                      <th style={styles.th}>Wallet</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}>Retries</th>
-                      <th style={styles.th}>Error</th>
-                      <th style={styles.th}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bonusDistStatus.failedClaims.map((claim) => (
-                      <tr key={claim.claimId}>
-                        <td style={styles.td}>R{claim.roundId} #{claim.wordIndex + 1}</td>
-                        <td style={styles.td}>
-                          {claim.username ? `@${claim.username}` : `FID ${claim.fid}`}
-                        </td>
-                        <td style={styles.td}>
-                          <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
-                            {shortenAddress(claim.walletAddress)}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <span style={styles.badge(claim.txStatus === 'failed' ? 'red' : 'yellow')}>
-                            {claim.txStatus}
-                          </span>
-                        </td>
-                        <td style={styles.td}>{claim.retryCount}</td>
-                        <td style={{ ...styles.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span title={claim.errorMessage || undefined} style={{ fontSize: '11px', color: '#6b7280' }}>
-                            {claim.errorMessage || '-'}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <button
-                            onClick={() => retryBonusClaim(claim.claimId)}
-                            disabled={retryingClaimId === claim.claimId}
-                            style={{
-                              ...styles.btnPrimary,
-                              ...styles.btnSmall,
-                              ...(retryingClaimId === claim.claimId ? styles.btnDisabled : {}),
-                            }}
-                          >
-                            {retryingClaimId === claim.claimId ? 'Retrying...' : 'Retry'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Claimed Without TX Table */}
-            {bonusDistStatus.claimedWithoutTx.length > 0 && (
-              <div>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 600, color: '#374151' }}>
-                  Claimed Without TX ({bonusDistStatus.claimedWithoutTx.length})
-                </h4>
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 8px 0' }}>
-                  Bonus words marked as claimed but no on-chain transaction recorded
-                </p>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Round</th>
-                      <th style={styles.th}>Word #</th>
-                      <th style={styles.th}>User</th>
-                      <th style={styles.th}>Claimed At</th>
-                      <th style={styles.th}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bonusDistStatus.claimedWithoutTx.map((bw) => (
-                      <tr key={bw.bonusWordId}>
-                        <td style={styles.td}>R{bw.roundId}</td>
-                        <td style={styles.td}>#{bw.wordIndex + 1}</td>
-                        <td style={styles.td}>
-                          {bw.username ? `@${bw.username}` : `FID ${bw.claimedByFid}`}
-                        </td>
-                        <td style={styles.td}>{new Date(bw.claimedAt).toLocaleString()}</td>
-                        <td style={styles.td}>
-                          <button
-                            onClick={() => retryBonusWordWithoutTx(bw.bonusWordId)}
-                            disabled={retryingBonusWordId === bw.bonusWordId}
-                            style={{
-                              ...styles.btnPrimary,
-                              ...styles.btnSmall,
-                              ...(retryingBonusWordId === bw.bonusWordId ? styles.btnDisabled : {}),
-                            }}
-                          >
-                            {retryingBonusWordId === bw.bonusWordId ? 'Sending...' : 'Send $WORD'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* All Clear Message */}
-            {bonusDistStatus.failedClaims.length === 0 && bonusDistStatus.claimedWithoutTx.length === 0 && (
-              <div style={styles.alert('success')}>
-                <span>✅</span>
-                <span>All bonus word distributions are confirmed on-chain!</span>
-              </div>
-            )}
-          </>
-        ) : null}
-      </div>
 
       {/* $WORD Withdrawal */}
       <div style={styles.card}>
@@ -3346,19 +2592,6 @@ function getChainName(chainId: number): string {
   }
 }
 
-function formatTokenBalance(balance: string): string {
-  const num = parseFloat(balance);
-  if (isNaN(num) || num === 0) return '0';
-
-  if (num >= 1_000_000_000) {
-    return `${(num / 1_000_000_000).toFixed(1)}B`;
-  } else if (num >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(1)}M`;
-  } else if (num >= 1_000) {
-    return `${(num / 1_000).toFixed(1)}K`;
-  }
-  return num.toLocaleString();
-}
 
 // TypeScript declaration for window.ethereum
 declare global {

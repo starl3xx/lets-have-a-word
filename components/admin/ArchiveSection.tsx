@@ -255,17 +255,14 @@ function StatCard({ label, value, subtext, loading }: {
 
 export default function ArchiveSection({ user }: ArchiveSectionProps) {
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
-  const [forceSyncing, setForceSyncing] = useState(false)
   const [rearchiving, setRearchiving] = useState(false)
-  const [fixingRound, setFixingRound] = useState(false)
+  const [rearchiveResult, setRearchiveResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<ArchiveStats | null>(null)
   const [rounds, setRounds] = useState<ArchivedRound[]>([])
   const [totalRounds, setTotalRounds] = useState(0)
   const [errors, setErrors] = useState<ArchiveError[]>([])
   const [page, setPage] = useState(0)
-  const [syncResult, setSyncResult] = useState<any>(null)
   const [selectedRound, setSelectedRound] = useState<ArchivedRound | null>(null)
   const [distribution, setDistribution] = useState<Distribution | null>(null)
   const [usernames, setUsernames] = useState<Record<number, string>>({})
@@ -306,89 +303,13 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     }
   }, [user?.fid, page])
 
-  const syncArchive = async (force = false) => {
-    if (!user?.fid) return
 
-    if (force) {
-      setForceSyncing(true)
-    } else {
-      setSyncing(true)
-    }
-    setSyncResult(null)
-
-    try {
-      const response = await fetch(`/api/admin/archive/sync?devFid=${user.fid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force }),
-      })
-      if (!response.ok) throw new Error('Failed to sync archive')
-      const result = await response.json()
-      setSyncResult(result)
-      await fetchArchiveData()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sync failed')
-    } finally {
-      setSyncing(false)
-      setForceSyncing(false)
-    }
-  }
-
-  const fixAndArchiveRound = async (roundNumber?: number) => {
-    if (!user?.fid) return
-
-    setFixingRound(true)
-    setSyncResult(null)
-    setError(null)
-
-    try {
-      // If no roundNumber specified, let the endpoint find the unarchived round
-      const url = roundNumber
-        ? `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}&roundId=${roundNumber}`
-        : `/api/admin/operational/fix-and-archive-round?devFid=${user.fid}`
-      const response = await fetch(url, { method: 'GET' })
-      const result = await response.json()
-
-      if (result.success) {
-        setSyncResult({
-          archived: 1,
-          alreadyArchived: 0,
-          failed: 0,
-          errors: [],
-          fixResult: result,
-        })
-        await fetchArchiveData()
-      } else {
-        // Build a detailed error message with diagnostic info
-        let errorMsg = result.error || result.details || 'Fix failed'
-        if (result.diagnostic) {
-          const diag = result.diagnostic
-          errorMsg += `\n\nDiagnostic Info:\n`
-          errorMsg += `All rounds: ${JSON.stringify(diag.allRounds, null, 2)}\n`
-          errorMsg += `Archived round numbers: ${JSON.stringify(diag.archivedRoundNumbers)}\n`
-          errorMsg += `Resolved round IDs: ${JSON.stringify(diag.resolvedRoundIds)}\n`
-          errorMsg += `Message: ${diag.message}`
-        }
-        setError(errorMsg)
-        setSyncResult({
-          archived: 0,
-          alreadyArchived: 0,
-          failed: 1,
-          errors: [result.error || result.details],
-        })
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fix failed')
-    } finally {
-      setFixingRound(false)
-    }
-  }
 
   const rearchiveRound = async (roundNumber: number) => {
     if (!user?.fid) return
 
     setRearchiving(true)
-    setSyncResult(null)
+    setRearchiveResult(null)
 
     try {
       const response = await fetch(`/api/admin/archive/sync?devFid=${user.fid}`, {
@@ -398,7 +319,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       })
       if (!response.ok) throw new Error('Failed to re-archive round')
       const result = await response.json()
-      setSyncResult(result)
+      setRearchiveResult(`Re-archived: ${result.archived ?? result.synced ?? 1} round(s), ${result.failed ?? 0} failed`)
       // Refresh the selected round details
       await fetchRoundDetail(roundNumber)
       await fetchArchiveData()
@@ -559,27 +480,6 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
       {/* Error */}
       {error && <div style={styles.error}>{error}</div>}
 
-      {/* Sync Result */}
-      {syncResult && (
-        <div style={{
-          background: syncResult.failed > 0 ? "#fef3c7" : "#d1fae5",
-          border: `1px solid ${syncResult.failed > 0 ? "#fbbf24" : "#34d399"}`,
-          borderRadius: "8px",
-          padding: "16px",
-          marginBottom: "20px",
-          fontFamily,
-        }}>
-          <strong>Sync Complete:</strong> {syncResult.archived || syncResult.synced || 0} new, {syncResult.alreadyArchived || 0} existing, {syncResult.failed || 0} failed
-          {syncResult.errors?.length > 0 && (
-            <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
-              {syncResult.errors.map((err: string, idx: number) => (
-                <li key={idx}>{err}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
       {/* Controls */}
       <div style={styles.controls}>
         <div style={{ fontSize: "14px", color: "#6b7280", fontFamily }}>
@@ -592,35 +492,6 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             disabled={loading}
           >
             {loading ? 'Loading...' : 'Refresh'}
-          </button>
-          <button
-            onClick={() => syncArchive(false)}
-            style={styles.btn}
-            disabled={syncing || forceSyncing}
-          >
-            {syncing ? 'Syncing...' : 'Sync New'}
-          </button>
-          <button
-            onClick={() => syncArchive(true)}
-            style={{
-              ...styles.btn,
-              background: "#dc2626",
-            }}
-            disabled={syncing || forceSyncing}
-            title="Delete and re-archive all rounds (fixes ranking issues)"
-          >
-            {forceSyncing ? 'Re-syncing...' : 'Force Re-sync All'}
-          </button>
-          <button
-            onClick={() => fixAndArchiveRound()}
-            style={{
-              ...styles.btn,
-              background: "#f59e0b",
-            }}
-            disabled={fixingRound || syncing || forceSyncing}
-            title="Emergency fix - finds and archives any unarchived resolved round"
-          >
-            {fixingRound ? 'Fixing...' : '🔧 Fix Unarchived'}
           </button>
         </div>
       </div>
@@ -979,6 +850,9 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
             >
               {rearchiving ? 'Re-archiving...' : 'Re-archive This Round'}
             </button>
+              {rearchiveResult && (
+                <span style={{ fontSize: '12px', color: '#166534', marginLeft: '10px' }}>{rearchiveResult}</span>
+              )}
             <button
               onClick={() => { setSelectedRound(null); setDistribution(null); setUsernames({}); }}
               style={{
