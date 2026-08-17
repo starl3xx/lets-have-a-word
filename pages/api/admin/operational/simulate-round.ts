@@ -230,6 +230,9 @@ async function runSimulation(config: SimulationConfig): Promise<SimulationResult
       forceAnswer: effectiveAnswer,
       skipOnChainCommitment: true, // Always skip - we start on Sepolia explicitly
       skipActiveRoundCheck: true,
+      // A simulation round must NEVER hit the announcer — on 2026-08-17 the
+      // bot cast "Round #34 is live" for a phantom sim round.
+      skipAnnounce: true,
     });
     log(`DB Round created: ID=${round.id}, Answer=${round.answer}`);
 
@@ -562,6 +565,21 @@ export default async function handler(
   // Authorize using centralized admin check
   if (!devFid || !isAdminFid(devFid)) {
     return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  // The simulation predates the $WORD era: it creates an ETH round in the
+  // PROD database, seeds the retired Sepolia JackpotManager, and its fake
+  // users fail winner eligibility under the reward gate — on 2026-08-17 the
+  // resulting phantom round went publicly live as "Round #34" and had to be
+  // purged by hand. Refuse outright until the word-era rewrite exists.
+  const { isWordEconomyConfigured } = await import('../../../../src/lib/word-jackpot-contract');
+  if (isWordEconomyConfigured()) {
+    return res.status(400).json({
+      error:
+        'The Sepolia simulation is ETH-era only and is disabled while the $WORD economy is ' +
+        'configured. It would create a phantom ETH round in production (this happened on ' +
+        '2026-08-17). Word-era coverage lives in the fork rehearsals and prod test deposits.',
+    });
   }
 
   // Validate answer if provided

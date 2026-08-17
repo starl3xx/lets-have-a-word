@@ -35,6 +35,13 @@ export interface CreateRoundOptions {
   rulesetId?: number; // Game rules ID to use (default 1)
   skipOnChainCommitment?: boolean; // Skip onchain commitment (for testing without contract)
   skipActiveRoundCheck?: boolean; // Skip active round check (for Sepolia simulation)
+  /**
+   * Suppress the public round-start announcement (cast + tweet). Simulations
+   * and drills MUST pass this: on 2026-08-17 the Sepolia sim created a round
+   * through this function and the announcer cast "Round #34 is live" to the
+   * world for a phantom round.
+   */
+  skipAnnounce?: boolean;
 }
 
 /**
@@ -344,11 +351,15 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
   }
 
   // Milestone 5.1: Announce round started (non-blocking)
-  try {
-    await announceRoundStarted(round);
-  } catch (error) {
-    console.error('[rounds] Failed to announce round started:', error);
-    // Continue - announcer failures should never break the game
+  if (opts?.skipAnnounce) {
+    console.log(`[rounds] Round ${round.id}: announcement suppressed (skipAnnounce)`);
+  } else {
+    try {
+      await announceRoundStarted(round);
+    } catch (error) {
+      console.error('[rounds] Failed to announce round started:', error);
+      // Continue - announcer failures should never break the game
+    }
   }
 
   // Milestone 5.2: Log analytics event (non-blocking)
