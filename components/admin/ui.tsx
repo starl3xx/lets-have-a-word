@@ -21,7 +21,7 @@
 import React, { useEffect, useState } from 'react';
 
 export const adminFont =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 export const adminMono = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 // ---------------------------------------------------------------------------

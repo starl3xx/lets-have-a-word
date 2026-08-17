@@ -13,6 +13,9 @@ import {
 } from '../../src/lib/prize-display';
 import { formatWordAmount } from '../../src/lib/word-amounts';
 import { AnalyticsChart } from "./AnalyticsChart"
+import { adminFont as fontFamily } from "./ui"
+import { formatEth } from "./format"
+import { StatCard } from "./ui"
 
 // =============================================================================
 // Types
@@ -86,7 +89,6 @@ interface Distribution {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   module: {
@@ -234,20 +236,6 @@ const styles = {
 // Helper Components
 // =============================================================================
 
-function StatCard({ label, value, subtext, loading }: {
-  label: string
-  value: string | number
-  subtext?: string
-  loading?: boolean
-}) {
-  return (
-    <div style={styles.statCard}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{loading ? "..." : value}</div>
-      {subtext && <div style={styles.statSubtext}>{subtext}</div>}
-    </div>
-  )
-}
 
 // =============================================================================
 // Archive Section Component
@@ -442,10 +430,6 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
   }
 
-  const formatEth = (eth: string) => {
-    const num = parseFloat(eth)
-    return num.toFixed(4)
-  }
 
   const totalPages = Math.ceil(totalRounds / pageSize)
 

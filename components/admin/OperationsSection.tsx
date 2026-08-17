@@ -11,6 +11,7 @@ import SimulationsCard from "./SimulationsCard"
 import RoundRepairCard from "./RoundRepairCard"
 import BonusDistributionsCard from "./BonusDistributionsCard"
 import ArchiveMaintenanceCard from "./ArchiveMaintenanceCard"
+import { adminFont as fontFamily } from "./ui"
 
 // One severity scale for every operational state (shared vocabulary, Phase 1).
 const OP_SEVERITY: Record<string, Severity> = {
@@ -117,7 +118,6 @@ interface OperationsSectionProps {
 // Styles
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   card: {

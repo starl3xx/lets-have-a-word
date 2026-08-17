@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react"
+import { adminFont as fontFamily } from "./ui"
 
 // =============================================================================
 // Types
@@ -181,7 +182,6 @@ interface EconomicsData {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   section: {
@@ -866,7 +866,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
     <div>
       {/* Data Range Info */}
       <div style={styles.dataRangeText}>
-        Based on {dataRange.roundCount} rounds
+        Based on {dataRange.roundCount} ETH-era rounds
         {dataRange.oldestRound && dataRange.newestRound && (
           <> from {new Date(dataRange.oldestRound).toLocaleDateString()} to {new Date(dataRange.newestRound).toLocaleDateString()}</>
         )}

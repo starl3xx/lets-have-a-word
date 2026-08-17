@@ -5,8 +5,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { adminFont as fontFamily } from "./ui"
+import { shortenAddress } from "./format";
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
 interface RetrySuccess {
   id: number | string;
@@ -558,7 +559,3 @@ function formatTokenBalance(balance: string): string {
   return num.toLocaleString();
 }
 
-function shortenAddress(address: string): string {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}

@@ -7,8 +7,8 @@
 
 import React, { useState } from 'react'
 import { AlertBanner, Module } from './ui'
+import { adminFont as fontFamily } from "./ui"
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   btn: {

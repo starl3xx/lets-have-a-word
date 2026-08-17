@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react"
 import { AuthKitProvider, SignInButton } from "@farcaster/auth-kit"
 import "@farcaster/auth-kit/styles.css"
+import { adminFont as fontFamily } from "./ui"
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 /**
  * Admin sign-in via Sign In With Farcaster.

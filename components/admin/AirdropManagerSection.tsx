@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react"
+import { formatNumber, formatTokenCompact, shortenAddress } from "./format"
 
 // =============================================================================
 // Types
@@ -193,20 +194,8 @@ const styles = {
 // Helpers
 // =============================================================================
 
-function formatNumber(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-}
 
-function formatCompact(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return formatNumber(n)
-}
 
-function truncateAddress(addr: string): string {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`
-}
 
 function relativeTime(dateStr: string | null): string {
   if (!dateStr) return '-'
@@ -603,7 +592,7 @@ export default function AirdropManagerSection({ user }: Props) {
       if (balance < totalAmount) {
         const have = parseFloat(ethers.formatUnits(balance, 18))
         setAirdropStep('error')
-        setAirdropError(`Insufficient $WORD. Need ${formatCompact(selectedTotal)}, have ${formatCompact(have)}`)
+        setAirdropError(`Insufficient $WORD. Need ${formatTokenCompact(selectedTotal)}, have ${formatTokenCompact(have)}`)
         return
       }
 
@@ -761,7 +750,7 @@ export default function AirdropManagerSection({ user }: Props) {
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Total $WORD Needed</div>
             <div style={{ ...styles.statValue, color: '#d97706' }}>
-              {formatCompact(summary.totalWordNeeded)}
+              {formatTokenCompact(summary.totalWordNeeded)}
             </div>
           </div>
           <div style={styles.statCard}>
@@ -897,7 +886,7 @@ export default function AirdropManagerSection({ user }: Props) {
             {selectedWallets.length} wallet{selectedWallets.length !== 1 ? 's' : ''} selected
           </span>
           <span style={{ fontSize: '13px', color: '#6366f1' }}>
-            {formatCompact(selectedTotal)} $WORD total
+            {formatTokenCompact(selectedTotal)} $WORD total
           </span>
           <button
             style={{
@@ -966,7 +955,7 @@ export default function AirdropManagerSection({ user }: Props) {
                   </div>
                   <div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>TOTAL $WORD</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#d97706' }}>{formatCompact(selectedTotal)}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#d97706' }}>{formatTokenCompact(selectedTotal)}</div>
                   </div>
                 </div>
               </div>
@@ -1174,7 +1163,7 @@ export default function AirdropManagerSection({ user }: Props) {
                             onClick={() => copyAddress(w.walletAddress)}
                             title={w.walletAddress}
                           >
-                            {copiedAddr === w.walletAddress ? 'Copied!' : truncateAddress(w.walletAddress)}
+                            {copiedAddr === w.walletAddress ? 'Copied!' : shortenAddress(w.walletAddress)}
                           </span>
                         </div>
                       </td>
