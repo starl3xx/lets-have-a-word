@@ -32,6 +32,25 @@ const WORD_TOKEN = "0x304e649e69979298BD1AEE63e175ADf07885fb4b";
 const OPERATOR = "0xaee1ee60F8534CbFBbe856fEb9655D0c4ed35d38"; // server signer
 const TREASURY = "0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB"; // letshaveaword.eth
 
+/**
+ * The deployer is an EIP-7702 delegated EOA, and the RPC allows delegated
+ * accounts only ONE in-flight transaction. Its tracker can briefly count a
+ * just-CONFIRMED tx as still in flight, refusing the next send — seen live on
+ * the first mainnet run. Retry that specific refusal; everything else throws.
+ */
+async function withInFlightRetry<T>(send: () => Promise<T>, what: string): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await send();
+    } catch (error) {
+      const msg = String(error);
+      if (!msg.includes("in-flight transaction limit") || attempt >= 20) throw error;
+      console.log(`  ${what}: previous tx still counted as in-flight — retrying in 6s (${attempt}/20)`);
+      await new Promise((r) => setTimeout(r, 6000));
+    }
+  }
+}
+
 /** Poll a read until it satisfies `predicate` — Base RPCs can lag a write. */
 async function readUntil<T>(
   read: () => Promise<T>,
@@ -91,11 +110,22 @@ async function main() {
   console.log("");
 
   // --- WordJackpot (UUPS proxy) ------------------------------------------
+  // EXISTING_WORD_JACKPOT_IMPL resumes a run that deployed the implementation
+  // but was refused on a later transaction: attach instead of re-deploying.
   const Jackpot = await hre.ethers.getContractFactory("WordJackpot");
-  const impl = await Jackpot.deploy();
-  await impl.waitForDeployment();
-  const implAddress = await impl.getAddress();
-  console.log("WordJackpot impl :", implAddress);
+  let implAddress: string;
+  if (process.env.EXISTING_WORD_JACKPOT_IMPL) {
+    implAddress = process.env.EXISTING_WORD_JACKPOT_IMPL;
+    if ((await hre.ethers.provider.getCode(implAddress)) === "0x") {
+      throw new Error(`EXISTING_WORD_JACKPOT_IMPL ${implAddress} has no code`);
+    }
+    console.log("WordJackpot impl :", implAddress, "(reused)");
+  } else {
+    const impl = await withInFlightRetry(() => Jackpot.deploy(), "WordJackpot impl");
+    await impl.waitForDeployment();
+    implAddress = await impl.getAddress();
+    console.log("WordJackpot impl :", implAddress);
+  }
 
   const initData = Jackpot.interface.encodeFunctionData("initialize", [
     WORD_TOKEN,
@@ -103,7 +133,10 @@ async function main() {
     TREASURY,
   ]);
   const Proxy = await hre.ethers.getContractFactory("ERC1967Proxy");
-  const proxy = await Proxy.deploy(implAddress, initData);
+  const proxy = await withInFlightRetry(
+    () => Proxy.deploy(implAddress, initData),
+    "WordJackpot proxy"
+  );
   await proxy.deploymentTransaction()?.wait(2);
   const jackpotAddress = await proxy.getAddress();
   console.log("WordJackpot proxy:", jackpotAddress);
@@ -119,14 +152,20 @@ async function main() {
 
   // --- WordPackSales ------------------------------------------------------
   const PackSales = await hre.ethers.getContractFactory("WordPackSales");
-  const packSales = await PackSales.deploy(TREASURY);
+  const packSales = await withInFlightRetry(
+    () => PackSales.deploy(TREASURY),
+    "WordPackSales"
+  );
   await packSales.deploymentTransaction()?.wait(2);
   const packSalesAddress = await packSales.getAddress();
   console.log("WordPackSales    :", packSalesAddress);
 
   // --- GuessLog -----------------------------------------------------------
   const GuessLog = await hre.ethers.getContractFactory("GuessLog");
-  const guessLog = await GuessLog.deploy(OPERATOR);
+  const guessLog = await withInFlightRetry(
+    () => GuessLog.deploy(OPERATOR),
+    "GuessLog"
+  );
   await guessLog.deploymentTransaction()?.wait(2);
   const guessLogAddress = await guessLog.getAddress();
   console.log("GuessLog         :", guessLogAddress);
