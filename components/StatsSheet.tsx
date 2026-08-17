@@ -287,6 +287,9 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                       sky: { bg: 'bg-sky-100', ring: '#7dd3fc' },
                       orange: { bg: 'bg-orange-100', ring: '#fdba74' },
                       red: { bg: 'bg-red-100', ring: '#fca5a5' },
+                      violet: { bg: 'bg-violet-100', ring: '#c4b5fd' },
+                      pink: { bg: 'bg-pink-100', ring: '#f9a8d4' },
+                      teal: { bg: 'bg-teal-100', ring: '#5eead4' },
                     };
                     const colors = colorMap[wordmark.color] || { bg: 'bg-gray-100', ring: '#d1d5db' };
 

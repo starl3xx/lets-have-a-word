@@ -133,6 +133,20 @@ async function getNextGuessIndexInRound(roundId: number, tx?: typeof db): Promis
 }
 
 /**
+ * Fire-and-forget Trailblazer check: the round's #1 global guess earns the
+ * TRAILBLAZER wordmark. Rounds 1–33 are covered by the launch backfill
+ * endpoint; this covers every round from 34 on. Failure never blocks a guess.
+ */
+function maybeAwardTrailblazer(fid: number, roundId: number, guessIndexInRound: number | undefined) {
+  if (guessIndexInRound !== 1) return;
+  import('./wordmarks')
+    .then(({ checkAndAwardTrailblazer }) => checkAndAwardTrailblazer(fid, roundId, guessIndexInRound))
+    .catch(err => {
+      console.error('[Wordmark] Failed to award Trailblazer:', err);
+    });
+}
+
+/**
  * Get all wrong words for a round (for wheel UI).
  * Returns alphabetically sorted list of incorrect guesses, with
  * ineligible-winner correct guesses included so they appear on the wheel
@@ -414,6 +428,8 @@ async function handleBonusWordWin(
     });
   });
 
+  maybeAwardTrailblazer(fid, roundId, guessIndexInRound);
+
   // 5. Distribute $WORD tokens via verified claim (commit-reveal pattern)
   // Contract verifies keccak256(abi.encodePacked(word, salt)) matches stored hash
   let txHash: string | undefined;
@@ -692,6 +708,9 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           });
         });
 
+        // Deliberately no Trailblazer check here: an ineligible winner's
+        // audit row must not earn the round's #1 wordmark, even when it is
+        // literally guess #1.
         Sentry.captureMessage('[Guess] Ineligible winner blocked', {
           level: 'warning',
           tags: { type: 'ineligible_winner' },
@@ -821,6 +840,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // PHASE 1: Lock the round and record the winning guess
     // This transaction MUST succeed to prevent other guesses from being accepted
     // Even if payouts fail later, the round is locked
+    let winnerGuessIndex: number | undefined;
     try {
       await db.transaction(async (tx) => {
         // Re-check that round is still unresolved with FOR UPDATE lock
@@ -832,6 +852,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
 
         // Get the next guess index atomically within transaction
         const guessIndexInRound = await getNextGuessIndexInRound(round.id, tx);
+        winnerGuessIndex = guessIndexInRound;
 
         // Insert the winning guess with index
         await tx.insert(guesses).values({
@@ -861,6 +882,8 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
 
         console.log(`🔒 Round ${round.id} locked with winner FID ${fid}`);
       });
+
+      maybeAwardTrailblazer(fid, round.id, winnerGuessIndex);
 
       // PHASE 2: Process payouts (can fail safely - round is already locked)
       // If this fails, use Recover Stuck Round in admin panel to retry
@@ -1167,6 +1190,8 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         createdAt: new Date(),
       });
     });
+
+    maybeAwardTrailblazer(fid, round.id, guessIndexInRound!);
 
     // Milestone 15: Track Superguess guess (exhaustion handled inside recordSuperguessGuess)
     if (isSuperguessFeatureEnabled()) {

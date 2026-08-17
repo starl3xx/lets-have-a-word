@@ -729,7 +729,7 @@ letshaveaword.fun`;
 /**
  * Wordmark types that should trigger announcements
  */
-const ANNOUNCEABLE_WORDMARKS = ['ENCYCLOPEDIC', 'DOUBLE_W', 'BAKERS_DOZEN'] as const;
+const ANNOUNCEABLE_WORDMARKS = ['ENCYCLOPEDIC', 'DOUBLE_W', 'BAKERS_DOZEN', 'TRAILBLAZER'] as const;
 
 /**
  * Wordmark display info for announcements
@@ -749,6 +749,11 @@ const WORDMARK_ANNOUNCEMENT_INFO: Record<string, { emoji: string; name: string; 
     emoji: '🍩',
     name: 'Baker\'s Dozen',
     description: 'played on 13 different days, each with a unique starting letter',
+  },
+  TRAILBLAZER: {
+    emoji: '🚩',
+    name: 'Trailblazer',
+    description: 'made the round’s very first guess',
   },
 };
 

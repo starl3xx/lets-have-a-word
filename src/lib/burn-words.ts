@@ -131,7 +131,19 @@ export async function handleBurnWordWin(
   let txHash: string | null = null;
 
   // Use transaction to atomically update DB state
+  let guessIndexInRound: number;
   await db.transaction(async (tx) => {
+    // Mirrors getNextGuessIndexInRound in guesses.ts. Not importable here:
+    // guesses.ts statically imports this module, so a value import back
+    // would create a runtime cycle. Burn rows carried a NULL index before
+    // this was added (2026-08-16); the launch backfill therefore reads
+    // MIN(guesses.id), not guess_index_in_round.
+    const [guessCountRow] = await tx
+      .select({ count: count() })
+      .from(guesses)
+      .where(eq(guesses.roundId, roundId));
+    guessIndexInRound = (guessCountRow?.count || 0) + 1;
+
     // Insert the guess with isBurnWord=true
     await tx.insert(guesses).values({
       roundId,
@@ -141,6 +153,7 @@ export async function handleBurnWordWin(
       isCorrect: false,
       isBonusWord: false,
       isBurnWord: true,
+      guessIndexInRound,
       createdAt: new Date(),
     });
 
@@ -211,6 +224,16 @@ export async function handleBurnWordWin(
     console.log(`🔥 Awarded BURN_WORD_FINDER wordmark to FID ${fid}`);
   } catch (error) {
     console.error(`[burn-words] Failed to award BURN_WORD_FINDER wordmark to FID ${fid}:`, error);
+  }
+
+  // Trailblazer: a burn word can also be the round's #1 global guess
+  // (fire and forget — wordmark failure never blocks the guess)
+  if (guessIndexInRound! === 1) {
+    import('./wordmarks')
+      .then(({ checkAndAwardTrailblazer }) => checkAndAwardTrailblazer(fid, roundId, guessIndexInRound!))
+      .catch((error) => {
+        console.error('[burn-words] Failed to award Trailblazer wordmark:', error);
+      });
   }
 
   // Award 100 XP for discovering a burn word (fire-and-forget)
