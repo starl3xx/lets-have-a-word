@@ -74,17 +74,20 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   const onchainNext = Number(await readOnly.nextIndex(roundId));
   const localCommitted = await lastCommittedIndex(roundId);
 
-  // Onchain nextIndex is "the next index expected"; locally we store the last
-  // index committed. For a round with nothing committed the contract reports 0
-  // and we report 0, so the expected relationship is onchainNext === local + 1
-  // once anything exists.
-  const expectedLocal = onchainNext === 0 ? 0 : onchainNext - 1;
-  if (expectedLocal !== localCommitted) {
+  // INDEX BASES DIFFER, deliberately handled only at this boundary: the DB's
+  // guess_index_in_round is 1-BASED (first guess = 1), the contract's
+  // contiguity is 0-BASED (first checkpoint must start at nextIndex = 0).
+  // That makes the contract's nextIndex equal to the COUNT of leaves
+  // committed — which is exactly the local "last 1-based index committed".
+  // Round 34's first checkpoint proved this the hard way: posting the
+  // 1-based fromIndex raw produced NonContiguous(expected 0, got 1) on
+  // every cron run.
+  if (onchainNext !== localCommitted) {
     return {
       posted: false,
       reason:
         `Checkpoint table and contract disagree for round ${roundId}: ` +
-        `contract expects index ${onchainNext}, local table has committed up to ${localCommitted}. ` +
+        `contract has ${onchainNext} leaves committed, local table has ${localCommitted}. ` +
         `Not posting until this is reconciled.`,
     };
   }
@@ -95,10 +98,13 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   }
 
   const contract = getContract(getOperator());
+  // 1-based local indices → 0-based onchain range (see the base note above).
+  // The Merkle root itself is unaffected: leaves hash the 1-based indices,
+  // and verification recomputes from the same local data.
   const tx = await contract.postRoot(
     roundId,
-    pending.fromIndex,
-    pending.toIndex,
+    pending.fromIndex - 1,
+    pending.toIndex - 1,
     pending.root
   );
   const receipt = await tx.wait();
