@@ -140,7 +140,11 @@ async function main() {
     console.log("!! emergencyWithdraw beyond the surplus did NOT revert — guard is not live");
     process.exitCode = 1;
   } catch (error) {
-    const msg = String(error);
+    // Public RPCs often strip revert data from the error MESSAGE while ethers
+    // still carries the raw bytes on error.data — seen on the real mainnet
+    // run, where the message was a bare "execution reverted".
+    const e = error as { data?: unknown; info?: { error?: { data?: unknown } } };
+    const msg = `${String(error)} ${String(e.data ?? e.info?.error?.data ?? "")}`;
     if (msg.includes("WouldTouchStakerFunds") || msg.includes("0x92f88c62")) {
       console.log("emergencyWithdraw beyond the surplus reverts WouldTouchStakerFunds (guard live)");
     } else {
