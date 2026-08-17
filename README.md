@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Round modal rounds its $WORD numbers**: the Round #34 popup's header and split tiles now use the info bar's compact three-significant-digit form (78.7M / 63.0M / 3.94M / 7.87M) instead of nine-digit walls, and the Top-10 estimated payout renders as "→ 1.50M $WORD" instead of "(1,495,474 $WORD)" — the parenthesized form read as the player's balance. ETH rounds 1–33 keep their exact historic rendering.
+
+
 - **Sepolia simulation hard-blocked in the $WORD era**: the legacy simulator creates a real ETH round in the prod database and announces it — which is exactly what happened when it ran on launch prep day: a phantom "Round #34" went publicly live, the bot cast it, and six real players guessed before the round was purged and the id sequence reset. The endpoint now refuses while the word economy is configured, `createRound` gains a `skipAnnounce` option so no drill can ever cast again, and the winning-guess failure that left the round stuck turned out to be winner-eligibility working as designed (the gate blocked the seconds-old fake account). A word-era simulator is a post-launch project.
 
 
