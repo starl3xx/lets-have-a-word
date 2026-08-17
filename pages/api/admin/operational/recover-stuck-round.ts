@@ -13,6 +13,13 @@
  *
  * POST /api/admin/operational/recover-stuck-round
  * Body: { devFid: number, roundId: number }
+ *
+ * WHICH RESOLUTION TOOL IS FOR WHAT (the three overlap by design):
+ * - force-resolve: a LIVE round you want ended now (test rounds, launch drills).
+ * - emergency-resolve: winner FOUND but the automatic resolution threw —
+ *   finishes payout for a round that already has its winner.
+ * - recover-stuck-round: winnerFid recorded but NO payout and NO onchain tx
+ *   ("zombie round") — diagnoses first, then executes.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';

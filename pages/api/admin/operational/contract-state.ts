@@ -5,7 +5,6 @@
  * Returns contract balance and jackpot state for diagnostics
  *
  * POST /api/admin/operational/contract-state
- * Actions: { action: 'resolve-with-balance' } - Resolve using actual balance (emergency)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
