@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **WordJackpot in Contract Diagnostics**: Operations → Contract Diagnostics gains a third block for the $WORD jackpot contract — unallocated (where the tranche lands), balance, pool, carry, pending claims, active round, oracle-price freshness, operator authorization, and an explicit solvency line (balance vs pool + carry + claimable). Until now nothing in the admin read WordJackpot's live state, so "fund the tranche, then check it arrived" had no check-it-arrived half.
+
+
 - **Round-34 contracts deployed to Base**: WordJackpot proxy `0x550753Ed…` (impl `0x3439A33A…`), WordPackSales `0xF0B96933…`, GuessLog `0x2dDE6892…` — all Basescan-verified, all seven role checks green. The first run surfaced that the deployer is an EIP-7702 delegated EOA and the RPC allows delegated accounts one in-flight transaction: the deploy script now retries that refusal and can resume past an already-deployed implementation (`EXISTING_WORD_JACKPOT_IMPL`), which is exactly how the real deploy finished.
 
 
