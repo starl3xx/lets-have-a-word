@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Reward gate: buying in once is honored (entry floor)**: the $3 play bar is a live check against the round's frozen price, which meant a price crash could lock out a player who had genuinely bought in. Now the first full pass records the token bar the player passed at (`users.reward_gate_bar_tokens`, ratcheting down on cheaper passes), and every later check passes at min(live bar, floor) — hold your entry tokens and no price move can ever gate you out. Selling below the floor forfeits it: the gate stays a holding requirement, never a badge. Rising prices already worked (the token bar shrinks as price climbs); this closes the falling-price half. Migration 0030.
+
+
 - **Archive chip stacked**: the between-rounds archive chip becomes two stacked, left-aligned lines ("ROUND" over "ARCHIVE ▼"), both in the thin label weight — the same anatomy as the Round chip it stands in for.
 
 

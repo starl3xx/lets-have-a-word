@@ -7,6 +7,13 @@
  * only one FID per game-day, and everyone whose first guess predates round 28
  * is grandfathered in free.
  *
+ * ENTRY FLOOR (added 2026-08-17): buying in once is honored for as long as
+ * the tokens are held. The first full pass records the live token bar on the
+ * user (ratcheting down on cheaper passes), and later checks pass at
+ * min(live bar, floor) — so a price crash, which raises the token bar, can
+ * never lock out a paid-up holder. Selling below the floor forfeits it: the
+ * gate stays a holding requirement, never a badge.
+ *
  * ONE FUNCTION, ONE DECISION. Every caller — allocation, guess submission,
  * purchases, and the six money points — goes through checkPlayEligibility.
  * The guess path may use the 5-minute cache; money points must not
@@ -49,7 +56,10 @@ export interface RewardGateResult {
   /** false means the chain could not be reached and the pass is fail-open */
   determined: boolean;
   reason?: RewardGateReason;
-  /** The bar in whole tokens, for UI and logs */
+  /**
+   * The bar in whole tokens, for UI and logs. This is the EFFECTIVE bar for
+   * this player: min(the round's live bar, their recorded entry floor).
+   */
   barTokens: number;
   balanceTokens?: number;
 }
@@ -141,6 +151,8 @@ export async function checkPlayEligibility(
     .select({
       firstGuessRound: users.firstGuessRound,
       signerWalletAddress: users.signerWalletAddress,
+      rewardGateBarTokens: users.rewardGateBarTokens,
+      rewardGateQualifiedAt: users.rewardGateQualifiedAt,
     })
     .from(users)
     .where(eq(users.fid, fid))
@@ -156,7 +168,15 @@ export async function checkPlayEligibility(
     return result;
   }
 
-  const barTokens = getPlayBarTokens(round);
+  const liveBarTokens = getPlayBarTokens(round);
+  // Entry floor: buying in once is honored for as long as the tokens are
+  // held. A player who passed the gate keeps a personal bar at the cheapest
+  // token bar they ever passed, so a price crash (which raises the live bar)
+  // can never lock out a paid-up holder. Selling below the floor forfeits
+  // it — this stays a HOLDING gate, never a badge.
+  const entryFloor = user?.rewardGateBarTokens ?? null;
+  const barTokens =
+    entryFloor != null ? Math.min(liveBarTokens, entryFloor) : liveBarTokens;
   // A malformed stored address must read as "no wallet", not as an RPC
   // failure: getEffectiveBalanceChecked throws on it internally and reports
   // determined:false, which would turn one bad row into a permanent,
@@ -221,6 +241,24 @@ export async function checkPlayEligibility(
       };
       if (useCache) await cacheSet(cacheKey, result, CacheTTL.rewardGate).catch(() => {});
       return result;
+    }
+  }
+
+  // Record / ratchet the entry floor on a full pass. When the write fires,
+  // the balance genuinely cleared liveBarTokens (a floor below the live bar
+  // would have been the effective bar instead). Best-effort: a floor write
+  // failure must never fail an eligible check.
+  if (user && (user.rewardGateBarTokens == null || liveBarTokens < user.rewardGateBarTokens)) {
+    try {
+      await db
+        .update(users)
+        .set({
+          rewardGateBarTokens: liveBarTokens,
+          rewardGateQualifiedAt: user.rewardGateQualifiedAt ?? new Date(),
+        })
+        .where(eq(users.fid, fid));
+    } catch (error) {
+      console.error(`[RewardGate] Failed to record entry floor for FID ${fid}:`, error);
     }
   }
 
