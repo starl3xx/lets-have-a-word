@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/router"
 import { StatusPill, UpdatedStamp, type Severity } from "../../components/admin/ui"
+import { OperationalStatusProvider, useOperationalStatus } from "../../components/admin/operational-status"
 
 // Dynamically import the auth gate (client-only).
 //
@@ -75,22 +76,6 @@ interface DashboardContentProps {
   onSignOut?: () => void
 }
 
-interface OperationalStatus {
-  ok: boolean
-  status: 'NORMAL' | 'KILL_SWITCH_ACTIVE' | 'DEAD_DAY_ACTIVE' | 'PAUSED_BETWEEN_ROUNDS'
-  activeRoundId?: number
-  killSwitch: {
-    enabled: boolean
-    activatedAt?: string
-    reason?: string
-  }
-  deadDay: {
-    enabled: boolean
-    activatedAt?: string
-  }
-  wordManagerConfigured?: boolean
-  timestamp: string
-}
 
 // =============================================================================
 // Styling
@@ -260,7 +245,7 @@ const tabs: { id: TabId; label: string; color: string; icon: string; shortcut: s
   { id: 'analytics', label: 'Analytics', color: '#6366f1', icon: '📊', shortcut: '1' },
   { id: 'archive', label: 'Round Archive', color: '#6366f1', icon: '📁', shortcut: '2' },
   { id: 'economics', label: 'Economics', color: '#059669', icon: '💰', shortcut: '3' },
-  { id: 'wallet', label: 'Wallet', color: '#7c3aed', icon: '💼', shortcut: '4' },
+  { id: 'wallet', label: 'Treasury', color: '#7c3aed', icon: '💼', shortcut: '4' },
   { id: 'social', label: 'Social', color: '#1DA1F2', icon: '📣', shortcut: '5' },
   { id: 'operations', label: 'Operations', color: '#dc2626', icon: '🔧', shortcut: '6' },
   // Airdrop tab is BURIED, not deleted (decided 2026-08-17): the CLANKTON→
@@ -285,27 +270,7 @@ function SectionLoader({ name }: { name: string }) {
 // =============================================================================
 
 function StatusStrip({ user }: { user?: { fid: number } }) {
-  const [status, setStatus] = useState<OperationalStatus | null>(null)
-
-  const fetchStatus = useCallback(async () => {
-    if (!user?.fid) return
-
-    try {
-      const res = await fetch(`/api/admin/operational/status?devFid=${user.fid}`)
-      if (res.ok) {
-        const data = await res.json()
-        setStatus(data)
-      }
-    } catch {
-      // Silent fail - status strip is informational
-    }
-  }, [user?.fid])
-
-  useEffect(() => {
-    fetchStatus()
-    const interval = setInterval(fetchStatus, 30000)
-    return () => clearInterval(interval)
-  }, [fetchStatus])
+  const { status } = useOperationalStatus()
 
   const getStatusLabel = (s: string) => {
     switch (s) {
@@ -534,6 +499,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
+    <OperationalStatusProvider fid={user?.fid}>
     <div style={styles.page}>
       {/* Header */}
       <header style={styles.header}>
@@ -613,6 +579,7 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         {activeTab === 'airdrop' && <AirdropSection user={user} />}
       </div>
     </div>
+    </OperationalStatusProvider>
   )
 }
 

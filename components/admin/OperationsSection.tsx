@@ -5,6 +5,9 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import { AlertBanner, InfoRow, StatusPill, type Severity } from "./ui"
+import { useOperationalStatus } from "./operational-status"
+import FarmMonitor from "./FarmMonitor"
+import SimulationsCard from "./SimulationsCard"
 
 // One severity scale for every operational state (shared vocabulary, Phase 1).
 const OP_SEVERITY: Record<string, Severity> = {
@@ -18,55 +21,6 @@ const OP_SEVERITY: Record<string, Severity> = {
 // Types
 // =============================================================================
 
-interface OperationalStatus {
-  ok: boolean
-  status: 'NORMAL' | 'KILL_SWITCH_ACTIVE' | 'DEAD_DAY_ACTIVE' | 'PAUSED_BETWEEN_ROUNDS'
-  activeRoundId?: number
-  killSwitch: {
-    enabled: boolean
-    activatedAt?: string
-    reason?: string
-    roundId?: number
-    activatedBy?: number
-    refundsRunning?: boolean
-  }
-  deadDay: {
-    enabled: boolean
-    activatedAt?: string
-    reason?: string
-    reopenAt?: string
-    appliesAfterRoundId?: number
-    activatedBy?: number
-  }
-  cancelledRounds: Array<{
-    roundId: number
-    cancelledAt: string
-    cancelledReason?: string
-    cancelledBy?: number
-    refundsStartedAt?: string
-    refundsCompletedAt?: string
-    refunds: {
-      total: number
-      pending: number
-      processing: number
-      sent: number
-      failed: number
-      totalAmountEth: string
-    }
-  }>
-  refundCron?: {
-    lastRun: string | null
-    lastResult: {
-      roundsProcessed: number
-      totalSent: number
-      totalFailed: number
-      durationMs: number
-      timestamp: string
-    } | null
-    nextRunEstimate: string
-  }
-  timestamp: string
-}
 
 interface ContractNetworkState {
   network: 'mainnet' | 'sepolia'
@@ -282,8 +236,9 @@ const styles = {
 // =============================================================================
 
 export default function OperationsSection({ user }: OperationsSectionProps) {
-  const [status, setStatus] = useState<OperationalStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  // One shared status feed (Phase D): the shell's provider polls; refresh()
+  // after every mutating action keeps header and tab in lockstep.
+  const { status, loading, error: statusError, refresh: fetchStatus } = useOperationalStatus()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -377,26 +332,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   const [superguessStatus, setSuperguessStatus] = useState<any>(null)
   const [superguessLoading, setSuperguessLoading] = useState(false)
 
-  const fetchStatus = useCallback(async () => {
-    if (!user?.fid) return
-
-    try {
-      setLoading(true)
-      const res = await fetch(`/api/admin/operational/status?devFid=${user.fid}`)
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to fetch status')
-      }
-
-      setStatus(data)
-      setError(null)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [user?.fid])
 
   const fetchSuperguessStatus = useCallback(async () => {
     if (!user?.fid) return
@@ -410,9 +345,8 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   }, [user?.fid])
 
   useEffect(() => {
-    fetchStatus()
     fetchSuperguessStatus()
-    const interval = setInterval(() => { fetchStatus(); fetchSuperguessStatus() }, 30000)
+    const interval = setInterval(() => { fetchSuperguessStatus() }, 30000)
     return () => clearInterval(interval)
   }, [fetchStatus, fetchSuperguessStatus])
 
@@ -1156,6 +1090,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
   return (
     <div>
       {/* Alerts */}
+      {statusError && (
+        <AlertBanner kind="warning">Status feed error: {statusError}</AlertBanner>
+      )}
       {error && (
         <AlertBanner kind="error">
           {error}
@@ -2396,6 +2333,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </div>
             )}
           </div>
+
+          {/* Anti-abuse (moved from Analytics, Phase D) */}
+          {user?.fid && <FarmMonitor fid={user.fid} />}
+          {user?.fid && <SimulationsCard fid={user.fid} />}
 
           {/* Manual XP Award Card */}
           <div style={styles.card}>

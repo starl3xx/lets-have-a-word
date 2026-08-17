@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **The admin panel restructure begins (cleanup Phase D, part 1)**: One operational-status feed replaces three — the shell now owns the 30-second poll through a shared provider, and the header strip, Operations, and Treasury all read the same object, with `refresh()` after every mutating action; the header and a tab can no longer disagree. Modules move to where their work lives: Farm Monitor and Adversarial Simulations leave Analytics for Operations, Onchain Purchase Events leaves Analytics for the Wallet tab — renamed **Treasury** — and the Round Phase & Incentives module is gone outright (every number in it already renders in the Live Round hero). Analytics is now product analytics only.
+
+
 - **Endpoint rationalization (cleanup Phase E)**: Seven more endpoints retire — the curl-only analytics twins (`events`, `export`, `metrics`, `referral`, `performance`, `jackpot`; each duplicated a UI-wired sibling, and `export` selected round answers into its output) and `archive-round` (the surviving sync, fix-and-archive, and nightly cron cover every archive path). `fairness` and `word-token` stay deliberately: unique read-only capabilities with no twin. The `contract-state` header stops advertising a POST action that never existed, and the three resolution tools (`force-resolve`, `emergency-resolve`, `recover-stuck-round`) now carry one shared doc block stating which failure mode each serves. Admin endpoint count: 83 → 58, every survivor either UI-wired or a documented shell tool.
 
 
