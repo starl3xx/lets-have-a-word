@@ -1,6 +1,6 @@
 import { db, rounds, roundBonusWords } from '../db';
 import { selectBurnWords, storeBurnWords } from './burn-words';
-import { eq, isNull, desc, and } from 'drizzle-orm';
+import { eq, isNull, isNotNull, desc, and } from 'drizzle-orm';
 import type { Round } from '../types';
 import { getRandomAnswerWord, isValidAnswer, selectBonusWords } from './word-lists';
 import { createCommitment, createBonusWordsCommitment, createRoundCommitment, verifyCommit } from './commit-reveal';
@@ -25,7 +25,7 @@ import {
   getWordJackpotConfig,
   formatWordAmount,
 } from './word-jackpot-contract';
-import { WORD_SEED_USD_CENTS } from '../../config/economy';
+import { WORD_SEED_USD_CENTS, getRoundCooldownMs } from '../../config/economy';
 
 /**
  * Options for creating a new round
@@ -518,6 +518,61 @@ export async function ensureActiveRound(opts?: CreateRoundOptions): Promise<Roun
  * @deprecated Use getActiveRound() instead
  */
 export const getCurrentRound = getActiveRound;
+
+export type AutoStartCheck =
+  | { eligible: true; sinceRoundId: number }
+  | {
+      eligible: false;
+      reason: 'active_round' | 'blocked' | 'no_word_round' | 'cooldown';
+      eligibleAt?: Date;
+    };
+
+/**
+ * Can the cooldown cron start the next round right now?
+ *
+ * The most recently resolved round anchors the cooldown
+ * (resolved_at + getRoundCooldownMs()). Requiring that anchor to be a $WORD
+ * round does two jobs at once: it era-gates auto-start (nothing can fire
+ * during the paused ETH tail, where the last resolved round is #33), and it
+ * keeps the Round 34 launch a manual act — auto-start only begins after the
+ * first $WORD round has itself resolved.
+ *
+ * Read-only. The cron pairs this with ensureActiveRound(), whose own
+ * active/blocked guards close the race against a concurrent manual start.
+ */
+export async function checkAutoStartEligibility(): Promise<AutoStartCheck> {
+  const active = await getActiveRound();
+  if (active) return { eligible: false, reason: 'active_round' };
+
+  const blocked = await shouldBlockNewRoundCreation();
+  if (blocked) return { eligible: false, reason: 'blocked' };
+
+  const anchorConditions = [isNotNull(rounds.resolvedAt)];
+  if (!isDevModeEnabled()) {
+    anchorConditions.push(eq(rounds.isDevTestRound, false));
+  }
+  const [lastResolved] = await db
+    .select({
+      id: rounds.id,
+      resolvedAt: rounds.resolvedAt,
+      prizeCurrency: rounds.prizeCurrency,
+    })
+    .from(rounds)
+    .where(and(...anchorConditions))
+    .orderBy(desc(rounds.resolvedAt))
+    .limit(1);
+
+  if (!lastResolved?.resolvedAt || lastResolved.prizeCurrency !== 'word') {
+    return { eligible: false, reason: 'no_word_round' };
+  }
+
+  const eligibleAt = new Date(lastResolved.resolvedAt.getTime() + getRoundCooldownMs());
+  if (Date.now() < eligibleAt.getTime()) {
+    return { eligible: false, reason: 'cooldown', eligibleAt };
+  }
+
+  return { eligible: true, sinceRoundId: lastResolved.id };
+}
 
 /**
  * Get a round by ID

@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/guess-log-checkpoint",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/auto-start-round",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -4,8 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
 import { checkBurnWordMatch, handleBurnWordWin } from './burn-words';
-import { getActiveRound, getActiveRoundForUpdate, createRound } from './rounds';
-import { shouldBlockNewRoundCreation } from './operational-guard';
+import { getActiveRound, getActiveRoundForUpdate } from './rounds';
 import { isValidGuess } from './word-lists';
 import { applyPaidGuessEconomicEffects, resolveRoundAndCreatePayouts } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
@@ -968,25 +967,12 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         }
       })();
 
-      // AUTO-START NEXT ROUND: Proactively create the next round after resolution
-      // This ensures Round N+1 is ready immediately, so users don't have to wait
-      // Fire-and-forget to not block the winning user's response
-      if (!isDevModeEnabled()) {
-        (async () => {
-          try {
-            const blocked = await shouldBlockNewRoundCreation();
-            if (blocked) {
-              console.log(`[AutoStart] ⏸️ New round creation blocked (dead day or kill switch active)`);
-              return;
-            }
-            const newRound = await createRound();
-            console.log(`[AutoStart] ✅ Round ${newRound.id} auto-started after Round ${round.id} resolved`);
-          } catch (autoStartError) {
-            // Log but don't throw - the winning user shouldn't be affected
-            console.error(`[AutoStart] ❌ Failed to auto-start next round:`, autoStartError);
-          }
-        })();
-      }
+      // The next round does NOT auto-start here anymore. The cooldown cron
+      // (/api/cron/auto-start-round) starts it ROUND_COOLDOWN_HOURS after
+      // this resolution (default 6h) — the ETH era's immediate auto-start
+      // rarely worked (the treasury usually failed the seed minimum), and
+      // when it did there was no breathing room between rounds. A manual
+      // admin Start Round still works at any time and skips the cooldown.
 
       // Get guess count (after insert, so totalGuesses includes this winning guess)
       const totalGuesses = await getGuessCountForUserInRound(fid, round.id);

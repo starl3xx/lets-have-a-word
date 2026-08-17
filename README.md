@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **A 6-hour cooldown between rounds (round 34+)**: when a round resolves, the next one no longer tries to start instantly — the ETH era's resolve-time auto-start rarely worked (the treasury usually failed the seed minimum) and left no breathing room when it did. A new cron (`auto-start-round`, every 5 minutes) starts the next round `ROUND_COOLDOWN_HOURS` (default 6) after the last resolution. The eligibility check anchors on the most recently resolved round and requires it to be a $WORD round, which era-gates the whole feature and keeps the Round 34 launch a manual act — auto-start begins only after round 34 itself resolves. A manual admin Start Round bypasses the cooldown at any time. During the window, the between-rounds bar shows "Next round soon… · Starts in about 5h 40m" (via the new public `/api/next-round`) instead of the indefinite pause copy, which stays for dead day and the pre-launch tail.
+
+
 - **Info-bar and nav-row design fixes**: the bottom nav row (Stats / Refer / $WORD / FAQ) is now evenly spaced at a uniform 8px — between buttons and at the edges alike (the row's own padding sat inside the container's, so edges were 24px against 6px gaps; and the first even-spacing pass at 16px squeezed the $WORD label). The between-rounds banner is rebuilt as a bar with the same height as the live round bar — the info bar's vertical size never changes across loading, error, paused, and live states — and carries an Archive chip in the exact spot the Round #N ▼ chip occupies during a round, same two-line anatomy and caret, linking to /archive. The admin Start Round button moves inline for the same reason, with start errors replacing the subtitle instead of adding a line.
 
 
