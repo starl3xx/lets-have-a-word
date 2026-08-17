@@ -41,15 +41,6 @@ function formatUsd(value: string | number): string {
  * @param totalWords - Total words in dictionary
  * @returns Formatted percentage string (e.g. "≈19%" or "25%")
  */
-/**
- * Format a cooldown remainder as "5h 40m" / "40m" for the between-rounds bar
- */
-function formatCooldown(ms: number): string {
-  const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
-
 function formatGuessPercentage(guessCount: number, totalWords: number): string {
   const exactPercent = (guessCount / totalWords) * 100;
   const roundedPercent = Math.round(exactPercent);
@@ -95,7 +86,7 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
   // Milliseconds until the next round is expected (cooldown window), or null
   // when no start is scheduled. Recomputed on every poll so the countdown
   // text stays fresh without its own timer.
-  const [cooldownMs, setCooldownMs] = useState<number | null>(null);
+  const [nextRoundPending, setNextRoundPending] = useState<boolean>(false);
   const [isStartingRound, setIsStartingRound] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -151,18 +142,16 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
       if (response.status === 204) {
         setStatus(null);
         setError(null);
-        // During the cooldown window the bar shows a countdown instead of
-        // the indefinite pause copy.
+        // During the cooldown window the bar says a round is coming — but
+        // never WHEN. No countdown, deliberately: an exact start time lets
+        // players squat the first second of a round to snipe the
+        // Trailblazer Wordmark. The API withholds the timestamp too.
         try {
           const nextRes = await fetch('/api/next-round');
           const next = nextRes.ok ? await nextRes.json() : null;
-          setCooldownMs(
-            next?.nextRoundAt
-              ? Math.max(0, new Date(next.nextRoundAt).getTime() - Date.now())
-              : null
-          );
+          setNextRoundPending(Boolean(next?.nextRoundPending));
         } catch {
-          setCooldownMs(null);
+          setNextRoundPending(false);
         }
         return;
       }
@@ -255,16 +244,14 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 whitespace-nowrap min-h-[2.75rem]">
           <div className="min-w-0">
             <p className="text-lg font-bold animate-pulse truncate">
-              {cooldownMs !== null ? 'Next round soon…' : 'Update in progress…'}
+              {nextRoundPending ? 'Next round starting soon…' : 'Update in progress…'}
             </p>
             {/* A start-round failure replaces the subtitle instead of adding
                 a line — the bar's height never changes. */}
             <p className={`text-xs truncate ${startError ? 'text-red-200' : 'opacity-80'}`}>
               {startError ??
-                (cooldownMs !== null
-                  ? cooldownMs <= 60_000
-                    ? 'Starting any minute now'
-                    : `Starts in about ${formatCooldown(cooldownMs)}`
+                (nextRoundPending
+                  ? 'Could be any moment 👀'
                   : 'Get ready for something new!')}
             </p>
           </div>

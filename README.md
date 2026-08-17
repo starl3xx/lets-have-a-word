@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **No countdown between rounds**: the between-rounds bar says "Next round starting soon… Could be any moment 👀" instead of counting down, and `/api/next-round` stops returning the timestamp entirely (a boolean `nextRoundPending` replaces it) — hiding the timer in the UI would mean nothing while the public API handed the exact start time to anyone polling it. The point is the Trailblazer Wordmark: the first guess of a round should go to whoever shows up, not whoever camps a timer.
+
+
 - **Bonus/Burn Fuel tile in Balances Overview**: the Treasury tab's top grid now shows WordManager's availableForGames beside Jackpot Fuel, so both $WORD funding gauges — what seeds jackpots and what pays bonus/burn/top-10 rewards — read side by side at a glance.
 
 
