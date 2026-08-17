@@ -1360,12 +1360,19 @@ export default function WalletSection({ user }: WalletSectionProps) {
 
             return (
               <>
-                {/* Balances in compact grid */}
-                <div style={styles.grid4}>
+                {/* Balances in compact grid. Five tiles: the two $WORD fuel
+                    gauges lead — jackpot (WordJackpot unallocated) and
+                    bonus/burn (WordManager availableForGames). */}
+                <div style={{ ...styles.grid4, gridTemplateColumns: 'repeat(5, 1fr)' }}>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Jackpot Fuel</div>
                     <div style={styles.statValueSmall}>{balances.wordJackpot?.unallocated ?? '--'}</div>
                     <div style={styles.statSubtext}>$WORD unallocated — seeds rounds</div>
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={styles.statLabel}>Bonus/Burn Fuel</div>
+                    <div style={styles.statValueSmall}>{balances.wordManager?.availableForGames ?? '--'}</div>
+                    <div style={styles.statSubtext}>$WORD for bonus + burn + top-10 rewards</div>
                   </div>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Live Pool</div>
