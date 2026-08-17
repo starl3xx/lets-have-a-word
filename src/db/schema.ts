@@ -640,7 +640,7 @@ export type AdminWalletActionInsert = typeof adminWalletActions.$inferInsert;
  * Wordmarks are permanent achievements earned by playing
  * Note: Database column remains 'badge_type' for backwards compatibility
  */
-export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN' | 'BURN_WORD_FINDER' | 'SHOWSTOPPER';
+export type WordmarkType = 'OG_HUNTER' | 'BONUS_WORD_FINDER' | 'JACKPOT_WINNER' | 'DOUBLE_W' | 'PATRON' | 'QUICKDRAW' | 'ENCYCLOPEDIC' | 'BAKERS_DOZEN' | 'BURN_WORD_FINDER' | 'SHOWSTOPPER' | 'EARLY_ADOPTER' | 'TRAILBLAZER';
 
 // Alias for backwards compatibility with existing code
 export type BadgeType = WordmarkType;

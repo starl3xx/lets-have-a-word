@@ -94,7 +94,38 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
     emoji: '🍿',
     color: 'violet',
   },
+  EARLY_ADOPTER: {
+    id: 'EARLY_ADOPTER',
+    name: 'Early Adopter',
+    description: 'Played in the first 18 rounds',
+    emoji: '💅',
+    color: 'pink',
+  },
+  TRAILBLAZER: {
+    id: 'TRAILBLAZER',
+    name: 'Trailblazer',
+    description: 'Made a round’s #1 global guess',
+    emoji: '🚩',
+    color: 'teal',
+  },
 };
+
+/**
+ * Early Adopter cutoff: the last round before the first botted round.
+ * Round 19 was the first farm wave — 194 fname-less accounts, all registered
+ * on 2026-03-05, one guess each, then dormant until they reactivated inside
+ * the round-33 wave (verified against production data, 2026-08-16). Rounds
+ * 1–18 are the pre-bot era. The cohort is frozen: eligibility reads
+ * users.first_guess_round, which the reward-gate backfill wrote once and
+ * nothing maintains.
+ */
+export const EARLY_ADOPTER_LAST_ROUND = 18;
+
+/**
+ * The two marks that ship with Round 34. The public wordmarks API hides them
+ * until a $WORD round exists — the reveal is part of the relaunch.
+ */
+export const ROUND34_WORDMARK_TYPES: WordmarkType[] = ['EARLY_ADOPTER', 'TRAILBLAZER'];
 
 /**
  * Get all wordmark definitions as an array
@@ -194,6 +225,47 @@ export async function checkAndAwardQuickdraw(
   if (alreadyHas) return false;
 
   return awardWordmark(fid, 'QUICKDRAW', { roundId, rank });
+}
+
+/**
+ * Award TRAILBLAZER for a round — the maker of the round's #1 global guess.
+ * A new holder can appear every round, but the mark itself is a single item;
+ * going first again is a no-op.
+ *
+ * Called at round resolution, the first race-free moment: guessIndexInRound
+ * comes from an unlocked COUNT, so concurrent first guesses can all read
+ * index 1, and any guess-time check races with in-flight inserts whose lower
+ * ids are not yet visible. Once the round is locked, MIN(guesses.id) is the
+ * final truth — the same basis as the rounds 1–33 backfill. Ineligible-winner
+ * audit rows never earn the mark. Idempotent: re-resolving a recovered round
+ * is a no-op.
+ */
+export async function awardTrailblazerForRound(roundId: number): Promise<boolean> {
+  const result = await db.execute<{ fid: number }>(sql`
+    SELECT fid FROM guesses
+    WHERE round_id = ${roundId}
+      AND is_ineligible_winner IS NOT TRUE
+    ORDER BY id
+    LIMIT 1
+  `);
+  const firstFid = result[0]?.fid;
+  if (!firstFid) return false;
+
+  const alreadyHas = await hasWordmark(firstFid, 'TRAILBLAZER');
+  if (alreadyHas) return false;
+
+  const awarded = await awardWordmark(firstFid, 'TRAILBLAZER', { roundId });
+
+  // Announce the wordmark earned (fire and forget)
+  if (awarded) {
+    import('./announcer').then(({ announceWordmarkEarned }) => {
+      announceWordmarkEarned(firstFid, 'TRAILBLAZER', roundId).catch(err => {
+        console.error('[wordmarks] Failed to announce Trailblazer wordmark:', err);
+      });
+    });
+  }
+
+  return awarded;
 }
 
 /**

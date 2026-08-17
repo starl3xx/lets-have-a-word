@@ -132,6 +132,17 @@ export async function handleBurnWordWin(
 
   // Use transaction to atomically update DB state
   await db.transaction(async (tx) => {
+    // Mirrors getNextGuessIndexInRound in guesses.ts. Not importable here:
+    // guesses.ts statically imports this module, so a value import back
+    // would create a runtime cycle. Burn rows carried a NULL index before
+    // this was added (2026-08-16); Trailblazer therefore reads
+    // MIN(guesses.id), not guess_index_in_round.
+    const [guessCountRow] = await tx
+      .select({ count: count() })
+      .from(guesses)
+      .where(eq(guesses.roundId, roundId));
+    const guessIndexInRound = (guessCountRow?.count || 0) + 1;
+
     // Insert the guess with isBurnWord=true
     await tx.insert(guesses).values({
       roundId,
@@ -141,6 +152,7 @@ export async function handleBurnWordWin(
       isCorrect: false,
       isBonusWord: false,
       isBurnWord: true,
+      guessIndexInRound,
       createdAt: new Date(),
     });
 

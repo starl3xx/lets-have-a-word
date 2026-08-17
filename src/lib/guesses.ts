@@ -313,12 +313,13 @@ async function handleBonusWordWin(
     console.error('[guesses] Error getting user wallet:', error);
   }
 
-  // Get the next guess index for this round
-  const guessIndexInRound = await getNextGuessIndexInRound(roundId);
-
   // Use transaction for all database operations
   let guessId: number;
   await db.transaction(async (tx) => {
+    // Get the next guess index inside the transaction — same pattern as the
+    // wrong-guess and winner paths (it was read outside the tx before).
+    const guessIndexInRound = await getNextGuessIndexInRound(roundId, tx);
+
     // 1. Insert the guess with isBonusWord=true
     // Note: isCorrect is false because it's not the secret word
     const [insertedGuess] = await tx.insert(guesses).values({
