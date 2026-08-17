@@ -960,7 +960,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
           await checkAndAwardEncyclopedic(fid);
 
           // Process Baker's Dozen progress (13 days / 13 letters)
-          await processBakersDozenGuess(fid, word);
+          await processBakersDozenGuess(fid, word, undefined, round.id);
         } catch (wordmarkError) {
           // Log but don't throw - wordmark award failure shouldn't affect the game
           console.error(`[Wordmark] Failed to award wordmarks for round ${round.id}:`, wordmarkError);
@@ -1304,7 +1304,7 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     setTimeout(async () => {
       try {
         const { processBakersDozenGuess } = await import('./wordmarks');
-        await processBakersDozenGuess(fid, word);
+        await processBakersDozenGuess(fid, word, undefined, round.id);
       } catch (error) {
         console.error(`[guesses] Failed to process Baker's Dozen for FID ${fid}:`, error);
       }
