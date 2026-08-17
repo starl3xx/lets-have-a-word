@@ -106,6 +106,17 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 - **Apostrophes**: Use curly apostrophes (') not straight ones (') in UI text
 - **No CLI scripts**: The user does not run anything via command line. Always create API endpoints (in `/pages/api/admin/operational/`) for admin tasks, data migrations, backfills, etc. Never suggest running npm scripts or CLI commands for operational tasks.
 
+## Before You Write New Code
+
+The 2026-08 admin cleanup deleted 26 one-off endpoints and ~1,300 dead lines. Most of it should never have been written. Before adding code, walk this ladder:
+
+1. **Reuse an existing helper.** Formatting, status display, and prize rendering already have one home each: `components/admin/format.ts`, `components/admin/ui.tsx`, `components/admin/operational-status.tsx`, `src/lib/prize-display.ts`. Duplicating their logic is a known Bugbot magnet.
+2. **Grow an existing endpoint before creating a new one.** A new parameter on an existing admin endpoint beats a new file that outlives its incident.
+3. **No new dependencies** when the stdlib or an already-installed package does the job.
+4. **One-incident code is born with an expiry.** If an endpoint or script exists for a single backfill or investigation, say so in the PR and delete it when the incident closes.
+
+This ladder never overrides the defensive rules above: always carry the `prize_currency` columns, keep era-gating, and keep input validation and auth checks — minimalism trims scope, not safety.
+
 ## Changelog
 
 When making changes, update the **Changelog** section in README.md:
