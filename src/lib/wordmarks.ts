@@ -5,7 +5,7 @@
  * Wordmarks are permanent achievements earned by playing Let's Have A Word
  */
 
-import { db, userBadges, guesses, bakersDozenProgress } from '../db';
+import { db, userBadges, guesses, bakersDozenProgress, rounds } from '../db';
 import { eq, and, sql } from 'drizzle-orm';
 import type { WordmarkType, BakersDozenProgressRow } from '../db/schema';
 
@@ -27,7 +27,7 @@ export const WORDMARK_DEFINITIONS: Record<WordmarkType, WordmarkDefinition> = {
   OG_HUNTER: {
     id: 'OG_HUNTER',
     name: 'OG Hunter',
-    description: 'Participated in the OG Hunter campaign',
+    description: 'Participated in the OG Hunter pre-launch campaign',
     emoji: '🕵️‍♂️',
     color: 'purple',
   },
@@ -148,6 +148,11 @@ export interface UserWordmark {
   metadata?: Record<string, unknown>;
   /** How many players hold this mark (all players, not just the viewer) */
   holders: number;
+  /**
+   * The round the mark was earned in: metadata.roundId when the award stamped
+   * one, else derived from the award time for marks earned mid-guess.
+   */
+  earnedRoundId?: number | null;
 }
 
 /**
@@ -169,6 +174,15 @@ export async function getWordmarkHolderCounts(): Promise<Partial<Record<Wordmark
 /**
  * Fetch all wordmarks for a user with earned status and holder counts
  */
+/**
+ * Marks earned DURING a guess whose older award rows never stamped a roundId.
+ * For these, the round can be derived from the award time: a guess only
+ * happens inside a round, so the latest round started before the award is the
+ * one. NOT valid for backfilled or granted marks (e.g. EARLY_ADOPTER), whose
+ * awardedAt is the grant date, not a moment of play.
+ */
+const DERIVE_ROUND_FROM_AWARD_TIME: WordmarkType[] = ['BAKERS_DOZEN', 'ENCYCLOPEDIC'];
+
 export async function getUserWordmarks(fid: number): Promise<UserWordmark[]> {
   // The user's earned wordmarks and the global holder counts, in parallel
   const [earnedWordmarks, holderCounts] = await Promise.all([
@@ -180,14 +194,53 @@ export async function getUserWordmarks(fid: number): Promise<UserWordmark[]> {
     earnedWordmarks.map(w => [w.badgeType, { earnedAt: w.awardedAt, metadata: w.metadata }])
   );
 
+  const metaRoundId = (meta: unknown): number | null => {
+    const value = (meta as Record<string, unknown> | null | undefined)?.roundId;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+
+  // Load round start times only when some earned mark actually needs the
+  // time-based derivation.
+  const needsDerivation = earnedWordmarks.some(
+    w =>
+      DERIVE_ROUND_FROM_AWARD_TIME.includes(w.badgeType as WordmarkType) &&
+      metaRoundId(w.metadata) === null
+  );
+  let roundStarts: { id: number; startedAt: Date }[] = [];
+  if (needsDerivation) {
+    roundStarts = (
+      await db.select({ id: rounds.id, startedAt: rounds.startedAt }).from(rounds)
+    )
+      .filter(r => r.startedAt !== null)
+      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+  }
+  const roundAt = (at: Date): number | null => {
+    let found: number | null = null;
+    for (const r of roundStarts) {
+      if (r.startedAt.getTime() <= at.getTime()) found = r.id;
+      else break;
+    }
+    return found;
+  };
+
   // Return all wordmarks with earned status
-  return getAllWordmarkDefinitions().map(def => ({
-    ...def,
-    earned: earnedMap.has(def.id),
-    earnedAt: earnedMap.get(def.id)?.earnedAt,
-    metadata: earnedMap.get(def.id)?.metadata ?? undefined,
-    holders: holderCounts[def.id] ?? 0,
-  }));
+  return getAllWordmarkDefinitions().map(def => {
+    const earned = earnedMap.get(def.id);
+    const fromMeta = earned ? metaRoundId(earned.metadata) : null;
+    const earnedRoundId =
+      fromMeta ??
+      (earned && earned.earnedAt && DERIVE_ROUND_FROM_AWARD_TIME.includes(def.id)
+        ? roundAt(earned.earnedAt)
+        : null);
+    return {
+      ...def,
+      earned: Boolean(earned),
+      earnedAt: earned?.earnedAt,
+      metadata: (earned?.metadata as Record<string, unknown> | null) ?? undefined,
+      holders: holderCounts[def.id] ?? 0,
+      earnedRoundId,
+    };
+  });
 }
 
 /**
@@ -496,7 +549,8 @@ export async function getBakersDozenProgress(fid: number): Promise<{
 export async function processBakersDozenGuess(
   fid: number,
   word: string,
-  timestamp?: number
+  timestamp?: number,
+  roundId?: number
 ): Promise<{
   isFirstGuessOfDay: boolean;
   letterEarned: string | null;
@@ -584,6 +638,7 @@ export async function processBakersDozenGuess(
         distinctDays: newDistinctDays,
         distinctLetters: newDistinctLetters,
         finalLetter: firstLetter,
+        ...(roundId ? { roundId } : {}),
       });
       if (awarded) {
         console.log(`🍩 Awarded BAKERS_DOZEN to FID ${fid}: ${newDistinctDays} days, ${newDistinctLetters} letters`);

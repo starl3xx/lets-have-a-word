@@ -151,7 +151,7 @@ function shareRarityClause(holders: number): string {
 
 function rarityLine(wordmark: UserWordmark): string {
   const n = wordmark.holders;
-  if (n === 0) return 'No one holds this yet — be the first';
+  if (n === 0) return 'No one holds this yet... be the first!';
   if (n === 1) return wordmark.earned ? 'You’re the only player with this 👑' : 'Only 1 player holds this';
   if (n <= 50) return `Only ${n} players hold this`;
   return `Held by ${n.toLocaleString()} players`;
@@ -168,14 +168,16 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
   const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
   const detail = wordmark.earned ? earnedDetail(wordmark) : null;
   const earnedDate = wordmark.earned ? formatEarnedDate(wordmark.earnedAt) : null;
-  const earnedRound = wordmark.earned && wordmark.metadata ? num(wordmark.metadata, 'roundId') : null;
+  const earnedRound =
+    (wordmark.earned ? wordmark.earnedRoundId : null) ??
+    (wordmark.earned && wordmark.metadata ? num(wordmark.metadata, 'roundId') : null);
 
   const handleShare = async () => {
     try {
       void haptics.buttonTapMinor();
 
       const castText =
-        `I earned the “${wordmark.name}” wordmark in @letshaveaword ${sharePhrase(wordmark)}! ` +
+        `I earned the “${wordmark.name}” Wordmark in @letshaveaword ${sharePhrase(wordmark)}! ` +
         `${shareRarityClause(wordmark.holders)}\n` +
         `letshaveaword.fun`;
 
