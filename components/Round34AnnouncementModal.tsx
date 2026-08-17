@@ -64,25 +64,25 @@ export default function Round34AnnouncementModal({
         <ul className="space-y-4 text-gray-700">
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>The jackpot now pays <strong>$WORD</strong>. Every prize (jackpot, bonus words, Top 10) is paid in the game’s own token.</span>
+            <span>The jackpot and prizes (bonus words, Top 10) now pays out in <strong>$WORD</strong>, the game’s native token</span>
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
             {grandfathered ? (
-              <span><strong>You’re in free.</strong> Playing now requires about $3 of $WORD (held or staked), but you played before round 28, so the requirement never applies to you.{earlyAdopter && (
-                <> And the <strong>Early Adopter 💅</strong> Wordmark is already on your profile: granted, not earned or bought, for playing before the bots found us.</>
-              )}</span>
+              <span><strong>You’re in free</strong> since you played before rounds were botted, but new players need <strong>$3 of $WORD</strong> (held or staked){earlyAdopter ? (
+                <>. We also comped you the <strong>Early Adopter</strong> 💅 Wordmark for playing before the bots arrived</>
+              ) : null}</span>
             ) : (
-              <span>Playing now requires about <strong>$3 of $WORD</strong>, held or staked. Top up once and you’re in.</span>
+              <span>Playing now requires about <strong>$3 of $WORD</strong>, held or staked. Top up once and you’re in for good</span>
             )}
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>Holding more earns more: about <strong>$25 / $50 / $75</strong> of $WORD (held or staked) gives <strong>+1 / +2 / +3 free guesses</strong> every day.</span>
+            <span>Holding more earns more: about <strong>$25 / $50 / $75</strong> of $WORD (held or staked) gives <strong>+1 / +2 / +3 free guesses</strong> every day</span>
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>Guess packs and Superguess still cost <strong>ETH</strong>, and 80% of every purchase grows the $WORD prize pool.</span>
+            <span>Guess packs + Superguess still cost <strong>ETH</strong>; 80% of every purchase grows the prize pool</span>
           </li>
         </ul>
 
@@ -90,7 +90,7 @@ export default function Round34AnnouncementModal({
           onClick={handleDismiss}
           className="btn-primary-lg w-full"
         >
-          Let’s have a word 👉
+          Let’s have a word! 👉
         </button>
       </div>
     </div>

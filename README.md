@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Round 34 announcement modal, final copy**: the user's own wording for all three cohort variants — "The jackpot and prizes (bonus words, Top 10) now pays out in $WORD, the game's native token"; grandfathered players read "You're in free since you played before rounds were botted"; Early Adopters additionally get "We also comped you the Early Adopter 💅 Wordmark for playing before the bots arrived"; "Let's have a word! 👉". Applies the day's copy rules (no em dashes, Wordmark capitalized), which an earlier pass had already enforced.
+
+
 - **Admin tools finish the era migration**: the onchain Purchase Events explorer now queries WordPackSales (packs + Superguesses, with a Product column) alongside the legacy JackpotManager, so it stays current from round 34 instead of silently reading empty. The Jackpot Runway simulation models the $WORD tranche — rounds of seed funding from WordJackpot unallocated, offset by oracle-priced pool credits — instead of reading a dead ETH pool as zero and crying critical. The incident summary paste names the round's prize ("Prize: 78M $WORD") via a new `activeRoundPrize` on the status feed. The Economics tab drops its rolling 30-day window: the ETH era ended at round 33, so the tab is now that era's permanent, all-time record. And a successful archive auto-resolves the round's stale error rows — 377 unresolved rows from the long-fixed Dec 2025 Date-corruption incident were making the Round Archive tab read as a standing emergency (cleared in prod).
 
 
