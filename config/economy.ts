@@ -426,6 +426,19 @@ export const MAX_PACKS_PER_DAY = (() => {
 export const GUESS_PACK_PRICE_ETH = process.env.GUESS_PACK_PRICE_ETH || '0.0004';
 
 /**
+ * Cooldown between rounds (round 34 onward). When a round resolves, the next
+ * one auto-starts this long afterwards via /api/cron/auto-start-round — not
+ * instantly, as the ETH era attempted. A manual admin start ignores the
+ * cooldown. Override with ROUND_COOLDOWN_HOURS (fractions allowed; read at
+ * call time so ops changes apply without a deploy).
+ */
+export function getRoundCooldownMs(): number {
+  const parsed = Number(process.env.ROUND_COOLDOWN_HOURS ?? '6');
+  const hours = Number.isFinite(parsed) && parsed >= 0 ? parsed : 6;
+  return hours * 60 * 60 * 1000;
+}
+
+/**
  * Get pack pricing info for display
  */
 export function getPackPricingInfo(): {

@@ -41,6 +41,15 @@ function formatUsd(value: string | number): string {
  * @param totalWords - Total words in dictionary
  * @returns Formatted percentage string (e.g. "≈19%" or "25%")
  */
+/**
+ * Format a cooldown remainder as "5h 40m" / "40m" for the between-rounds bar
+ */
+function formatCooldown(ms: number): string {
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 function formatGuessPercentage(guessCount: number, totalWords: number): string {
   const exactPercent = (guessCount / totalWords) * 100;
   const roundedPercent = Math.round(exactPercent);
@@ -83,6 +92,10 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
   const [status, setStatus] = useState<RoundStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Milliseconds until the next round is expected (cooldown window), or null
+  // when no start is scheduled. Recomputed on every poll so the countdown
+  // text stays fresh without its own timer.
+  const [cooldownMs, setCooldownMs] = useState<number | null>(null);
   const [isStartingRound, setIsStartingRound] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -138,6 +151,19 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
       if (response.status === 204) {
         setStatus(null);
         setError(null);
+        // During the cooldown window the bar shows a countdown instead of
+        // the indefinite pause copy.
+        try {
+          const nextRes = await fetch('/api/next-round');
+          const next = nextRes.ok ? await nextRes.json() : null;
+          setCooldownMs(
+            next?.nextRoundAt
+              ? Math.max(0, new Date(next.nextRoundAt).getTime() - Date.now())
+              : null
+          );
+        } catch {
+          setCooldownMs(null);
+        }
         return;
       }
 
@@ -229,12 +255,17 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 whitespace-nowrap min-h-[2.75rem]">
           <div className="min-w-0">
             <p className="text-lg font-bold animate-pulse truncate">
-              Update in progress…
+              {cooldownMs !== null ? 'Next round soon…' : 'Update in progress…'}
             </p>
             {/* A start-round failure replaces the subtitle instead of adding
                 a line — the bar's height never changes. */}
             <p className={`text-xs truncate ${startError ? 'text-red-200' : 'opacity-80'}`}>
-              {startError ?? 'Get ready for something new!'}
+              {startError ??
+                (cooldownMs !== null
+                  ? cooldownMs <= 60_000
+                    ? 'Starting any minute now'
+                    : `Starts in about ${formatCooldown(cooldownMs)}`
+                  : 'Get ready for something new!')}
             </p>
           </div>
 
@@ -250,20 +281,17 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
               </button>
             )}
 
-            {/* Archive chip — same anatomy and position as the Round #N ▼
-                chip it replaces between rounds. Goes straight to /archive:
+            {/* Archive chip — sits where the Round #N ▼ chip lives during a
+                round. One line, label weight only. Goes straight to /archive:
                 the round modal the chip normally opens needs a live round
                 and errors on the 204 from /api/round-state. */}
             <a
               href="/archive"
-              className="pl-2.5 pr-2 pt-1.5 pb-1 -mr-2 -mt-1.5 -mb-1 rounded-lg hover:bg-white/10 transition-colors duration-200"
+              className="flex items-center pl-2.5 pr-2 py-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
             >
               <p className="text-xs uppercase font-light tracking-wide opacity-90">
-                Archive
-              </p>
-              <p className="text-lg font-bold">
-                Rounds
-                <span className="text-xs font-normal opacity-70 ml-1">▼</span>
+                Round archive
+                <span className="ml-1 opacity-70">▼</span>
               </p>
             </a>
           </div>
