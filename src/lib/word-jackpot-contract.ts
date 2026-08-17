@@ -495,13 +495,13 @@ export async function startWordRoundOnChain(
 
   const readOnly = getWordJackpotReadOnly();
 
-  const [activeRoundId, existing, price, bounds, solvency] = await Promise.all([
+  const [activeRoundId, existing, bounds, solvency] = await Promise.all([
     readOnly.activeRoundId(),
     readOnly.rounds(roundId),
-    getWordPriceOnChain(),
     getSeedBounds(),
     getWordJackpotSolvency(),
   ]);
+  let price = await getWordPriceOnChain();
 
   if (activeRoundId !== 0n) {
     throw new Error(
@@ -512,11 +512,27 @@ export async function startWordRoundOnChain(
     throw new Error(`Round ${roundId} has already been started onchain — round ids are one-shot`);
   }
   if (price.isStale) {
-    throw new Error(
-      `Cannot start round ${roundId}: the onchain $WORD price is stale ` +
-        `(last updated ${price.updatedAt?.toISOString() ?? 'never'}, max age ` +
-        `${price.maxPriceAgeSeconds}s). Run the oracle sync first.`
+    // Nothing keeps the onchain price warm between rounds — the market-cap
+    // cron only writes the DB — so a stale price at round start is the
+    // NORMAL case, not an anomaly. Sync it here, once, and re-read; refusing
+    // outright would strand every round start behind a manual step no
+    // dashboard button performs.
+    console.log(
+      `[WORD-JACKPOT] Onchain price stale at round start ` +
+        `(last updated ${price.updatedAt?.toISOString() ?? 'never'}) — syncing from the oracle`
     );
+    const synced = await syncWordPriceOnChain();
+    if (synced) {
+      price = await getWordPriceOnChain();
+    }
+    if (price.isStale) {
+      throw new Error(
+        `Cannot start round ${roundId}: the onchain $WORD price is stale ` +
+          `(last updated ${price.updatedAt?.toISOString() ?? 'never'}, max age ` +
+          `${price.maxPriceAgeSeconds}s) and the oracle sync ` +
+          `${synced ? 'did not take effect' : 'returned no usable price'}.`
+      );
+    }
   }
 
   const seedTokensWei = tokensForUsdCents(BigInt(seedUsdCents), price.priceE18);
