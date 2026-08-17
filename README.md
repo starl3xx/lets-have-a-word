@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Tap a Wordmark to see what it means — held or not**: every cell in the Lexicon grid is now a button. The detail card shows the mark, how it's earned, its rarity ("Only 4 players hold this" — a real number from a live count), and for held marks the story of the earn from the award metadata: "Won Round 4 with 'SCRIM'", "#1 early guesser in Round 1", "Your first guess was in Round 5". Unheld marks show the goal, which is the point — the Lexicon reads as a collection with visible goals (Trailblazer 🚩 exists, go chase it), not a row of icons. Metadata varies by era, so every detail line degrades to nothing rather than to a broken sentence; the color classes move to one shared home so the grid and the card can't drift.
+
+
 - **Wordmark launch wiring: a dashboard button and the popup line**: The wordmark backfill gets a card in Operations under Player grants (dry run first; Execute unlocks after the counts are shown; the card names its own expiry), so launch day never touches curl. The round-34 announcement's "You're in free" variant now also tells Early Adopters the 💅 mark is on their profile — keyed to a new `earlyAdopter` flag (rounds 1–18) rather than the broader grandfather flag (rounds 1–27), because the ~209 organic players who joined in rounds 19–27 are in free but hold no mark.
 
 
