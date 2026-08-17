@@ -2301,7 +2301,7 @@ function GameContent() {
                     setShowWordSheet(true);
                     void haptics.buttonTapMinor();
                   }}
-                  className="py-2 px-1 bg-white border-2 border-purple-200 rounded-lg text-xs font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all whitespace-nowrap"
+                  className="py-2 px-1 bg-white border-2 border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap"
                 >
                   💰 $WORD
                 </button>

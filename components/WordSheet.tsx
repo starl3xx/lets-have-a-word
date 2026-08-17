@@ -154,13 +154,36 @@ export default function WordSheet({ walletAddress, fid, onClose }: WordSheetProp
               {/* Tokenomics section */}
               <TokenomicsOverview data={tokenomicsData} isLoading={isLoadingTokenomics} />
 
-              {/* Market cap & price - hidden when the oracle has no live value */}
+              {/* Market cap & price - hidden when the oracle has no live value.
+                  The 24h chip is price change from the GeckoTerminal pool —
+                  identical to market-cap change for a fixed-supply token —
+                  and simply absent when the source has no figure. */}
               {tokenomicsData && parseFloat(tokenomicsData.marketCap) > 0 && (
                 <div className="section-card bg-success-50">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-success-700">Market cap</span>
                     <span className="font-semibold text-success-900">
                       ${parseInt(tokenomicsData.marketCap).toLocaleString('en-US')}
+                      {(() => {
+                        const change = tokenomicsData.priceChange24h != null
+                          ? parseFloat(tokenomicsData.priceChange24h)
+                          : NaN;
+                        if (!Number.isFinite(change)) return null;
+                        return (
+                          <span
+                            className={`ml-2 text-xs font-medium ${
+                              change > 0
+                                ? 'text-emerald-600'
+                                : change < 0
+                                ? 'text-red-500'
+                                : 'text-gray-400'
+                            }`}
+                          >
+                            {change > 0 ? '↑ ' : change < 0 ? '↓ ' : ''}
+                            {Math.abs(change).toFixed(1)}% (24h)
+                          </span>
+                        );
+                      })()}
                     </span>
                   </div>
                 </div>

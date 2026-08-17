@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **$WORD sheet polish**: the $WORD nav button drops its purple accent and matches its three siblings; the Fee distribution tile is gone (the API still serves the split for the preview page); and the Market cap tile gains a ↑/↓ 24h change chip. The change had been dead since DexScreener delisted $WORD — it turns out GeckoTerminal does publish a 24h figure, just on the pools endpoint rather than the token endpoint the oracle was reading, so the oracle now asks both (pools best-effort, never at the cost of the market cap).
+
+
 - **A 6-hour cooldown between rounds (round 34+)**: when a round resolves, the next one no longer tries to start instantly — the ETH era's resolve-time auto-start rarely worked (the treasury usually failed the seed minimum) and left no breathing room when it did. A new cron (`auto-start-round`, every 5 minutes) starts the next round `ROUND_COOLDOWN_HOURS` (default 6) after the last resolution. The eligibility check anchors on the most recently resolved round and requires it to be a $WORD round, which era-gates the whole feature and keeps the Round 34 launch a manual act — auto-start begins only after round 34 itself resolves. A manual admin Start Round bypasses the cooldown at any time. During the window, the between-rounds bar shows "Next round soon… · Starts in about 5h 40m" (via the new public `/api/next-round`) instead of the indefinite pause copy, which stays for dead day and the pre-launch tail.
 
 
