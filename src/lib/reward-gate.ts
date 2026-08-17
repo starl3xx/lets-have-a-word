@@ -8,11 +8,13 @@
  * is grandfathered in free.
  *
  * ENTRY FLOOR (added 2026-08-17): buying in once is honored for as long as
- * the tokens are held. The first full pass records the live token bar on the
- * user (ratcheting down on cheaper passes), and later checks pass at
- * min(live bar, floor) — so a price crash, which raises the token bar, can
- * never lock out a paid-up holder. Selling below the floor forfeits it: the
- * gate stays a holding requirement, never a badge.
+ * the tokens are held. The first full pass against a ROUND-FROZEN bar records
+ * that bar on the user (ratcheting down monotonically, enforced in SQL), and
+ * later checks pass at min(live bar, floor) — so a price crash, which raises
+ * the token bar, can never lock out a paid-up holder. Oracle-fallback bars
+ * are never recorded: they track the live price, and a mid-round pump would
+ * let a floor undercut the round's frozen bar. Selling below the floor
+ * forfeits it: the gate stays a holding requirement, never a badge.
  *
  * ONE FUNCTION, ONE DECISION. Every caller — allocation, guess submission,
  * purchases, and the six money points — goes through checkPlayEligibility.
@@ -27,7 +29,7 @@
  */
 import * as Sentry from '@sentry/nextjs';
 import { ethers } from 'ethers';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or, isNull, gt, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { users, rewardGateClaims } from '../db/schema';
 import {
@@ -78,15 +80,21 @@ const ELIGIBLE: RewardGateResult = {
 };
 
 /**
- * The play bar in whole tokens for a round.
+ * The play bar in whole tokens for a round, plus whether it came from the
+ * round's FROZEN seed price or the live oracle fallback.
  *
  * Prefers the round's seed price — recorded by the seeding path, which fails
  * loud on a stale oracle — so the bar is FROZEN per round: a price crash
  * mid-round cannot cheapen the gate mid-round. Falls back to the oracle
  * market cap over total supply when no round price exists (between rounds,
  * dev mode, ETH-era rounds).
+ *
+ * The `frozen` flag matters for the entry floor: only a frozen bar may be
+ * recorded as a floor. The oracle-fallback bar moves with the live price, so
+ * a mid-round pump would make it cheaper than the round's frozen bar — and a
+ * floor written from it would permanently undercut the per-round freeze.
  */
-export function getPlayBarTokens(round?: RoundPriceSource | null): number {
+export function getPlayBar(round?: RoundPriceSource | null): { tokens: number; frozen: boolean } {
   let priceUsd = 0;
   if (round?.seedPriceE18) {
     try {
@@ -95,11 +103,17 @@ export function getPlayBarTokens(round?: RoundPriceSource | null): number {
       priceUsd = 0;
     }
   }
-  if (priceUsd <= 0) {
+  const frozen = priceUsd > 0;
+  if (!frozen) {
     const mcap = WORD_MARKET_CAP_USD > 0 ? WORD_MARKET_CAP_USD : WORD_MCAP_FALLBACK_USD;
     priceUsd = mcap / WORD_TOTAL_SUPPLY_TOKENS;
   }
-  return Math.ceil(REWARD_GATE_PLAY_USD / priceUsd);
+  return { tokens: Math.ceil(REWARD_GATE_PLAY_USD / priceUsd), frozen };
+}
+
+/** The play bar in whole tokens (see getPlayBar). */
+export function getPlayBarTokens(round?: RoundPriceSource | null): number {
+  return getPlayBar(round).tokens;
 }
 
 interface CheckOptions {
@@ -168,7 +182,7 @@ export async function checkPlayEligibility(
     return result;
   }
 
-  const liveBarTokens = getPlayBarTokens(round);
+  const { tokens: liveBarTokens, frozen: barIsFrozen } = getPlayBar(round);
   // Entry floor: buying in once is honored for as long as the tokens are
   // held. A player who passed the gate keeps a personal bar at the cheapest
   // token bar they ever passed, so a price crash (which raises the live bar)
@@ -244,19 +258,41 @@ export async function checkPlayEligibility(
     }
   }
 
-  // Record / ratchet the entry floor on a full pass. When the write fires,
-  // the balance genuinely cleared liveBarTokens (a floor below the live bar
-  // would have been the effective bar instead). Best-effort: a floor write
-  // failure must never fail an eligible check.
-  if (user && (user.rewardGateBarTokens == null || liveBarTokens < user.rewardGateBarTokens)) {
+  // Record / ratchet the entry floor on a full pass — but ONLY from a
+  // round-frozen bar. The oracle-fallback bar (round-less callers: user-state,
+  // allocation, pricing) tracks the live price, and a mid-round pump would
+  // make it cheaper than the round's frozen bar; recording it would let the
+  // floor permanently undercut the per-round freeze. Waiting for a
+  // round-priced check costs nothing: the first guess of any round carries
+  // one. When the write fires, the balance genuinely cleared liveBarTokens
+  // (a floor below the live bar would have been the effective bar instead).
+  //
+  // The ratchet condition is enforced IN SQL, not from the row read above —
+  // concurrent checks with different bars race, and a stale in-memory floor
+  // must never let a higher bar overwrite a lower one. The JS check is only
+  // a fast path to skip the write. Best-effort: a floor write failure must
+  // never fail an eligible check.
+  if (
+    barIsFrozen &&
+    user &&
+    (user.rewardGateBarTokens == null || liveBarTokens < user.rewardGateBarTokens)
+  ) {
     try {
       await db
         .update(users)
         .set({
           rewardGateBarTokens: liveBarTokens,
-          rewardGateQualifiedAt: user.rewardGateQualifiedAt ?? new Date(),
+          rewardGateQualifiedAt: sql`COALESCE(${users.rewardGateQualifiedAt}, NOW())`,
         })
-        .where(eq(users.fid, fid));
+        .where(
+          and(
+            eq(users.fid, fid),
+            or(
+              isNull(users.rewardGateBarTokens),
+              gt(users.rewardGateBarTokens, liveBarTokens)
+            )
+          )
+        );
     } catch (error) {
       console.error(`[RewardGate] Failed to record entry floor for FID ${fid}:`, error);
     }
