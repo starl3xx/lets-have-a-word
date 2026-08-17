@@ -157,18 +157,115 @@ describe('Reward Gate', () => {
       expect(again.eligible).toBe(true);
     });
 
-    it('records the entry floor on the first full pass', async () => {
-      mockBalance(BAR_FALLBACK);
+    it('records the entry floor on the first full pass against a frozen bar', async () => {
+      // seedPriceE18 1e12 → $0.000001/token → $3 bar = 3,000,000 tokens
+      mockBalance(3_000_000);
       const fid = await makeUser({ wallet: randomWallet() });
-      const result = await checkPlayEligibility(fid);
+      const result = await checkPlayEligibility(fid, {
+        round: { seedPriceE18: '1000000000000' },
+      });
       expect(result.eligible).toBe(true);
 
       const [row] = await db
         .select({ floor: users.rewardGateBarTokens, at: users.rewardGateQualifiedAt })
         .from(users)
         .where(eq(users.fid, fid));
-      expect(row.floor).toBe(BAR_FALLBACK);
+      expect(row.floor).toBe(3_000_000);
       expect(row.at).not.toBeNull();
+    });
+
+    it('never records a floor from the oracle-fallback bar', async () => {
+      // No round supplied → the bar tracks the live oracle. A pass is a
+      // pass, but recording that bar would let a mid-round pump undercut
+      // the round's frozen bar via the floor.
+      mockBalance(BAR_FALLBACK);
+      const fid = await makeUser({ wallet: randomWallet() });
+      const result = await checkPlayEligibility(fid);
+      expect(result.eligible).toBe(true);
+
+      const [row] = await db
+        .select({ floor: users.rewardGateBarTokens })
+        .from(users)
+        .where(eq(users.fid, fid));
+      expect(row.floor).toBeNull();
+    });
+
+    it('bypasses a cached eligible verdict while a frozen-bar floor is unrecorded', async () => {
+      // The day's first checks are usually round-less (user-state,
+      // allocation): they cache an eligible verdict and never reach the
+      // floor logic. The round-priced guess check must not let that cached
+      // verdict skip the one floor write.
+      const redisLib = await import('../lib/redis');
+      vi.spyOn(redisLib, 'cacheGet').mockResolvedValue({
+        eligible: true,
+        grandfathered: false,
+        determined: true,
+        barTokens: BAR_FALLBACK,
+      });
+      mockBalance(3_000_000);
+      const fid = await makeUser({ wallet: randomWallet() });
+
+      const result = await checkPlayEligibility(fid, {
+        round: { seedPriceE18: '1000000000000' },
+        useCache: true,
+      });
+      expect(result.eligible).toBe(true);
+
+      const [row] = await db
+        .select({ floor: users.rewardGateBarTokens })
+        .from(users)
+        .where(eq(users.fid, fid));
+      expect(row.floor).toBe(3_000_000);
+    });
+
+    it('keeps the cached fast path once the floor is recorded', async () => {
+      const redisLib = await import('../lib/redis');
+      vi.spyOn(redisLib, 'cacheGet').mockResolvedValue({
+        eligible: true,
+        grandfathered: false,
+        determined: true,
+        barTokens: BAR_FALLBACK,
+      });
+      const balanceSpy = vi
+        .spyOn(wordToken, 'getEffectiveBalanceChecked')
+        .mockResolvedValue({ balance: 3_000_000, determined: true } as any);
+
+      const fid = await makeUser({ wallet: randomWallet() });
+      await db
+        .update(users)
+        .set({ rewardGateBarTokens: 3_000_000, rewardGateQualifiedAt: new Date() })
+        .where(eq(users.fid, fid));
+
+      const result = await checkPlayEligibility(fid, {
+        round: { seedPriceE18: '1000000000000' },
+        useCache: true,
+      });
+      expect(result.eligible).toBe(true);
+      // The cached verdict was returned — no chain read happened.
+      expect(balanceSpy).not.toHaveBeenCalled();
+    });
+
+    it('never raises the floor, even when a later frozen bar is higher', async () => {
+      const fid = await makeUser({ wallet: randomWallet() });
+      await db
+        .update(users)
+        .set({ rewardGateBarTokens: 3_000_000, rewardGateQualifiedAt: new Date() })
+        .where(eq(users.fid, fid));
+
+      // seedPriceE18 5e11 → $0.0000005/token → bar 6,000,000 (a crash round).
+      // The holder passes via their 3M floor; the floor must not move up.
+      mockBalance(3_000_000);
+      const result = await checkPlayEligibility(fid, {
+        round: { seedPriceE18: '500000000000' },
+      });
+      expect(result.eligible).toBe(true);
+      expect(result.barTokens).toBe(3_000_000);
+
+      const [row] = await db
+        .select({ floor: users.rewardGateBarTokens })
+        .from(users)
+        .where(eq(users.fid, fid));
+      expect(row.floor).toBe(3_000_000);
     });
 
     it('honors the entry floor when a price crash raises the live bar', async () => {
