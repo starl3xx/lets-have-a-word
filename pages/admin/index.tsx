@@ -359,17 +359,22 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
             </div>
           )}
 
-          {/* $WORD contract indicator. Green needs BOTH contracts: a solid
-              light with WordJackpot unconfigured would mean round starts
-              revert while the strip says all clear. Amber = half-configured. */}
+          {/* $WORD contract indicator. Green mirrors isWordEconomyConfigured()
+              (WordJackpot + WordPackSales) plus WordManager: any partial
+              combination means round starts still take the ETH path while the
+              strip glows green. Amber = partially configured. */}
           {(() => {
-            const wordReady = Boolean(status.wordManagerConfigured && status.wordJackpotConfigured);
-            const wordPartial = !wordReady && Boolean(status.wordManagerConfigured || status.wordJackpotConfigured);
+            const missing = [
+              !status.wordManagerConfigured && 'WORD_MANAGER_ADDRESS',
+              !status.wordJackpotConfigured && 'WORD_JACKPOT_ADDRESS',
+              !status.wordPackSalesConfigured && 'WORD_PACK_SALES_ADDRESS',
+            ].filter(Boolean) as string[];
+            const wordReady = missing.length === 0;
+            const wordPartial = !wordReady && missing.length < 3;
             return (
           <div style={styles.statusItem} title={
-            wordReady ? 'WordManager + WordJackpot configured'
-              : wordPartial ? `Missing: ${status.wordJackpotConfigured ? 'WORD_MANAGER_ADDRESS' : 'WORD_JACKPOT_ADDRESS'}`
-              : 'WordManager + WordJackpot not configured'
+            wordReady ? 'WordManager + WordJackpot + WordPackSales configured'
+              : `Missing: ${missing.join(', ')}`
           }>
             <span style={{
               display: 'inline-flex',

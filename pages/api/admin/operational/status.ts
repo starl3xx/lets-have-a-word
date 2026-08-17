@@ -92,11 +92,12 @@ export default async function handler(
       cancelledRounds: refundSummaries,
       refundCron: refundCronTiming,
       wordManagerConfigured: getWordManagerAddress() !== null,
-      // The header's $WORD pill needs BOTH contracts: WordManager pays the
-      // per-round rewards and staking, WordJackpot runs the round itself —
-      // a green light with WORD_JACKPOT_ADDRESS unset would mean round
-      // starts revert while the strip says all clear.
+      // The header's $WORD pill must mirror isWordEconomyConfigured() —
+      // which requires BOTH WordJackpot and WordPackSales — plus WordManager.
+      // Any partial combination means round starts still take the ETH path
+      // (or per-round rewards fail) while the strip glows green.
       wordJackpotConfigured: Boolean(process.env.WORD_JACKPOT_ADDRESS),
+      wordPackSalesConfigured: Boolean(process.env.WORD_PACK_SALES_ADDRESS),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
