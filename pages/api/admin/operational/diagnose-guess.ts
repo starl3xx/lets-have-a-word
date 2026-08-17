@@ -11,6 +11,7 @@ import { db } from '../../../../src/db';
 import { rounds, roundBonusWords } from '../../../../src/db/schema';
 import { isNull, eq } from 'drizzle-orm';
 import { redis } from '../../../../src/lib/redis';
+import { isAdminFid } from '../me';
 
 interface DiagnosticResult {
   check: string;
@@ -53,6 +54,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const devFid = parseInt((req.query.devFid as string) || (req.cookies.siwn_fid as string) || '', 10);
+  if (!devFid || !isAdminFid(devFid)) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

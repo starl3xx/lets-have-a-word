@@ -212,6 +212,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-08-17 (before Round 34)
+
+- **Admin hardening, Phase A of the panel cleanup**: The full audit of the admin surface (83 endpoints, 7 tabs) starts paying down. The deprecated, unauthenticated, mutating `refresh-seed-words` endpoint is deleted. `diagnose-guess` and `xp-debug` gain the standard admin check; `award-xp` drops its private admin list for the shared one; `debug-round2` gains a method guard. Two round-34 correctness bugs die: the Social status-cast generator now follows the round's `prize_currency` instead of hardcoding ETH, and the Analytics top-10 cutoff reads `PRICE_RAMP_START_GUESSES` everywhere — the page previously showed both 750 and 850 as fact.
+
 ### 2026-08-16 (before Round 34)
 
 - **Recharts 3 (Phase 2 of the admin redesign)**: 2.15 → 3.10 behind the single `AnalyticsChart` wrapper. The wrapper's API surface (line/bar, axes, grid, props-based tooltip, legend) is unchanged in v3; the rewrite's breaking changes sit in customized internals this codebase never touched. This closes the phased admin plan: one shared vocabulary (Phase 0), shadcn on Tailwind 3.4 with Social and Operations converted (Phase 1), and current charts (Phase 2). A Tailwind 3→4 migration remains optional and unlocks Tremor's free block library whenever wanted.

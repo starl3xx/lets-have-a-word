@@ -12,6 +12,7 @@ import {
   getRecentXpEventsForFid,
   getXpBreakdownForFid,
 } from '../../../src/lib/xp';
+import { isAdminFid } from './me';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { db } from '../../../src/db';
 import { xpEvents } from '../../../src/db/schema';
@@ -58,6 +59,11 @@ export default async function handler(
   // Only available in dev mode
   if (!isDevModeEnabled()) {
     return res.status(403).json({ error: 'Dev mode not enabled' });
+  }
+
+  const devFid = parseInt((req.query.devFid as string) || (req.cookies.siwn_fid as string) || '', 10);
+  if (!devFid || !isAdminFid(devFid)) {
+    return res.status(403).json({ error: 'Not authorized' });
   }
 
   if (req.method !== 'GET') {
