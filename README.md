@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Funding directory in Admin → Treasury**: one card that answers "where do I send $WORD for game use" without hunting — jackpot pool (WordJackpot), bonus/burn words and staking rewards (WordManagerV3) highlighted up top with full addresses, one-tap copy, Basescan links, and one line on what each destination funds; pack sales, guess log, treasury, operator, the ETH-era manager, and the token below. Undeployed contracts show which env var to set instead of an empty hole. Served by a no-RPC `?book=1` fast path on `contract-state`.
+
+
 - **Round-34 contract deploy script**: `deploy-word-round34-contracts.ts` deploys WordJackpot (UUPS proxy, forceImport-registered), WordPackSales (treasury-immutable), and GuessLog to Base in one run, checks every role reads back as configured (token/operator/treasury/owner ×7), and prints the four Vercel env lines, the Basescan verify commands, and the tranche-funding steps ready to paste. Rehearsed clean on an anvil fork of Base.
 
 
