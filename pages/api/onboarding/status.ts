@@ -17,6 +17,7 @@ import { users, ogHunterCastProofs, userBadges } from '../../../src/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getActiveRound } from '../../../src/lib/rounds';
 import { REWARD_GATE_GRANDFATHER_LAST_ROUND } from '../../../config/economy';
+import { EARLY_ADOPTER_LAST_ROUND } from '../../../src/lib/wordmarks';
 
 export interface OnboardingStatusResponse {
   hasSeenIntro: boolean;
@@ -31,6 +32,12 @@ export interface OnboardingStatusResponse {
   wordEraActive: boolean;
   /** First guess in rounds 1–27 — plays free under the reward gate */
   grandfathered: boolean;
+  /**
+   * First guess in rounds 1–18 (before round 19, the first botted round) —
+   * holds the complimentary Early Adopter 💅 wordmark. A strict subset of
+   * `grandfathered`: rounds 19–27 players are in free but do NOT get the mark.
+   */
+  earlyAdopter: boolean;
   isOgHunter: boolean;
   ogHunterAwarded: boolean;
   /** Whether user has installed the mini app (addedMiniAppAt is set) */
@@ -101,6 +108,7 @@ export default async function handler(
         hasSeenRound34Announcement: false,
         wordEraActive,
         grandfathered: false,
+        earlyAdopter: false,
         isOgHunter: false,
         ogHunterAwarded: false,
         hasMiniAppInstalled: false,
@@ -120,6 +128,9 @@ export default async function handler(
       grandfathered:
         user.firstGuessRound != null &&
         user.firstGuessRound <= REWARD_GATE_GRANDFATHER_LAST_ROUND,
+      earlyAdopter:
+        user.firstGuessRound != null &&
+        user.firstGuessRound <= EARLY_ADOPTER_LAST_ROUND,
       isOgHunter,
       ogHunterAwarded,
       hasMiniAppInstalled: !!user.addedMiniAppAt,

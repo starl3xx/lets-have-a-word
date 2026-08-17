@@ -188,6 +188,7 @@ export default function OnboardingManager({
           fid={fid}
           onDismiss={handleRound34AnnouncementDismiss}
           grandfathered={status?.grandfathered ?? false}
+          earlyAdopter={status?.earlyAdopter ?? false}
         />
       )}
     </>

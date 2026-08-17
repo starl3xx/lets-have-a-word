@@ -18,12 +18,19 @@ interface Round34AnnouncementModalProps {
   fid?: number;
   /** First guess in rounds 1–27 — plays free under the reward gate */
   grandfathered: boolean;
+  /**
+   * First guess in rounds 1–18 — holds the Early Adopter 💅 wordmark. A
+   * strict subset of `grandfathered`; rounds 19–27 players are in free but
+   * do not get the mark, so the wordmark line keys off this flag alone.
+   */
+  earlyAdopter: boolean;
 }
 
 export default function Round34AnnouncementModal({
   onDismiss,
   fid,
   grandfathered,
+  earlyAdopter,
 }: Round34AnnouncementModalProps) {
   useEffect(() => {
     fetch('/api/analytics/log', {
@@ -62,7 +69,9 @@ export default function Round34AnnouncementModal({
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
             {grandfathered ? (
-              <span><strong>You’re in free.</strong> Playing now requires about $3 of $WORD (held or staked) — but you played before round 28, so the requirement never applies to you.</span>
+              <span><strong>You’re in free.</strong> Playing now requires about $3 of $WORD (held or staked) — but you played before round 28, so the requirement never applies to you.{earlyAdopter && (
+                <> And the <strong>Early Adopter 💅</strong> wordmark is already on your profile — granted, not earned or bought, for playing before the bots found us.</>
+              )}</span>
             ) : (
               <span>Playing now requires about <strong>$3 of $WORD</strong>, held or staked. Top up once and you’re in.</span>
             )}
