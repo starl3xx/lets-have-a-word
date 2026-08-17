@@ -100,18 +100,37 @@ async function main() {
   console.log("");
 
   // Free simulations — eth_call only, no state change, no gas.
-  const overReach = reserved + available + 1n;
+  //
+  // Probe with one wei MORE than the surplus: that amount is still inside the
+  // token balance whenever the reserve is non-zero, so an unguarded
+  // implementation would let the transfer through — only gameSolvent can
+  // reject it. (One wei above the BALANCE would revert on the ERC20 transfer
+  // itself and prove nothing.) The revert must also be the guard's own error:
+  // 0x92f88c62 is the WouldTouchStakerFunds(uint256,uint256) selector, which
+  // some tooling reports undecoded.
+  if (reserved === 0n) {
+    console.log("!! reserve is zero — the guard probe cannot distinguish guarded from unguarded here");
+    process.exitCode = 1;
+  }
   try {
-    await manager.emergencyWithdraw.staticCall(signer.address, overReach);
-    console.log("!! emergencyWithdraw over the reserve did NOT revert — guard is not live");
-  } catch {
-    console.log("emergencyWithdraw over the reserve reverts (guard live)");
+    await manager.emergencyWithdraw.staticCall(signer.address, available + 1n);
+    console.log("!! emergencyWithdraw beyond the surplus did NOT revert — guard is not live");
+    process.exitCode = 1;
+  } catch (error) {
+    const msg = String(error);
+    if (msg.includes("WouldTouchStakerFunds") || msg.includes("0x92f88c62")) {
+      console.log("emergencyWithdraw beyond the surplus reverts WouldTouchStakerFunds (guard live)");
+    } else {
+      console.log("!! emergencyWithdraw beyond the surplus reverted for the WRONG reason:", msg.slice(0, 200));
+      process.exitCode = 1;
+    }
   }
   try {
     await manager.emergencyWithdraw.staticCall(signer.address, available);
     console.log("emergencyWithdraw within the surplus simulates fine");
   } catch (error) {
-    console.log("!! emergencyWithdraw within the surplus reverted:", error);
+    console.log("!! emergencyWithdraw within the surplus reverted:", String(error).slice(0, 200));
+    process.exitCode = 1;
   }
   console.log("");
 
