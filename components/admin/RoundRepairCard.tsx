@@ -429,7 +429,7 @@ export default function RoundRepairCard({ fid }: { fid: number }) {
                 <tbody>
                   {Object.entries(roundDebugResult.fieldAnalysis).map(([field, info]) => {
                     // Fields that SHOULD be strings (if these are Date, it's a problem)
-                    const shouldBeStringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth', 'txHash', 'bonusWordsCommitHash', 'cancelledReason', 'cancelledBy', 'status'];
+                    const shouldBeStringFields = ['answer', 'salt', 'commitHash', 'prizePoolEth', 'seedNextRoundEth', 'txHash', 'bonusWordsCommitHash', 'cancelledReason', 'cancelledBy', 'status', 'prizePoolWord', 'seedNextRoundWord', 'prizeCurrency'];
                     // Fields that SHOULD be dates (these are expected to be Date)
                     const shouldBeDateFields = ['startedAt', 'resolvedAt', 'cancelledAt', 'refundsStartedAt', 'refundsCompletedAt', 'createdAt', 'updatedAt'];
                     const isCorrupted = shouldBeStringFields.includes(field) && info.isDate;

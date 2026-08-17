@@ -30,6 +30,7 @@ import { rounds, roundPayouts, guesses } from '../../../../src/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { resolveRoundAndCreatePayouts } from '../../../../src/lib/economics';
 import { getContractRoundInfo, getMainnetContractBalance } from '../../../../src/lib/jackpot-contract';
+import { formatPrize } from '../../../../src/lib/prize-display';
 import { getPlaintextAnswer } from '../../../../src/lib/encryption';
 import { invalidateOnRoundTransition } from '../../../../src/lib/redis';
 import { enableDeadDay } from '../../../../src/lib/operational';
@@ -42,13 +43,21 @@ interface StuckRoundDiagnosis {
     resolvedAt: string | null;
     txHash: string | null;
     prizePoolEth: string;
+    prizeCurrency: string | null;
+    prizePoolWord: string | null;
+    /** Prize with its unit ("0.02 ETH" / "78,125,000 $WORD"). */
+    prizeDisplay: string;
     answer: string;
   };
   contract: {
+    /** Which contract these numbers come from — era-dependent. */
+    contractName: string;
     roundNumber: string;
     isActive: boolean;
-    jackpotEth: string;
-    balanceEth: string;
+    jackpotEth?: string;
+    balanceEth?: string;
+    poolWord?: string;
+    balanceWord?: string;
   } | null;
   payoutsExist: boolean;
   payoutCount: number;
@@ -110,17 +119,38 @@ export default async function handler(
       .where(eq(guesses.roundId, roundId));
     const totalGuesses = guessResult?.count ?? 0;
 
-    // Query contract state
+    // Query contract state — from the contract that ran THIS round. A $WORD
+    // round diagnosed against the legacy JackpotManager shows numbers that
+    // have nothing to do with the stuck round.
     let contractState: StuckRoundDiagnosis['contract'] = null;
     try {
-      const roundInfo = await getContractRoundInfo();
-      const balance = await getMainnetContractBalance();
-      contractState = {
-        roundNumber: roundInfo.roundNumber.toString(),
-        isActive: roundInfo.isActive,
-        jackpotEth: (Number(roundInfo.jackpot) / 1e18).toFixed(6),
-        balanceEth: balance,
-      };
+      if (round.prizeCurrency === 'word') {
+        const { getWordJackpotReadOnly } = await import('../../../../src/lib/word-jackpot-contract');
+        const { ethers } = await import('ethers');
+        const jackpot = getWordJackpotReadOnly();
+        const [solvency, activeRoundId] = await Promise.all([
+          jackpot.solvency() as Promise<[bigint, bigint, bigint, bigint, bigint]>,
+          jackpot.activeRoundId() as Promise<bigint>,
+        ]);
+        const [wjBalance, wjPool] = solvency;
+        contractState = {
+          contractName: 'WordJackpot',
+          roundNumber: activeRoundId.toString(),
+          isActive: activeRoundId > 0n,
+          poolWord: Math.floor(parseFloat(ethers.formatEther(wjPool))).toLocaleString(),
+          balanceWord: Math.floor(parseFloat(ethers.formatEther(wjBalance))).toLocaleString(),
+        };
+      } else {
+        const roundInfo = await getContractRoundInfo();
+        const balance = await getMainnetContractBalance();
+        contractState = {
+          contractName: 'JackpotManager (ETH era)',
+          roundNumber: roundInfo.roundNumber.toString(),
+          isActive: roundInfo.isActive,
+          jackpotEth: (Number(roundInfo.jackpot) / 1e18).toFixed(6),
+          balanceEth: balance,
+        };
+      }
     } catch (error) {
       console.error('[recover-stuck-round] Failed to query contract:', error);
     }
@@ -155,6 +185,13 @@ export default async function handler(
         resolvedAt: round.resolvedAt?.toISOString() ?? null,
         txHash: round.txHash ?? null,
         prizePoolEth: round.prizePoolEth,
+        prizeCurrency: round.prizeCurrency ?? null,
+        prizePoolWord: round.prizePoolWord ?? null,
+        prizeDisplay: formatPrize({
+          currency: round.prizeCurrency === 'word' ? 'word' : 'eth',
+          eth: round.prizePoolEth,
+          word: round.prizePoolWord,
+        }),
         answer,
       },
       contract: contractState,

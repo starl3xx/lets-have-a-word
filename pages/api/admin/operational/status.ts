@@ -92,6 +92,12 @@ export default async function handler(
       cancelledRounds: refundSummaries,
       refundCron: refundCronTiming,
       wordManagerConfigured: getWordManagerAddress() !== null,
+      // The header's $WORD pill must mirror isWordEconomyConfigured() —
+      // which requires BOTH WordJackpot and WordPackSales — plus WordManager.
+      // Any partial combination means round starts still take the ETH path
+      // (or per-round rewards fail) while the strip glows green.
+      wordJackpotConfigured: Boolean(process.env.WORD_JACKPOT_ADDRESS),
+      wordPackSalesConfigured: Boolean(process.env.WORD_PACK_SALES_ADDRESS),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

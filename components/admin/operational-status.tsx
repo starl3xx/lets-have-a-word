@@ -57,6 +57,8 @@ export interface OperationalStatus {
     nextRunEstimate: string;
   };
   wordManagerConfigured?: boolean;
+  wordJackpotConfigured?: boolean;
+  wordPackSalesConfigured?: boolean;
   timestamp: string;
 }
 

@@ -476,7 +476,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
               loading={loading}
             />
             <StatCard
-              label="Total Jackpot"
+              label="Total Jackpot (ETH era)"
               value={`${formatEth(stats.totalJackpotDistributed)} ETH`}
               subtext={
                 stats.totalJackpotDistributedWord && stats.totalJackpotDistributedWord !== '0'

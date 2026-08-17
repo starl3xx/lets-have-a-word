@@ -1341,6 +1341,9 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ECONOMY MODULE */}
       {/* ================================================================== */}
       <Module title="Economy & Revenue">
+        <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 12px 0' }}>
+          Revenue is ETH in both eras — packs and Superguesses are always bought with ETH.
+        </p>
         <div style={{ ...styles.grid, gridTemplateColumns: "repeat(4, 1fr)" }}>
           <StatCard
             label="ARPDAU"

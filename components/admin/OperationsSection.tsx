@@ -1474,6 +1474,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               ) : (
                 <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
                   No active round. Start a new round to begin gameplay. A random target word will be selected.
+                  The prize is seeded in $WORD from WordJackpot&apos;s unallocated balance — no ETH seed is needed.
                 </p>
               )}
               <button
@@ -1939,9 +1940,8 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                       <span style={styles.infoLabel}>Answer</span>
                       <span style={{ ...styles.infoValue, fontFamily: 'monospace' }}>{recoverDiagnosis.round.answer}</span>
                     </div>
-                    <InfoRow label={<>Prize Pool</>} value={<>{recoverDiagnosis.round.prizeCurrency === 'word'
-                          ? `${recoverDiagnosis.round.prizePoolWord ?? '0'} $WORD (wei)`
-                          : `${recoverDiagnosis.round.prizePoolEth} ETH`}</>} />
+                    <InfoRow label={<>Prize Pool</>} value={<>{recoverDiagnosis.round.prizeDisplay
+                          ?? `${recoverDiagnosis.round.prizePoolEth} ETH`}</>} />
                     <InfoRow label={<>Resolved At</>} value={<>{recoverDiagnosis.round.resolvedAt ?? 'null'}</>} />
                     <InfoRow label={<>TX Hash</>} value={<>{recoverDiagnosis.round.txHash ?? 'null'}</>} />
                     <InfoRow label={<>Payouts</>} value={<>{recoverDiagnosis.payoutCount} records</>} />
@@ -1951,10 +1951,21 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
                 {recoverDiagnosis.contract && (
                   <>
-                    <div style={{ fontWeight: 600, marginTop: '12px', marginBottom: '8px', fontSize: '13px' }}>Contract State</div>
+                    <div style={{ fontWeight: 600, marginTop: '12px', marginBottom: '8px', fontSize: '13px' }}>
+                      Contract State{recoverDiagnosis.contract.contractName ? ` — ${recoverDiagnosis.contract.contractName}` : ''}
+                    </div>
                     <InfoRow label={<>Contract Round</>} value={<>#{recoverDiagnosis.contract.roundNumber} {recoverDiagnosis.contract.isActive ? '(active)' : '(inactive)'}</>} />
-                    <InfoRow label={<>Contract Jackpot</>} value={<>{recoverDiagnosis.contract.jackpotEth} ETH</>} />
-                    <InfoRow label={<>Contract Balance</>} value={<>{recoverDiagnosis.contract.balanceEth} ETH</>} />
+                    {recoverDiagnosis.contract.poolWord != null ? (
+                      <>
+                        <InfoRow label={<>Contract Pool</>} value={<>{recoverDiagnosis.contract.poolWord} $WORD</>} />
+                        <InfoRow label={<>Contract Balance</>} value={<>{recoverDiagnosis.contract.balanceWord} $WORD</>} />
+                      </>
+                    ) : (
+                      <>
+                        <InfoRow label={<>Contract Jackpot</>} value={<>{recoverDiagnosis.contract.jackpotEth} ETH</>} />
+                        <InfoRow label={<>Contract Balance</>} value={<>{recoverDiagnosis.contract.balanceEth} ETH</>} />
+                      </>
+                    )}
                   </>
                 )}
 
@@ -2030,7 +2041,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     marginBottom: '12px',
                   }}>
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>
-                      JackpotManager — Mainnet
+                      JackpotManager — ETH era (rounds 1–33)
                     </span>
                     <span style={{
                       fontSize: '20px',
@@ -2620,7 +2631,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
           {/* ETH Airdrop Card */}
           <div style={styles.card}>
-            <h2 style={styles.cardTitle}>ETH Airdrop</h2>
+            <h2 style={styles.cardTitle}>ETH Airdrop (refunds &amp; compensation)</h2>
             <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
               Send ETH to multiple recipients by FID. Useful for refunds, compensation, or rewards.
             </p>

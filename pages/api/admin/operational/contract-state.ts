@@ -26,7 +26,7 @@ import {
   getRewardInfo,
 } from '../../../../src/lib/word-manager';
 import { WORD_TOKEN_ADDRESS } from '../../../../src/lib/word-token';
-import { getWordJackpotReadOnly } from '../../../../src/lib/word-jackpot-contract';
+import { getWordJackpotReadOnly, isWordEconomyConfigured } from '../../../../src/lib/word-jackpot-contract';
 
 interface ContractState {
   network: 'mainnet';
@@ -499,9 +499,14 @@ export default async function handler(
             ? `🚫 OPERATOR MISMATCH! Contract expects ${mainnet.contractOperatorWallet} but we're signing with ${mainnet.ourSigningWallet}. All contract writes will fail.`
             : mainnet.hasMismatch
               ? `⚠️ Contract balance (${mainnet.actualBalance} ETH) is less than internal jackpot (${mainnet.internalJackpot} ETH). Resolution will fail. Contact developer to diagnose.`
-              : mainnet.isActive
-                ? '✅ Contract state is healthy. Resolution should work.'
-                : '✅ No active round. Ready to start new round.',
+              : isWordEconomyConfigured()
+                // From round 34 this contract never starts a round again — a
+                // green "ready to start" here contradicts the WordJackpot
+                // verdict below, which is the one that matters.
+                ? 'ℹ️ Legacy ETH contract (rounds 1–33). Not used for round starts.'
+                : mainnet.isActive
+                  ? '✅ Contract state is healthy. Resolution should work.'
+                  : '✅ No active round. Ready to start new round.',
           wordManager: !wordManager.configured
             ? 'ℹ️ WordManager not configured. Set WORD_MANAGER_ADDRESS to enable $WORD contract monitoring.'
             : wordManager.error

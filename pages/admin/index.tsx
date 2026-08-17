@@ -359,8 +359,23 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
             </div>
           )}
 
-          {/* $WORD contract indicator */}
-          <div style={styles.statusItem}>
+          {/* $WORD contract indicator. Green mirrors isWordEconomyConfigured()
+              (WordJackpot + WordPackSales) plus WordManager: any partial
+              combination means round starts still take the ETH path while the
+              strip glows green. Amber = partially configured. */}
+          {(() => {
+            const missing = [
+              !status.wordManagerConfigured && 'WORD_MANAGER_ADDRESS',
+              !status.wordJackpotConfigured && 'WORD_JACKPOT_ADDRESS',
+              !status.wordPackSalesConfigured && 'WORD_PACK_SALES_ADDRESS',
+            ].filter(Boolean) as string[];
+            const wordReady = missing.length === 0;
+            const wordPartial = !wordReady && missing.length < 3;
+            return (
+          <div style={styles.statusItem} title={
+            wordReady ? 'WordManager + WordJackpot + WordPackSales configured'
+              : `Missing: ${missing.join(', ')}`
+          }>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -369,18 +384,20 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
               borderRadius: '4px',
               fontSize: '11px',
               fontWeight: 600,
-              background: status.wordManagerConfigured ? '#dcfce7' : '#f3f4f6',
-              color: status.wordManagerConfigured ? '#166534' : '#9ca3af',
+              background: wordReady ? '#dcfce7' : wordPartial ? '#fef3c7' : '#f3f4f6',
+              color: wordReady ? '#166534' : wordPartial ? '#92400e' : '#9ca3af',
             }}>
               <span style={{
                 width: '6px',
                 height: '6px',
                 borderRadius: '50%',
-                background: status.wordManagerConfigured ? '#22c55e' : '#d1d5db',
+                background: wordReady ? '#22c55e' : wordPartial ? '#f59e0b' : '#d1d5db',
               }} />
               $WORD
             </span>
           </div>
+            );
+          })()}
         </div>
 
         {/* Last updated — turns amber when polling silently stops. This week's
