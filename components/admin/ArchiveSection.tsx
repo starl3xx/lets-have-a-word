@@ -13,6 +13,9 @@ import {
 } from '../../src/lib/prize-display';
 import { formatWordAmount } from '../../src/lib/word-amounts';
 import { AnalyticsChart } from "./AnalyticsChart"
+import { adminFont as fontFamily } from "./ui"
+import { formatEth } from "./format"
+import { StatCard } from "./ui"
 
 // =============================================================================
 // Types
@@ -86,7 +89,6 @@ interface Distribution {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   module: {
@@ -106,34 +108,6 @@ const styles = {
   grid: {
     display: "grid" as const,
     gap: "12px",
-  },
-  statCard: {
-    padding: "16px",
-    background: "#f9fafb",
-    borderRadius: "8px",
-    border: "1px solid #f3f4f6",
-  },
-  statLabel: {
-    fontSize: "12px",
-    color: "#6b7280",
-    fontWeight: 500,
-    marginBottom: "4px",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.03em",
-    fontFamily,
-  },
-  statValue: {
-    fontSize: "22px",
-    fontWeight: 600,
-    color: "#111827",
-    letterSpacing: "-0.02em",
-    fontFamily,
-  },
-  statSubtext: {
-    fontSize: "12px",
-    color: "#9ca3af",
-    marginTop: "2px",
-    fontFamily,
   },
   table: {
     width: "100%",
@@ -234,20 +208,6 @@ const styles = {
 // Helper Components
 // =============================================================================
 
-function StatCard({ label, value, subtext, loading }: {
-  label: string
-  value: string | number
-  subtext?: string
-  loading?: boolean
-}) {
-  return (
-    <div style={styles.statCard}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{loading ? "..." : value}</div>
-      {subtext && <div style={styles.statSubtext}>{subtext}</div>}
-    </div>
-  )
-}
 
 // =============================================================================
 // Archive Section Component
@@ -442,10 +402,6 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
   }
 
-  const formatEth = (eth: string) => {
-    const num = parseFloat(eth)
-    return num.toFixed(4)
-  }
 
   const totalPages = Math.ceil(totalRounds / pageSize)
 

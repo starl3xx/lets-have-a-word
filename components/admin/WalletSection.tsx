@@ -7,6 +7,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useOperationalStatus, type OperationalStatus } from "./operational-status";
 import PurchaseEventsCard from "./PurchaseEventsCard";
+import { adminFont as fontFamily } from "./ui"
+import { shortenAddress } from "./format";
 
 // =============================================================================
 // Types
@@ -220,7 +222,6 @@ function computeWalletHealth(
 // Styles
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
 const styles = {
   section: {
@@ -2574,10 +2575,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
 // Helpers
 // =============================================================================
 
-function shortenAddress(address: string): string {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
 
 function getChainName(chainId: number): string {
   switch (chainId) {

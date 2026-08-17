@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **One vocabulary, one font, honest labels (cleanup Phase D, part 3 — the cleanup's finale)**: The shared `adminFont` becomes the real admin face (Söhne) and thirteen per-file redeclarations die, so shared components stop rendering in a different typeface than the cards around them. Four sets of duplicate formatters (`formatEth` ×2, `formatNumber` ×2, address-shorteners ×3, compact-token ×2) collapse into `components/admin/format.ts`, and the Archive tab's private StatCard yields to the shared one. The era audit turned out better than flagged: the economics and economy endpoints already carry `prize_currency = 'eth'` filters from the round-34 work — what remained was label truthfulness, so "7d Avg Jackpot" now says "(ETH rounds)" and the Economics tab states its ETH-era scope. Still on the launch checklist, not in code: the refund and emergency-resolve paths only know ETH payouts, so a $WORD-round incident needs them extended first.
+
+
 - **Every tool now lives where its work happens (cleanup Phase D, part 2)**: Operations gains four relocated tools — Round Data Repair and the bonus-distribution retry queue (from Treasury), Archive Maintenance with the three bulk sync/repair actions (from the Archive tab, which is now read-only browsing plus a contextual per-round re-archive), and Force Resolve, which was buried inside the Sepolia simulation card and now stands alone with a proper warning — the wrong place to hunt for a round-ending action during an incident. The player-grant tools (XP, share bonus, guess packs) sit under one labeled cluster. Treasury's static "Add ETH to Prize Pool" instruction card folds into the Balances overview as one caption line.
 
 

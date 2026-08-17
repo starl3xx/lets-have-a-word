@@ -10,6 +10,8 @@ import { formatPrize, formatPrizeValue } from "../../src/lib/prize-display"
 import { AnalyticsControls, TimeRange } from "./AnalyticsControls"
 import { Module, StatCard } from "./ui"
 import { PRICE_RAMP_START_GUESSES } from "../../src/lib/pack-pricing"
+import { adminFont as fontFamily } from "./ui"
+import { formatEth, formatNumber } from "./format"
 
 // =============================================================================
 // Types
@@ -198,7 +200,6 @@ interface ShareFunnelAnalytics {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   grid: {
@@ -307,19 +308,11 @@ const styles = {
 // StatCard and Module now come from the shared admin vocabulary (./ui) —
 // Phase 0 of the admin redesign. Same props, one source of truth.
 
-function formatEth(value: number | string, decimals = 4): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return '0'
-  return num.toFixed(decimals)
-}
 
 function formatPercent(value: number, decimals = 1): string {
   return `${value.toFixed(decimals)}%`
 }
 
-function formatNumber(value: number): string {
-  return value.toLocaleString()
-}
 
 function formatTimeAgo(isoTimestamp: string): string {
   const startTime = new Date(isoTimestamp).getTime()
@@ -1368,7 +1361,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
             loading={loading}
           />
           <StatCard
-            label="7d Avg Jackpot"
+            label="7d Avg Jackpot (ETH rounds)"
             value={`${formatEth(economyAnalytics?.avgJackpot7Day || 0)} ETH`}
             loading={loading}
           />

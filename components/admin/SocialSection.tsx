@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertBanner, Module } from "./ui"
 import { formatPrizeCompact } from "../../src/lib/prize-display"
+import { adminFont as fontFamily } from "./ui"
 
 // =============================================================================
 // Types
@@ -29,7 +30,6 @@ interface SocialSectionProps {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   description: {

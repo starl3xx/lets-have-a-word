@@ -5,8 +5,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { adminFont as fontFamily } from "./ui"
+import { formatTokenCompact, shortenAddress } from "./format";
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
 interface RetrySuccess {
   id: number | string;
@@ -547,18 +548,6 @@ export default function BonusDistributionsCard({ fid }: { fid: number }) {
 function formatTokenBalance(balance: string): string {
   const num = parseFloat(balance);
   if (isNaN(num) || num === 0) return '0';
-
-  if (num >= 1_000_000_000) {
-    return `${(num / 1_000_000_000).toFixed(1)}B`;
-  } else if (num >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(1)}M`;
-  } else if (num >= 1_000) {
-    return `${(num / 1_000).toFixed(1)}K`;
-  }
-  return num.toLocaleString();
+  return formatTokenCompact(num);
 }
 
-function shortenAddress(address: string): string {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}

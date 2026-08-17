@@ -13,6 +13,7 @@ import dynamic from "next/dynamic"
 import { useRouter } from "next/router"
 import { StatusPill, UpdatedStamp, type Severity } from "../../components/admin/ui"
 import { OperationalStatusProvider, useOperationalStatus } from "../../components/admin/operational-status"
+import { adminFont as fontFamily } from "../../components/admin/ui"
 
 // Dynamically import the auth gate (client-only).
 //
@@ -81,7 +82,6 @@ interface DashboardContentProps {
 // Styling
 // =============================================================================
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const styles = {
   page: {

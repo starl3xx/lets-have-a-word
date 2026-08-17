@@ -5,8 +5,8 @@
 
 import React, { useState } from 'react'
 import { Module } from './ui'
+import { adminFont as fontFamily } from "./ui"
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif"
 
 const localStyles = {
   grid: {

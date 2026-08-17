@@ -5,8 +5,8 @@
  */
 
 import React, { useState } from 'react';
+import { adminFont as fontFamily } from "./ui"
 
-const fontFamily = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
 interface RoundFieldAnalysis {
   type: string;
