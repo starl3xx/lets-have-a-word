@@ -100,7 +100,8 @@ export function twitterIsActive(): boolean {
 
 /**
  * Publish a single X post through Typefully (transport only — postTweet owns
- * the gating). Creates a draft in the LHAW social set with publish_at "now";
+ * the gating). Creates a draft in the LHAW social set scheduled ~2 minutes
+ * out (never publish_at "now" — see the note at the request body);
  * Typefully publishes asynchronously, so the returned id is the Typefully
  * draft id (prefixed), not an X status id.
  */
@@ -121,7 +122,13 @@ export async function postViaTypefully(
         },
         body: JSON.stringify({
           platforms: { x: { enabled: true, posts: [{ text }] } },
-          publish_at: 'now',
+          // NEVER 'now': Typefully 403s direct publishing of X posts that
+          // contain URLs ("blocked by X policy") — which is every announcer
+          // cast, and why round 34's launch tweet silently died while a
+          // URL-free manual test sailed through. A short SCHEDULE goes out
+          // through Typefully's own pipeline, which is allowed, URLs and
+          // all (verified live against the API on launch night).
+          publish_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
         }),
         signal: AbortSignal.timeout(15_000),
       }
