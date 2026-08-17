@@ -26,6 +26,7 @@ import {
   getRewardInfo,
 } from '../../../../src/lib/word-manager';
 import { WORD_TOKEN_ADDRESS } from '../../../../src/lib/word-token';
+import { getWordJackpotReadOnly } from '../../../../src/lib/word-jackpot-contract';
 
 interface ContractState {
   network: 'mainnet';
@@ -199,6 +200,80 @@ function formatTokenAmount(raw: bigint): string {
     return `${thousands.toFixed(1)}K`;
   }
   return whole.toString();
+}
+
+export interface WordJackpotState {
+  configured: boolean;
+  contractAddress: string | null;
+  balance: string;
+  pool: string;
+  carry: string;
+  claimable: string;
+  /** The tranche lands here — what fund() and plain transfers credit. */
+  unallocated: string;
+  solvencyOk: boolean;
+  activeRoundId: number;
+  priceStale: boolean;
+  priceUpdatedAt: number;
+  operatorAuthorized: boolean;
+  error?: string;
+}
+
+async function getWordJackpotState(): Promise<WordJackpotState> {
+  const address = process.env.WORD_JACKPOT_ADDRESS || null;
+  const empty: WordJackpotState = {
+    configured: Boolean(address),
+    contractAddress: address,
+    balance: '0',
+    pool: '0',
+    carry: '0',
+    claimable: '0',
+    unallocated: '0',
+    solvencyOk: true,
+    activeRoundId: 0,
+    priceStale: true,
+    priceUpdatedAt: 0,
+    operatorAuthorized: false,
+  };
+  if (!address) return empty;
+
+  let ourSigningWallet: string | null = null;
+  try {
+    const operatorKey = process.env.OPERATOR_PRIVATE_KEY;
+    if (operatorKey) ourSigningWallet = new ethers.Wallet(operatorKey).address;
+  } catch {
+    ourSigningWallet = null;
+  }
+
+  try {
+    const contract = getWordJackpotReadOnly();
+    const [solvency, activeRoundId, priceStale, priceUpdatedAt, operator] = await Promise.all([
+      contract.solvency() as Promise<[bigint, bigint, bigint, bigint, bigint]>,
+      contract.activeRoundId() as Promise<bigint>,
+      contract.isPriceStale() as Promise<boolean>,
+      contract.priceUpdatedAt() as Promise<bigint>,
+      contract.operator() as Promise<string>,
+    ]);
+    const [balance, pool, carry, claimable, unallocated] = solvency;
+    return {
+      configured: true,
+      contractAddress: address,
+      balance: formatTokenAmount(balance),
+      pool: formatTokenAmount(pool),
+      carry: formatTokenAmount(carry),
+      claimable: formatTokenAmount(claimable),
+      unallocated: formatTokenAmount(unallocated),
+      solvencyOk: balance >= pool + carry + claimable,
+      activeRoundId: Number(activeRoundId),
+      priceStale,
+      priceUpdatedAt: Number(priceUpdatedAt),
+      operatorAuthorized:
+        ourSigningWallet !== null && ourSigningWallet.toLowerCase() === operator.toLowerCase(),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { ...empty, configured: true, error: message };
+  }
 }
 
 async function getWordManagerState(): Promise<WordManagerState> {
@@ -406,15 +481,17 @@ export default async function handler(
       }
 
       // Fetch state for all contracts in parallel
-      const [mainnet, wordManager] = await Promise.all([
+      const [mainnet, wordManager, wordJackpot] = await Promise.all([
         getMainnetState(),
         getWordManagerState(),
+        getWordJackpotState(),
       ]);
 
       return res.status(200).json({
         ok: true,
         mainnet,
         wordManager,
+        wordJackpot,
         addressBook: getAddressBook(),
         timestamp: new Date().toISOString(),
         recommendations: {
@@ -432,6 +509,19 @@ export default async function handler(
               : !wordManager.operatorAuthorized
                 ? '🚫 Operator wallet not configured. $WORD contract writes will fail.'
                 : '✅ WordManager is healthy.',
+          wordJackpot: !wordJackpot.configured
+            ? 'ℹ️ WordJackpot not configured. Set WORD_JACKPOT_ADDRESS to enable $WORD jackpot monitoring.'
+            : wordJackpot.error
+              ? `⚠️ WordJackpot RPC error: ${wordJackpot.error}`
+              : !wordJackpot.solvencyOk
+                ? '🚨 SOLVENCY VIOLATED: balance is below pool + carry + claimable. Investigate before any round action.'
+                : !wordJackpot.operatorAuthorized
+                  ? '🚫 Operator mismatch on WordJackpot. Round starts and resolutions will fail.'
+                  : wordJackpot.unallocated === '0' && wordJackpot.pool === '0' && wordJackpot.carry === '0'
+                    ? 'ℹ️ WordJackpot is deployed and empty — fund the tranche to seed rounds.'
+                    : wordJackpot.priceStale
+                      ? `⚠️ Oracle price ${wordJackpot.priceUpdatedAt === 0 ? 'never pushed' : 'stale'} — startRound will revert until the oracle cron updates it.`
+                      : `✅ WordJackpot is healthy. ${wordJackpot.unallocated} $WORD unallocated and ready to seed rounds.`,
         },
       });
     }

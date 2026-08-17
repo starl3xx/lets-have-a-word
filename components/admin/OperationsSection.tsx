@@ -59,13 +59,31 @@ interface WordManagerState {
   error?: string
 }
 
+interface WordJackpotState {
+  configured: boolean
+  contractAddress: string | null
+  balance: string
+  pool: string
+  carry: string
+  claimable: string
+  unallocated: string
+  solvencyOk: boolean
+  activeRoundId: number
+  priceStale: boolean
+  priceUpdatedAt: number
+  operatorAuthorized: boolean
+  error?: string
+}
+
 interface ContractStateResponse {
   ok: boolean
   mainnet: ContractNetworkState
   wordManager: WordManagerState
+  wordJackpot?: WordJackpotState
   recommendations: {
     mainnet: string
     wordManager: string
+    wordJackpot?: string
   }
   timestamp: string
 }
@@ -2165,6 +2183,99 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     WordManager data unavailable
                   </div>
                 )}
+
+                {/* WordJackpot — Mainnet ($WORD prize pool, round 34+) */}
+                {contractState.wordJackpot && (
+                <div style={{
+                  padding: '16px',
+                  background: !contractState.wordJackpot.configured ? '#f9fafb'
+                    : contractState.wordJackpot.error || !contractState.wordJackpot.solvencyOk ? '#fef2f2'
+                    : '#f0fdf4',
+                  border: `1px solid ${
+                    !contractState.wordJackpot.configured ? '#e5e7eb'
+                    : contractState.wordJackpot.error || !contractState.wordJackpot.solvencyOk ? '#fecaca'
+                    : '#bbf7d0'
+                  }`,
+                  borderRadius: '8px',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                      WordJackpot — Mainnet
+                    </span>
+                    <span style={{ fontSize: '20px' }}>
+                      {!contractState.wordJackpot.configured ? '⚪'
+                        : contractState.wordJackpot.error || !contractState.wordJackpot.solvencyOk ? '⚠️'
+                        : '✅'}
+                    </span>
+                  </div>
+                  {!contractState.wordJackpot.configured ? (
+                    <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                      <div style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        background: '#f3f4f6',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#6b7280',
+                        marginBottom: '8px',
+                      }}>
+                        NOT CONFIGURED
+                      </div>
+                      <div>Set <code style={{ background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '11px' }}>WORD_JACKPOT_ADDRESS</code> to enable.</div>
+                    </div>
+                  ) : contractState.wordJackpot.error ? (
+                    <div style={{ color: '#dc2626', fontSize: '13px' }}>
+                      Error: {contractState.wordJackpot.error}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Contract</span>
+                        <span style={{ ...styles.infoValue, fontSize: '10px', fontFamily: 'monospace' }}>
+                          {contractState.wordJackpot.contractAddress?.slice(0, 10)}...{contractState.wordJackpot.contractAddress?.slice(-8)}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Unallocated (tranche)</span>
+                        <span style={{ ...styles.infoValue, fontWeight: 700 }}>{contractState.wordJackpot.unallocated} $WORD</span>
+                      </div>
+                      <InfoRow label={<>$WORD Balance</>} value={<>{contractState.wordJackpot.balance} $WORD</>} />
+                      <InfoRow label={<>Current Pool</>} value={<>{contractState.wordJackpot.pool} $WORD</>} />
+                      <InfoRow label={<>Carry</>} value={<>{contractState.wordJackpot.carry} $WORD</>} />
+                      <InfoRow label={<>Pending Claims</>} value={<>{contractState.wordJackpot.claimable} $WORD</>} />
+                      <InfoRow label={<>Round</>} value={<>{contractState.wordJackpot.activeRoundId > 0 ? `#${contractState.wordJackpot.activeRoundId} (active)` : 'none active'}</>} />
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Oracle Price</span>
+                        <span style={{ ...styles.infoValue, color: contractState.wordJackpot.priceStale ? '#d97706' : '#166534' }}>
+                          {contractState.wordJackpot.priceUpdatedAt === 0
+                            ? 'never pushed'
+                            : contractState.wordJackpot.priceStale
+                              ? `stale (last ${new Date(contractState.wordJackpot.priceUpdatedAt * 1000).toLocaleString()})`
+                              : 'fresh'}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Operator</span>
+                        <span style={{ ...styles.infoValue, color: contractState.wordJackpot.operatorAuthorized ? '#166534' : '#dc2626' }}>
+                          {contractState.wordJackpot.operatorAuthorized ? '✅ Authorized' : '❌ Not authorized'}
+                        </span>
+                      </div>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Solvency</span>
+                        <span style={{ ...styles.infoValue, color: contractState.wordJackpot.solvencyOk ? '#166534' : '#dc2626' }}>
+                          {contractState.wordJackpot.solvencyOk ? '✅ Balance covers all commitments' : '🚨 Balance below commitments'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                )}
               </div>
             ) : null}
 
@@ -2184,9 +2295,14 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 <div style={{ marginBottom: '4px' }}>
                   <strong>Mainnet:</strong> {contractState.recommendations.mainnet}
                 </div>
-                <div>
+                <div style={{ marginBottom: '4px' }}>
                   <strong>WordManager:</strong> {contractState.recommendations.wordManager}
                 </div>
+                {contractState.recommendations.wordJackpot && (
+                  <div>
+                    <strong>WordJackpot:</strong> {contractState.recommendations.wordJackpot}
+                  </div>
+                )}
               </div>
             )}
           </div>
