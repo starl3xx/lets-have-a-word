@@ -10,6 +10,7 @@ import { formatPrize, formatPrizeValue } from "../../src/lib/prize-display"
 import { AnalyticsControls, TimeRange } from "./AnalyticsControls"
 import FarmMonitor from "./FarmMonitor"
 import { Module, StatCard } from "./ui"
+import { PRICE_RAMP_START_GUESSES } from "../../src/lib/pack-pricing"
 
 // =============================================================================
 // Types
@@ -829,7 +830,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
                   Top 10 Race Progress
                 </span>
                 <span style={{ fontSize: '12px', color: '#6b7280', fontFamily }}>
-                  {summary.currentRound.eligibleGuesses} / 850 eligible guesses
+                  {summary.currentRound.eligibleGuesses} / {PRICE_RAMP_START_GUESSES} eligible guesses
                 </span>
               </div>
               <div style={{
@@ -840,15 +841,15 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
               }}>
                 <div style={{
                   height: '100%',
-                  width: `${Math.min((summary.currentRound.eligibleGuesses / 850) * 100, 100)}%`,
-                  background: summary.currentRound.eligibleGuesses >= 750 ? '#f59e0b' : '#10b981',
+                  width: `${Math.min((summary.currentRound.eligibleGuesses / PRICE_RAMP_START_GUESSES) * 100, 100)}%`,
+                  background: summary.currentRound.eligibleGuesses >= PRICE_RAMP_START_GUESSES - 100 ? '#f59e0b' : '#10b981',
                   borderRadius: '6px',
                   transition: 'width 0.3s ease',
                 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
                 <span style={{ fontSize: '10px', color: '#9ca3af', fontFamily }}>Open</span>
-                <span style={{ fontSize: '10px', color: '#9ca3af', fontFamily }}>850 = Locked</span>
+                <span style={{ fontSize: '10px', color: '#9ca3af', fontFamily }}>{PRICE_RAMP_START_GUESSES} = Locked</span>
               </div>
             </div>
           )}
@@ -988,13 +989,13 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
         </div>
         <div style={{ ...styles.grid, gridTemplateColumns: "repeat(2, 1fr)" }}>
           <StatCard
-            label="Eligible Guesses (≤750)"
+            label={`Eligible Guesses (≤${PRICE_RAMP_START_GUESSES})`}
             value={formatNumber(summary?.currentRound.eligibleGuesses || 0)}
             subtext="Can place in Top 10"
             loading={loading}
           />
           <StatCard
-            label="Ineligible Guesses (>750)"
+            label={`Ineligible Guesses (>${PRICE_RAMP_START_GUESSES})`}
             value={formatNumber(summary?.currentRound.ineligibleGuesses || 0)}
             subtext="Cannot place in Top 10"
             loading={loading}

@@ -11,12 +11,9 @@ import type { XpEventType } from '../../../src/types';
 import { db } from '../../../src/db';
 import { users, xpEvents } from '../../../src/db/schema';
 import { eq } from 'drizzle-orm';
+import { isAdminFid } from './me';
 
 // Admin FIDs (same as other admin endpoints)
-const ADMIN_FIDS = [
-  213559,  // starl3xx
-  6500,    // Dev mode FID
-];
 
 interface AwardXpRequest {
   devFid: number;
@@ -63,7 +60,7 @@ export default async function handler(
     const { devFid, targetFid, eventType, reason } = req.body as AwardXpRequest;
 
     // Validate admin
-    if (!devFid || !ADMIN_FIDS.includes(devFid)) {
+    if (!devFid || !isAdminFid(devFid)) {
       return res.status(403).json({ error: 'Unauthorized: Admin access required' });
     }
 

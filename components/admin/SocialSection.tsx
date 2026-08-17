@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertBanner, Module } from "./ui"
+import { formatPrizeCompact } from "../../src/lib/prize-display"
 
 // =============================================================================
 // Types
@@ -120,7 +121,15 @@ export default function SocialSection({ user }: SocialSectionProps) {
       }
 
       const roundNumber = roundState.roundId
-      const prizePool = parseFloat(roundState.prizePoolEth || '0').toFixed(4)
+      // Prize line follows the round's currency — never infer the era.
+      const prizeLine = formatPrizeCompact({
+        currency: roundState.prizeCurrency ?? 'eth',
+        eth: roundState.prizePoolEth,
+        word: roundState.prizePoolWord,
+      })
+      const prizeUsd = roundState.prizePoolUsd
+        ? ` (≈$${Number(roundState.prizePoolUsd).toLocaleString('en-US', { maximumFractionDigits: 0 })})`
+        : ''
       const globalGuessCount = roundState.globalGuessCount || 0
       const globalGuesses = globalGuessCount.toLocaleString()
       const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
@@ -178,7 +187,7 @@ export default function SocialSection({ user }: SocialSectionProps) {
 
       const castText = `@letshaveaword status
 🔵 Round: #${roundNumber}
-💰 Prize pool: ${prizePool} ETH
+💰 Prize pool: ${prizeLine}${prizeUsd}
 🎯 Global guesses: ${globalGuesses} (≈${guessPercentage}%)
 👥 Players: ${playerCount}
 ⚡ Top early guessers: ${topGuessersStr || "N/A"}${bonusWordFindersLine}${burnWordFindersLine}

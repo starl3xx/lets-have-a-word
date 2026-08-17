@@ -13,6 +13,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const fid = parseInt(req.query.devFid as string || req.cookies.siwn_fid || '', 10);
   if (!fid || !isAdminFid(fid)) {
     return res.status(403).json({ error: 'Admin access required' });
