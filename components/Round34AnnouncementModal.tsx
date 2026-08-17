@@ -76,7 +76,7 @@ export default function Round34AnnouncementModal({
       onClick={handleDismiss}
     >
       <div
-        className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-5"
+        className="bg-white rounded-card shadow-modal max-w-md w-full p-6 space-y-5 max-h-[85vh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold text-gray-900 text-center">
