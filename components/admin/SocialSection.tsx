@@ -25,12 +25,6 @@ interface SocialSectionProps {
   }
 }
 
-interface TopGuesser {
-  fid: number
-  username: string | null
-  guessCount: number
-}
-
 // =============================================================================
 // Styling
 // =============================================================================
