@@ -54,6 +54,31 @@ function check(label: string, ok: boolean, detail = "") {
   if (!ok) failures++;
 }
 
+/**
+ * Role reads poll rather than read once: a load-balanced RPC can serve a
+ * just-deployed contract's state from a lagging node, where the read decodes
+ * empty or reverts — which must not fail the launch gate when the deploy
+ * itself succeeded. A read that never converges is a real failure.
+ */
+async function checkRole(label: string, read: () => Promise<string>, expected: string) {
+  try {
+    await readUntil(
+      async () => {
+        try {
+          return (await read()).toLowerCase();
+        } catch {
+          return "(unreadable)";
+        }
+      },
+      (v) => v === expected.toLowerCase(),
+      label
+    );
+    check(label, true);
+  } catch {
+    check(label, false, `did not converge to ${expected}`);
+  }
+}
+
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log("network :", hre.network.name);
@@ -109,13 +134,13 @@ async function main() {
 
   // --- Post-deploy sanity: every role reads back as configured ------------
   const jackpot = Jackpot.attach(jackpotAddress) as any;
-  check("WordJackpot.wordToken", (await jackpot.wordToken()).toLowerCase() === WORD_TOKEN.toLowerCase());
-  check("WordJackpot.operator", (await jackpot.operator()).toLowerCase() === OPERATOR.toLowerCase());
-  check("WordJackpot.treasury", (await jackpot.treasury()).toLowerCase() === TREASURY.toLowerCase());
-  check("WordJackpot.owner = deployer", (await jackpot.owner()).toLowerCase() === deployer.address.toLowerCase());
-  check("WordPackSales.treasury", (await (packSales as any).treasury()).toLowerCase() === TREASURY.toLowerCase());
-  check("GuessLog.operator", (await (guessLog as any).operator()).toLowerCase() === OPERATOR.toLowerCase());
-  check("GuessLog.owner = deployer", (await (guessLog as any).owner()).toLowerCase() === deployer.address.toLowerCase());
+  await checkRole("WordJackpot.wordToken", () => jackpot.wordToken(), WORD_TOKEN);
+  await checkRole("WordJackpot.operator", () => jackpot.operator(), OPERATOR);
+  await checkRole("WordJackpot.treasury", () => jackpot.treasury(), TREASURY);
+  await checkRole("WordJackpot.owner = deployer", () => jackpot.owner(), deployer.address);
+  await checkRole("WordPackSales.treasury", () => (packSales as any).treasury(), TREASURY);
+  await checkRole("GuessLog.operator", () => (guessLog as any).operator(), OPERATOR);
+  await checkRole("GuessLog.owner = deployer", () => (guessLog as any).owner(), deployer.address);
   console.log("");
   console.log(failures === 0 ? "ALL ROLES CORRECT" : `!! ${failures} role check(s) failed — do not proceed`);
   if (failures > 0) process.exitCode = 1;
