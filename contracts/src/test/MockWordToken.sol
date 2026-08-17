@@ -35,6 +35,16 @@ contract MockWordToken is ERC20 {
         _burn(msg.sender, amount);
     }
 
+    /**
+     * @dev Test-only balance reduction. Now that every WordManagerV3 outflow
+     * is solvency-gated, no guarded path can push the contract's balance below
+     * its staker reserve — but availableForGames() must still saturate at zero
+     * if that state is ever reached, and tests need a way to construct it.
+     */
+    function debit(address account, uint256 amount) external {
+        _burn(account, amount);
+    }
+
     function _update(address from, address to, uint256 value) internal override {
         require(!blocked[to], "MockWordToken: recipient blocked");
         super._update(from, to, value);

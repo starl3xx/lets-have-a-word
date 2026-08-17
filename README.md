@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **WordManagerV3: the owner key can no longer touch staker deposits**: `emergencyWithdraw` — the last unguarded outflow, able to withdraw all 6.46B $WORD of staked principal — now sits behind the same `gameSolvent` reserve check as every game payout, so the owner can only ever withdraw the game-fund surplus. This is contract source + a new plugin-driven upgrade script (`upgrade-word-manager-v3-solvency.ts`); the onchain upgrade that deploys it (together with the never-deployed #161/#178 guards) is a separate, hand-signed launch step.
+
+
 - **Incident tooling learns the $WORD era**: a cancelled $WORD round now refunds cleanly — the insight is that players only ever pay ETH (packs and Superguesses, both eras), so refunds stay ETH transfers; what needed building was the rest of the story. ETH Superguess sessions join the per-user refund aggregation (every session in a cancelled round refunds in full, used or not). `flushWordPoolCredits` refuses cancelled rounds, so the treasury never parts with the 80% pool credits for purchases being refunded — the unflushed rows stay as the audit trail. And `emergency-resolve` carries the currency columns (`prizeCurrency`, `prizePoolWord`, a currency-correct prize display) instead of reporting a $WORD round as a zero-ETH one; its actual payout path was already era-aware via the standard resolution pipeline. One $WORD casualty remains contract-side: a cancelled round's onchain seed needs manual recovery from WordJackpot.
 
 
