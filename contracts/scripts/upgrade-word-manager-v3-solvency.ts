@@ -116,9 +116,22 @@ async function main() {
     "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
     await manager.wordToken()
   );
-  const tokenBalance: bigint = await word.balanceOf(PROXY_ADDRESS);
-  const probeAmount = tokenBalance - staked + 1n;
-  if (staked === 0n) {
+  // Both probe inputs come from ONE pinned block: split reads would let a
+  // stake or withdraw land between them and skew the difference. After the
+  // pinned block the difference stays a valid ceiling — stake and withdraw
+  // move balance and principal by the same amount, so balance − principal is
+  // invariant under both (only a direct token donation to the proxy could
+  // raise it, and nothing sends $WORD there outside stake()).
+  const probeBlock = await hre.ethers.provider.getBlockNumber();
+  const principalAtProbe: bigint = await manager.totalStaked({ blockTag: probeBlock });
+  const tokenBalance: bigint = await word.balanceOf(PROXY_ADDRESS, { blockTag: probeBlock });
+  if (tokenBalance < principalAtProbe) {
+    console.log("!! token balance is BELOW staked principal — solvency is already broken; probe skipped");
+    process.exitCode = 1;
+    return;
+  }
+  const probeAmount = tokenBalance - principalAtProbe + 1n;
+  if (principalAtProbe === 0n) {
     console.log("!! nothing is staked — the guard probe cannot distinguish guarded from unguarded here");
     process.exitCode = 1;
   }
