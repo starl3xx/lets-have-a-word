@@ -13,6 +13,7 @@ import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
 import { createRound, getActiveRound } from '../../../../src/lib/rounds';
 import { getJackpotManagerReadOnly, getContractRoundInfo, topUpJackpotOnChain, seedFromTreasuryOnChain } from '../../../../src/lib/jackpot-contract';
+import { isWordEconomyConfigured, getWordJackpotReadOnly } from '../../../../src/lib/word-jackpot-contract';
 
 interface StartRoundResponse {
   success: boolean;
@@ -95,7 +96,11 @@ export default async function handler(
       });
     }
 
-    // Pre-flight check: Verify operator wallet authorization
+    // Pre-flight check: Verify operator wallet authorization against the
+    // contract that will actually run this round. From round 34 that is
+    // WordJackpot — checking (or worse, seeding) the legacy JackpotManager
+    // would send real ETH into a contract the round never touches.
+    const wordEra = isWordEconomyConfigured();
     try {
       const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
       if (!operatorPrivateKey) {
@@ -106,14 +111,15 @@ export default async function handler(
       }
 
       const ourWallet = new ethers.Wallet(operatorPrivateKey);
-      const contract = getJackpotManagerReadOnly();
-      const contractOperator = await contract.operatorWallet() as string;
+      const contractOperator = wordEra
+        ? (await getWordJackpotReadOnly().operator()) as string
+        : (await getJackpotManagerReadOnly().operatorWallet()) as string;
 
       if (ourWallet.address.toLowerCase() !== contractOperator.toLowerCase()) {
         console.error(`[start-round] OPERATOR MISMATCH: Contract expects ${contractOperator} but we have ${ourWallet.address}`);
         return res.status(500).json({
           success: false,
-          message: `Operator wallet mismatch! Contract expects ${contractOperator} but backend is configured with ${ourWallet.address}. Update OPERATOR_PRIVATE_KEY to the correct wallet.`,
+          message: `Operator wallet mismatch! ${wordEra ? 'WordJackpot' : 'JackpotManager'} expects ${contractOperator} but backend is configured with ${ourWallet.address}. Update OPERATOR_PRIVATE_KEY to the correct wallet.`,
         });
       }
 
@@ -125,6 +131,11 @@ export default async function handler(
 
     // Auto-top-up: check contract jackpot and seed if needed
     // Strategy: treasury first, operator wallet as fallback
+    //
+    // ETH era ONLY. $WORD rounds seed themselves from WordJackpot's
+    // unallocated balance inside createRound — this whole block would push
+    // ETH into the dead JackpotManager and could refuse the round start on
+    // an ETH shortfall that no longer means anything.
     let seedingPerformed = false;
     let seedingTxHash: string | undefined;
     let seedingAmountEth: string | undefined;
@@ -133,7 +144,9 @@ export default async function handler(
     let treasurySeedingAmountEth: string | undefined;
     let treasurySeedingTxHash: string | undefined;
 
-    try {
+    if (wordEra) {
+      console.log('[start-round] $WORD era — skipping the ETH seed preflight');
+    } else try {
       // Read the current jackpot and MINIMUM_SEED from contract
       const contract = getJackpotManagerReadOnly();
       const [roundInfo, minimumSeedWei] = await Promise.all([

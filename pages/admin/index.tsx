@@ -359,8 +359,18 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
             </div>
           )}
 
-          {/* $WORD contract indicator */}
-          <div style={styles.statusItem}>
+          {/* $WORD contract indicator. Green needs BOTH contracts: a solid
+              light with WordJackpot unconfigured would mean round starts
+              revert while the strip says all clear. Amber = half-configured. */}
+          {(() => {
+            const wordReady = Boolean(status.wordManagerConfigured && status.wordJackpotConfigured);
+            const wordPartial = !wordReady && Boolean(status.wordManagerConfigured || status.wordJackpotConfigured);
+            return (
+          <div style={styles.statusItem} title={
+            wordReady ? 'WordManager + WordJackpot configured'
+              : wordPartial ? `Missing: ${status.wordJackpotConfigured ? 'WORD_MANAGER_ADDRESS' : 'WORD_JACKPOT_ADDRESS'}`
+              : 'WordManager + WordJackpot not configured'
+          }>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -369,18 +379,20 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
               borderRadius: '4px',
               fontSize: '11px',
               fontWeight: 600,
-              background: status.wordManagerConfigured ? '#dcfce7' : '#f3f4f6',
-              color: status.wordManagerConfigured ? '#166534' : '#9ca3af',
+              background: wordReady ? '#dcfce7' : wordPartial ? '#fef3c7' : '#f3f4f6',
+              color: wordReady ? '#166534' : wordPartial ? '#92400e' : '#9ca3af',
             }}>
               <span style={{
                 width: '6px',
                 height: '6px',
                 borderRadius: '50%',
-                background: status.wordManagerConfigured ? '#22c55e' : '#d1d5db',
+                background: wordReady ? '#22c55e' : wordPartial ? '#f59e0b' : '#d1d5db',
               }} />
               $WORD
             </span>
           </div>
+            );
+          })()}
         </div>
 
         {/* Last updated — turns amber when polling silently stops. This week's

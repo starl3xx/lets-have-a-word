@@ -25,6 +25,17 @@ export default async function handler(
   }
 
   if (req.method === 'GET') {
+    // The POST path already refuses $WORD rounds; the GET reported the ETH
+    // seed shortfall unguarded, i.e. a false "cannot start round" from
+    // round 34 on.
+    const { isWordEconomyConfigured } = await import('../../../../src/lib/word-jackpot-contract');
+    if (isWordEconomyConfigured()) {
+      return res.status(200).json({
+        canStartNewRound: true,
+        message: '$WORD era: rounds seed themselves from WordJackpot unallocated — the ETH seed minimum no longer applies.',
+      });
+    }
+
     // Check current contract state
     try {
       const roundInfo = await getContractRoundInfo();

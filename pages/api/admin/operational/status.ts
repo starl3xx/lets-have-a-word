@@ -92,6 +92,11 @@ export default async function handler(
       cancelledRounds: refundSummaries,
       refundCron: refundCronTiming,
       wordManagerConfigured: getWordManagerAddress() !== null,
+      // The header's $WORD pill needs BOTH contracts: WordManager pays the
+      // per-round rewards and staking, WordJackpot runs the round itself —
+      // a green light with WORD_JACKPOT_ADDRESS unset would mean round
+      // starts revert while the strip says all clear.
+      wordJackpotConfigured: Boolean(process.env.WORD_JACKPOT_ADDRESS),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
