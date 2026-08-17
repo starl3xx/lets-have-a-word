@@ -526,9 +526,6 @@ function DashboardContent({ user, onSignOut }: DashboardContentProps) {
         case '6':
           handleTabChange('operations')
           break
-        case '7':
-          handleTabChange('airdrop')
-          break
       }
     }
 
