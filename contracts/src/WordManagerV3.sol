@@ -416,7 +416,18 @@ contract WordManagerV3 is
         emit OperatorUpdated(old, _operator);
     }
 
-    function emergencyWithdraw(address to, uint256 amount) external onlyOwner {
+    /**
+     * @notice Withdraw game-fund surplus only. Staked principal and rewards
+     *         promised for the current period are out of reach: without the
+     *         guard this was the one path where the owner key could take
+     *         staker deposits, so "staked funds belong to users" held by
+     *         intent rather than onchain.
+     */
+    function emergencyWithdraw(address to, uint256 amount)
+        external
+        onlyOwner
+        gameSolvent(amount)
+    {
         require(wordToken.transfer(to, amount), "Transfer failed");
     }
 

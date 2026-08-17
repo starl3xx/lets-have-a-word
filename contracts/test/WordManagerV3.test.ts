@@ -72,12 +72,13 @@ describe("WordManagerV3 — staker solvency", function () {
     });
 
     it("does not underflow when the balance is below the reserve", async function () {
-      // Reachable via the owner's emergencyWithdraw escape hatch, which is
-      // deliberately not solvency-gated. availableForGames must saturate at
-      // zero rather than revert, or every game call reverts opaquely.
+      // No guarded path can reach this state anymore — emergencyWithdraw was
+      // the last unguarded outflow — but availableForGames must still saturate
+      // at zero rather than revert, or every game call reverts opaquely. The
+      // mock token's debit() forces the state directly.
       const ctx = await deploy();
       await stake(ctx, 100n * E18);
-      await ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, 60n * E18);
+      await ctx.token.debit(await ctx.manager.getAddress(), 60n * E18);
 
       expect(await ctx.manager.availableForGames()).to.equal(0n);
     });
@@ -357,6 +358,84 @@ describe("WordManagerV3 — staker solvency", function () {
 
       await ctx.manager.connect(ctx.operator).burnWord(2, ctx.player.address, 10n * E18);
       expect(await ctx.manager.totalBurned()).to.equal(10n * E18);
+    });
+  });
+
+  describe("emergencyWithdraw", function () {
+    it("lets the owner withdraw the game surplus", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 40n * E18);
+
+      await ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, 40n * E18);
+      expect(await ctx.token.balanceOf(ctx.owner.address)).to.equal(40n * E18);
+      expect(await ctx.manager.availableForGames()).to.equal(0n);
+    });
+
+    it("refuses to touch staked principal", async function () {
+      // The case the guard exists for: before it, the owner key could drain
+      // every staker deposit through this one function.
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 40n * E18);
+
+      await expect(
+        ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, 41n * E18)
+      )
+        .to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds")
+        .withArgs(41n * E18, 40n * E18);
+    });
+
+    it("refuses the full balance even with zero game funds", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+
+      await expect(
+        ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, 100n * E18)
+      )
+        .to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds")
+        .withArgs(100n * E18, 0n);
+    });
+
+    it("also reserves rewards promised for the rest of the period", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 300n * E18);
+      await ctx.manager.connect(ctx.operator).notifyRewardAmount(300n * E18);
+
+      // Nearly everything above principal is now promised as rewards; only the
+      // flooring remainder of rewardRate is withdrawable.
+      const available: bigint = await ctx.manager.availableForGames();
+      expect(available).to.be.lessThan(E18);
+
+      await expect(
+        ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, 200n * E18)
+      ).to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds");
+
+      await ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, available);
+      expect(await ctx.token.balanceOf(ctx.owner.address)).to.equal(available);
+    });
+
+    it("leaves the staker able to withdraw in full after a refused withdraw", async function () {
+      const ctx = await deploy();
+      await stake(ctx, 100n * E18);
+      await fundGames(ctx, 40n * E18);
+
+      await expect(
+        ctx.manager.connect(ctx.owner).emergencyWithdraw(ctx.owner.address, 140n * E18)
+      ).to.be.revertedWithCustomError(ctx.manager, "WouldTouchStakerFunds");
+
+      await ctx.manager.connect(ctx.staker).withdraw(100n * E18);
+      expect(await ctx.token.balanceOf(ctx.staker.address)).to.equal(100n * E18);
+    });
+
+    it("is owner-only", async function () {
+      const ctx = await deploy();
+      await fundGames(ctx, 40n * E18);
+
+      await expect(
+        ctx.manager.connect(ctx.operator).emergencyWithdraw(ctx.operator.address, E18)
+      ).to.be.revertedWithCustomError(ctx.manager, "OwnableUnauthorizedAccount");
     });
   });
 
