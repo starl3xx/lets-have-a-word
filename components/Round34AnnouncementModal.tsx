@@ -11,7 +11,22 @@
  * and the fact that packs and Superguess still cost ETH.
  */
 import { useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import { triggerHaptic } from '../src/lib/haptics';
+
+/**
+ * A $WORD-era send-off: purple-and-gold bursts as the player steps into
+ * round 34. canvas-confetti draws on its own document-level canvas, so the
+ * animation plays out even though the modal unmounts immediately.
+ */
+function fireWordEraCelebration() {
+  const colors = ['#7C3AED', '#8B5CF6', '#A78BFA', '#C4B5FD', '#F59E0B'];
+  confetti({ particleCount: 90, spread: 75, origin: { y: 0.7 }, zIndex: 100, colors });
+  setTimeout(() => {
+    confetti({ particleCount: 45, angle: 60, spread: 55, origin: { x: 0, y: 0.8 }, zIndex: 100, colors });
+    confetti({ particleCount: 45, angle: 120, spread: 55, origin: { x: 1, y: 0.8 }, zIndex: 100, colors });
+  }, 180);
+}
 
 interface Round34AnnouncementModalProps {
   onDismiss: () => void;
@@ -45,6 +60,13 @@ export default function Round34AnnouncementModal({
 
   const handleDismiss = () => {
     triggerHaptic('light');
+    onDismiss();
+  };
+
+  // The CTA celebrates; a backdrop dismiss does not.
+  const handleLetsGo = () => {
+    fireWordEraCelebration();
+    triggerHaptic('success');
     onDismiss();
   };
 
@@ -87,7 +109,7 @@ export default function Round34AnnouncementModal({
         </ul>
 
         <button
-          onClick={handleDismiss}
+          onClick={handleLetsGo}
           className="btn-primary-lg w-full"
         >
           Let’s have a word! 👉
