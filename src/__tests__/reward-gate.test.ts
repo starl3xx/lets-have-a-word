@@ -157,6 +157,88 @@ describe('Reward Gate', () => {
       expect(again.eligible).toBe(true);
     });
 
+    it('records the entry floor on the first full pass', async () => {
+      mockBalance(BAR_FALLBACK);
+      const fid = await makeUser({ wallet: randomWallet() });
+      const result = await checkPlayEligibility(fid);
+      expect(result.eligible).toBe(true);
+
+      const [row] = await db
+        .select({ floor: users.rewardGateBarTokens, at: users.rewardGateQualifiedAt })
+        .from(users)
+        .where(eq(users.fid, fid));
+      expect(row.floor).toBe(BAR_FALLBACK);
+      expect(row.at).not.toBeNull();
+    });
+
+    it('honors the entry floor when a price crash raises the live bar', async () => {
+      // A cheap early entry: the player once passed a 1,000-token bar.
+      // Today's live bar (fallback) is far above that.
+      expect(BAR_FALLBACK).toBeGreaterThan(1_000);
+      const fid = await makeUser({ wallet: randomWallet() });
+      await db
+        .update(users)
+        .set({ rewardGateBarTokens: 1_000, rewardGateQualifiedAt: new Date() })
+        .where(eq(users.fid, fid));
+
+      // Still holding the entry-floor tokens, worth far less than $3 now.
+      mockBalance(1_000);
+      const result = await checkPlayEligibility(fid);
+      expect(result.eligible).toBe(true);
+      expect(result.barTokens).toBe(1_000);
+    });
+
+    it('forfeits the floor when the tokens are sold below it', async () => {
+      const fid = await makeUser({ wallet: randomWallet() });
+      await db
+        .update(users)
+        .set({ rewardGateBarTokens: 1_000, rewardGateQualifiedAt: new Date() })
+        .where(eq(users.fid, fid));
+
+      mockBalance(999);
+      const result = await checkPlayEligibility(fid);
+      expect(result.eligible).toBe(false);
+      expect(result.reason).toBe('below_bar');
+    });
+
+    it('ratchets the floor down when a cheaper live bar is passed', async () => {
+      const fid = await makeUser({ wallet: randomWallet() });
+      const qualifiedAt = new Date('2026-08-01T00:00:00Z');
+      await db
+        .update(users)
+        .set({ rewardGateBarTokens: 5_000_000, rewardGateQualifiedAt: qualifiedAt })
+        .where(eq(users.fid, fid));
+
+      // Round seed price makes the live bar 3,000,000 — cheaper than the floor.
+      mockBalance(3_000_000);
+      const result = await checkPlayEligibility(fid, {
+        round: { seedPriceE18: '1000000000000' },
+      });
+      expect(result.eligible).toBe(true);
+
+      const [row] = await db
+        .select({ floor: users.rewardGateBarTokens, at: users.rewardGateQualifiedAt })
+        .from(users)
+        .where(eq(users.fid, fid));
+      expect(row.floor).toBe(3_000_000);
+      // The original qualification date is preserved through the ratchet.
+      expect(row.at?.getTime()).toBe(qualifiedAt.getTime());
+    });
+
+    it('does not record a floor on a fail-open pass', async () => {
+      mockBalance(0, /* determined */ false);
+      const fid = await makeUser({ wallet: randomWallet() });
+      const result = await checkPlayEligibility(fid);
+      expect(result.eligible).toBe(true);
+      expect(result.determined).toBe(false);
+
+      const [row] = await db
+        .select({ floor: users.rewardGateBarTokens })
+        .from(users)
+        .where(eq(users.fid, fid));
+      expect(row.floor).toBeNull();
+    });
+
     it('treats a malformed stored wallet as no wallet, not as an outage', async () => {
       const fid = await makeUser({ wallet: '0xnotanaddress' });
       const result = await checkPlayEligibility(fid);

@@ -3,7 +3,15 @@
  * Milestone 9.5: Kill Switch refund support
  *
  * Handles aggregation and processing of refunds when a round is cancelled.
- * Refunds are per-user (aggregated from individual pack purchases).
+ * Refunds are per-user, aggregated from pack purchases and ETH Superguess
+ * sessions.
+ *
+ * ERA NOTE (round 34+): refunds stay ETH in both eras, because everything a
+ * player can PAY is ETH in both eras — packs and Superguesses. The $WORD side
+ * of a cancelled word round needs no player refunds: the 80% pool credits are
+ * only flushed onchain at resolution, and flushWordPoolCredits refuses
+ * cancelled rounds, so the treasury never parted with the $WORD. The round's
+ * onchain seed is the one $WORD casualty, and recovering it is contract-side.
  */
 
 import * as Sentry from '@sentry/nextjs';
@@ -11,6 +19,7 @@ import { ethers, Wallet } from 'ethers';
 import { db } from '../db';
 import {
   packPurchases,
+  superguessSessions,
   refunds,
   rounds,
   operationalEvents,
@@ -36,6 +45,8 @@ export interface UserRefundPreview {
   totalAmountWei: string;
   purchaseCount: number;
   purchaseIds: number[];
+  /** ETH Superguess sessions included in the total (0 for most users) */
+  superguessCount: number;
 }
 
 /**
@@ -185,7 +196,7 @@ export async function getRefundPreview(roundId: number): Promise<RefundPreview |
       return null;
     }
 
-    // Aggregate purchases by user
+    // Aggregate pack purchases by user
     const purchases = await db
       .select({
         fid: packPurchases.fid,
@@ -198,8 +209,25 @@ export async function getRefundPreview(roundId: number): Promise<RefundPreview |
       .where(eq(packPurchases.roundId, roundId))
       .groupBy(packPurchases.fid);
 
-    if (purchases.length === 0) {
-      console.log(`[Refunds] No pack purchases found for round ${roundId}`);
+    // Aggregate ETH Superguess sessions by user. Policy: every ETH session in
+    // a cancelled round refunds in full, used or not — an incident refund
+    // erring player-side is the house direction, and sessions are rare.
+    // ($WORD sessions cannot exist: the purchase flow is hardcoded to ETH.)
+    const superguesses = await db
+      .select({
+        fid: superguessSessions.fid,
+        totalWei: sql<string>`SUM(CAST(NULLIF(${superguessSessions.ethAmountPaid}, '') AS NUMERIC))`,
+        count: sql<number>`CAST(COUNT(*) AS INT)`,
+      })
+      .from(superguessSessions)
+      .where(and(
+        eq(superguessSessions.roundId, roundId),
+        eq(superguessSessions.currency, 'eth')
+      ))
+      .groupBy(superguessSessions.fid);
+
+    if (purchases.length === 0 && superguesses.length === 0) {
+      console.log(`[Refunds] No refundable purchases found for round ${roundId}`);
       return {
         roundId,
         totalRefundEth: '0',
@@ -209,17 +237,50 @@ export async function getRefundPreview(roundId: number): Promise<RefundPreview |
       };
     }
 
-    // Calculate totals
-    let totalWei = BigInt(0);
-    const users: UserRefundPreview[] = purchases.map(p => {
+    // Merge the two sources per fid, everything in wei
+    const byFid = new Map<number, UserRefundPreview & { wei: bigint }>();
+    for (const p of purchases) {
       const userWei = BigInt(Math.floor(parseFloat(p.totalWei || '0')));
-      totalWei += userWei;
-      return {
+      byFid.set(p.fid, {
         fid: p.fid,
-        totalAmountEth: p.totalEth || '0',
-        totalAmountWei: userWei.toString(),
+        totalAmountEth: '',
+        totalAmountWei: '',
         purchaseCount: p.count,
         purchaseIds: p.ids || [],
+        superguessCount: 0,
+        wei: userWei,
+      });
+    }
+    for (const s of superguesses) {
+      const sgWei = BigInt(Math.floor(parseFloat(s.totalWei || '0')));
+      const existing = byFid.get(s.fid);
+      if (existing) {
+        existing.wei += sgWei;
+        existing.superguessCount = s.count;
+      } else {
+        byFid.set(s.fid, {
+          fid: s.fid,
+          totalAmountEth: '',
+          totalAmountWei: '',
+          purchaseCount: 0,
+          purchaseIds: [],
+          superguessCount: s.count,
+          wei: sgWei,
+        });
+      }
+    }
+
+    // Calculate totals
+    let totalWei = BigInt(0);
+    const users: UserRefundPreview[] = Array.from(byFid.values()).map(u => {
+      totalWei += u.wei;
+      return {
+        fid: u.fid,
+        totalAmountEth: ethers.formatEther(u.wei),
+        totalAmountWei: u.wei.toString(),
+        purchaseCount: u.purchaseCount,
+        purchaseIds: u.purchaseIds,
+        superguessCount: u.superguessCount,
       };
     });
 

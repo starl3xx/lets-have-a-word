@@ -27,6 +27,7 @@ import { users, rounds, guesses } from '../../../../src/db/schema';
 import { eq, desc, and, isNull } from 'drizzle-orm';
 import { submitGuess } from '../../../../src/lib/guesses';
 import { getActiveRound, getRoundById } from '../../../../src/lib/rounds';
+import { formatPrizeCompact } from '../../../../src/lib/prize-display';
 import { ethers } from 'ethers';
 
 interface LookupResult {
@@ -37,11 +38,18 @@ interface LookupResult {
   hasValidWallet: boolean;
 }
 
+// Carries the currency columns (house rule: a hand-built round object that
+// drops prize_currency silently reads as an ETH round — the exact confusion
+// an incident tool must not add to).
 interface RoundInfo {
   id: number;
   status: string;
   answer: string;
+  prizeCurrency: string;
   prizePoolEth: string;
+  prizePoolWord: string | null;
+  /** Human-readable prize in the round's own currency */
+  prizeDisplay: string;
   globalGuessCount: number;
   isActive: boolean;
 }
@@ -86,7 +94,14 @@ export default async function handler(
         id: activeRound.id,
         status: activeRound.resolvedAt ? 'resolved' : 'active',
         answer: activeRound.answer, // Admin can see the answer
+        prizeCurrency: activeRound.prizeCurrency ?? 'eth',
         prizePoolEth: activeRound.prizePoolEth,
+        prizePoolWord: activeRound.prizePoolWord ?? null,
+        prizeDisplay: formatPrizeCompact({
+          currency: activeRound.prizeCurrency === 'word' ? 'word' : 'eth',
+          eth: activeRound.prizePoolEth,
+          word: activeRound.prizePoolWord,
+        }),
         globalGuessCount: guessCount.length,
         isActive: !activeRound.resolvedAt,
       };
@@ -263,7 +278,16 @@ export default async function handler(
             roundId: activeRound.id,
             winnerFid,
             winnerWallet,
+            prizeCurrency: resolvedRound?.prizeCurrency ?? 'eth',
             prizePoolEth: resolvedRound?.prizePoolEth,
+            prizePoolWord: resolvedRound?.prizePoolWord ?? null,
+            prizeDisplay: resolvedRound
+              ? formatPrizeCompact({
+                  currency: resolvedRound.prizeCurrency === 'word' ? 'word' : 'eth',
+                  eth: resolvedRound.prizePoolEth,
+                  word: resolvedRound.prizePoolWord,
+                })
+              : null,
             answer: activeRound.answer,
           });
         } else {

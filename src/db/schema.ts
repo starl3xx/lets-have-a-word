@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, timestamp, boolean, jsonb, decimal, numeric, index, date, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, integer, bigint, timestamp, boolean, jsonb, decimal, numeric, index, date, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { GameRulesConfig } from '../types';
 
@@ -45,6 +45,14 @@ export const users = pgTable('users', {
   // nothing maintains it afterwards, because NULL already means exactly "not
   // grandfathered". <= 27 means pre-farm and exempt from the play bar.
   firstGuessRound: integer('first_guess_round'),
+  // Reward gate entry floor: the play bar (in whole tokens) this user first
+  // passed the gate at, ratcheted down whenever they later pass a cheaper
+  // bar. Checks pass at min(current bar, this floor), so a price crash —
+  // which raises the token bar — can never lock out a paid-up holder while
+  // they keep their tokens. Selling below the floor forfeits it. NULL =
+  // never passed the live check (grandfathered players don't need one).
+  rewardGateBarTokens: bigint('reward_gate_bar_tokens', { mode: 'number' }),
+  rewardGateQualifiedAt: timestamp('reward_gate_qualified_at'),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
   hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: Superguess feature announcement
