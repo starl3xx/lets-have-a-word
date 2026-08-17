@@ -146,17 +146,35 @@ export interface UserWordmark {
   earned: boolean;
   earnedAt?: Date;
   metadata?: Record<string, unknown>;
+  /** How many players hold this mark (all players, not just the viewer) */
+  holders: number;
 }
 
 /**
- * Fetch all wordmarks for a user with earned status
+ * Count holders per wordmark type (one GROUP BY over user_badges).
+ * Types nobody holds yet are simply absent from the result.
+ */
+export async function getWordmarkHolderCounts(): Promise<Partial<Record<WordmarkType, number>>> {
+  const rows = await db
+    .select({
+      badgeType: userBadges.badgeType,
+      holders: sql<number>`count(*)::int`,
+    })
+    .from(userBadges)
+    .groupBy(userBadges.badgeType);
+
+  return Object.fromEntries(rows.map(r => [r.badgeType, r.holders]));
+}
+
+/**
+ * Fetch all wordmarks for a user with earned status and holder counts
  */
 export async function getUserWordmarks(fid: number): Promise<UserWordmark[]> {
-  // Fetch user's earned wordmarks
-  const earnedWordmarks = await db
-    .select()
-    .from(userBadges)
-    .where(eq(userBadges.fid, fid));
+  // The user's earned wordmarks and the global holder counts, in parallel
+  const [earnedWordmarks, holderCounts] = await Promise.all([
+    db.select().from(userBadges).where(eq(userBadges.fid, fid)),
+    getWordmarkHolderCounts(),
+  ]);
 
   const earnedMap = new Map(
     earnedWordmarks.map(w => [w.badgeType, { earnedAt: w.awardedAt, metadata: w.metadata }])
@@ -168,6 +186,7 @@ export async function getUserWordmarks(fid: number): Promise<UserWordmark[]> {
     earned: earnedMap.has(def.id),
     earnedAt: earnedMap.get(def.id)?.earnedAt,
     metadata: earnedMap.get(def.id)?.metadata ?? undefined,
+    holders: holderCounts[def.id] ?? 0,
   }));
 }
 

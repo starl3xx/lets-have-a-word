@@ -1,0 +1,165 @@
+/**
+ * WordmarkDetailModal Component
+ *
+ * Tap a Wordmark in the Lexicon — held or not — and see what it means:
+ * how it's earned, how rare it is, and (when held) the story of the earn
+ * from the award metadata. Unheld marks show the goal, which is the point:
+ * the Lexicon reads as a collection with visible goals, not a row of icons.
+ *
+ * Metadata shapes vary by mark and era (old awards can miss keys), so every
+ * detail line degrades to nothing rather than to a broken sentence.
+ */
+import type { UserWordmark } from '../src/lib/wordmarks';
+import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
+
+interface WordmarkDetailModalProps {
+  wordmark: UserWordmark;
+  onClose: () => void;
+}
+
+/** Uppercase a guessed word from metadata, defensively. */
+function word(meta: Record<string, unknown>, key = 'word'): string | null {
+  const value = meta[key];
+  return typeof value === 'string' && value.length > 0 ? value.toUpperCase() : null;
+}
+
+function num(meta: Record<string, unknown>, key: string): number | null {
+  const value = meta[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The story of the earn, per mark, from award metadata. Returns null when
+ * the metadata can't support the sentence (old rows, missing keys).
+ */
+function earnedDetail(wordmark: UserWordmark): string | null {
+  const meta = wordmark.metadata;
+  if (!meta) return null;
+  const roundId = num(meta, 'roundId');
+
+  switch (wordmark.id) {
+    case 'JACKPOT_WINNER': {
+      const w = word(meta);
+      if (roundId && w) return `Won Round ${roundId} with “${w}”`;
+      return roundId ? `Won Round ${roundId}` : null;
+    }
+    case 'BONUS_WORD_FINDER': {
+      const w = word(meta);
+      if (roundId && w) return `Hooked “${w}” in Round ${roundId}`;
+      return roundId ? `First bonus word in Round ${roundId}` : null;
+    }
+    case 'BURN_WORD_FINDER': {
+      const w = word(meta);
+      if (roundId && w) return `Burned “${w}” in Round ${roundId}`;
+      return roundId ? `First burn word in Round ${roundId}` : null;
+    }
+    case 'DOUBLE_W': {
+      const bonus = num(meta, 'bonusWordsFound') ?? 0;
+      const burn = num(meta, 'burnWordsFound') ?? 0;
+      const secret = meta.foundSecretWord === true;
+      if (!roundId) return null;
+      const parts = [];
+      if (bonus > 0) parts.push(`${bonus} bonus`);
+      if (burn > 0) parts.push(`${burn} burn`);
+      if (secret) parts.push('the jackpot');
+      return parts.length >= 2 ? `Round ${roundId}: ${parts.join(' + ')}` : `Earned in Round ${roundId}`;
+    }
+    case 'PATRON':
+      return roundId ? `Your referral won Round ${roundId}` : null;
+    case 'QUICKDRAW': {
+      const rank = num(meta, 'rank');
+      if (roundId && rank) return `#${rank} early guesser in Round ${roundId}`;
+      return roundId ? `Top 10 early guesser in Round ${roundId}` : null;
+    }
+    case 'ENCYCLOPEDIC':
+      return 'A to Z, all 26 first letters';
+    case 'BAKERS_DOZEN': {
+      const days = num(meta, 'distinctDays');
+      const letters = num(meta, 'distinctLetters');
+      return days && letters ? `${days} days played, ${letters} letters` : null;
+    }
+    case 'TRAILBLAZER':
+      return roundId ? `Guess #1 of Round ${roundId}` : null;
+    case 'EARLY_ADOPTER': {
+      const first = num(meta, 'firstGuessRound');
+      return first ? `Your first guess was in Round ${first}` : null;
+    }
+    case 'SHOWSTOPPER':
+      return roundId ? `Superguess in Round ${roundId}` : null;
+    default:
+      return null;
+  }
+}
+
+function rarityLine(wordmark: UserWordmark): string {
+  const n = wordmark.holders;
+  if (n === 0) return 'No one holds this yet — be the first';
+  if (n === 1) return wordmark.earned ? 'You’re the only player with this 👑' : 'Only 1 player holds this';
+  if (n <= 50) return `Only ${n} players hold this`;
+  return `Held by ${n.toLocaleString()} players`;
+}
+
+function formatEarnedDate(earnedAt: Date | string | undefined): string | null {
+  if (!earnedAt) return null;
+  const date = new Date(earnedAt);
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetailModalProps) {
+  const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
+  const detail = wordmark.earned ? earnedDetail(wordmark) : null;
+  const earnedDate = wordmark.earned ? formatEarnedDate(wordmark.earnedAt) : null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-6"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      <div
+        className="bg-white rounded-card shadow-modal max-w-xs w-full p-6 text-center space-y-3 wordmark-pop"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-3xl ${
+            wordmark.earned ? colors.bg : 'bg-gray-200'
+          }`}
+          style={{
+            boxShadow: wordmark.earned ? `0 0 0 3px ${colors.ring}` : '0 0 0 2px #d1d5db',
+            filter: wordmark.earned ? undefined : 'grayscale(60%)',
+          }}
+        >
+          <span role="img" aria-label={wordmark.name}>{wordmark.emoji}</span>
+        </div>
+
+        <div>
+          <h3 className="text-lg font-bold text-gray-900">{wordmark.name}</h3>
+          {wordmark.earned ? (
+            <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
+              Earned{earnedDate ? ` · ${earnedDate}` : ''}
+            </span>
+          ) : (
+            <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+              Not yet earned
+            </span>
+          )}
+        </div>
+
+        <p className="text-sm text-gray-600">{wordmark.description}</p>
+
+        {detail && (
+          <p className="text-sm font-medium text-gray-900">{detail}</p>
+        )}
+
+        <p className="text-xs text-gray-400">{rarityLine(wordmark)}</p>
+
+        <button onClick={onClose} className="btn-primary-lg w-full">
+          {wordmark.earned ? 'Nice ✨' : 'Challenge accepted 🫡'}
+        </button>
+      </div>
+    </div>
+  );
+}

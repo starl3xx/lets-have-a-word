@@ -237,6 +237,26 @@
     @apply fixed inset-0 bg-black/50 flex items-end justify-center z-50;
   }
 
+  /* Wordmark detail card entrance (WordmarkDetailModal) */
+  .wordmark-pop {
+    animation: wordmark-pop 0.18s ease-out;
+  }
+  @keyframes wordmark-pop {
+    from {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wordmark-pop {
+      animation: none;
+    }
+  }
+
   /* Section card (for stats sections) */
   .section-card {
     @apply rounded-card p-4 space-y-3;

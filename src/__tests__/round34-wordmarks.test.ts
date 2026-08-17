@@ -5,6 +5,8 @@ import {
   EARLY_ADOPTER_LAST_ROUND,
   awardTrailblazerForRound,
   hasWordmark,
+  getWordmarkHolderCounts,
+  getUserWordmarks,
 } from '../lib/wordmarks';
 import { db, userBadges, rounds, guesses } from '../db';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -43,6 +45,40 @@ describe('Round 34 wordmark definitions', () => {
 
   it('lists exactly the two launch marks as hidden until the $WORD era', () => {
     expect(ROUND34_WORDMARK_TYPES.sort()).toEqual(['EARLY_ADOPTER', 'TRAILBLAZER']);
+  });
+});
+
+describe('getWordmarkHolderCounts', () => {
+  // The test DB carries rows from other suites, so all assertions are deltas.
+  it('counts holders per mark, and the counts ride along on getUserWordmarks', async () => {
+    const fidX = Math.floor(Math.random() * 1000000) + 3000000;
+    const fidY = Math.floor(Math.random() * 1000000) + 4000000;
+
+    const before = await getWordmarkHolderCounts();
+
+    await db.insert(userBadges).values([
+      { fid: fidX, badgeType: 'PATRON' },
+      { fid: fidY, badgeType: 'PATRON' },
+      { fid: fidX, badgeType: 'ENCYCLOPEDIC' },
+    ]);
+
+    try {
+      const after = await getWordmarkHolderCounts();
+      expect((after.PATRON ?? 0) - (before.PATRON ?? 0)).toBe(2);
+      expect((after.ENCYCLOPEDIC ?? 0) - (before.ENCYCLOPEDIC ?? 0)).toBe(1);
+
+      const marks = await getUserWordmarks(fidX);
+      const patron = marks.find(m => m.id === 'PATRON');
+      expect(patron?.earned).toBe(true);
+      expect(patron?.holders).toBeGreaterThanOrEqual(2);
+
+      // A mark this user does not hold still reports its holder count field
+      const jackpot = marks.find(m => m.id === 'JACKPOT_WINNER');
+      expect(jackpot?.earned).toBe(false);
+      expect(typeof jackpot?.holders).toBe('number');
+    } finally {
+      await db.delete(userBadges).where(inArray(userBadges.fid, [fidX, fidY]));
+    }
   });
 });
 

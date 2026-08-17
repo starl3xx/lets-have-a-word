@@ -3,10 +3,13 @@ import { formatWordAmount } from '../src/lib/word-amounts';
 import type { UserStatsResponse } from '../pages/api/user/stats';
 import type { UserProfileResponse } from '../pages/api/user/profile';
 import type { UserWordmarksResponse } from '../pages/api/user/wordmarks';
+import type { UserWordmark } from '../src/lib/wordmarks';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
 import { useTranslation } from '../src/hooks/useTranslation';
 import OgHunterBadge from './OgHunterBadge';
+import WordmarkDetailModal from './WordmarkDetailModal';
+import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
 
 interface StatsSheetProps {
   fid: number | null;
@@ -101,6 +104,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const [xp, setXp] = useState<number>(0);
   const [hasOgHunterBadge, setHasOgHunterBadge] = useState(false);
   const [wordmarksData, setWordmarksData] = useState<UserWordmarksResponse | null>(null);
+  const [selectedWordmark, setSelectedWordmark] = useState<UserWordmark | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -276,27 +280,17 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   {wordmarksData.wordmarks.map((wordmark) => {
-                    // Map color names to Tailwind classes
-                    const colorMap: Record<string, { bg: string; ring: string }> = {
-                      purple: { bg: 'bg-purple-100', ring: '#c4b5fd' },
-                      cyan: { bg: 'bg-cyan-100', ring: '#67e8f9' },
-                      amber: { bg: 'bg-amber-100', ring: '#fcd34d' },
-                      indigo: { bg: 'bg-indigo-100', ring: '#a5b4fc' },
-                      rose: { bg: 'bg-rose-100', ring: '#fda4af' },
-                      emerald: { bg: 'bg-emerald-100', ring: '#6ee7b7' },
-                      sky: { bg: 'bg-sky-100', ring: '#7dd3fc' },
-                      orange: { bg: 'bg-orange-100', ring: '#fdba74' },
-                      red: { bg: 'bg-red-100', ring: '#fca5a5' },
-                      violet: { bg: 'bg-violet-100', ring: '#c4b5fd' },
-                      pink: { bg: 'bg-pink-100', ring: '#f9a8d4' },
-                      teal: { bg: 'bg-teal-100', ring: '#5eead4' },
-                    };
-                    const colors = colorMap[wordmark.color] || { bg: 'bg-gray-100', ring: '#d1d5db' };
+                    const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
 
                     return (
-                      <div
+                      <button
                         key={wordmark.id}
-                        className={`flex flex-col items-center gap-1.5 transition-opacity ${
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setSelectedWordmark(wordmark);
+                        }}
+                        className={`flex flex-col items-center gap-1.5 transition active:scale-95 ${
                           wordmark.earned ? '' : 'opacity-40'
                         }`}
                       >
@@ -319,7 +313,7 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
                         }`}>
                           {wordmark.name}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -501,6 +495,15 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         <button onClick={onClose} className="btn-secondary w-full mt-4">
           Close
         </button>
+
+        {/* Wordmark detail — rendered inside modal-sheet so its clicks stop
+            at the sheet's stopPropagation and never close the whole sheet */}
+        {selectedWordmark && (
+          <WordmarkDetailModal
+            wordmark={selectedWordmark}
+            onClose={() => setSelectedWordmark(null)}
+          />
+        )}
       </div>
     </div>
   );
