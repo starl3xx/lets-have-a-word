@@ -1358,9 +1358,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ ...styles.cardTitle, margin: 0 }}>Balances Overview</h3>
-        <p style={styles.cardSubtitle}>
-          To grow the prize pool directly, send ETH to the jackpot contract — it credits on the next sync.
-        </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {balances && (
               <span style={{ fontSize: '11px', color: '#9ca3af' }}>
@@ -1376,6 +1373,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
             </button>
           </div>
         </div>
+        <p style={styles.cardSubtitle}>
+          To grow the prize pool directly, send ETH to the jackpot contract — it credits on the next sync.
+        </p>
 
         {balancesError ? (
           <div style={styles.alert('error')}>{balancesError}</div>

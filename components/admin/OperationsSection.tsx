@@ -2195,9 +2195,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           {user?.fid && <BonusDistributionsCard fid={user.fid} />}
           {user?.fid && <ArchiveMaintenanceCard fid={user.fid} />}
 
-          <div style={{ fontSize: '13px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0' }}>
-            Player grants
-          </div>
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>
               Sepolia Test Simulation
@@ -2342,6 +2339,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           {user?.fid && <FarmMonitor fid={user.fid} />}
           {user?.fid && <SimulationsCard fid={user.fid} />}
 
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0' }}>
+            Player grants
+          </div>
           {/* Manual XP Award Card */}
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>Manual XP Award</h2>
