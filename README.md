@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Guess-log checkpoints post again**: the checkpoint cron failed on every run since round 34 started — the DB's guess log is 1-based, the GuessLog contract's contiguity is 0-based, and the first `postRoot(round 34, from 1, …)` revert `NonContiguous(expected 0, got 1)` was sitting in the function logs. The conversion now lives at the contract boundary (post `fromIndex-1..toIndex-1`), the reconciliation compares the contract's leaf count directly against the local last-committed index, and the Merkle roots are untouched (leaves hash the 1-based data both when posting and when verifying).
+
+
 - **Round modal rounds its $WORD numbers**: the Round #34 popup's header and split tiles now use the info bar's compact three-significant-digit form (78.7M / 63.0M / 3.94M / 7.87M) instead of nine-digit walls, and the Top-10 estimated payout renders as "→ 1.50M $WORD" instead of "(1,495,474 $WORD)" — the parenthesized form read as the player's balance. ETH rounds 1–33 keep their exact historic rendering.
 
 
