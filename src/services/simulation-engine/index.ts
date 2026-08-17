@@ -732,10 +732,25 @@ export async function runJackpotRunwaySimulation(options?: {
         ? historicalData.reduce((sum, r) => sum + r.paidGuessCount, 0) / historicalData.length
         : 5;
 
-      const GUESS_PRICE_ETH = 0.0003;
+      // Per-guess ETH from the real pack pricing (0.0004 ETH buys a 3-guess
+      // pack), not the retired single-guess price — using the pack total as a
+      // per-guess rate overstated credit inflow ~2×.
+      const { BASE_PACK_PRICE_WEI } = await import('../../lib/pack-pricing');
+      const { GUESS_PACK_SIZE } = await import('../../../config/economy');
+      const GUESS_PRICE_ETH = Number(BASE_PACK_PRICE_WEI) / 1e18 / GUESS_PACK_SIZE;
       const POOL_SHARE = 0.8;
       const ethUsd = parseFloat(process.env.ETH_USD_RATE || '3000');
       const creditTokensPerGuess = (GUESS_PRICE_ETH * ethUsd * POOL_SHARE) / wordUsd;
+
+      // Credits do NOT subsidize the seed: topUpPool moves them out of the
+      // SAME unallocated balance the seed comes from, and the treasury's
+      // ETH→$WORD buyback only makes that a wash. Runway is therefore
+      // unallocated / seed in every scenario; what paid-guess volume honestly
+      // changes is the size of the round's POOL (credits grow it, backed by
+      // the buyback), not how long the tranche lasts.
+      const runwayRounds = seedTokens > 0
+        ? Math.floor(unallocatedTokens / seedTokens)
+        : 0;
 
       const scenarioConfigsWord: Record<string, { guessMultiplier: number; probability: number }> = {
         optimistic: { guessMultiplier: 2.0, probability: 0.15 },
@@ -750,29 +765,22 @@ export async function runJackpotRunwaySimulation(options?: {
         if (!config) continue;
         const guessesPerRound = avgPaidGuesses * config.guessMultiplier;
         const creditsPerRound = guessesPerRound * creditTokensPerGuess;
-        const netDrainPerRound = seedTokens - creditsPerRound;
-        // Credits at or above the seed = the tranche self-sustains; cap the
-        // claim at 999 rounds instead of printing infinity.
-        const runwayRounds = netDrainPerRound > 0
-          ? Math.min(Math.floor(unallocatedTokens / netDrainPerRound), 999)
-          : 999;
         scenarioResults.push({
           name: scenario.charAt(0).toUpperCase() + scenario.slice(1),
-          description: `${Math.round(guessesPerRound)} paid guesses/round, ~${Math.round(creditsPerRound).toLocaleString()} $WORD credits vs ${Math.round(seedTokens).toLocaleString()} $WORD seed per round`,
+          description: `${Math.round(guessesPerRound)} paid guesses/round → round pool ≈ ${Math.round(seedTokens + creditsPerRound).toLocaleString()} $WORD (seed + buyback-backed credits); tranche runway unchanged`,
           projectedJackpot: poolTokens + creditsPerRound,
           projectedRounds: runwayRounds,
           probability: config.probability,
         });
       }
 
-      // Projection: tranche burn-down at baseline.
+      // Projection: tranche burn-down — one seed per round, credits a wash.
       const baselineCredits = avgPaidGuesses * creditTokensPerGuess;
-      const baselineDrain = Math.max(seedTokens - baselineCredits, 0);
       const projectedRoundsList: RunwayProjection[] = [];
       for (let i = 1; i <= projectRounds; i++) {
         projectedRoundsList.push({
           round: i,
-          jackpot: Math.max(unallocatedTokens - baselineDrain * i, 0),
+          jackpot: Math.max(unallocatedTokens - seedTokens * i, 0),
           paidGuesses: Math.round(avgPaidGuesses),
           revenue: baselineCredits,
         });
