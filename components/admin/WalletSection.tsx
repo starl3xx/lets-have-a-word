@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
+import { useOperationalStatus, type OperationalStatus } from "./operational-status";
+import PurchaseEventsCard from "./PurchaseEventsCard";
 
 // =============================================================================
 // Types
@@ -151,11 +153,6 @@ interface BonusDistributionStatus {
   totalFailedOrPending: number;
 }
 
-interface OperationalStatus {
-  status: 'NORMAL' | 'KILL_SWITCH_ACTIVE' | 'DEAD_DAY_ACTIVE' | 'PAUSED_BETWEEN_ROUNDS';
-  killSwitch: { enabled: boolean };
-  deadDay: { enabled: boolean };
-}
 
 interface RoundFieldAnalysis {
   type: string;
@@ -558,7 +555,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [balancesError, setBalancesError] = useState<string | null>(null);
 
   // Operational status
-  const [opStatus, setOpStatus] = useState<OperationalStatus | null>(null);
+  const { status: opStatus } = useOperationalStatus();
 
   // Actions state
   const [actions, setActions] = useState<WalletAction[]>([]);
@@ -767,19 +764,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
     }
   }, [user?.fid]);
 
-  const fetchOperationalStatus = useCallback(async () => {
-    if (!user?.fid) return;
-
-    try {
-      const res = await fetch(`/api/admin/operational/status?devFid=${user.fid}`);
-      if (res.ok) {
-        const data = await res.json();
-        setOpStatus(data);
-      }
-    } catch (err) {
-      // Silent fail
-    }
-  }, [user?.fid]);
 
   const fetchActions = useCallback(async () => {
     if (!user?.fid) return;
@@ -1071,7 +1055,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
   useEffect(() => {
     checkWalletConnection();
     fetchBalances();
-    fetchOperationalStatus();
     fetchActions();
     fetchBonusDistStatus();
     fetchWordTokenStatus();
@@ -1088,7 +1071,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
         window.ethereum.removeListener('chainChanged', checkWalletConnection);
       }
     };
-  }, [checkWalletConnection, fetchBalances, fetchOperationalStatus, fetchActions, fetchBonusDistStatus, fetchWordTokenStatus]);
+  }, [checkWalletConnection, fetchBalances, fetchActions, fetchBonusDistStatus, fetchWordTokenStatus]);
 
   // =============================================================================
   // Withdrawal Handler
@@ -2161,6 +2144,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
       )}
 
       {/* Round Data Repair */}
+      {user?.fid && (
+        <PurchaseEventsCard fid={user.fid} currentRoundId={opStatus?.activeRoundId} />
+      )}
+
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>🔧 Round Data Repair</h3>
         <p style={styles.cardSubtitle}>

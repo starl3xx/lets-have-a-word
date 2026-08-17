@@ -8,7 +8,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react"
 import { AnalyticsChart } from "./AnalyticsChart"
 import { formatPrize, formatPrizeValue } from "../../src/lib/prize-display"
 import { AnalyticsControls, TimeRange } from "./AnalyticsControls"
-import FarmMonitor from "./FarmMonitor"
 import { Module, StatCard } from "./ui"
 import { PRICE_RAMP_START_GUESSES } from "../../src/lib/pack-pricing"
 
@@ -122,14 +121,6 @@ interface GameplayInsights {
   guessDistribution: Array<{ guessCount: number; rounds: number }>
 }
 
-interface SimulationResult {
-  simulationId: string
-  type: string
-  status: 'success' | 'warning' | 'critical' | 'error'
-  summary: string
-  executionTimeMs?: number
-  result?: { status: string; summary: string }
-}
 
 interface RetentionAnalytics {
   returnRate: number
@@ -202,28 +193,6 @@ interface ShareFunnelAnalytics {
   }>
 }
 
-interface PurchaseEvent {
-  txHash: string
-  blockNumber: number
-  timestamp: string
-  player: string
-  fid: number | null
-  username: string | null
-  quantity: number
-  ethAmount: string
-  roundNumber: number
-  isSmartWallet: boolean
-  toJackpot: string
-  toCreator: string
-}
-
-interface PurchaseEventsResponse {
-  events: PurchaseEvent[]
-  totalEvents: number
-  fromBlock: number
-  toBlock: number
-  contractAddress: string
-}
 
 // =============================================================================
 // Styling
@@ -392,10 +361,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
   const [shareFunnel, setShareFunnel] = useState<ShareFunnelAnalytics | null>(null)
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [cohorts, setCohorts] = useState<CohortAnalytics | null>(null)
-  const [purchaseEvents, setPurchaseEvents] = useState<PurchaseEventsResponse | null>(null)
-  const [purchaseEventsLoading, setPurchaseEventsLoading] = useState(false)
-  const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([])
-  const [runningSimulation, setRunningSimulation] = useState<string | null>(null)
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -514,46 +479,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
     }
   }, [autoRefresh, fetchAnalytics])
 
-  // Run simulation function
-  const runSimulation = async (type: string) => {
-    if (!user?.fid) return
-    setRunningSimulation(type)
 
-    try {
-      const response = await fetch(`/api/admin/analytics/simulations?devFid=${user.fid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        setSimulationResults(prev => [result, ...prev.slice(0, 9)])
-      }
-    } catch (err) {
-      console.error('Simulation failed:', err)
-    } finally {
-      setRunningSimulation(null)
-    }
-  }
-
-  // Fetch purchase events from contract (on-demand, can be slow)
-  const fetchPurchaseEvents = async (roundNumber?: number) => {
-    if (!user?.fid) return
-    setPurchaseEventsLoading(true)
-    try {
-      const params = new URLSearchParams({ devFid: user.fid.toString() })
-      if (roundNumber) params.set('roundNumber', roundNumber.toString())
-      const res = await fetch(`/api/admin/analytics/purchase-events?${params}`)
-      if (res.ok) {
-        setPurchaseEvents(await res.json())
-      }
-    } catch (err) {
-      console.error('Failed to fetch purchase events:', err)
-    } finally {
-      setPurchaseEventsLoading(false)
-    }
-  }
 
   const dauChartData = [...dauData].reverse().map(d => ({
     day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
@@ -944,58 +870,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       {/* ROUND PHASE & INCENTIVES MODULE */}
       {/* ================================================================== */}
-      <Module title="Round Phase & Incentives">
-        <div style={{ ...styles.grid, gridTemplateColumns: "repeat(4, 1fr)", marginBottom: "16px" }}>
-          <div style={styles.statCard}>
-            <div style={styles.statLabel}>Pricing Phase</div>
-            <div style={{ marginTop: "8px" }}>
-              <span style={{
-                ...styles.badge,
-                ...(summary?.currentRound.pricingPhase === 'BASE' ? styles.badgeGreen :
-                    summary?.currentRound.pricingPhase === 'LATE_1' ? styles.badgeYellow : styles.badgeRed)
-              }}>
-                {summary?.currentRound.pricingPhaseLabel || 'Unknown'}
-              </span>
-            </div>
-          </div>
-          <StatCard
-            label="Total Guesses"
-            value={formatNumber(summary?.currentRound.totalGuesses || 0)}
-            loading={loading}
-          />
-          <div style={styles.statCard}>
-            <div style={styles.statLabel}>Top 10 Lock</div>
-            <div style={{ marginTop: "8px" }}>
-              {summary?.currentRound.top10Locked ? (
-                <span style={{ ...styles.badge, ...styles.badgeBlue }}>Locked</span>
-              ) : (
-                <span style={{ ...styles.badge, ...styles.badgeGreen }}>
-                  {summary?.currentRound.guessesToLock || 0} to lock
-                </span>
-              )}
-            </div>
-          </div>
-          <StatCard
-            label="Pack Price"
-            value={`${summary?.currentRound.packPriceEth || '0.0003'} ETH`}
-            loading={loading}
-          />
-        </div>
-        <div style={{ ...styles.grid, gridTemplateColumns: "repeat(2, 1fr)" }}>
-          <StatCard
-            label={`Eligible Guesses (≤${PRICE_RAMP_START_GUESSES})`}
-            value={formatNumber(summary?.currentRound.eligibleGuesses || 0)}
-            subtext="Can place in Top 10"
-            loading={loading}
-          />
-          <StatCard
-            label={`Ineligible Guesses (>${PRICE_RAMP_START_GUESSES})`}
-            value={formatNumber(summary?.currentRound.ineligibleGuesses || 0)}
-            subtext="Cannot place in Top 10"
-            loading={loading}
-          />
-        </div>
-      </Module>
 
       {/* ================================================================== */}
       {/* PACK PRICING MODULE */}
@@ -1452,126 +1326,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       {/* ONCHAIN PURCHASE EVENTS */}
       {/* ================================================================== */}
-      <Module title="Onchain Purchase Events">
-        <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "16px", fontFamily }}>
-          Query GuessesPurchased events directly from the contract. This captures ALL purchases including smart wallet transactions that don't appear in Basescan's external tx filter.
-        </div>
-        <div style={{ display: "flex", gap: "12px", marginBottom: "16px", alignItems: "center" }}>
-          <button
-            onClick={() => fetchPurchaseEvents(summary?.currentRound?.roundId || undefined)}
-            disabled={purchaseEventsLoading}
-            style={{
-              padding: "8px 16px",
-              background: purchaseEventsLoading ? "#d1d5db" : "#059669",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "13px",
-              fontWeight: 500,
-              cursor: purchaseEventsLoading ? "not-allowed" : "pointer",
-              fontFamily,
-            }}
-          >
-            {purchaseEventsLoading ? "Loading events..." : summary?.currentRound?.roundId ? `Load Round ${summary.currentRound.roundId} Events` : "Load Recent Events"}
-          </button>
-          <button
-            onClick={() => fetchPurchaseEvents()}
-            disabled={purchaseEventsLoading}
-            style={{
-              padding: "8px 16px",
-              background: purchaseEventsLoading ? "#d1d5db" : "#6366f1",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "13px",
-              fontWeight: 500,
-              cursor: purchaseEventsLoading ? "not-allowed" : "pointer",
-              fontFamily,
-            }}
-          >
-            Load All Recent
-          </button>
-          {purchaseEvents && (
-            <span style={{ fontSize: "12px", color: "#6b7280" }}>
-              {purchaseEvents.totalEvents} events (blocks {purchaseEvents.fromBlock.toLocaleString()} - {purchaseEvents.toBlock.toLocaleString()})
-            </span>
-          )}
-        </div>
-        {purchaseEvents && purchaseEvents.events.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "12px",
-              fontFamily,
-            }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Time</th>
-                  <th style={{ textAlign: "left", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>User</th>
-                  <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Qty</th>
-                  <th style={{ textAlign: "right", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>ETH</th>
-                  <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Round</th>
-                  <th style={{ textAlign: "center", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Type</th>
-                  <th style={{ textAlign: "left", padding: "8px", borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 600 }}>Tx</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchaseEvents.events.slice(0, 50).map((event) => (
-                  <tr key={event.txHash}>
-                    <td style={{ padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#6b7280" }}>
-                      {event.timestamp ? new Date(event.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : `Block ${event.blockNumber}`}
-                    </td>
-                    <td style={{ padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#374151" }}>
-                      {event.fid ? (
-                        <span>@{event.username || event.fid}</span>
-                      ) : (
-                        <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{event.player.slice(0, 6)}...{event.player.slice(-4)}</span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "center", padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#374151", fontWeight: 600 }}>
-                      {event.quantity}
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#059669", fontWeight: 500, fontFamily: "monospace" }}>
-                      {parseFloat(event.ethAmount).toFixed(4)}
-                    </td>
-                    <td style={{ textAlign: "center", padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#6b7280" }}>
-                      #{event.roundNumber}
-                    </td>
-                    <td style={{ textAlign: "center", padding: "8px", borderBottom: "1px solid #f3f4f6" }}>
-                      {event.isSmartWallet ? (
-                        <span style={{ padding: "2px 6px", background: "#ddd6fe", color: "#7c3aed", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>SMART</span>
-                      ) : (
-                        <span style={{ padding: "2px 6px", background: "#dbeafe", color: "#2563eb", borderRadius: "4px", fontSize: "10px", fontWeight: 600 }}>DIRECT</span>
-                      )}
-                    </td>
-                    <td style={{ padding: "8px", borderBottom: "1px solid #f3f4f6" }}>
-                      <a
-                        href={`https://basescan.org/tx/${event.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: "#6366f1", textDecoration: "none", fontFamily: "monospace", fontSize: "11px" }}
-                      >
-                        {event.txHash.slice(0, 8)}...
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {purchaseEvents.events.length > 50 && (
-              <div style={{ marginTop: "8px", fontSize: "11px", color: "#9ca3af" }}>
-                Showing first 50 of {purchaseEvents.events.length} events
-              </div>
-            )}
-          </div>
-        )}
-        {purchaseEvents && purchaseEvents.events.length === 0 && (
-          <div style={{ padding: "24px", textAlign: "center", color: "#9ca3af", fontSize: "13px" }}>
-            No purchase events found in the queried block range.
-          </div>
-        )}
-      </Module>
 
       {/* ================================================================== */}
       {/* GUESSES CHART */}
@@ -1665,139 +1419,6 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       {/* ================================================================== */}
       {/* ADVERSARIAL SIMULATIONS */}
       {/* ================================================================== */}
-      <Module title="Adversarial Simulations">
-        <div style={{ ...styles.grid, gridTemplateColumns: "repeat(5, 1fr)", marginBottom: "16px" }}>
-          <button
-            onClick={() => runSimulation('wallet_clustering')}
-            disabled={runningSimulation !== null}
-            style={{
-              padding: "12px 16px",
-              background: runningSimulation === 'wallet_clustering' ? "#d1d5db" : "#3b82f6",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: runningSimulation ? "not-allowed" : "pointer",
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily,
-            }}
-          >
-            {runningSimulation === 'wallet_clustering' ? 'Running...' : 'Wallet Clustering'}
-          </button>
-          <button
-            onClick={() => runSimulation('rapid_winner')}
-            disabled={runningSimulation !== null}
-            style={{
-              padding: "12px 16px",
-              background: runningSimulation === 'rapid_winner' ? "#d1d5db" : "#8b5cf6",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: runningSimulation ? "not-allowed" : "pointer",
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily,
-            }}
-          >
-            {runningSimulation === 'rapid_winner' ? 'Running...' : 'Rapid Winner'}
-          </button>
-          <button
-            onClick={() => runSimulation('frontrun_risk')}
-            disabled={runningSimulation !== null}
-            style={{
-              padding: "12px 16px",
-              background: runningSimulation === 'frontrun_risk' ? "#d1d5db" : "#f59e0b",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: runningSimulation ? "not-allowed" : "pointer",
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily,
-            }}
-          >
-            {runningSimulation === 'frontrun_risk' ? 'Running...' : 'Front-Run Risk'}
-          </button>
-          <button
-            onClick={() => runSimulation('jackpot_runway')}
-            disabled={runningSimulation !== null}
-            style={{
-              padding: "12px 16px",
-              background: runningSimulation === 'jackpot_runway' ? "#d1d5db" : "#10b981",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: runningSimulation ? "not-allowed" : "pointer",
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily,
-            }}
-          >
-            {runningSimulation === 'jackpot_runway' ? 'Running...' : 'Jackpot Runway'}
-          </button>
-          <button
-            onClick={() => runSimulation('full_suite')}
-            disabled={runningSimulation !== null}
-            style={{
-              padding: "12px 16px",
-              background: runningSimulation === 'full_suite' ? "#d1d5db" : "#ef4444",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: runningSimulation ? "not-allowed" : "pointer",
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily,
-            }}
-          >
-            {runningSimulation === 'full_suite' ? 'Running...' : 'Full Suite'}
-          </button>
-        </div>
-
-        {/* Simulation Results */}
-        {simulationResults.length > 0 && (
-          <div style={{ marginTop: "16px" }}>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "12px", fontFamily }}>Recent Results</div>
-            {simulationResults.map((result, idx) => (
-              <div key={idx} style={{
-                padding: "12px",
-                background: result.result?.status === 'critical' ? '#fecaca' :
-                  result.result?.status === 'warning' ? '#fef3c7' :
-                  result.result?.status === 'error' ? '#fee2e2' : '#d1fae5',
-                borderRadius: "8px",
-                marginBottom: "8px",
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <strong style={{ fontSize: "13px", fontFamily }}>{result.type}</strong>
-                  <span style={{
-                    padding: "2px 8px",
-                    borderRadius: "4px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    background: result.result?.status === 'critical' ? '#ef4444' :
-                      result.result?.status === 'warning' ? '#f59e0b' :
-                      result.result?.status === 'error' ? '#ef4444' : '#10b981',
-                    color: "white",
-                  }}>
-                    {result.result?.status?.toUpperCase() || 'UNKNOWN'}
-                  </span>
-                </div>
-                <div style={{ fontSize: "12px", marginTop: "8px", color: "#4b5563", fontFamily }}>
-                  {result.result?.summary || 'No summary available'}
-                </div>
-                {result.executionTimeMs && (
-                  <div style={{ fontSize: "11px", marginTop: "4px", color: "#9ca3af", fontFamily }}>
-                    Completed in {result.executionTimeMs}ms
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Module>
-
-      {/* ===== Farm Monitor ===== */}
-      {user?.fid && <FarmMonitor fid={user.fid} />}
 
     </div>
   )
