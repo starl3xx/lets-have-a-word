@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Round-34 contract deploy script**: `deploy-word-round34-contracts.ts` deploys WordJackpot (UUPS proxy, forceImport-registered), WordPackSales (treasury-immutable), and GuessLog to Base in one run, checks every role reads back as configured (token/operator/treasury/owner ×7), and prints the four Vercel env lines, the Basescan verify commands, and the tranche-funding steps ready to paste. Rehearsed clean on an anvil fork of Base.
+
+
 - **WordManagerV3: the owner key can no longer touch staker deposits — deployed onchain**: `emergencyWithdraw` — the last unguarded outflow, able to withdraw all 6.46B $WORD of staked principal — now sits behind the same `gameSolvent` reserve check as every game payout, so the owner can only ever withdraw the game-fund surplus. Shipped as contract source + a plugin-driven upgrade script (`upgrade-word-manager-v3-solvency.ts`), rehearsed on an anvil fork of Base, then **executed on mainnet the same day**: implementation `0x36b674bf…` (Basescan-verified), `totalStaked` bit-for-bit unchanged, and the over-surplus probe reverts `WouldTouchStakerFunds` — this also activates the #161/#178 game-payout guards that had never been deployed. The staker-fund invariant is now enforced onchain, not by intent.
 
 
