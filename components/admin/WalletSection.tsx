@@ -1365,7 +1365,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
               const n = parseFloat(tokens.replace(/,/g, ''));
               if (!Number.isFinite(n)) return null;
               const usd = n * balances.wordPriceUsd;
-              return `≈$${usd >= 100 ? Math.round(usd).toLocaleString() : usd.toFixed(2)}`;
+              // en-US pinned: in dot-grouping locales "≈$3.800" reads as $3.80.
+              return `≈$${usd >= 100 ? Math.round(usd).toLocaleString('en-US') : usd.toFixed(2)}`;
             };
             const jackpotUsd = usdApprox(balances.wordJackpot?.unallocated);
             const bonusBurnUsd = usdApprox(balances.wordManager?.availableForGames);

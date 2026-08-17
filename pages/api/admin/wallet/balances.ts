@@ -222,6 +222,9 @@ export default async function handler(
     }
 
     // Fetch WordManager contract data
+    // Set by the WordManager block below; reused for wordPriceUsd so this
+    // handler never runs the multi-source oracle fetch twice in one request.
+    let sharedRewardPriceE18: bigint | null = null;
     let wordManagerData: WalletBalancesResponse['wordManager'] = undefined;
     const wordManagerAddress = getWordManagerAddress();
     if (wordManagerAddress) {
@@ -256,6 +259,7 @@ export default async function handler(
         // amounts remain the fallback, matching the payout paths exactly.
         const { getRewardPriceE18 } = await import('../../../../src/lib/word-jackpot-contract');
         const rewardPriceE18 = await getRewardPriceE18().catch(() => null);
+        sharedRewardPriceE18 = rewardPriceE18;
 
         const top10Amounts = rewardPriceE18
           ? getTop10WordAmountsWei(rewardPriceE18).map((w) => w.toString())
@@ -350,13 +354,19 @@ export default async function handler(
     }
 
     // Live token price so the card can show ≈$ next to every $WORD figure.
+    // Prefer the price the WordManager block already fetched (onchain first,
+    // oracle fallback) — a second full multi-source fetch would add seconds.
     let wordPriceUsd: number | undefined = undefined;
-    try {
-      const { fetchWordTokenMarketCap } = await import('../../../../src/lib/word-oracle');
-      const marketData = await fetchWordTokenMarketCap();
-      if (marketData && marketData.priceUsd > 0) wordPriceUsd = marketData.priceUsd;
-    } catch (err) {
-      console.warn('[admin/wallet/balances] Oracle price fetch failed:', err);
+    if (sharedRewardPriceE18 && sharedRewardPriceE18 > 0n) {
+      wordPriceUsd = Number(sharedRewardPriceE18) / 1e18;
+    } else {
+      try {
+        const { fetchWordTokenMarketCap } = await import('../../../../src/lib/word-oracle');
+        const marketData = await fetchWordTokenMarketCap();
+        if (marketData && marketData.priceUsd > 0) wordPriceUsd = marketData.priceUsd;
+      } catch (err) {
+        console.warn('[admin/wallet/balances] Oracle price fetch failed:', err);
+      }
     }
 
     // Database query for pending refunds
