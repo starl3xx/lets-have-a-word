@@ -101,19 +101,29 @@ async function main() {
 
   // Free simulations — eth_call only, no state change, no gas.
   //
-  // Probe with one wei MORE than the surplus: that amount is still inside the
-  // token balance whenever the reserve is non-zero, so an unguarded
-  // implementation would let the transfer through — only gameSolvent can
-  // reject it. (One wei above the BALANCE would revert on the ERC20 transfer
-  // itself and prove nothing.) The revert must also be the guard's own error:
-  // 0x92f88c62 is the WouldTouchStakerFunds(uint256,uint256) selector, which
-  // some tooling reports undecoded.
-  if (reserved === 0n) {
-    console.log("!! reserve is zero — the guard probe cannot distinguish guarded from unguarded here");
+  // The probe amount must (a) exceed anything gameSolvent can ever allow and
+  // (b) stay inside the token balance, so an unguarded implementation would
+  // let the transfer through. availableForGames()+1 satisfies neither
+  // reliably: during an active reward period the reserve falls block by
+  // block, so a just-read surplus can be stale by the time the call lands
+  // (Base blocks are 2s). balance − stakedPrincipal + 1 is immune to that
+  // drift — streaming moves value between reserve and surplus but never past
+  // the principal line — and while principal > 0 it stays inside the balance.
+  // The revert must also be the guard's own error: 0x92f88c62 is the
+  // WouldTouchStakerFunds(uint256,uint256) selector, which some tooling
+  // reports undecoded.
+  const word = await hre.ethers.getContractAt(
+    "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+    await manager.wordToken()
+  );
+  const tokenBalance: bigint = await word.balanceOf(PROXY_ADDRESS);
+  const probeAmount = tokenBalance - staked + 1n;
+  if (staked === 0n) {
+    console.log("!! nothing is staked — the guard probe cannot distinguish guarded from unguarded here");
     process.exitCode = 1;
   }
   try {
-    await manager.emergencyWithdraw.staticCall(signer.address, available + 1n);
+    await manager.emergencyWithdraw.staticCall(signer.address, probeAmount);
     console.log("!! emergencyWithdraw beyond the surplus did NOT revert — guard is not live");
     process.exitCode = 1;
   } catch (error) {
