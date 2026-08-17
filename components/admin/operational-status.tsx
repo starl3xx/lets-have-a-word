@@ -13,6 +13,8 @@ export interface OperationalStatus {
   ok: boolean;
   status: 'NORMAL' | 'KILL_SWITCH_ACTIVE' | 'DEAD_DAY_ACTIVE' | 'PAUSED_BETWEEN_ROUNDS';
   activeRoundId?: number;
+  /** The active round's prize with its unit ("0.02 ETH" / "78M $WORD"). */
+  activeRoundPrize?: string | null;
   killSwitch: {
     enabled: boolean;
     activatedAt?: string;

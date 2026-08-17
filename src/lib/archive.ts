@@ -622,6 +622,19 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
 
     console.log(`[archive] Successfully archived round ${roundId}`);
 
+    // A successful archive supersedes any outstanding errors for this round.
+    // Without this, failures from before a repair sit unresolved forever and
+    // the Archive tab reads as a standing incident — 377 stale rows from the
+    // Dec 2025 Date-corruption incident did exactly that.
+    try {
+      await db
+        .update(roundArchiveErrors)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(and(eq(roundArchiveErrors.roundNumber, roundId), eq(roundArchiveErrors.resolved, false)));
+    } catch (resolveErr) {
+      console.warn(`[archive] Could not auto-resolve stale errors for round ${roundId}:`, resolveErr);
+    }
+
     return {
       success: true,
       archived,

@@ -1115,7 +1115,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
           {/* ETH Distribution */}
           <div>
             <div style={{ fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "12px" }}>
-              Total ETH Routed (Last 30 Days)
+              Total ETH Routed (ETH era, all time)
             </div>
             <div style={styles.statRow}>
               <span style={styles.statLabel}>To winners (80%)</span>

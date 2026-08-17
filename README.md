@@ -214,6 +214,15 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Admin tools finish the era migration**: the onchain Purchase Events explorer now queries WordPackSales (packs + Superguesses, with a Product column) alongside the legacy JackpotManager, so it stays current from round 34 instead of silently reading empty. The Jackpot Runway simulation models the $WORD tranche — rounds of seed funding from WordJackpot unallocated, offset by oracle-priced pool credits — instead of reading a dead ETH pool as zero and crying critical. The incident summary paste names the round's prize ("Prize: 78M $WORD") via a new `activeRoundPrize` on the status feed. The Economics tab drops its rolling 30-day window: the ETH era ended at round 33, so the tab is now that era's permanent, all-time record. And a successful archive auto-resolves the round's stale error rows — 377 unresolved rows from the long-fixed Dec 2025 Date-corruption incident were making the Round Archive tab read as a standing emergency (cleared in prod).
+
+
+- **Admin era sweep (launch blocker included)**: the admin Start Round endpoint ran the full ETH seed preflight unconditionally — seeding the dead JackpotManager with real ETH and able to refuse round 34 over a meaningless shortfall. It now skips seeding entirely in the word era and verifies the operator against WordJackpot. Also: the seed-jackpot GET era-guarded; the legacy contract's diagnostics verdict reads "not used for round starts" instead of a contradictory green; the header $WORD pill requires all three contracts (amber + missing-var tooltip when partial); stuck-round diagnosis reports the round's real currency and reads the round's own contract; the corruption detector learns the $WORD columns; era labels on the ETH airdrop card, archive totals, and analytics revenue.
+
+
+- **Wordmark popup polish**: Baker's Dozen and Encyclopedic now show the round they were earned in — new awards stamp it, existing holders get it derived from the award time. "Participated in the OG Hunter pre-launch campaign"; no em dashes in UI copy; Wordmark capitalized in the share cast.
+
+
 - **Treasury tab enters the $WORD era**: Balances Overview drops the dead ETH seed model (Next Seed bar, 0.02 ETH target, treasury/operator auto-top-up copy) for a word-era grid — Jackpot Fuel (WordJackpot unallocated), Live Pool + carry, Pack Sales ETH awaiting withdraw, Pending Refunds — with a treasury-wallet line (ETH + $WORD tranche source) and an ETH-era leftovers note that only appears while anything remains to sweep. Fund Operator Wallet is reframed as gas-only (the operator never fronts a seed anymore; thresholds drop to gas scale). WordManager funding becomes **$WORD across contracts**: WordManager (staking + per-round rewards), WordJackpot (unallocated/pool/carry/claims), and the treasury tranche in one card — plus the bonus-words switch, relocated from the retired "💬 $WORD management (legacy)" card because it is NOT legacy: createRound still reads that onchain flag at every round start. The legacy card's withdraw UI is gone (the old contract holds 0.75 $WORD — dust).
 
 

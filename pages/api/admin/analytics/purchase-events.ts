@@ -19,9 +19,16 @@ import { isAdminFid } from '../me';
 // ERC-4337 Entry Point contract (v0.6.0) - used by smart wallets
 const ENTRY_POINT_ADDRESS = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
 
-// Minimal ABI for querying GuessesPurchased events
+// Minimal ABI for querying GuessesPurchased events (ETH era, rounds 1–33)
 const JACKPOT_MANAGER_ABI = [
   'event GuessesPurchased(uint256 indexed roundNumber, address indexed player, uint256 quantity, uint256 ethAmount, uint256 toJackpot, uint256 toCreator)',
+];
+
+// WordPackSales (round 34+): packs and Superguesses are separate events by
+// design — one event per product, so a pack receipt can never claim a session.
+const WORD_PACK_SALES_ABI = [
+  'event PacksPurchased(address indexed payer, uint256 indexed roundId, uint32 packCount, uint256 amount)',
+  'event SuperguessPurchased(address indexed payer, uint256 indexed roundId, uint256 amount)',
 ];
 
 interface PurchaseEvent {
@@ -35,8 +42,11 @@ interface PurchaseEvent {
   ethAmount: string;
   roundNumber: number;
   isSmartWallet: boolean;
-  toJackpot: string;
-  toCreator: string;
+  /** Which product the event records. Legacy GuessesPurchased = 'guesses'. */
+  product: 'guesses' | 'packs' | 'superguess';
+  /** ETH-era only — WordPackSales does not split onchain. */
+  toJackpot?: string;
+  toCreator?: string;
 }
 
 export interface PurchaseEventsResponse {
@@ -45,6 +55,8 @@ export interface PurchaseEventsResponse {
   fromBlock: number;
   toBlock: number;
   contractAddress: string;
+  /** Every contract queried — legacy JackpotManager plus WordPackSales when configured. */
+  contracts: string[];
 }
 
 export default async function handler(
@@ -74,30 +86,101 @@ export default async function handler(
 
     const provider = getBaseProvider();
     const config = getContractConfig();
-    const contract = new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, provider);
+    const legacyContract = new Contract(config.jackpotManagerAddress, JACKPOT_MANAGER_ABI, provider);
+    const packSalesAddress = process.env.WORD_PACK_SALES_ADDRESS || null;
+    const packSalesContract = packSalesAddress
+      ? new Contract(packSalesAddress, WORD_PACK_SALES_ABI, provider)
+      : null;
 
     // Get current block
     const currentBlock = await provider.getBlockNumber();
     const fromBlock = Math.max(0, currentBlock - blockRange);
 
-    // Build event filter
-    const filter = contract.filters.GuessesPurchased(
-      roundNumber ?? null, // roundNumber filter (indexed)
-      null // player filter (indexed) - null means all
-    );
-
     console.log(`[purchase-events] Querying events from block ${fromBlock} to ${currentBlock}`);
 
-    // Query events
-    const events = await contract.queryFilter(filter, fromBlock, currentBlock);
+    // Query BOTH contracts over the same range: the legacy JackpotManager
+    // stopped emitting after round 33 and WordPackSales starts at round 34,
+    // so at most one of them has events in any given range — the union is the
+    // full purchase history either way.
+    interface RawPurchase {
+      txHash: string;
+      blockNumber: number;
+      player: string;
+      quantity: number;
+      ethAmount: bigint;
+      roundNumber: number;
+      product: PurchaseEvent['product'];
+      toJackpot?: bigint;
+      toCreator?: bigint;
+    }
+    const raw: RawPurchase[] = [];
 
-    console.log(`[purchase-events] Found ${events.length} events`);
+    const legacyEvents = await legacyContract.queryFilter(
+      legacyContract.filters.GuessesPurchased(roundNumber ?? null, null),
+      fromBlock,
+      currentBlock
+    );
+    for (const event of legacyEvents) {
+      const parsed = legacyContract.interface.parseLog({ topics: event.topics as string[], data: event.data });
+      if (!parsed) continue;
+      raw.push({
+        txHash: event.transactionHash,
+        blockNumber: event.blockNumber,
+        player: parsed.args.player,
+        quantity: Number(parsed.args.quantity),
+        ethAmount: parsed.args.ethAmount,
+        roundNumber: Number(parsed.args.roundNumber),
+        product: 'guesses',
+        toJackpot: parsed.args.toJackpot,
+        toCreator: parsed.args.toCreator,
+      });
+    }
+
+    if (packSalesContract) {
+      const [packEvents, superguessEvents] = await Promise.all([
+        packSalesContract.queryFilter(
+          packSalesContract.filters.PacksPurchased(null, roundNumber ?? null),
+          fromBlock,
+          currentBlock
+        ),
+        packSalesContract.queryFilter(
+          packSalesContract.filters.SuperguessPurchased(null, roundNumber ?? null),
+          fromBlock,
+          currentBlock
+        ),
+      ]);
+      for (const event of packEvents) {
+        const parsed = packSalesContract.interface.parseLog({ topics: event.topics as string[], data: event.data });
+        if (!parsed) continue;
+        raw.push({
+          txHash: event.transactionHash,
+          blockNumber: event.blockNumber,
+          player: parsed.args.payer,
+          quantity: Number(parsed.args.packCount),
+          ethAmount: parsed.args.amount,
+          roundNumber: Number(parsed.args.roundId),
+          product: 'packs',
+        });
+      }
+      for (const event of superguessEvents) {
+        const parsed = packSalesContract.interface.parseLog({ topics: event.topics as string[], data: event.data });
+        if (!parsed) continue;
+        raw.push({
+          txHash: event.transactionHash,
+          blockNumber: event.blockNumber,
+          player: parsed.args.payer,
+          quantity: 1,
+          ethAmount: parsed.args.amount,
+          roundNumber: Number(parsed.args.roundId),
+          product: 'superguess',
+        });
+      }
+    }
+
+    console.log(`[purchase-events] Found ${raw.length} events (${legacyEvents.length} legacy)`);
 
     // Collect unique player addresses to look up FIDs
-    const playerAddresses = [...new Set(events.map(e => {
-      const parsed = contract.interface.parseLog({ topics: e.topics as string[], data: e.data });
-      return parsed?.args.player?.toLowerCase();
-    }).filter(Boolean))];
+    const playerAddresses = [...new Set(raw.map(e => e.player?.toLowerCase()).filter(Boolean))];
 
     // Look up users by signer wallet address
     const userLookup = new Map<string, { fid: number; username: string | null }>();
@@ -123,23 +206,18 @@ export default async function handler(
 
     // Process events
     const purchaseEvents: PurchaseEvent[] = [];
-    for (const event of events) {
-      const parsed = contract.interface.parseLog({ topics: event.topics as string[], data: event.data });
-      if (!parsed) continue;
-
-      const { roundNumber: rn, player, quantity, ethAmount, toJackpot, toCreator } = parsed.args;
-
+    for (const event of raw) {
       // Check if this was a smart wallet transaction by looking at the tx sender
       let isSmartWallet = false;
       try {
-        const tx = await provider.getTransaction(event.transactionHash);
+        const tx = await provider.getTransaction(event.txHash);
         if (tx) {
           // If the tx was sent to Entry Point, it's a smart wallet transaction
           isSmartWallet = tx.to?.toLowerCase() === ENTRY_POINT_ADDRESS.toLowerCase();
         }
       } catch (err) {
         // If we can't get tx details, assume direct
-        console.warn(`[purchase-events] Could not get tx details for ${event.transactionHash}`);
+        console.warn(`[purchase-events] Could not get tx details for ${event.txHash}`);
       }
 
       // Get block timestamp
@@ -154,21 +232,22 @@ export default async function handler(
       }
 
       // Look up user
-      const userInfo = userLookup.get(player.toLowerCase());
+      const userInfo = userLookup.get(event.player.toLowerCase());
 
       purchaseEvents.push({
-        txHash: event.transactionHash,
+        txHash: event.txHash,
         blockNumber: event.blockNumber,
         timestamp,
-        player,
+        player: event.player,
         fid: userInfo?.fid ?? null,
         username: userInfo?.username ?? null,
-        quantity: Number(quantity),
-        ethAmount: ethers.formatEther(ethAmount),
-        roundNumber: Number(rn),
+        quantity: event.quantity,
+        ethAmount: ethers.formatEther(event.ethAmount),
+        roundNumber: event.roundNumber,
         isSmartWallet,
-        toJackpot: ethers.formatEther(toJackpot),
-        toCreator: ethers.formatEther(toCreator),
+        product: event.product,
+        ...(event.toJackpot !== undefined && { toJackpot: ethers.formatEther(event.toJackpot) }),
+        ...(event.toCreator !== undefined && { toCreator: ethers.formatEther(event.toCreator) }),
       });
     }
 
@@ -181,6 +260,7 @@ export default async function handler(
       fromBlock,
       toBlock: currentBlock,
       contractAddress: config.jackpotManagerAddress,
+      contracts: [config.jackpotManagerAddress, ...(packSalesAddress ? [packSalesAddress] : [])],
     });
   } catch (error) {
     console.error('[purchase-events] Error:', error);
