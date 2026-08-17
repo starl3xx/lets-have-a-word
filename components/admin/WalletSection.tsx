@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useOperationalStatus, type OperationalStatus } from "./operational-status";
 import PurchaseEventsCard from "./PurchaseEventsCard";
+import FundingDirectoryCard from "./FundingDirectoryCard";
 import { adminFont as fontFamily } from "./ui"
 import { shortenAddress } from "./format";
 
@@ -1482,6 +1483,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </>
         ) : null}
       </div>
+
+      {/* Funding directory — every important address, no hunting */}
+      {user?.fid && <FundingDirectoryCard fid={user.fid} />}
 
       {/* Fund Operator Wallet */}
       {balances && (() => {

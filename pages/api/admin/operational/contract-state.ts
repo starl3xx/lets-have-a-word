@@ -65,6 +65,125 @@ interface WordManagerState {
   error?: string;
 }
 
+export interface AddressBookEntry {
+  key: string;
+  label: string;
+  address: string | null;
+  envVar: string | null;
+  /** What an admin sends to this address — null means "never send funds here". */
+  sends: '$WORD' | 'ETH' | null;
+  how: string;
+  primary: boolean;
+}
+
+/**
+ * The funding directory: every address an admin needs, with what it funds and
+ * how. Pure env + constants — no RPC — so the `?book=1` fast path can serve
+ * it instantly and it can never partially fail.
+ */
+function getAddressBook(): AddressBookEntry[] {
+  const wordManagerAddress = getWordManagerAddress();
+
+  let operatorAddress: string | null = null;
+  try {
+    const operatorKey = process.env.OPERATOR_PRIVATE_KEY;
+    if (operatorKey) operatorAddress = new ethers.Wallet(operatorKey).address;
+  } catch {
+    operatorAddress = null;
+  }
+
+  let ethEraJackpotManager: string | null = null;
+  try {
+    ethEraJackpotManager = getContractConfig().jackpotManagerAddress;
+  } catch {
+    ethEraJackpotManager = null;
+  }
+
+  return [
+    {
+      key: 'word-jackpot',
+      label: 'Jackpot prize pool',
+      address: process.env.WORD_JACKPOT_ADDRESS || null,
+      envVar: 'WORD_JACKPOT_ADDRESS',
+      sends: '$WORD',
+      how: 'Send $WORD here to fund jackpots. A plain transfer arrives as unallocated and seeds future rounds — this is where the tranche lives.',
+      primary: true,
+    },
+    {
+      key: 'word-manager-games',
+      label: 'Bonus & burn words',
+      address: wordManagerAddress,
+      envVar: 'WORD_MANAGER_ADDRESS',
+      sends: '$WORD',
+      how: 'Send $WORD here to fund bonus-word payouts and burn words. Only the balance above staker reserves is spendable (availableForGames) — game payouts can never touch deposits.',
+      primary: true,
+    },
+    {
+      key: 'word-manager-staking',
+      label: 'Staking rewards',
+      address: wordManagerAddress,
+      envVar: 'WORD_MANAGER_ADDRESS',
+      sends: '$WORD',
+      how: 'Same WordManager address as above. Send $WORD, then activate streaming in the "WordManager funding" card below — tokens do not stream until notifyRewardAmount is called.',
+      primary: true,
+    },
+    {
+      key: 'word-pack-sales',
+      label: 'Pack & Superguess sales (ETH in)',
+      address: process.env.WORD_PACK_SALES_ADDRESS || null,
+      envVar: 'WORD_PACK_SALES_ADDRESS',
+      sends: null,
+      how: 'Players pay ETH here. Anyone can call withdraw() but it can only go to the treasury. Never send funds here yourself.',
+      primary: false,
+    },
+    {
+      key: 'guess-log',
+      label: 'Guess log (Merkle checkpoints)',
+      address: process.env.GUESS_LOG_ADDRESS || null,
+      envVar: 'GUESS_LOG_ADDRESS',
+      sends: null,
+      how: 'The operator posts guess checkpoints here. Holds no funds.',
+      primary: false,
+    },
+    {
+      key: 'treasury',
+      label: 'Treasury (letshaveaword.eth)',
+      address: process.env.PRIZE_POOL_WALLET || '0xFd9716B26f3070Bc60AC409Aba13Dca2798771fB',
+      envVar: 'PRIZE_POOL_WALLET',
+      sends: null,
+      how: 'Holds the $WORD tranche and receives ETH revenue. Hand-signed — its key is never on the server.',
+      primary: false,
+    },
+    {
+      key: 'operator',
+      label: 'Operator wallet (server signer)',
+      address: operatorAddress,
+      envVar: 'OPERATOR_PRIVATE_KEY',
+      sends: 'ETH',
+      how: 'Signs every server transaction; needs ETH for gas. Top up from the "Fund Operator Wallet" card below.',
+      primary: false,
+    },
+    {
+      key: 'jackpot-manager-eth',
+      label: 'JackpotManager (ETH era, rounds 1–33)',
+      address: ethEraJackpotManager,
+      envVar: 'JACKPOT_MANAGER_ADDRESS',
+      sends: null,
+      how: 'The legacy ETH-round contract, kept for history and /verify. No new funding goes here.',
+      primary: false,
+    },
+    {
+      key: 'word-token',
+      label: '$WORD token',
+      address: WORD_TOKEN_ADDRESS,
+      envVar: null,
+      sends: null,
+      how: 'The ERC-20 itself. Never send tokens to the token contract.',
+      primary: false,
+    },
+  ];
+}
+
 function formatTokenAmount(raw: bigint): string {
   const whole = raw / BigInt(1e18);
   if (whole >= 1_000_000_000n) {
@@ -280,6 +399,12 @@ export default async function handler(
     }
 
     if (req.method === 'GET') {
+      // Fast path for the Treasury funding directory: env + constants only,
+      // no RPC round-trips.
+      if (req.query.book === '1') {
+        return res.status(200).json({ ok: true, addressBook: getAddressBook() });
+      }
+
       // Fetch state for all contracts in parallel
       const [mainnet, wordManager] = await Promise.all([
         getMainnetState(),
@@ -290,6 +415,7 @@ export default async function handler(
         ok: true,
         mainnet,
         wordManager,
+        addressBook: getAddressBook(),
         timestamp: new Date().toISOString(),
         recommendations: {
           mainnet: !mainnet.operatorAuthorized
