@@ -16,8 +16,10 @@
  * stopPropagation keeps clicks from ever reaching the sheet's backdrop.
  */
 import { createPortal } from 'react-dom';
+import sdk from '@farcaster/miniapp-sdk';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
+import { triggerHaptic, haptics } from '../src/lib/haptics';
 
 interface WordmarkDetailModalProps {
   wordmark: UserWordmark;
@@ -98,6 +100,55 @@ function earnedDetail(wordmark: UserWordmark): string | null {
   }
 }
 
+/**
+ * The "by …" clause of the share cast, per mark. Generic on purpose — the
+ * cast should read well for every holder — except where a roundId makes the
+ * brag concrete and the metadata reliably has one.
+ */
+function sharePhrase(wordmark: UserWordmark): string {
+  const roundId = wordmark.metadata ? num(wordmark.metadata, 'roundId') : null;
+
+  switch (wordmark.id) {
+    case 'OG_HUNTER':
+      return 'by joining the OG Hunter campaign before launch';
+    case 'BONUS_WORD_FINDER':
+      return 'by finding a bonus word';
+    case 'BURN_WORD_FINDER':
+      return 'by finding a burn word';
+    case 'JACKPOT_WINNER':
+      return roundId ? `by winning Round ${roundId}’s jackpot` : 'by winning a round’s jackpot';
+    case 'DOUBLE_W':
+      return 'by finding two special words in one round';
+    case 'PATRON':
+      return 'by referring a jackpot winner';
+    case 'QUICKDRAW':
+      return 'by placing in a round’s Top 10 Early Guessers';
+    case 'ENCYCLOPEDIC':
+      return 'by guessing words starting with every letter, A to Z';
+    case 'BAKERS_DOZEN':
+      return 'by guessing words starting with 13 different letters across 13 different days';
+    case 'SHOWSTOPPER':
+      return 'by firing off a Superguess';
+    case 'EARLY_ADOPTER':
+      return 'by playing in the first 18 rounds';
+    case 'TRAILBLAZER':
+      return roundId
+        ? `by making Round ${roundId}’s #1 global guess`
+        : 'by making a round’s #1 global guess';
+    default:
+      return `by earning it`;
+  }
+}
+
+/** "Only N other players hold this Wordmark" — self excluded from the count. */
+function shareRarityClause(holders: number): string {
+  const others = holders - 1;
+  if (others <= 0) return 'I’m the only player who holds this Wordmark';
+  if (others === 1) return 'Only 1 other player holds this Wordmark';
+  if (others < 1000) return `Only ${others} other players hold this Wordmark`;
+  return `${others.toLocaleString()} other players hold this Wordmark`;
+}
+
 function rarityLine(wordmark: UserWordmark): string {
   const n = wordmark.holders;
   if (n === 0) return 'No one holds this yet — be the first';
@@ -117,6 +168,28 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
   const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
   const detail = wordmark.earned ? earnedDetail(wordmark) : null;
   const earnedDate = wordmark.earned ? formatEarnedDate(wordmark.earnedAt) : null;
+  const earnedRound = wordmark.earned && wordmark.metadata ? num(wordmark.metadata, 'roundId') : null;
+
+  const handleShare = async () => {
+    try {
+      void haptics.buttonTapMinor();
+
+      const castText =
+        `I earned the “${wordmark.name}” wordmark in @letshaveaword ${sharePhrase(wordmark)}! ` +
+        `${shareRarityClause(wordmark.holders)}\n` +
+        `letshaveaword.fun`;
+
+      await sdk.actions.composeCast({
+        text: castText,
+        embeds: ['https://letshaveaword.fun'],
+      });
+
+      void haptics.shareCompleted();
+    } catch (error) {
+      console.error('[WordmarkDetailModal] Error sharing wordmark:', error);
+      triggerHaptic('error');
+    }
+  };
 
   return createPortal(
     <div
@@ -146,7 +219,7 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
           <h3 className="text-lg font-bold text-gray-900">{wordmark.name}</h3>
           {wordmark.earned ? (
             <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
-              Earned{earnedDate ? ` · ${earnedDate}` : ''}
+              Earned{earnedRound ? ` · Round ${earnedRound}` : ''}{earnedDate ? ` · ${earnedDate}` : ''}
             </span>
           ) : (
             <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
@@ -163,9 +236,24 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
 
         <p className="text-xs text-gray-400">{rarityLine(wordmark)}</p>
 
-        <button onClick={onClose} className="btn-primary-lg w-full">
-          {wordmark.earned ? 'Nice ✨' : 'Challenge accepted 🫡'}
-        </button>
+        {wordmark.earned ? (
+          <div className="flex gap-3">
+            <button
+              onClick={handleShare}
+              className="btn-accent flex-1 flex items-center justify-center gap-2"
+            >
+              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              Share
+            </button>
+            <button onClick={onClose} className="btn-primary-lg flex-1">
+              Nice 👌
+            </button>
+          </div>
+        ) : (
+          <button onClick={onClose} className="btn-primary-lg w-full">
+            Challenge accepted 🫡
+          </button>
+        )}
       </div>
     </div>,
     document.body
