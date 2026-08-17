@@ -64,13 +64,13 @@ export default function Round34AnnouncementModal({
         <ul className="space-y-4 text-gray-700">
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>The jackpot now pays <strong>$WORD</strong>. Every prize — jackpot, bonus words, Top 10 — is paid in the game’s own token.</span>
+            <span>The jackpot now pays <strong>$WORD</strong>. Every prize (jackpot, bonus words, Top 10) is paid in the game’s own token.</span>
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
             {grandfathered ? (
-              <span><strong>You’re in free.</strong> Playing now requires about $3 of $WORD (held or staked) — but you played before round 28, so the requirement never applies to you.{earlyAdopter && (
-                <> And the <strong>Early Adopter 💅</strong> wordmark is already on your profile — granted, not earned or bought, for playing before the bots found us.</>
+              <span><strong>You’re in free.</strong> Playing now requires about $3 of $WORD (held or staked), but you played before round 28, so the requirement never applies to you.{earlyAdopter && (
+                <> And the <strong>Early Adopter 💅</strong> Wordmark is already on your profile: granted, not earned or bought, for playing before the bots found us.</>
               )}</span>
             ) : (
               <span>Playing now requires about <strong>$3 of $WORD</strong>, held or staked. Top up once and you’re in.</span>
@@ -82,7 +82,7 @@ export default function Round34AnnouncementModal({
           </li>
           <li className="flex items-start">
             <span className="text-brand mr-3 mt-0.5 flex-shrink-0 font-bold">•</span>
-            <span>Guess packs and Superguess still cost <strong>ETH</strong> — and 80% of every purchase grows the $WORD prize pool.</span>
+            <span>Guess packs and Superguess still cost <strong>ETH</strong>, and 80% of every purchase grows the $WORD prize pool.</span>
           </li>
         </ul>
 
