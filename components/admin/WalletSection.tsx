@@ -95,6 +95,19 @@ interface WalletBalances {
     stakingHeadroom: string;
     stakingHealthy: boolean;
   };
+  wordJackpot?: {
+    address: string;
+    balance: string;
+    pool: string;
+    carry: string;
+    claimable: string;
+    unallocated: string;
+  };
+  packSales?: {
+    address: string;
+    balanceEth: string;
+  };
+  treasuryWord?: string;
   pendingRefunds: {
     count: number;
     totalEth: string;
@@ -171,15 +184,13 @@ function computeWalletHealth(
     issues.push('Contract connection error');
   }
 
-  // Warning issues
+  // Warning issues. Gas-only threshold — must match the Fund Operator card's
+  // amber line, or the badge and the card contradict each other on the same
+  // tab. The old ETH seed-shortfall issue is gone with the seed model: $WORD
+  // rounds seed themselves from WordJackpot, nothing auto-tops-up anymore.
   const operatorBalance = parseFloat(balances?.operatorWallet?.balanceEth || '0');
-  if (operatorBalance < 0.01 && balances) {
-    issues.push('Low operator wallet balance');
-  }
-
-  const seedShortfall = parseFloat(balances?.nextRoundSeed?.shortfallEth || '0');
-  if (seedShortfall > 0) {
-    issues.push(`Next round seed ${seedShortfall.toFixed(4)} ETH short — operator wallet will auto-top-up`);
+  if (operatorBalance < 0.005 && balances) {
+    issues.push('Low operator gas balance');
   }
 
   if (opStatus?.deadDay?.enabled) {
@@ -560,11 +571,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
   const [wordTokenStatus, setWordTokenStatus] = useState<WordTokenStatus | null>(null);
   const [wordTokenLoading, setWordTokenLoading] = useState(false);
   const [wordTokenError, setWordTokenError] = useState<string | null>(null);
-  const [wordTokenWithdrawAddress, setWordTokenWithdrawAddress] = useState('');
-  const [wordTokenWithdrawLoading, setWordTokenWithdrawLoading] = useState(false);
-  const [showWordTokenWithdrawConfirm, setShowWordTokenWithdrawConfirm] = useState(false);
-  const [wordTokenWithdrawConfirmText, setWordTokenWithdrawConfirmText] = useState('');
-  const [wordTokenWithdrawResult, setWordTokenWithdrawResult] = useState<{ txHash: string; amount: string } | null>(null);
   const [bonusWordsToggleLoading, setBonusWordsToggleLoading] = useState(false);
 
   // =============================================================================
@@ -735,46 +741,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
       setWordTokenLoading(false);
     }
   }, [user?.fid]);
-
-  const handleWordTokenWithdraw = async () => {
-    if (!user?.fid || !wordTokenWithdrawAddress) return;
-
-    if (wordTokenWithdrawConfirmText !== 'WITHDRAW WORD') {
-      setWordTokenError('Please type "WITHDRAW WORD" to confirm');
-      return;
-    }
-
-    setWordTokenWithdrawLoading(true);
-    setWordTokenError(null);
-
-    try {
-      const res = await fetch('/api/admin/operational/withdraw-word-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          devFid: user.fid,
-          action: 'withdraw',
-          toAddress: wordTokenWithdrawAddress,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Withdrawal failed');
-      }
-
-      setWordTokenWithdrawResult({ txHash: data.txHash, amount: data.withdrawnAmount });
-      setShowWordTokenWithdrawConfirm(false);
-      setWordTokenWithdrawConfirmText('');
-      setWordTokenWithdrawAddress('');
-      fetchWordTokenStatus();
-    } catch (err: any) {
-      setWordTokenError(err.message);
-    } finally {
-      setWordTokenWithdrawLoading(false);
-    }
-  };
 
   const handleBonusWordsToggle = async (enable: boolean) => {
     if (!user?.fid) return;
@@ -1376,7 +1342,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
           </div>
         </div>
         <p style={styles.cardSubtitle}>
-          To grow the prize pool directly, send ETH to the jackpot contract — it credits on the next sync.
+          Round 34+ pays $WORD from the WordJackpot contract — rounds seed themselves from its
+          unallocated balance. Packs and Superguesses still pay ETH.
         </p>
 
         {balancesError ? (
@@ -1385,98 +1352,69 @@ export default function WalletSection({ user }: WalletSectionProps) {
           <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading balances...</div>
         ) : balances ? (
           <>
-          {balances.contractError && (
-            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
-              ⚠️ <strong>Contract unavailable:</strong> {balances.contractError}. Jackpot and creator pool values may not be accurate.
-            </div>
-          )}
-          
           {(() => {
-            const treasury = balances.treasury ?? null;
-
-            const seedTotal = balances.nextRoundSeed?.totalEth
-              || balances.nextRoundSeed?.projectedEth
-              || (parseFloat(balances.prizePool.currentJackpotEth) * 0.05).toString();
-
-            const fivePercent = balances.nextRoundSeed?.fivePercentEth
-              || (parseFloat(balances.prizePool.currentJackpotEth) * 0.05).toString();
-
-            const fromTreasury = balances.nextRoundSeed?.fromTreasuryEth || '0';
-            const shortfall = balances.nextRoundSeed?.shortfallEth || '0';
-            const hasShortfall = parseFloat(shortfall) > 0;
-            const onChainJackpot = parseFloat(balances.prizePool.currentJackpotEth);
-            const needsTopUp = onChainJackpot < 0.02;
-            const topUpAmount = needsTopUp ? (0.02 - onChainJackpot) : 0;
+            const legacyJackpotEth = parseFloat(balances.prizePool.currentJackpotEth);
+            const legacyCreatorEth = parseFloat(balances.treasury?.balanceEth ?? '0');
+            const legacyLeftoverEth = legacyJackpotEth + legacyCreatorEth;
+            const packSalesEth = balances.packSales ? parseFloat(balances.packSales.balanceEth) : null;
 
             return (
               <>
                 {/* Balances in compact grid */}
                 <div style={styles.grid4}>
                   <div style={styles.statCard}>
-                    <div style={styles.statLabel}>Prize Pool</div>
-                    <div style={styles.statValueSmall}>{onChainJackpot.toFixed(4)}</div>
-                    <div style={styles.statSubtext}>ETH</div>
+                    <div style={styles.statLabel}>Jackpot Fuel</div>
+                    <div style={styles.statValueSmall}>{balances.wordJackpot?.unallocated ?? '--'}</div>
+                    <div style={styles.statSubtext}>$WORD unallocated — seeds rounds</div>
                   </div>
                   <div style={styles.statCard}>
-                    <div style={styles.statLabel}>Next Seed</div>
-                    <div style={{ ...styles.statValueSmall, color: hasShortfall ? '#d97706' : '#16a34a' }}>
-                      {parseFloat(seedTotal).toFixed(4)}
-                    </div>
+                    <div style={styles.statLabel}>Live Pool</div>
+                    <div style={styles.statValueSmall}>{balances.wordJackpot?.pool ?? '--'}</div>
                     <div style={styles.statSubtext}>
-                      {hasShortfall ? `${parseFloat(shortfall).toFixed(4)} short` : needsTopUp ? 'Auto-top-up ready' : 'Target met'}
+                      {balances.wordJackpot ? `$WORD + ${balances.wordJackpot.carry} carry` : '$WORD'}
                     </div>
                   </div>
                   <div style={styles.statCard}>
-                    <div style={styles.statLabel}>Treasury</div>
-                    <div style={styles.statValueSmall}>{treasury ? parseFloat(treasury.balanceEth).toFixed(4) : '--'}</div>
-                    <div style={styles.statSubtext}>
-                      {treasury?.isWithdrawable ? `${parseFloat(treasury.withdrawableEth).toFixed(4)} withdraw` : `${parseFloat(fromTreasury).toFixed(4)} → seed`}
-                    </div>
+                    <div style={styles.statLabel}>Pack Sales</div>
+                    <div style={styles.statValueSmall}>{packSalesEth !== null ? packSalesEth.toFixed(4) : '--'}</div>
+                    <div style={styles.statSubtext}>ETH awaiting withdraw → treasury</div>
                   </div>
                   <div style={styles.statCard}>
                     <div style={styles.statLabel}>Pending Refunds</div>
                     <div style={styles.statValueSmall}>{parseFloat(balances.pendingRefunds.totalEth).toFixed(4)}</div>
-                    <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending</div>
+                    <div style={styles.statSubtext}>{balances.pendingRefunds.count} pending (ETH)</div>
                   </div>
                 </div>
 
-                {/* Seed Breakdown Info */}
-                {balances.nextRoundSeed && (
-                  <div style={{ marginTop: '16px', padding: '12px', background: hasShortfall ? '#fef3c7' : '#d1fae5', borderRadius: '8px', border: `1px solid ${hasShortfall ? '#fde68a' : '#6ee7b7'}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '12px', color: hasShortfall ? '#92400e' : '#047857', fontWeight: 500 }}>
-                        Next Round Seed Breakdown
-                      </span>
-                      <span style={{ fontSize: '12px', color: hasShortfall ? '#92400e' : '#047857' }}>
-                        {parseFloat(seedTotal).toFixed(4)} / 0.02 ETH
-                      </span>
-                    </div>
-                    <div style={{ background: hasShortfall ? '#fde68a' : '#6ee7b7', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          background: hasShortfall ? '#f59e0b' : '#10b981',
-                          height: '100%',
-                          width: `${Math.min(100, (parseFloat(seedTotal) / 0.02) * 100)}%`,
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
-                    <div style={{ fontSize: '11px', color: hasShortfall ? '#92400e' : '#047857', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>5% of jackpot: {parseFloat(fivePercent).toFixed(4)} ETH</span>
-                      <span>+ Treasury: {parseFloat(fromTreasury).toFixed(4)} ETH</span>
-                    </div>
-                    {hasShortfall && (
-                      <div style={{ fontSize: '11px', color: '#b45309', marginTop: '4px', fontStyle: 'italic' }}>
-                        Operator wallet will auto-top-up {parseFloat(shortfall).toFixed(4)} ETH shortfall when starting round
-                      </div>
-                    )}
-                    {!hasShortfall && needsTopUp && (
-                      <div style={{ fontSize: '11px', color: '#047857', marginTop: '4px', fontStyle: 'italic' }}>
-                        Operator wallet will auto-top-up {topUpAmount.toFixed(4)} ETH when starting round
-                      </div>
-                    )}
+                {/* Treasury wallet line */}
+                <div style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                  <span>
+                    Treasury wallet: {parseFloat(balances.prizePool.balanceEth).toFixed(4)} ETH
+                    {balances.treasuryWord !== undefined ? ` · ${balances.treasuryWord} $WORD (tranche source)` : ''}
+                  </span>
+                </div>
+
+                {/* ETH-era leftovers — show only while anything remains. Only
+                    the creator pool is reachable from this tab, and the
+                    contract keeps a 0.02 ETH floor on it, so use the server's
+                    floor-aware withdrawable figure rather than the raw pool. */}
+                {legacyLeftoverEth > 0.0001 && (() => {
+                  const legacyWithdrawableEth = parseFloat(balances.treasury?.withdrawableEth ?? '0');
+                  return (
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
+                    ETH era: JackpotManager still holds
+                    {legacyCreatorEth > 0.0001
+                      ? ` ${legacyCreatorEth.toFixed(4)} ETH creator pool (${
+                          legacyWithdrawableEth > 0
+                            ? `${legacyWithdrawableEth.toFixed(4)} ETH withdrawable below`
+                            : 'at the contract’s 0.02 ETH floor, none withdrawable'
+                        })`
+                      : ''}
+                    {legacyCreatorEth > 0.0001 && legacyJackpotEth > 0.0001 ? ' and' : ''}
+                    {legacyJackpotEth > 0.0001 ? ` ${legacyJackpotEth.toFixed(4)} ETH in the old prize pool (contract-side only, not withdrawable from here)` : ''}.
                   </div>
-                )}
+                  );
+                })()}
               </>
             );
           })()}
@@ -1490,25 +1428,27 @@ export default function WalletSection({ user }: WalletSectionProps) {
       {/* Fund Operator Wallet */}
       {balances && (() => {
         const opBal = parseFloat(balances.operatorWallet.balanceEth);
-        // shortfallEth already accounts for treasury auto-funding contribution,
-        // so it represents only what the operator wallet needs to cover as fallback
-        const shortfall = parseFloat(balances.nextRoundSeed?.shortfallEth || '0');
-        const topUpNeeded = shortfall;
-        const gasBuffer = 0.003;
-        const suggestedAmount = topUpNeeded > 0 ? (topUpNeeded + gasBuffer) : 0;
-        const balColor = opBal < 0.01 ? '#dc2626' : opBal < 0.025 ? '#d97706' : '#16a34a';
+        // Gas-only thresholds: $WORD rounds seed themselves from the
+        // WordJackpot tranche, so the operator never fronts a seed anymore.
+        // It signs round starts, resolutions, oracle pushes, and bonus/burn
+        // payouts — each costs a fraction of a cent on Base.
+        const GAS_TARGET_ETH = 0.01;
+        const suggestedAmount = opBal < GAS_TARGET_ETH ? GAS_TARGET_ETH - opBal : 0;
+        const balColor = opBal < 0.002 ? '#dc2626' : opBal < 0.005 ? '#d97706' : '#16a34a';
         const statusType: 'error' | 'warning' | 'success' =
-          opBal < 0.01 ? 'error' : opBal < 0.025 ? 'warning' : 'success';
+          opBal < 0.002 ? 'error' : opBal < 0.005 ? 'warning' : 'success';
         const statusMsg =
-          opBal < 0.01 ? 'Critically low - operator may not cover fallback seed + gas' :
-          opBal < 0.025 ? 'Getting low - may not cover fallback seed + gas' :
-          'Sufficient balance for gas and fallback seeding';
+          opBal < 0.002 ? 'Critically low — round starts and payouts may fail on gas' :
+          opBal < 0.005 ? 'Getting low — top up before the next few rounds' :
+          'Enough gas for normal operations';
 
         return (
           <div style={styles.card}>
             <h3 style={{ ...styles.cardTitle, margin: 0 }}>Fund Operator Wallet</h3>
             <p style={{ ...styles.cardSubtitle, margin: '4px 0 16px 0' }}>
-              Treasury auto-funds the jackpot seed when starting rounds. Operator wallet is only used as a fallback when treasury is insufficient.
+              The operator signs every server transaction — round starts, resolutions, oracle
+              pushes, bonus and burn payouts. It needs ETH for gas only; $WORD rounds seed
+              themselves from the WordJackpot tranche.
             </p>
 
             {/* Operator balance and info */}
@@ -1516,17 +1456,12 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Operator Balance</div>
                 <div style={{ ...styles.statValueSmall, color: balColor }}>{opBal.toFixed(4)}</div>
-                <div style={styles.statSubtext}>ETH</div>
+                <div style={styles.statSubtext}>ETH (gas)</div>
               </div>
               <div style={styles.statCard}>
-                <div style={styles.statLabel}>Operator Shortfall</div>
-                <div style={styles.statValueSmall}>{topUpNeeded > 0 ? topUpNeeded.toFixed(4) : '0.0000'}</div>
-                <div style={styles.statSubtext}>{topUpNeeded > 0 ? 'after treasury auto-seed' : 'Treasury covers seed'}</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Suggested Fund</div>
+                <div style={styles.statLabel}>Suggested Top-Up</div>
                 <div style={styles.statValueSmall}>{suggestedAmount > 0 ? suggestedAmount.toFixed(4) : '--'}</div>
-                <div style={styles.statSubtext}>{suggestedAmount > 0 ? 'incl. 0.003 gas buffer' : 'Fully funded'}</div>
+                <div style={styles.statSubtext}>{suggestedAmount > 0 ? `to ${GAS_TARGET_ETH} ETH` : 'Fully funded'}</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statLabel}>Operator Address</div>
@@ -1666,13 +1601,27 @@ export default function WalletSection({ user }: WalletSectionProps) {
       )}
 
       {/* WordManager Funding */}
-      {balances?.wordManager && (
+      {/* Each contract section guards itself: the balances API fails soft per
+          block, so a WordManager RPC hiccup must not hide the WordJackpot
+          numbers or the live bonus-words switch. */}
+      {balances && (
         <div style={styles.card}>
-          <h3 style={styles.cardTitle}>📊 WordManager funding</h3>
+          <h3 style={styles.cardTitle}>📊 $WORD across contracts</h3>
           <p style={styles.cardSubtitle}>
-            Live V3 contract balance breakdown — staked, streaming rewards, and available for game rewards
+            Where $WORD sits and what each balance funds. WordManager pays the per-round rewards
+            (top-10 rewards, bonus and burn words) and holds staking; WordJackpot pays the jackpot
+            itself; the treasury wallet is the tranche source for both.
           </p>
 
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '8px' }}>
+            WordManager — staking + per-round rewards
+          </div>
+          {!balances.wordManager && (
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px' }}>
+              WordManager data unavailable right now (RPC or config) — the sections below are independent.
+            </div>
+          )}
+          {balances.wordManager && (
           <div style={styles.grid4}>
             <div style={styles.statCard}>
               <div style={styles.statLabel}>Total $WORD</div>
@@ -1695,8 +1644,10 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <div style={styles.statSubtext}>Top-10 / bonus / burn</div>
             </div>
           </div>
+          )}
 
           {/* Rounds available alert */}
+          {balances.wordManager && (
           <div style={{
             ...styles.alert(
               balances.wordManager.roundsAvailable >= 5 ? 'success' :
@@ -1706,17 +1657,91 @@ export default function WalletSection({ user }: WalletSectionProps) {
           }}>
             <span>{balances.wordManager.roundsAvailable >= 5 ? '✅' : balances.wordManager.roundsAvailable >= 1 ? '⚠️' : '🚨'}</span>
             <div>
-              <strong>{balances.wordManager.roundsAvailable} rounds</strong> of game rewards available at current economy settings
+              <strong>{balances.wordManager.roundsAvailable} rounds</strong> of per-round rewards (top-10 rewards + bonus + burn) available at current economy settings
               {balances.wordManager.roundsAvailable < 5 && (
                 <div style={{ marginTop: '4px', fontSize: '12px', opacity: 0.8 }}>
-                  Consider transferring more $WORD to the WordManager contract
+                  Consider transferring more $WORD to the WordManager contract — see the Funding directory above
                 </div>
               )}
             </div>
           </div>
+          )}
+
+          {/* WordJackpot — jackpot prizes */}
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' as const, letterSpacing: '0.5px', margin: '20px 0 8px 0' }}>
+            WordJackpot — jackpot prizes
+          </div>
+          {balances.wordJackpot ? (
+            <div style={styles.grid4}>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Unallocated</div>
+                <div style={styles.statValueSmall}>{balances.wordJackpot.unallocated}</div>
+                <div style={styles.statSubtext}>Seeds future rounds</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Live Pool</div>
+                <div style={styles.statValueSmall}>{balances.wordJackpot.pool}</div>
+                <div style={styles.statSubtext}>Current round&apos;s prize</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Carry</div>
+                <div style={styles.statValueSmall}>{balances.wordJackpot.carry}</div>
+                <div style={styles.statSubtext}>Rolls into next round</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Pending Claims</div>
+                <div style={styles.statValueSmall}>{balances.wordJackpot.claimable}</div>
+                <div style={styles.statSubtext}>Deferred payouts</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+              Not configured — set <code>WORD_JACKPOT_ADDRESS</code> to see jackpot balances here.
+            </div>
+          )}
+
+          {/* Treasury wallet $WORD */}
+          {balances.treasuryWord !== undefined && (
+            <div style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280' }}>
+              Treasury wallet holds <strong>{balances.treasuryWord} $WORD</strong> — the tranche
+              source for both contracts (hand-signed transfers).
+            </div>
+          )}
+
+          {/* Bonus words master switch. The flag lives on the legacy
+              JackpotManager contract, but createRound still reads it at every
+              round start to decide whether the round gets bonus + burn words —
+              it is a live control, not a legacy one. */}
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' as const, gap: '8px' }}>
+            <div>
+              <span style={{ fontSize: '13px', fontWeight: 600, fontFamily }}>Bonus words</span>
+              <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '8px' }}>
+                Round-start switch for bonus + burn words
+              </span>
+            </div>
+            {wordTokenStatus ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: wordTokenStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af' }}>
+                  {wordTokenStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
+                </span>
+                <button
+                  onClick={() => handleBonusWordsToggle(!wordTokenStatus.bonusWordsEnabled)}
+                  disabled={bonusWordsToggleLoading}
+                  style={{ ...styles.btnSecondary, ...styles.btnSmall }}
+                >
+                  {bonusWordsToggleLoading ? 'Toggling…' : wordTokenStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
+                </button>
+              </div>
+            ) : (
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>{wordTokenLoading ? 'Loading…' : '--'}</span>
+            )}
+          </div>
+          {wordTokenError && (
+            <div style={{ ...styles.alert('error'), marginTop: '8px' }}>{wordTokenError}</div>
+          )}
 
           {/* Staking depletion warning */}
-          {balances.wordManager.stakingHealthy === false && (
+          {balances.wordManager && balances.wordManager.stakingHealthy === false && (
             <div style={{
               ...styles.alert('error'),
               marginTop: '12px',
@@ -1729,7 +1754,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
             </div>
           )}
 
-          {/* Contract address and staking period */}
+          {/* Contract address, staking period, and activation — all
+              WordManager-backed */}
+          {balances.wordManager && (<>
           <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: '#6b7280', fontFamily }}>Contract</span>
@@ -1904,6 +1931,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               </div>
             )}
           </div>
+          </>)}
         </div>
       )}
 
@@ -1918,7 +1946,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
       <div style={styles.card}>
         <h3 style={styles.cardTitle}>Withdraw from Treasury</h3>
         <p style={styles.cardSubtitle}>
-          Withdraw excess treasury funds. Treasury first covers seed shortfall, only remainder is withdrawable.
+          Withdraw the legacy contract&apos;s accumulated creator profit (ETH era). The contract
+          itself retains 0.02 ETH on withdrawal — a V3 contract rule, not a seed reservation.
         </p>
 
         {balances && (() => {
@@ -1960,8 +1989,8 @@ export default function WalletSection({ user }: WalletSectionProps) {
         <div style={styles.alert('info')}>
           <span>ℹ️</span>
           <span>
-            Treasury funds first cover the seed shortfall (difference between 5% of jackpot and 0.02 ETH target).
-            Only funds above what's needed for seeding can be withdrawn.
+            The legacy V3 contract keeps a 0.02 ETH floor on withdrawal (onchain rule).
+            Everything above that floor is withdrawable.
           </span>
         </div>
 
@@ -1973,7 +2002,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           if (!treasury.isWithdrawable) {
             return (
               <div style={{ ...styles.alert('warning'), marginTop: '16px' }}>
-                ⚠️ No withdrawable balance. Treasury funds ({parseFloat(treasury.balanceEth).toFixed(4)} ETH) are reserved to help seed the next round.
+                ⚠️ No withdrawable balance. The remaining {parseFloat(treasury.balanceEth).toFixed(4)} ETH sits at or under the contract&apos;s 0.02 ETH withdrawal floor.
               </div>
             );
           }
@@ -2065,228 +2094,6 @@ export default function WalletSection({ user }: WalletSectionProps) {
       </div>
 
       {/* Bonus Word Distributions */}
-
-      {/* $WORD Withdrawal */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ ...styles.cardTitle, margin: 0 }}>💬 $WORD management (legacy)</h3>
-            <p style={{ ...styles.cardSubtitle, margin: '4px 0 0 0' }}>
-              Legacy JackpotManager balance — see WordManager funding section for current data
-            </p>
-          </div>
-          <button
-            onClick={() => fetchWordTokenStatus()}
-            disabled={wordTokenLoading}
-            style={{ ...styles.btnSecondary, ...styles.btnSmall }}
-          >
-            {wordTokenLoading ? 'Loading...' : 'Refresh'}
-          </button>
-        </div>
-
-        {wordTokenError && (
-          <div style={styles.alert('error')}>{wordTokenError}</div>
-        )}
-
-        {wordTokenWithdrawResult && (
-          <div style={{ ...styles.alert('success'), marginBottom: '16px' }}>
-            <span>✅</span>
-            <span>
-              Withdrew {parseFloat(wordTokenWithdrawResult.amount).toLocaleString()} $WORD!{' '}
-              <a
-                href={`https://basescan.org/tx/${wordTokenWithdrawResult.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={styles.link}
-              >
-                View on BaseScan →
-              </a>
-            </span>
-            <button
-              onClick={() => setWordTokenWithdrawResult(null)}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {wordTokenLoading && !wordTokenStatus ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
-        ) : wordTokenStatus ? (
-          <>
-            {/* Status Cards */}
-            <div style={{ ...styles.grid2, marginBottom: '16px' }}>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Contract $WORD</div>
-                <div style={styles.statValueSmall}>{wordTokenStatus.balanceInMillions}</div>
-                <div style={styles.statSubtext}>{wordTokenStatus.roundsAvailable} rounds available</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Bonus Words</div>
-                <div style={styles.statValueSmall}>
-                  <span style={{
-                    color: wordTokenStatus.bonusWordsEnabled ? '#16a34a' : '#9ca3af',
-                    fontWeight: 600,
-                  }}>
-                    {wordTokenStatus.bonusWordsEnabled ? 'ENABLED' : 'DISABLED'}
-                  </span>
-                </div>
-                <div style={styles.statSubtext}>
-                  <button
-                    onClick={() => handleBonusWordsToggle(!wordTokenStatus.bonusWordsEnabled)}
-                    disabled={bonusWordsToggleLoading}
-                    style={{
-                      ...styles.btnSmall,
-                      background: 'none',
-                      border: 'none',
-                      color: '#2563eb',
-                      cursor: 'pointer',
-                      padding: '0',
-                      textDecoration: 'underline',
-                      fontSize: '11px',
-                    }}
-                  >
-                    {bonusWordsToggleLoading ? 'Toggling...' : wordTokenStatus.bonusWordsEnabled ? 'Disable' : 'Enable'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Contract Info */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: '#f9fafb', borderRadius: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: '#6b7280' }}>Contract:</span>
-                <a
-                  href={`https://basescan.org/address/${wordTokenStatus.contractAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
-                >
-                  {wordTokenStatus.contractAddress.slice(0, 10)}...{wordTokenStatus.contractAddress.slice(-8)}
-                </a>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: '#6b7280' }}>$WORD Token:</span>
-                <a
-                  href={`https://basescan.org/token/${wordTokenStatus.wordTokenAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontFamily: 'monospace', color: '#2563eb' }}
-                >
-                  {wordTokenStatus.wordTokenAddress.slice(0, 10)}...{wordTokenStatus.wordTokenAddress.slice(-8)}
-                </a>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#6b7280' }}>Exact Balance:</span>
-                <span style={{ fontFamily: 'monospace' }}>
-                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
-                </span>
-              </div>
-            </div>
-
-            {/* Withdrawal Note */}
-            <div style={{
-              ...styles.alert(wordTokenStatus.canWithdraw ? 'info' : 'warning'),
-              marginBottom: '16px',
-            }}>
-              <span>{wordTokenStatus.canWithdraw ? 'ℹ️' : '⚠️'}</span>
-              <span>{wordTokenStatus.withdrawalNote}</span>
-            </div>
-
-            {/* Withdrawal Form */}
-            {wordTokenStatus.canWithdraw && (
-              <div>
-                <label style={styles.label}>Withdraw To Address:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <input
-                    type="text"
-                    placeholder="0x..."
-                    value={wordTokenWithdrawAddress}
-                    onChange={(e) => setWordTokenWithdrawAddress(e.target.value)}
-                    style={{ ...styles.input, flex: 1, fontFamily: 'monospace' }}
-                  />
-                  <button
-                    onClick={() => setShowWordTokenWithdrawConfirm(true)}
-                    disabled={!wordTokenWithdrawAddress || wordTokenWithdrawLoading}
-                    style={{
-                      ...styles.btnDanger,
-                      ...((!wordTokenWithdrawAddress || wordTokenWithdrawLoading) ? styles.btnDisabled : {}),
-                    }}
-                  >
-                    Withdraw All
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        ) : null}
-      </div>
-
-      {/* $WORD Withdrawal Confirmation Modal */}
-      {showWordTokenWithdrawConfirm && wordTokenStatus && (
-        <div style={styles.modal}>
-          <div style={styles.modalContent}>
-            <h3 style={{ ...styles.cardTitle, marginBottom: '16px' }}>⚠️ Confirm $WORD Withdrawal</h3>
-
-            <div style={{ ...styles.alert('warning'), marginBottom: '16px' }}>
-              This action is <strong>irreversible</strong>. All {wordTokenStatus.balanceInMillions} $WORD will be withdrawn.
-            </div>
-
-            <div style={{ ...styles.statCard, marginBottom: '16px', textAlign: 'left' }}>
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{ color: '#6b7280' }}>Amount:</span>
-                <div style={{ fontWeight: 600, fontSize: '18px' }}>
-                  {parseFloat(wordTokenStatus.balanceFormatted).toLocaleString()} $WORD
-                </div>
-              </div>
-              <div>
-                <span style={{ color: '#6b7280' }}>To Address:</span>
-                <div style={{ fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
-                  {wordTokenWithdrawAddress}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={styles.label}>Type "WITHDRAW WORD" to confirm:</label>
-              <input
-                type="text"
-                value={wordTokenWithdrawConfirmText}
-                onChange={(e) => setWordTokenWithdrawConfirmText(e.target.value.toUpperCase())}
-                placeholder="WITHDRAW WORD"
-                style={{
-                  ...styles.input,
-                  ...(wordTokenWithdrawConfirmText && wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.inputError : {}),
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => {
-                  setShowWordTokenWithdrawConfirm(false);
-                  setWordTokenWithdrawConfirmText('');
-                }}
-                style={{ ...styles.btnSecondary, flex: 1 }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleWordTokenWithdraw}
-                disabled={wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD'}
-                style={{
-                  ...styles.btnDanger,
-                  flex: 1,
-                  ...(wordTokenWithdrawLoading || wordTokenWithdrawConfirmText !== 'WITHDRAW WORD' ? styles.btnDisabled : {}),
-                }}
-              >
-                {wordTokenWithdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Withdraw Confirmation Modal */}
       {showWithdrawConfirm && balances && connectedWallet && (() => {
