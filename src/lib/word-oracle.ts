@@ -136,10 +136,23 @@ export async function fetchFromDexScreener(): Promise<MarketCapData | null> {
  */
 export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
   try {
-    const response = await fetch(
-      `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}`,
-      { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) }
-    );
+    // The token endpoint has price and FDV; the 24h change lives ONLY on the
+    // pools endpoint (attributes.price_change_percentage.h24 of the top
+    // pool). Verified live 2026-08-17 — the token endpoint has no change
+    // field at all. The pools fetch is best-effort: it gets a much shorter
+    // timeout than the market-cap read, so a hanging pools endpoint costs a
+    // decorative chip, never seconds on the oracle cron or the $WORD sheet.
+    const POOLS_FETCH_TIMEOUT_MS = 2500;
+    const [response, poolsResponse] = await Promise.all([
+      fetch(
+        `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}`,
+        { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) }
+      ),
+      fetch(
+        `https://api.geckoterminal.com/api/v2/networks/base/tokens/${WORD_TOKEN_ADDRESS}/pools`,
+        { signal: AbortSignal.timeout(POOLS_FETCH_TIMEOUT_MS) }
+      ).catch(() => null),
+    ]);
 
     if (!response.ok) {
       console.warn(`[ORACLE] GeckoTerminal API error: ${response.status}`);
@@ -158,13 +171,26 @@ export async function fetchFromGeckoTerminal(): Promise<MarketCapData | null> {
     // market_cap_usd is null for tokens without a CoinGecko listing - use FDV as proxy (same as DexScreener)
     const marketCapUsd = parseFloat(attributes.market_cap_usd || attributes.fdv_usd || '0');
 
+    let priceChange24h: number | undefined;
+    try {
+      if (poolsResponse?.ok) {
+        const pools = await poolsResponse.json();
+        const h24 = pools.data?.[0]?.attributes?.price_change_percentage?.h24;
+        const parsed = h24 != null ? parseFloat(h24) : NaN;
+        if (Number.isFinite(parsed)) priceChange24h = parsed;
+      }
+    } catch {
+      // change stays undefined — market cap is the payload that matters
+    }
+
     console.log(
-      `[ORACLE] GeckoTerminal - Price: $${priceUsd.toFixed(8)}, MCap: $${marketCapUsd.toLocaleString()}`
+      `[ORACLE] GeckoTerminal - Price: $${priceUsd.toFixed(8)}, MCap: $${marketCapUsd.toLocaleString()}, 24h: ${priceChange24h ?? 'N/A'}%`
     );
 
     return {
       marketCapUsd,
       priceUsd,
+      priceChange24h,
       source: OracleSource.GECKOTERMINAL,
       timestamp: new Date(),
     };

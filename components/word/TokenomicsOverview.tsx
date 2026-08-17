@@ -1,6 +1,8 @@
 /**
  * TokenomicsOverview Component
- * Milestone 14: Displays $WORD token supply, burn stats, and fee distribution
+ * Milestone 14: Displays $WORD token supply and burn stats
+ * (The fee-distribution tile was removed 2026-08-17 by operator request;
+ * the API still serves feeDistribution for pages/preview.tsx.)
  */
 
 import type { WordTokenomicsResponse } from '../../pages/api/word-tokenomics';
@@ -78,26 +80,6 @@ export default function TokenomicsOverview({ data, isLoading }: TokenomicsOvervi
         </div>
       </div>
 
-      {/* Fee distribution */}
-      <div className="section-card bg-gray-50">
-        <h3 className="text-base font-semibold text-gray-900">Fee distribution</h3>
-        <div className="space-y-2 mt-2">
-          {[
-            { label: 'Game treasury', value: data.feeDistribution.gameTreasury, color: '#2D68C7' },
-            { label: 'Buyback & stake', value: data.feeDistribution.buybackStake, color: '#7c3aed' },
-            { label: 'Player rewards', value: data.feeDistribution.playerRewards, color: '#10b981' },
-            { label: 'Top 10 referral', value: data.feeDistribution.top10Referral, color: '#f59e0b' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-gray-700">{label}</span>
-              </div>
-              <span className="font-semibold text-gray-900">{value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
