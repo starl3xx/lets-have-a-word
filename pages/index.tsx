@@ -2272,8 +2272,11 @@ function GameContent() {
 
           </div>
 
-          {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav) */}
-          <div className="mt-4 mb-4 px-2 grid grid-cols-4 gap-1.5" style={{ position: 'relative', zIndex: 5 }}>
+          {/* Navigation Buttons (Milestone 4.3, updated M14: 4-tab nav).
+              gap-4 matches the game container's px-4, so the space between
+              buttons equals the space at the row's edges — no row padding,
+              or the edges grow past the gaps again. */}
+          <div className="mt-4 mb-4 grid grid-cols-4 gap-4" style={{ position: 'relative', zIndex: 5 }}>
                 <button
                   onClick={() => {
                     setShowStatsSheet(true);
