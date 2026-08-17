@@ -422,6 +422,23 @@ async function allocateToSeedAndCreator(
 }
 
 /**
+ * Fire-and-forget TRAILBLAZER award for the round's #1 guesser. Resolution is
+ * the first race-free moment (the round is locked, MIN(guesses.id) is final),
+ * so EVERY path that marks a round resolved must call this — the zero-pool
+ * early return included. See awardTrailblazerForRound for the why.
+ */
+function awardTrailblazerAtResolution(roundId: number): void {
+  (async () => {
+    try {
+      const { awardTrailblazerForRound } = await import('./wordmarks');
+      await awardTrailblazerForRound(roundId);
+    } catch (error) {
+      console.error(`[Wordmark] Failed to award TRAILBLAZER for round ${roundId}:`, error);
+    }
+  })();
+}
+
+/**
  * Resolve round and create payouts (Milestone 6.9 - Onchain multi-recipient)
  * Updated Economics (January 2026) - New 80/10/5/5 split
  *
@@ -652,6 +669,8 @@ export async function resolveRoundAndCreatePayouts(
         status: 'resolved',
       })
       .where(eq(rounds.id, roundId));
+
+    awardTrailblazerAtResolution(roundId);
 
     return;
   }
@@ -1163,17 +1182,7 @@ export async function resolveRoundAndCreatePayouts(
     })();
   }
 
-  // Award TRAILBLAZER to the maker of the round's #1 guess (fire-and-forget).
-  // Resolution is the first race-free moment: the round is locked, so
-  // MIN(guesses.id) is final. See awardTrailblazerForRound for the why.
-  (async () => {
-    try {
-      const { awardTrailblazerForRound } = await import('./wordmarks');
-      await awardTrailblazerForRound(roundId);
-    } catch (error) {
-      console.error(`[Wordmark] Failed to award TRAILBLAZER for round ${roundId}:`, error);
-    }
-  })();
+  awardTrailblazerAtResolution(roundId);
 
   // Mark round as resolved
   // Milestone 9.5: Also set status to 'resolved'
