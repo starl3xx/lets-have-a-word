@@ -190,7 +190,10 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
   if (isLoading) {
     return (
       <div className="bg-brand text-white py-3 px-4 shadow-md">
-        <div className="max-w-6xl mx-auto text-center">
+        {/* min-h matches the two-line columns of the round bar (text-xs label
+            + text-lg value = 2.75rem) so the bar never changes height across
+            loading / error / between-rounds / live states. */}
+        <div className="max-w-6xl mx-auto flex items-center justify-center min-h-[2.75rem]">
           <p className="text-sm animate-pulse">Loading round status...</p>
         </div>
       </div>
@@ -203,7 +206,7 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
   if (error) {
     return (
       <div className="bg-red-600 text-white py-3 px-4 shadow-md">
-        <div className="max-w-6xl mx-auto text-center">
+        <div className="max-w-6xl mx-auto flex items-center justify-center min-h-[2.75rem]">
           <p className="text-sm">{error}</p>
         </div>
       </div>
@@ -222,39 +225,48 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
    */
   if (!status) {
     return (
-      <div className="bg-brand text-white py-4 px-4 shadow-md">
-        <div className="max-w-6xl mx-auto text-center">
-          <p className="text-2xl font-bold animate-pulse">
-            Update in progress…
-          </p>
-          <p className="text-sm opacity-80 mt-1">
-            Get ready for something new!
-          </p>
-          {/* Between rounds the Round #N ▼ chip is gone, so this is the way
-              into the archive. Goes straight to /archive: the round modal
-              the chip opens needs a live round and errors on 204. */}
-          <div className="mt-3">
-            <a
-              href="/archive"
-              className="inline-block px-5 py-2 bg-white/15 hover:bg-white/25 text-white text-sm font-semibold rounded-lg transition-all"
-            >
-              🗂️ Archive
-            </a>
+      <div className="bg-brand text-white py-3 px-4 shadow-md">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 whitespace-nowrap min-h-[2.75rem]">
+          <div className="min-w-0">
+            <p className="text-lg font-bold animate-pulse truncate">
+              Update in progress…
+            </p>
+            {/* A start-round failure replaces the subtitle instead of adding
+                a line — the bar's height never changes. */}
+            <p className={`text-xs truncate ${startError ? 'text-red-200' : 'opacity-80'}`}>
+              {startError ?? 'Get ready for something new!'}
+            </p>
           </div>
-          {adminFid && (
-            <div className="mt-3">
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Admin-only: inline so the bar keeps its height */}
+            {adminFid && (
               <button
                 onClick={handleStartRound}
                 disabled={isStartingRound}
-                className="px-6 py-2 bg-white text-brand font-bold rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="px-3 py-1.5 bg-white text-brand text-sm font-bold rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isStartingRound ? 'Starting...' : 'Start Round'}
+                {isStartingRound ? 'Starting…' : 'Start Round'}
               </button>
-              {startError && (
-                <p className="text-red-200 text-xs mt-2">{startError}</p>
-              )}
-            </div>
-          )}
+            )}
+
+            {/* Archive chip — same anatomy and position as the Round #N ▼
+                chip it replaces between rounds. Goes straight to /archive:
+                the round modal the chip normally opens needs a live round
+                and errors on the 204 from /api/round-state. */}
+            <a
+              href="/archive"
+              className="pl-2.5 pr-2 pt-1.5 pb-1 -mr-2 -mt-1.5 -mb-1 rounded-lg hover:bg-white/10 transition-colors duration-200"
+            >
+              <p className="text-xs uppercase font-light tracking-wide opacity-90">
+                Archive
+              </p>
+              <p className="text-lg font-bold">
+                Rounds
+                <span className="text-xs font-normal opacity-70 ml-1">▼</span>
+              </p>
+            </a>
+          </div>
         </div>
       </div>
     );
