@@ -48,7 +48,14 @@ describe('postViaTypefully', () => {
     expect(url).toBe('https://api.typefully.com/v2/social-sets/326839/drafts');
     expect(init.headers.Authorization).toBe('Bearer test-key');
     const body = JSON.parse(init.body);
-    expect(body.publish_at).toBe('now');
+    // NEVER 'now' — Typefully 403s direct publishing of URL-bearing X posts
+    // (X policy); a short schedule goes through their own pipeline instead.
+    // This assertion is the regression guard for round 34's silent launch
+    // tweet failure.
+    expect(body.publish_at).not.toBe('now');
+    const publishAt = new Date(body.publish_at).getTime();
+    expect(publishAt).toBeGreaterThan(Date.now());
+    expect(publishAt).toBeLessThan(Date.now() + 10 * 60 * 1000);
     expect(body.platforms.x.enabled).toBe(true);
     expect(body.platforms.x.posts).toEqual([{ text: '🟣 Round 34 is live' }]);
   });

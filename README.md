@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **The launch tweet mystery, solved**: Typefully 403s *direct* publishing of X posts containing URLs ("blocked by X policy") — which is every announcer cast, and why the round-34 launch tweet silently died while a URL-free manual test sailed through. Caught red-handed in the function logs on a manual admin post, then verified against the Typefully API live: a *scheduled* publish accepts URLs fine. `postViaTypefully` now schedules ~2 minutes out instead of `publish_at: 'now'`, and the test suite pins the regression (`publish_at` must never be `'now'`).
+
+
 - **Guess-log checkpoints post again**: the checkpoint cron failed on every run since round 34 started — the DB's guess log is 1-based, the GuessLog contract's contiguity is 0-based, and the first `postRoot(round 34, from 1, …)` revert `NonContiguous(expected 0, got 1)` was sitting in the function logs. The conversion now lives at the contract boundary (post `fromIndex-1..toIndex-1`), the reconciliation compares the contract's leaf count directly against the local last-committed index, and the Merkle roots are untouched (leaves hash the 1-based data both when posting and when verifying).
 
 
