@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import { AlertBanner, InfoRow, StatusPill, type Severity } from "./ui"
+import { formatCentral, formatCentralDate, formatCentralTime } from "./format"
 import { useOperationalStatus } from "./operational-status"
 import FarmMonitor from "./FarmMonitor"
 import SimulationsCard from "./SimulationsCard"
@@ -13,6 +14,25 @@ import WordmarkBackfillCard from "./WordmarkBackfillCard"
 import BonusDistributionsCard from "./BonusDistributionsCard"
 import ArchiveMaintenanceCard from "./ArchiveMaintenanceCard"
 import { adminFont as fontFamily } from "./ui"
+
+const REPORTING_TZ = 'America/Chicago'
+
+/**
+ * A `datetime-local` value is a bare wall clock with no zone. The admin means
+ * Central — everything on this page is rendered back in Central — so read it as
+ * Central rather than as whatever zone the laptop is in.
+ *
+ * The offset is measured AT the target instant (CDT vs CST), and both locale
+ * strings are parsed in the same browser zone so that zone cancels out.
+ */
+function centralLocalToUtcIso(local: string): string {
+  const naive = local.length === 16 ? `${local}:00` : local
+  const asUtc = new Date(`${naive}Z`)
+  if (isNaN(asUtc.getTime())) return new Date(local).toISOString()
+  const inCentral = new Date(asUtc.toLocaleString('en-US', { timeZone: REPORTING_TZ }))
+  const inUtc = new Date(asUtc.toLocaleString('en-US', { timeZone: 'UTC' }))
+  return new Date(asUtc.getTime() - (inCentral.getTime() - inUtc.getTime())).toISOString()
+}
 
 // One severity scale for every operational state (shared vocabulary, Phase 1).
 const OP_SEVERITY: Record<string, Severity> = {
@@ -526,7 +546,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       }
 
       if (deadDayReopenAt) {
-        body.reopenAt = new Date(deadDayReopenAt).toISOString()
+        body.reopenAt = centralLocalToUtcIso(deadDayReopenAt)
       }
 
       const res = await fetch('/api/admin/operational/dead-day', {
@@ -581,11 +601,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleString()
-  }
-
   const getRelativeTime = (dateStr?: string) => {
     if (!dateStr) return null
     const targetTime = new Date(dateStr).getTime()
@@ -631,7 +646,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       lines.push('')
       lines.push('--- Kill Switch ---')
       if (status.killSwitch.activatedAt) {
-        lines.push(`Activated: ${formatDate(status.killSwitch.activatedAt)}`)
+        lines.push(`Activated: ${formatCentral(status.killSwitch.activatedAt)}`)
       }
       if (status.killSwitch.reason) {
         lines.push(`Reason: ${status.killSwitch.reason}`)
@@ -648,7 +663,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
         lines.push(`Total: ${r.total} | Sent: ${r.sent} | In Progress: ${r.pending + r.processing} | Failed: ${r.failed}`)
         lines.push(`Total ETH: ${parseFloat(r.totalAmountEth).toFixed(6)} ETH`)
         if (cancelledRound.refundsCompletedAt) {
-          lines.push(`Completed: ${formatDate(cancelledRound.refundsCompletedAt)}`)
+          lines.push(`Completed: ${formatCentral(cancelledRound.refundsCompletedAt)}`)
         }
       }
     }
@@ -657,25 +672,25 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       lines.push('')
       lines.push('--- Dead Day ---')
       if (status.deadDay.activatedAt) {
-        lines.push(`Activated: ${formatDate(status.deadDay.activatedAt)}`)
+        lines.push(`Activated: ${formatCentral(status.deadDay.activatedAt)}`)
       }
       if (status.deadDay.reason) {
         lines.push(`Reason: ${status.deadDay.reason}`)
       }
       if (status.deadDay.reopenAt) {
-        lines.push(`Scheduled Reopen: ${formatDate(status.deadDay.reopenAt)}`)
+        lines.push(`Scheduled Reopen: ${formatCentral(status.deadDay.reopenAt)}`)
       }
     }
 
     if (status.refundCron && status.killSwitch.enabled) {
       lines.push('')
       lines.push('--- Refund Cron ---')
-      lines.push(`Last Run: ${status.refundCron.lastRun ? formatDate(status.refundCron.lastRun) : 'Never'}`)
-      lines.push(`Next Run: ${getRelativeTime(status.refundCron.nextRunEstimate) || formatDate(status.refundCron.nextRunEstimate)}`)
+      lines.push(`Last Run: ${status.refundCron.lastRun ? formatCentral(status.refundCron.lastRun) : 'Never'}`)
+      lines.push(`Next Run: ${getRelativeTime(status.refundCron.nextRunEstimate) || formatCentral(status.refundCron.nextRunEstimate)}`)
     }
 
     lines.push('')
-    lines.push(`Generated: ${formatDate(status.timestamp)}`)
+    lines.push(`Generated: ${formatCentral(status.timestamp)}`)
 
     const summary = lines.join('\n')
 
@@ -1166,11 +1181,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 </StatusPill>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                   {status.status === 'KILL_SWITCH_ACTIVE' && status.killSwitch.activatedAt &&
-                    `Since ${formatDate(status.killSwitch.activatedAt)}`}
+                    `Since ${formatCentral(status.killSwitch.activatedAt)}`}
                   {status.status === 'DEAD_DAY_ACTIVE' && status.deadDay.activatedAt &&
-                    `Since ${formatDate(status.deadDay.activatedAt)}`}
+                    `Since ${formatCentral(status.deadDay.activatedAt)}`}
                   {status.status === 'PAUSED_BETWEEN_ROUNDS' && status.deadDay.activatedAt &&
-                    `Since ${formatDate(status.deadDay.activatedAt)}`}
+                    `Since ${formatCentral(status.deadDay.activatedAt)}`}
                   {status.status === 'NORMAL' && 'All systems operational'}
                 </div>
                 <div style={{ fontSize: '12px', fontStyle: 'italic', color: '#9ca3af', marginTop: '2px' }}>
@@ -1181,7 +1196,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
               </div>
             </div>
             <InfoRow label={<>Active Round</>} value={<>{status.activeRoundId ? `Round #${status.activeRoundId}` : 'None'}</>} />
-            <InfoRow label={<>Last Updated</>} value={<>{formatDate(status.timestamp)}</>} />
+            <InfoRow label={<>Last Updated</>} value={<>{formatCentral(status.timestamp)}</>} />
             <div style={{ display: 'flex', gap: '12px', marginTop: '12px', alignItems: 'center' }}>
               <button
                 onClick={fetchStatus}
@@ -1330,7 +1345,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                       {roundHealthLoading ? 'Checking...' : 'Re-run Checks'}
                     </button>
                     <span style={{ fontSize: '12px', color: '#9ca3af', alignSelf: 'center' }}>
-                      Last checked: {roundHealth.timestamp ? formatDate(roundHealth.timestamp) : 'Never'}
+                      Last checked: {roundHealth.timestamp ? formatCentral(roundHealth.timestamp) : 'Never'}
                     </span>
                   </div>
                 </div>
@@ -1389,7 +1404,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                       {superguessStatus.activeSession.guessesUsed}/{superguessStatus.activeSession.guessesAllowed} guesses
                     </p>
                     <p style={{ fontSize: '13px', color: '#9ca3af' }}>
-                      Expires: {new Date(superguessStatus.activeSession.expiresAt).toLocaleTimeString()}
+                      Expires: {formatCentralTime(superguessStatus.activeSession.expiresAt)}
                     </p>
                     <button
                       onClick={async () => {
@@ -1595,7 +1610,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                       </div>
                       {cancelledRound.refundsCompletedAt && (
                         <div style={{ marginTop: '8px', fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>
-                          All refunds completed at {formatDate(cancelledRound.refundsCompletedAt)}
+                          All refunds completed at {formatCentral(cancelledRound.refundsCompletedAt)}
                         </div>
                       )}
                       {status.killSwitch.refundsRunning && (
@@ -1616,14 +1631,14 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                             <span>Last cron run:</span>
                             <span style={{ fontWeight: 500, color: '#475569' }}>
                               {status.refundCron.lastRun
-                                ? formatDate(status.refundCron.lastRun)
+                                ? formatCentral(status.refundCron.lastRun)
                                 : 'Never'}
                             </span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                             <span>Next run (est.):</span>
                             <span style={{ fontWeight: 500, color: '#475569' }}>
-                              {getRelativeTime(status.refundCron.nextRunEstimate) || formatDate(status.refundCron.nextRunEstimate)}
+                              {getRelativeTime(status.refundCron.nextRunEstimate) || formatCentral(status.refundCron.nextRunEstimate)}
                             </span>
                           </div>
                           {status.refundCron.lastResult && (
@@ -1639,7 +1654,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   ) : null
                 })()}
 
-                <InfoRow label={<>Activated At</>} value={<>{formatDate(status.killSwitch.activatedAt)}</>} />
+                <InfoRow label={<>Activated At</>} value={<>{formatCentral(status.killSwitch.activatedAt)}</>} />
                 <InfoRow label={<>Reason</>} value={<>{status.killSwitch.reason || '-'}</>} />
                 <InfoRow label={<>Cancelled Round</>} value={<>{status.killSwitch.roundId ? `#${status.killSwitch.roundId}` : '-'}</>} />
                 <button
@@ -1762,9 +1777,9 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 <AlertBanner kind="warning">
                   Dead day is active. No new rounds will be created after the current round ends.
                 </AlertBanner>
-                <InfoRow label={<>Activated At</>} value={<>{formatDate(status.deadDay.activatedAt)}</>} />
+                <InfoRow label={<>Activated At</>} value={<>{formatCentral(status.deadDay.activatedAt)}</>} />
                 <InfoRow label={<>Reason</>} value={<>{status.deadDay.reason || '-'}</>} />
-                <InfoRow label={<>Scheduled Reopen</>} value={<>{status.deadDay.reopenAt ? formatDate(status.deadDay.reopenAt) : 'Manual'}</>} />
+                <InfoRow label={<>Scheduled Reopen</>} value={<>{status.deadDay.reopenAt ? formatCentral(status.deadDay.reopenAt) : 'Manual'}</>} />
                 <button
                   onClick={handleDisableDeadDay}
                   style={{ ...styles.btnSuccess, marginTop: '16px' }}
@@ -1788,7 +1803,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   />
                 </div>
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={styles.label}>Auto-reopen at (optional)</label>
+                  <label style={styles.label}>Auto-reopen at (optional, Central)</label>
                   <input
                     type="datetime-local"
                     style={styles.input}
@@ -1824,7 +1839,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                   <div style={{ fontWeight: 600, marginBottom: '8px' }}>
                     Round #{round.roundId}
                   </div>
-                  <InfoRow label={<>Cancelled At</>} value={<>{formatDate(round.cancelledAt)}</>} />
+                  <InfoRow label={<>Cancelled At</>} value={<>{formatCentral(round.cancelledAt)}</>} />
                   <InfoRow label={<>Reason</>} value={<>{round.cancelledReason || '-'}</>} />
                   <InfoRow label={<>Refund Status</>} value={<>{round.refundsCompletedAt ? 'Completed' :
                        round.refundsStartedAt ? 'In Progress' : 'Pending'}</>} />
@@ -2172,7 +2187,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                         <span style={styles.infoLabel}>Reward Period</span>
                         <span style={{ ...styles.infoValue, color: contractState.wordManager.rewardPeriodActive ? '#166534' : '#6b7280' }}>
                           {contractState.wordManager.rewardPeriodActive
-                            ? `Active (ends ${new Date(contractState.wordManager.periodFinish * 1000).toLocaleDateString()})`
+                            ? `Active (ends ${formatCentralDate(contractState.wordManager.periodFinish * 1000)})`
                             : 'Inactive'}
                         </span>
                       </div>
@@ -2270,7 +2285,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                           {contractState.wordJackpot.priceUpdatedAt === 0
                             ? 'never pushed'
                             : contractState.wordJackpot.priceStale
-                              ? `stale (last ${new Date(contractState.wordJackpot.priceUpdatedAt * 1000).toLocaleString()})`
+                              ? `stale (last ${formatCentral(contractState.wordJackpot.priceUpdatedAt * 1000)})`
                               : 'fresh'}
                         </span>
                       </div>

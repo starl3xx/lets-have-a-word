@@ -208,7 +208,7 @@ export default function FarmMonitor({ fid }: FarmMonitorProps) {
                       <th style={tableStyles.th}>FID</th>
                       <th style={tableStyles.th}>Username</th>
                       <th style={tableStyles.thNum}>Score</th>
-                      <th style={tableStyles.th}>Row created</th>
+                      <th style={tableStyles.th}>Row created (CT)</th>
                       <th style={tableStyles.thNum}>Guesses</th>
                       <th style={tableStyles.th}>Aged row</th>
                     </tr>
@@ -220,7 +220,15 @@ export default function FarmMonitor({ fid }: FarmMonitorProps) {
                         <td style={tableStyles.td}>{s.username ?? '—'}</td>
                         <td style={tableStyles.tdNum}>{s.userScore ?? '—'}</td>
                         <td style={tableStyles.td}>
-                          {s.createdAt ? String(s.createdAt).slice(0, 10) : '—'}
+                          {/* Central calendar day, not the UTC day sliced off the
+                              front of the ISO string — this is the column a batch
+                              is read off, and a UTC cut smears one batch over two
+                              days. en-CA keeps the compact YYYY-MM-DD. */}
+                          {s.createdAt
+                            ? new Date(s.createdAt).toLocaleDateString('en-CA', {
+                                timeZone: 'America/Chicago',
+                              })
+                            : '—'}
                         </td>
                         <td style={tableStyles.tdNum}>{s.guessCount}</td>
                         <td style={tableStyles.td}>{s.agedRow ? 'yes' : 'no'}</td>

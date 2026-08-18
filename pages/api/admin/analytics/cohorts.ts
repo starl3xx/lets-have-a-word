@@ -1,12 +1,17 @@
 /**
  * Cohort Analytics API
  * Returns weekly cohort retention data for heatmap visualization
+ *
+ * Cohort and activity weeks are US Central weeks (Monday 00:00 CT), not UTC ones
+ * — see src/lib/reporting-time.ts. A user whose first guess lands in the Central
+ * evening belongs to the week a Central reader would put them in.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
+import { REPORTING_TZ, centralTimestamp, centralToday } from '../../../../src/lib/reporting-time';
 
 export interface CohortData {
   cohort_week: string; // Week user first played (YYYY-MM-DD)
@@ -52,10 +57,21 @@ export default async function handler(
     // Limit to last 8 weeks for manageable data
     const weeksToShow = 8;
 
+    // Cohort weeks are Central weeks, so the window snaps to a Central week start
+    // rather than a rolling N×168 hours — otherwise the oldest cohort is a partial
+    // week. guesses.created_at is NAIVE (holding UTC), so the Central boundary is
+    // localized to an instant and flattened back to naive UTC. The parentheses are
+    // load-bearing: AT TIME ZONE binds tighter than the interval subtraction.
+    // Both CTEs share this fragment so their ranges cannot drift apart.
+    const windowStart = sql`((DATE_TRUNC('week', ${centralToday}::timestamp) - INTERVAL '${sql.raw(weeksToShow.toString())} weeks') AT TIME ZONE ${REPORTING_TZ} AT TIME ZONE 'UTC')`;
+
     // Query: Get cohort retention data
     // This query:
     // 1. Assigns each user to their first activity week (cohort)
     // 2. For each cohort, counts how many users were active in subsequent weeks
+    // MIN() is monotonic, so converting to Central after the aggregate gives the
+    // same week as converting every row and is far cheaper. Both week buckets have
+    // to be converted or weeks_after would subtract a Central week from a UTC one.
     const cohortResult = await db.execute<{
       cohort_week: string;
       cohort_size: number;
@@ -64,27 +80,30 @@ export default async function handler(
     }>(sql`
       WITH user_first_week AS (
         SELECT
-          user_fid,
-          DATE_TRUNC('week', MIN(created_at))::date as cohort_week
+          fid,
+          DATE_TRUNC('week', ${centralTimestamp('MIN(created_at)')})::date as cohort_week
         FROM guesses
-        WHERE created_at >= NOW() - INTERVAL '${sql.raw(weeksToShow.toString())} weeks'
-        GROUP BY user_fid
+        WHERE created_at >= ${windowStart}
+        GROUP BY fid
       ),
       user_activity_weeks AS (
         SELECT DISTINCT
-          user_fid,
-          DATE_TRUNC('week', created_at)::date as activity_week
+          fid,
+          DATE_TRUNC('week', ${centralTimestamp('created_at')})::date as activity_week
         FROM guesses
-        WHERE created_at >= NOW() - INTERVAL '${sql.raw(weeksToShow.toString())} weeks'
+        WHERE created_at >= ${windowStart}
       ),
       cohort_retention AS (
         SELECT
           ufw.cohort_week,
-          COUNT(DISTINCT ufw.user_fid) as cohort_size,
-          EXTRACT(EPOCH FROM (uaw.activity_week - ufw.cohort_week)) / (7 * 24 * 60 * 60) as weeks_after,
-          COUNT(DISTINCT uaw.user_fid) as active_users
+          COUNT(DISTINCT ufw.fid) as cohort_size,
+          -- Both operands are ::date, so date - date is already an integer number
+          -- of days. EXTRACT(EPOCH FROM ...) has no integer overload and made this
+          -- endpoint a guaranteed 500; plain integer days is also DST-proof.
+          (uaw.activity_week - ufw.cohort_week) / 7 as weeks_after,
+          COUNT(DISTINCT uaw.fid) as active_users
         FROM user_first_week ufw
-        LEFT JOIN user_activity_weeks uaw ON ufw.user_fid = uaw.user_fid
+        LEFT JOIN user_activity_weeks uaw ON ufw.fid = uaw.fid
         WHERE uaw.activity_week >= ufw.cohort_week
         GROUP BY ufw.cohort_week, weeks_after
         ORDER BY ufw.cohort_week, weeks_after

@@ -9,6 +9,7 @@ import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
 import { getPlaintextAnswer, isEncryptedAnswer } from '../../../../src/lib/encryption';
+import { centralDayTz, centralDayStartTz } from '../../../../src/lib/reporting-time';
 
 export interface GameplayInsights {
   // Core metrics
@@ -171,14 +172,22 @@ export default async function handler(
       FROM (
         SELECT
           user_id,
-          DATE_TRUNC('day', created_at) as session_day,
+          -- analytics_events.created_at is TIMESTAMPTZ, so one conversion
+          -- gives the Central day. This is the key that defines a "session":
+          -- bucketing it at UTC midnight cut every evening session in two at
+          -- 7pm Central and deflated the averages below.
+          ${centralDayTz('created_at')} as session_day,
           MIN(created_at) as session_start,
           MIN(created_at) FILTER (WHERE event_type = 'first_guess_submitted') as first_guess,
           MAX(created_at) as last_guess
         FROM analytics_events
-        WHERE created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
+        -- Central midnight, so the oldest day is a whole day and its sessions
+        -- are not truncated by wherever the request happened to land.
+        WHERE created_at >= ${centralDayStartTz(daysBack)}
           AND event_type IN ('game_session_start', 'first_guess_submitted', 'guess_submitted')
-        GROUP BY user_id, DATE_TRUNC('day', created_at)
+        -- The alias, not a second copy: the zone is a bind parameter and two
+        -- copies are two parameters, which Postgres will not match up.
+        GROUP BY user_id, session_day
       ) sessions
       WHERE first_guess IS NOT NULL
     `);

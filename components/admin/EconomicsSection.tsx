@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import { adminFont as fontFamily } from "./ui"
+import { formatCentralDate } from "./format"
 
 // =============================================================================
 // Types
@@ -868,7 +869,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
       <div style={styles.dataRangeText}>
         Based on {dataRange.roundCount} ETH-era rounds
         {dataRange.oldestRound && dataRange.newestRound && (
-          <> from {new Date(dataRange.oldestRound).toLocaleDateString()} to {new Date(dataRange.newestRound).toLocaleDateString()}</>
+          <> from {formatCentralDate(dataRange.oldestRound)} to {formatCentralDate(dataRange.newestRound)}</>
         )}
       </div>
 
@@ -1205,7 +1206,7 @@ export default function EconomicsSection({ user }: EconomicsSectionProps) {
             color: "#1e40af",
           }}>
             Config change detected at Round #{configChange.changeRoundId}
-            {configChange.changeDate && ` (${new Date(configChange.changeDate).toLocaleDateString()})`}
+            {configChange.changeDate && ` (${formatCentralDate(configChange.changeDate)})`}
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@
 import React, { useState } from 'react'
 import { Module } from './ui'
 import { adminFont as fontFamily } from "./ui"
+import { formatCentral } from './format'
 
 
 const localStyles = {
@@ -138,7 +139,7 @@ export default function PurchaseEventsCard({
                 {purchaseEvents.events.slice(0, 50).map((event) => (
                   <tr key={event.txHash}>
                     <td style={{ padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#6b7280" }}>
-                      {event.timestamp ? new Date(event.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : `Block ${event.blockNumber}`}
+                      {event.timestamp ? formatCentral(event.timestamp) : `Block ${event.blockNumber}`}
                     </td>
                     <td style={{ padding: "8px", borderBottom: "1px solid #f3f4f6", color: "#374151" }}>
                       {event.fid ? (

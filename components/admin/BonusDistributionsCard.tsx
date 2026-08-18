@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { adminFont as fontFamily } from "./ui"
-import { formatTokenCompact, shortenAddress } from "./format";
+import { formatCentral, formatTokenCompact, shortenAddress } from "./format";
 
 
 interface RetrySuccess {
@@ -510,7 +510,7 @@ export default function BonusDistributionsCard({ fid }: { fid: number }) {
                         <td style={styles.td}>
                           {bw.username ? `@${bw.username}` : `FID ${bw.claimedByFid}`}
                         </td>
-                        <td style={styles.td}>{new Date(bw.claimedAt).toLocaleString()}</td>
+                        <td style={styles.td}>{formatCentral(bw.claimedAt)}</td>
                         <td style={styles.td}>
                           <button
                             onClick={() => retryBonusWordWithoutTx(bw.bonusWordId)}

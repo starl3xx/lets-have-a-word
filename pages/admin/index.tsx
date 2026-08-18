@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/router"
 import { StatusPill, UpdatedStamp, type Severity } from "../../components/admin/ui"
+import { formatCentralTime } from "../../components/admin/format"
 import { OperationalStatusProvider, useOperationalStatus } from "../../components/admin/operational-status"
 import { adminFont as fontFamily } from "../../components/admin/ui"
 
@@ -305,18 +306,19 @@ function StatusStrip({ user }: { user?: { fid: number } }) {
     return null
   }
 
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  }
+  // The strip reads in Central like everything else in the admin. "Today" has to
+  // be decided on the Central calendar day as well: toDateString() buckets in
+  // the browser's zone, so the strip flipped between "Today" and a dated label
+  // depending on where the laptop was.
+  const centralDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
-    const today = new Date()
-    if (date.toDateString() === today.toDateString()) {
-      return `Today ${formatTime(dateStr)}`
+    if (centralDay(date) === centralDay(new Date())) {
+      return `Today ${formatCentralTime(dateStr)}`
     }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + formatTime(dateStr)
+    const day = date.toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' })
+    return `${day} ${formatCentralTime(dateStr)}`
   }
 
   if (!status) {
