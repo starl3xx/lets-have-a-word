@@ -10,7 +10,7 @@
     "splashBackgroundColor": "#8c81a8",
     "webhookUrl": "https://api.neynar.com/f/app/64ddc4ee-b993-4a64-bc76-b96af4a1ec32/event",
     "subtitle": "Global word game. Real prizes",
-    "description": "A global word game where players compete to guess the word and win WORD tokens. Thousands of guesses per round. One winner takes the prize.",
+    "description": "Massively multiplayer word hunt! Wrong guesses are eliminated for the whole board and the first one to find the secret word wins the WORD token jackpot",
     "primaryCategory": "games",
     "screenshotUrls": [
       "https://letshaveaword.fun/screenshot3.png"
