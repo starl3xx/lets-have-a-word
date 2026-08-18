@@ -153,7 +153,19 @@ export async function getEffectiveBalanceChecked(
   try {
     const provider = getBaseProvider();
     const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
-    const walletBalance = await contract.balanceOf(walletAddress);
+    // One retry on a transient RPC failure (bad gateway, non-JSON body —
+    // both seen from the Base RPC in production). Every undetermined read
+    // is a fail-open free pass through the reward gate, so converting a
+    // single blip into a determined answer is worth one 400ms pause on the
+    // error path; the healthy path is untouched. A second failure still
+    // falls through to the outer catch and fails open, loudly, as before.
+    let walletBalance: bigint;
+    try {
+      walletBalance = await contract.balanceOf(walletAddress);
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      walletBalance = await contract.balanceOf(walletAddress);
+    }
 
     // Staking is additive: if WordManager is unreachable the wallet balance is
     // still a real reading, just a lower one. That is a determined answer.
