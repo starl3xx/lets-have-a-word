@@ -156,15 +156,28 @@ export async function getEffectiveBalanceChecked(
     // One retry on a transient RPC failure (bad gateway, non-JSON body —
     // both seen from the Base RPC in production). Every undetermined read
     // is a fail-open free pass through the reward gate, so converting a
-    // single blip into a determined answer is worth one 400ms pause on the
-    // error path; the healthy path is untouched. A second failure still
-    // falls through to the outer catch and fails open, loudly, as before.
+    // single blip into a determined answer is worth a 400ms pause on the
+    // error path; the healthy path is untouched.
+    //
+    // The retry is for FAST failures — a HANG must not double the budget.
+    // Both attempts share the provider's original 8s envelope (3.5s + 400ms
+    // + 3.5s ≈ 7.4s), so on a sustained hang the outer catch still fails
+    // open inside the clients' 8–12s request budgets instead of the
+    // platform giving up first. raceTimeout stops WAITING; the underlying
+    // call is left to settle on its own.
+    const raceTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+      Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`balance read timed out after ${ms}ms`)), ms)
+        ),
+      ]);
     let walletBalance: bigint;
     try {
-      walletBalance = await contract.balanceOf(walletAddress);
+      walletBalance = await raceTimeout(contract.balanceOf(walletAddress), 3_500);
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 400));
-      walletBalance = await contract.balanceOf(walletAddress);
+      walletBalance = await raceTimeout(contract.balanceOf(walletAddress), 3_500);
     }
 
     // Staking is additive: if WordManager is unreachable the wallet balance is
