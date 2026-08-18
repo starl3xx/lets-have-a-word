@@ -212,6 +212,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-08-18 (during Round 34)
+
+- **The app-store listing still advertised ETH, and not because anyone forgot to update it**: the Farcaster manifest's `description` was migrated to `$WORD` back in PR #203, and that edit is precisely what broke it. Farcaster's `descriptionSchema` rejects the sigil — *"Special characters (@, #, $, %, ^, &, \*, +, =, /, \\, |, ~, «, ») are not allowed"* (`@farcaster/miniapp-core/src/schemas/shared.ts:34`) — so `domainManifestSchema.safeParse()` has returned INVALID on every re-read since, and the directory kept the last record that parsed: the ETH one. Verified by running the repo's own installed validator against the committed file, before and after. The description now says "win WORD tokens" and the manifest validates. The ban covers `description`, `subtitle`, `tagline`, `ogTitle`, `ogDescription` and `tags`, so **no manifest field can ever carry `$WORD`** — the sigil that is mandatory in player-facing copy is illegal here. Farcaster does not re-read on its own schedule reliably: after this deploys, force it in the manifest tool (`farcaster.xyz/~/developers/mini-apps/manifest`).
+
 ### 2026-08-17 (before Round 34)
 
 - **Reward-gate balance reads retry once**: a transient RPC failure (this morning's Sentry pair: a non-JSON RPC response body → "[RewardGate] Balance undetermined — failing open") is a free pass through the gate by design — fail-open is correct and never cached, but each blip was one free pass. The balance read now retries once after 400ms before declaring undetermined; a second failure still fails open, loudly, exactly as before.
