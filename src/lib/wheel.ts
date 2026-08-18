@@ -17,7 +17,7 @@ import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
 import { getEthUsdPrice } from './prices';
 import { getTop10LockStatus, TOP10_LOCK_AFTER_GUESSES } from './top10-lock';
-import { usdCentsForTokens } from './word-amounts';
+import { usdCentsForTokens, usdPriceToE18 } from './word-amounts';
 
 /**
  * Round Status - displayed in top ticker
@@ -238,13 +238,25 @@ export async function getRoundStatus(roundId: number): Promise<RoundStatus> {
     ? (prizePoolEthNum * ethUsdRate).toFixed(2)
     : undefined;
 
-  // A $WORD round's USD value comes from the price snapshot taken when it was
-  // seeded, not from a live quote. Two reasons: the snapshot is already stored
-  // so this stays a zero-network-call path on a hot poll, and a round's
-  // headline value should not flicker with every tick of a thin market.
+  // A $WORD round's ≈$ headline tracks the LIVE market (user decision,
+  // 2026-08-18): the SEED stays frozen at its USD target — all payout and
+  // seeding math still uses the round's stored snapshot — but the info bar's
+  // display floats so a market-cap move shows up in the prize's worth. The
+  // live price is redis-cached ~5 minutes (one external fetch per TTL, not
+  // per player), and the seed snapshot is the fallback so the bar never
+  // blanks when the oracle is unreachable.
   const isWordRound = round.prizeCurrency === 'word';
   if (isWordRound) {
-    const priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+    let priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+    try {
+      const { getCachedWordPriceUsd } = await import('./word-oracle');
+      const livePriceUsd = await getCachedWordPriceUsd();
+      if (livePriceUsd && livePriceUsd > 0) {
+        priceE18 = usdPriceToE18(livePriceUsd);
+      }
+    } catch {
+      // The frozen seed snapshot stands.
+    }
     const poolWei = BigInt(round.prizePoolWord ?? '0');
     prizePoolUsd =
       priceE18 > 0n

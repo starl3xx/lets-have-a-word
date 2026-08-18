@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **The info bar's ≈$ tracks the live market**: the round's USD headline was frozen at the seed-time price snapshot, so a market-cap jump showed in the $WORD sheet but never in the bar. The seed itself stays frozen at its $20 target — all payout and seeding math still uses the round's stored snapshot — but the bar's display now prices the pool at the live oracle price, redis-cached for ~5 minutes (one external fetch per TTL across all players, zero added latency on the poll), with the seed snapshot as fallback so the bar never blanks.
+
+
 - **The launch tweet mystery, solved**: Typefully 403s *direct* publishing of X posts containing URLs ("blocked by X policy") — which is every announcer cast, and why the round-34 launch tweet silently died while a URL-free manual test sailed through. Caught red-handed in the function logs on a manual admin post, then verified against the Typefully API live: a *scheduled* publish accepts URLs fine. `postViaTypefully` now schedules ~2 minutes out instead of `publish_at: 'now'`, and the test suite pins the regression (`publish_at` must never be `'now'`).
 
 
