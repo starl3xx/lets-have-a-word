@@ -8,6 +8,7 @@ import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
+import { centralDayTz, centralDayStartTz } from '../../../../src/lib/reporting-time';
 
 export interface ShareFunnelAnalytics {
   // Share funnel metrics
@@ -119,14 +120,20 @@ export default async function handler(
       successes: number;
     }>(sql`
       SELECT
-        DATE(created_at) as day,
+        -- analytics_events.created_at is TIMESTAMPTZ, so one conversion gives
+        -- the Central day. A bare DATE() buckets by the session zone, which
+        -- files an 8pm Central share under tomorrow.
+        ${centralDayTz('created_at')} as day,
         COUNT(*) FILTER (WHERE event_type = 'share_prompt_shown') as prompts_shown,
         COUNT(*) FILTER (WHERE event_type = 'share_clicked') as clicks,
         COUNT(*) FILTER (WHERE event_type = 'share_success') as successes
       FROM analytics_events
-      WHERE created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
+      -- Central midnight, so the oldest bar in the chart is a whole day.
+      WHERE created_at >= ${centralDayStartTz(daysBack)}
         AND event_type IN ('share_prompt_shown', 'share_clicked', 'share_success')
-      GROUP BY DATE(created_at)
+      -- The alias, not a second copy: the zone is a bind parameter and two
+      -- copies are two parameters, which Postgres will not match up.
+      GROUP BY day
       ORDER BY day DESC
       LIMIT 30
     `);
@@ -139,14 +146,15 @@ export default async function handler(
       guesses: number;
     }>(sql`
       SELECT
-        DATE(created_at) as day,
+        -- TIMESTAMPTZ column: same single conversion as the funnel trend.
+        ${centralDayTz('created_at')} as day,
         COUNT(*) FILTER (WHERE event_type = 'referral_share') as shares,
         COUNT(*) FILTER (WHERE event_type = 'referral_join') as joins,
         COUNT(*) FILTER (WHERE event_type = 'referral_guess') as guesses
       FROM analytics_events
-      WHERE created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
+      WHERE created_at >= ${centralDayStartTz(daysBack)}
         AND event_type IN ('referral_share', 'referral_join', 'referral_guess')
-      GROUP BY DATE(created_at)
+      GROUP BY day
       ORDER BY day DESC
       LIMIT 30
     `);

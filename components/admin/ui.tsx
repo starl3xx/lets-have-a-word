@@ -216,14 +216,25 @@ export function isStale(
   return now - t > staleAfterMs;
 }
 
-/** Exported for tests: "14:32:05" UTC wall time, or null if unparseable. */
+/**
+ * Exported for tests: "09:32:05" Central wall time, or null if unparseable.
+ * Every other admin timestamp reads Central (see components/admin/format.ts),
+ * and a stamp on the same page that read UTC disagreed with all of them.
+ * en-GB, not en-US: with hour12:false some ICU builds render midnight "24:00".
+ */
 export function formatStampTime(updatedAt: Date | string | number): string | null {
   const t = new Date(updatedAt).getTime();
   if (!Number.isFinite(t)) return null;
-  return new Date(t).toISOString().slice(11, 19);
+  return new Date(t).toLocaleTimeString('en-GB', {
+    timeZone: 'America/Chicago',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
-/** "updated 14:32:05 UTC" — turns amber past the staleness threshold. */
+/** "updated 09:32:05 CT" — turns amber past the staleness threshold. */
 export function UpdatedStamp({
   updatedAt,
   staleAfterMs = STALE_AFTER_MS_DEFAULT,
@@ -242,7 +253,8 @@ export function UpdatedStamp({
   if (!updatedAt) return null;
   const stale = isStale(updatedAt, now, staleAfterMs);
   // An unparseable timestamp reads as stale (isStale already said so) and
-  // must not crash the panel — toISOString throws on an Invalid Date.
+  // must not reach the formatter — an Invalid Date renders as literal
+  // "Invalid Date", so formatStampTime returns null and we say so in words.
   const time = formatStampTime(updatedAt);
   return (
     <span
@@ -259,7 +271,7 @@ export function UpdatedStamp({
     >
       {stale ? '⚠ stale — updated ' : 'updated '}
       {time ?? 'unknown time'}
-      {time ? ' UTC' : ''}
+      {time ? ' CT' : ''}
     </span>
   );
 }

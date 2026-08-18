@@ -14,7 +14,7 @@ import {
 import { formatWordAmount } from '../../src/lib/word-amounts';
 import { AnalyticsChart } from "./AnalyticsChart"
 import { adminFont as fontFamily } from "./ui"
-import { formatEth } from "./format"
+import { formatCentral, formatCentralDate, formatEth } from "./format"
 import { StatCard } from "./ui"
 
 // =============================================================================
@@ -569,7 +569,7 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     </td>
                     <td style={styles.td}>{formatDuration(round.startTime, round.endTime)}</td>
                     <td style={styles.td}>
-                      {new Date(round.endTime).toLocaleDateString()}
+                      {formatCentralDate(round.endTime)}
                     </td>
                     <td style={{ ...styles.td, textAlign: "center" }}>
                       <button
@@ -641,11 +641,11 @@ export default function ArchiveSection({ user }: ArchiveSectionProps) {
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>Start Time:</td>
-                      <td style={{ padding: "6px 0" }}>{new Date(selectedRound.startTime).toLocaleString()}</td>
+                      <td style={{ padding: "6px 0" }}>{formatCentral(selectedRound.startTime)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>End Time:</td>
-                      <td style={{ padding: "6px 0" }}>{new Date(selectedRound.endTime).toLocaleString()}</td>
+                      <td style={{ padding: "6px 0" }}>{formatCentral(selectedRound.endTime)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "6px 0", color: "#6b7280" }}>Duration:</td>

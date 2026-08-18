@@ -20,6 +20,7 @@ import {
   PRICE_RAMP_START_GUESSES,
 } from '../../../../src/lib/pack-pricing';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
+import { centralDayTz, centralToday, centralDayStartTz } from '../../../../src/lib/reporting-time';
 
 export interface DashboardSummary {
   today: {
@@ -125,13 +126,12 @@ export default async function handler(
         let avg7dMetrics = { dau: 0, packPurchases: 0, paidGuesses: 0, revenueEth: 0 };
 
         // Use Central Time for "today" calculations
-        const centralTz = 'America/Chicago';
 
         try {
           const [todayDau] = await db.execute<{ count: number }>(sql`
             SELECT COUNT(DISTINCT user_id)::int as count
             FROM analytics_events
-            WHERE DATE(created_at AT TIME ZONE ${centralTz}) = (CURRENT_TIMESTAMP AT TIME ZONE ${centralTz})::date
+            WHERE ${centralDayTz('created_at')} = ${centralToday}
               AND user_id IS NOT NULL
           `);
 
@@ -141,14 +141,14 @@ export default async function handler(
               COALESCE(SUM(CAST(data->>'expected_cost_eth' AS NUMERIC)), 0) as revenue
             FROM analytics_events
             WHERE event_type = 'guess_pack_purchased'
-              AND DATE(created_at AT TIME ZONE ${centralTz}) = (CURRENT_TIMESTAMP AT TIME ZONE ${centralTz})::date
+              AND ${centralDayTz('created_at')} = ${centralToday}
           `);
 
           const [todayPaidGuesses] = await db.execute<{ count: number }>(sql`
             SELECT COUNT(*)::int as count
             FROM analytics_events
             WHERE event_type = 'paid_guess_used'
-              AND DATE(created_at AT TIME ZONE ${centralTz}) = (CURRENT_TIMESTAMP AT TIME ZONE ${centralTz})::date
+              AND ${centralDayTz('created_at')} = ${centralToday}
           `);
 
           todayMetrics = {
@@ -162,9 +162,15 @@ export default async function handler(
             SELECT AVG(daily_count)::numeric as avg FROM (
               SELECT COUNT(DISTINCT user_id) as daily_count
               FROM analytics_events
-              WHERE created_at >= NOW() - INTERVAL '7 days'
+              -- Seven WHOLE Central days, ending at midnight this morning.
+              -- A rolling NOW() - 7 days chops into eight buckets, two of them
+              -- fractions of a day, which drags down the very average the
+              -- "today" tile beside it is compared against. (created_at is
+              -- TIMESTAMPTZ, so the bounds take one conversion.)
+              WHERE created_at >= ${centralDayStartTz(7)}
+                AND created_at < ${centralDayStartTz(0)}
                 AND user_id IS NOT NULL
-              GROUP BY DATE(created_at AT TIME ZONE ${centralTz})
+              GROUP BY ${centralDayTz('created_at')}
             ) sub
           `);
 
@@ -178,8 +184,10 @@ export default async function handler(
                 COALESCE(SUM(CAST(data->>'expected_cost_eth' AS NUMERIC)), 0) as daily_revenue
               FROM analytics_events
               WHERE event_type = 'guess_pack_purchased'
-                AND created_at >= NOW() - INTERVAL '7 days'
-              GROUP BY DATE(created_at AT TIME ZONE ${centralTz})
+                -- Same seven whole Central days as the DAU average above.
+                AND created_at >= ${centralDayStartTz(7)}
+                AND created_at < ${centralDayStartTz(0)}
+              GROUP BY ${centralDayTz('created_at')}
             ) sub
           `);
 
@@ -188,8 +196,10 @@ export default async function handler(
               SELECT COUNT(*) as daily_count
               FROM analytics_events
               WHERE event_type = 'paid_guess_used'
-                AND created_at >= NOW() - INTERVAL '7 days'
-              GROUP BY DATE(created_at AT TIME ZONE ${centralTz})
+                -- Same seven whole Central days as the DAU average above.
+                AND created_at >= ${centralDayStartTz(7)}
+                AND created_at < ${centralDayStartTz(0)}
+              GROUP BY ${centralDayTz('created_at')}
             ) sub
           `);
 

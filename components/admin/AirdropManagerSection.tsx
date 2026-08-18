@@ -480,7 +480,9 @@ export default function AirdropManagerSection({ user }: Props) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const date = new Date().toISOString().split('T')[0]
+    // Central calendar day, not UTC: an export run after 7pm CT was stamped
+    // with tomorrow's date. en-CA gives the YYYY-MM-DD shape.
+    const date = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
     a.download = `word-airdrop-${date}.csv`
     a.click()
     URL.revokeObjectURL(url)

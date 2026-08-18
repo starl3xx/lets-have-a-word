@@ -8,6 +8,7 @@ import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
+import { centralDay, centralDayTz, centralDayStart, centralDayStartTz } from '../../../../src/lib/reporting-time';
 
 export interface EconomyAnalytics {
   // Pack metrics
@@ -132,7 +133,10 @@ export default async function handler(
             CAST(prize_pool_eth AS NUMERIC) as jackpot,
             CAST(seed_next_round_eth AS NUMERIC) as seed
           FROM rounds
-          WHERE started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
+          -- rounds.started_at is NAIVE UTC. Anchor the window to Central
+          -- midnight, then flatten it back to naive UTC so both sides of the
+          -- comparison are the same kind of value.
+          WHERE started_at >= ${centralDayStart(daysBack)}
             AND is_dev_test_round = false
             AND resolved_at IS NOT NULL
             -- The sustainability score divides ETH creator+seed revenue by an
@@ -152,7 +156,10 @@ export default async function handler(
             COALESCE(SUM(CAST(NULLIF(amount_word, '') AS NUMERIC)), 0) FILTER (WHERE role = 'creator') as total_creator_rev_word,
             COALESCE(SUM(CAST(NULLIF(amount_word, '') AS NUMERIC)), 0) FILTER (WHERE role = 'seed') as total_seed_word
           FROM round_payouts
-          WHERE created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
+          -- round_payouts.created_at is NAIVE UTC too, and the sustainability
+          -- score divides these payouts by the average jackpot above — so the
+          -- two CTEs have to be measured over the identical window.
+          WHERE created_at >= ${centralDayStart(daysBack)}
         )
         SELECT
           AVG(rd.jackpot) as avg_jackpot,
@@ -180,7 +187,9 @@ export default async function handler(
         SELECT
           AVG(CAST(prize_pool_eth AS NUMERIC)) as avg_jackpot_7d
         FROM rounds
-        WHERE started_at >= NOW() - INTERVAL '7 days'
+        -- Seven whole Central days (started_at is NAIVE UTC), not a rolling
+        -- 168 hours that answers differently on every refresh.
+        WHERE started_at >= ${centralDayStart(7)}
           AND is_dev_test_round = false
           AND resolved_at IS NOT NULL
           -- ETH rounds only; see the note in the sustainability query above.
@@ -200,7 +209,9 @@ export default async function handler(
         total_payout: number;
       }>(sql`
         SELECT
-          DATE(r.started_at) as day,
+          -- r.started_at is NAIVE UTC: a bare DATE() is the UTC calendar day,
+          -- which files a 9pm Central round start under tomorrow.
+          ${centralDay('r.started_at')} as day,
           -- FILTER rather than a WHERE, because the payout sums beside this
           -- are already dual-currency and must keep counting $WORD rounds.
           AVG(CAST(r.prize_pool_eth AS NUMERIC)) FILTER (WHERE r.prize_currency = 'eth') as avg_jackpot,
@@ -209,10 +220,13 @@ export default async function handler(
           COALESCE(SUM(CAST(NULLIF(rp.amount_word, '') AS NUMERIC)) FILTER (WHERE rp.role = 'winner'), 0)::text as total_payout_word
         FROM rounds r
         LEFT JOIN round_payouts rp ON rp.round_id = r.id
-        WHERE r.started_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
+        WHERE r.started_at >= ${centralDayStart(daysBack)}
           AND r.is_dev_test_round = false
           AND r.resolved_at IS NOT NULL
-        GROUP BY DATE(r.started_at)
+        -- Grouping by the output alias, not by a second copy of the bucket
+        -- expression: the zone is a bind parameter, and two copies are two
+        -- different parameters, which Postgres will not match up.
+        GROUP BY day
         ORDER BY day DESC
         LIMIT 30
       `);
@@ -231,14 +245,17 @@ export default async function handler(
         buyers: number;
       }>(sql`
         SELECT
-          DATE(created_at) as day,
+          -- analytics_events.created_at is one of the five TIMESTAMPTZ
+          -- columns, so it takes one conversion, not the two the rounds query
+          -- above needs.
+          ${centralDayTz('created_at')} as day,
           COUNT(*) as packs_sold,
           COALESCE(SUM(CAST(data->>'price_eth' AS NUMERIC)), 0) as revenue_eth,
           COUNT(DISTINCT user_id) as buyers
         FROM analytics_events
         WHERE event_type = 'guess_pack_purchased'
-          AND created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
-        GROUP BY DATE(created_at)
+          AND created_at >= ${centralDayStartTz(daysBack)}
+        GROUP BY day
         ORDER BY day DESC
         LIMIT 30
       `);

@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
+import { centralDayTz } from '../../../../src/lib/reporting-time';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
@@ -62,9 +63,19 @@ export default async function handler(
       cacheKey,
       CacheTTL.adminAnalytics,
       async () => {
-        // Query DAU view
+        // Inlined rather than read from view_dau: the view buckets with a bare
+        // date(created_at), which on a timestamptz column truncates in the
+        // SESSION's timezone — UTC on Vercel. Every other day bucket in the
+        // panel is Central, and the client filters this series on Central days,
+        // so a UTC-bucketed label puts evening activity on the wrong bar.
         const result = await db.execute<DAUDataPoint>(
-          sql`SELECT * FROM view_dau ORDER BY day DESC LIMIT 30`
+          sql`SELECT ${centralDayTz('created_at')} as day,
+                     COUNT(DISTINCT user_id) as active_users
+              FROM analytics_events
+              WHERE user_id IS NOT NULL
+              GROUP BY day
+              ORDER BY day DESC
+              LIMIT 30`
         );
 
         console.log('[analytics/dau] Raw result:', JSON.stringify(result).substring(0, 300));

@@ -314,6 +314,27 @@ function formatPercent(value: number, decimals = 1): string {
 }
 
 
+// Day and week buckets come back from the server as "YYYY-MM-DD" labels. A label
+// is not a moment: it parses to UTC midnight, so rendering it in Central shows
+// the day BEFORE the bucket it came from. Render buckets verbatim, and compare
+// them as strings — never as Date instants, which drag a time of day along.
+
+function formatBucketLabel(bucket: string): string {
+  const date = new Date(bucket)
+  if (isNaN(date.getTime())) return "—"
+  return date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+}
+
+function bucketDay(item: { day?: string; week_start?: string }): string {
+  return String(item.day || item.week_start || '').slice(0, 10)
+}
+
+/** The Central calendar day of an instant, as YYYY-MM-DD — 'en-CA' gives that shape. */
+function centralDayString(value: string | number): string {
+  return new Date(value).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+}
+
+
 function formatTimeAgo(isoTimestamp: string): string {
   const startTime = new Date(isoTimestamp).getTime()
   const now = Date.now()
@@ -363,26 +384,17 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
       // For "current" range, filter to data from when the current round started
       // Compare at day level only (round start date, not time)
       if (!currentRoundStartTime) return data
-      const roundStartDate = new Date(currentRoundStartTime)
-      // Set to start of day in UTC to compare day-level
-      const cutoffDate = new Date(Date.UTC(
-        roundStartDate.getUTCFullYear(),
-        roundStartDate.getUTCMonth(),
-        roundStartDate.getUTCDate(),
-        0, 0, 0, 0
-      ))
-      return data.filter(item => {
-        const itemDate = new Date(item.day || item.week_start)
-        return itemDate >= cutoffDate
-      })
+      // The round start is a real instant; the buckets are day labels. Reduce the
+      // instant to its Central day and compare labels to labels.
+      const cutoffDay = centralDayString(currentRoundStartTime)
+      return data.filter(item => bucketDay(item) >= cutoffDay)
     }
     const daysBack = range === "7d" ? 7 : range === "30d" ? 30 : 7
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - daysBack)
-    return data.filter(item => {
-      const itemDate = new Date(item.day || item.week_start)
-      return itemDate >= cutoffDate
-    })
+    // setDate() on a browser-local Date made this boundary the viewer's midnight
+    // and kept the current time of day, so the oldest bucket fell in or out
+    // depending on when the page was refreshed.
+    const cutoffDay = centralDayString(Date.now() - daysBack * 86_400_000)
+    return data.filter(item => bucketDay(item) >= cutoffDay)
   }
 
   const fetchAnalytics = useCallback(async () => {
@@ -475,17 +487,17 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
 
 
   const dauChartData = [...dauData].reverse().map(d => ({
-    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+    day: formatBucketLabel(d.day),
     "Active Users": d.active_users
   }))
 
   const wauChartData = [...wauData].reverse().map(d => ({
-    week: new Date(d.week_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+    week: formatBucketLabel(d.week_start),
     "Active Users": d.active_users
   }))
 
   const guessChartData = [...guessData].reverse().map(d => ({
-    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+    day: formatBucketLabel(d.day),
     "Free": d.free_guesses,
     "Paid": d.paid_guesses
   }))
@@ -1041,7 +1053,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
                 </div>
                 <AnalyticsChart
                   data={[...shareFunnel.referralVelocityDaily].reverse().slice(-14).map(d => ({
-                    day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+                    day: formatBucketLabel(d.day),
                     "Shares": d.shares,
                     "Joins": d.joins,
                     "Guesses": d.guesses,
@@ -1203,7 +1215,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
               </div>
               <AnalyticsChart
                 data={[...retention.dailyRetention].reverse().map(d => ({
-                  day: new Date(d.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }),
+                  day: formatBucketLabel(d.day),
                   "Return Rate %": d.return_rate,
                 }))}
                 type="line"
@@ -1273,7 +1285,7 @@ export default function AnalyticsSection({ user }: AnalyticsSectionProps) {
                       color: "#374151",
                       fontWeight: 500,
                     }}>
-                      {new Date(cohort.cohort_week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {formatBucketLabel(cohort.cohort_week)}
                     </td>
                     <td style={{
                       textAlign: "center",

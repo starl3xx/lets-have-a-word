@@ -8,6 +8,7 @@ import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL, trackSlowQuery } from '../../../../src/lib/redis';
+import { centralDay, centralDayStart } from '../../../../src/lib/reporting-time';
 
 export interface WordTokenAnalytics {
   // Core metrics
@@ -128,14 +129,23 @@ export default async function handler(
         WHERE dgs.date >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
       )
       SELECT
-        DATE(g.created_at) as day,
+        -- guesses.created_at is NAIVE UTC, so the Central day needs BOTH
+        -- conversions: 'UTC' to stamp the value as the instant it really is,
+        -- then 'America/Chicago' to read it locally. The single form used on
+        -- the analytics_events queries elsewhere would shift it 5-6 hours the
+        -- wrong way.
+        ${centralDay('g.created_at')} as day,
         COUNT(g.id) FILTER (WHERE uc.is_word_token_holder = true) as word_token_guesses,
         COUNT(g.id) FILTER (WHERE uc.is_word_token_holder = false OR uc.is_word_token_holder IS NULL) as regular_guesses,
         COUNT(DISTINCT g.fid) FILTER (WHERE uc.is_word_token_holder = true) as word_token_users
       FROM guesses g
+      -- The join key stays on the UTC day: daily_guess_state.date is the game
+      -- day behind the 11:00 UTC reset, which is game behaviour, not reporting.
       LEFT JOIN user_classification uc ON uc.fid = g.fid AND uc.date = DATE(g.created_at)
-      WHERE g.created_at >= NOW() - INTERVAL '${sql.raw(daysBack.toString())} days'
-      GROUP BY DATE(g.created_at)
+      WHERE g.created_at >= ${centralDayStart(daysBack)}
+      -- The alias, not a second copy: the zone is a bind parameter and two
+      -- copies are two parameters, which Postgres will not match up.
+      GROUP BY day
       ORDER BY day DESC
       LIMIT 30
     `);

@@ -9,7 +9,7 @@ import { useOperationalStatus, type OperationalStatus } from "./operational-stat
 import PurchaseEventsCard from "./PurchaseEventsCard";
 import FundingDirectoryCard from "./FundingDirectoryCard";
 import { adminFont as fontFamily } from "./ui"
-import { shortenAddress } from "./format";
+import { formatCentral, formatCentralDate, formatCentralTime, shortenAddress } from "./format";
 
 // =============================================================================
 // Types
@@ -1231,7 +1231,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
             fontFamily,
           }}>
             Updated<br />
-            {new Date(balances.lastUpdated).toLocaleTimeString()}
+            {formatCentralTime(balances.lastUpdated)}
           </div>
         )}
       </div>
@@ -1330,7 +1330,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {balances && (
               <span style={{ fontSize: '11px', color: '#9ca3af' }}>
-                Last updated: {new Date(balances.lastUpdated).toLocaleTimeString()}
+                Last updated: {formatCentralTime(balances.lastUpdated)}
               </span>
             )}
             <button
@@ -1796,7 +1796,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               <span style={{ fontSize: '12px', fontFamily }}>
                 {balances.wordManager.stakingPeriodActive ? (
                   <span style={{ color: '#16a34a' }}>
-                    Active until {new Date(balances.wordManager.stakingPeriodEnds!).toLocaleDateString()}
+                    Active until {formatCentralDate(balances.wordManager.stakingPeriodEnds)}
                   </span>
                 ) : (
                   <span style={{ color: '#dc2626' }}>Inactive</span>
@@ -2069,7 +2069,7 @@ export default function WalletSection({ user }: WalletSectionProps) {
               {actions.map((action) => (
                 <tr key={action.id}>
                   <td style={styles.td}>
-                    {new Date(action.createdAt).toLocaleString()}
+                    {formatCentral(action.createdAt)}
                   </td>
                   <td style={styles.td}>
                     <span style={styles.badge(
