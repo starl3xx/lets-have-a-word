@@ -214,6 +214,9 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ### 2026-08-17 (before Round 34)
 
+- **Reward-gate balance reads retry once**: a transient RPC failure (this morning's Sentry pair: a non-JSON RPC response body → "[RewardGate] Balance undetermined — failing open") is a free pass through the gate by design — fail-open is correct and never cached, but each blip was one free pass. The balance read now retries once after 400ms before declaring undetermined; a second failure still fails open, loudly, exactly as before.
+
+
 - **The info bar's ≈$ tracks the live market**: the round's USD headline was frozen at the seed-time price snapshot, so a market-cap jump showed in the $WORD sheet but never in the bar. The seed itself stays frozen at its $20 target — all payout and seeding math still uses the round's stored snapshot — but the bar's display now prices the pool at the live oracle price, redis-cached for ~5 minutes (one external fetch per TTL across all players, zero added latency on the poll), with the seed snapshot as fallback so the bar never blanks.
 
 
