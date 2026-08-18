@@ -28,6 +28,9 @@
     "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the jackpot",
     "ogImageUrl": "https://letshaveaword.fun/LHAW-hero3.png"
   },
+  "baseBuilder": {
+    "ownerAddress": "0x0Fc0F78fc939606db65F5BBF2F3715262C0b2F6E"
+  },
   "accountAssociation": {
     "header": "eyJmaWQiOjY1MDAsInR5cGUiOiJhdXRoIiwia2V5IjoiMHgzQ2VlNjMwMDc1REM1ODZENUJGZEZBODFGM2EyZDc3OTgwRjBkMjIzIn0",
     "payload": "eyJkb21haW4iOiJsZXRzaGF2ZWF3b3JkLmZ1biJ9",
