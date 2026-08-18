@@ -259,28 +259,49 @@ export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
  *
  * @returns Market cap data or null if all sources fail
  */
+const WORD_PRICE_CACHE_KEY = 'lhaw:word-price-usd';
+// Outlives two 15-minute oracle-cron gaps; if the cron dies the bar falls
+// back to the seed snapshot after this window instead of showing stale
+// prices forever.
+const WORD_PRICE_CACHE_TTL_S = 30 * 60;
+
 /**
- * The live $WORD price in USD, redis-cached for 5 minutes — one external
- * fetch per TTL across every caller, ~1ms for everyone else. Built for hot
- * paths (the round-state poll prices the info bar's ≈$ with it). Returns
- * null when no source has a usable price; failures are NOT cached, so a
- * flaky source retries on the next call instead of blanking five minutes.
+ * READ-ONLY on hot paths: the redis-cached live $WORD price, or null. This
+ * NEVER fetches — the key is warmed by every successful
+ * fetchWordTokenMarketCap call (the 15-minute oracle cron, a $WORD sheet
+ * open, an admin balances read). An earlier version fetched inline on a
+ * cache miss, which put the multi-source ~8s-per-source timeout chain
+ * directly on the round-state poll's miss path — and on EVERY request when
+ * Redis itself was down.
  */
 export async function getCachedWordPriceUsd(): Promise<number | null> {
-  const { cacheGet, cacheSet } = await import('./redis');
-  const KEY = 'lhaw:word-price-usd';
-  const cached = await cacheGet<number>(KEY).catch(() => null);
-  if (cached !== null && cached > 0) return cached;
-
-  const marketData = await fetchWordTokenMarketCap().catch(() => null);
-  const priceUsd = marketData?.priceUsd;
-  if (!priceUsd || priceUsd <= 0) return null;
-
-  cacheSet(KEY, priceUsd, 300).catch(() => {});
-  return priceUsd;
+  try {
+    const { cacheGet } = await import('./redis');
+    const cached = await cacheGet<number>(WORD_PRICE_CACHE_KEY);
+    return cached !== null && cached > 0 ? cached : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchWordTokenMarketCap(): Promise<MarketCapData | null> {
+  const data = await fetchWordTokenMarketCapUncached();
+  // Warm the shared price key on every success so hot-path readers
+  // (getCachedWordPriceUsd) always find a recent price without ever
+  // fetching. Awaited on purpose: a serverless function may freeze work
+  // scheduled after its response, so fire-and-forget can silently drop.
+  if (data && data.priceUsd > 0) {
+    try {
+      const { cacheSet } = await import('./redis');
+      await cacheSet(WORD_PRICE_CACHE_KEY, data.priceUsd, WORD_PRICE_CACHE_TTL_S);
+    } catch {
+      // Cache warmth is best-effort; the fetched data still serves the caller.
+    }
+  }
+  return data;
+}
+
+async function fetchWordTokenMarketCapUncached(): Promise<MarketCapData | null> {
   console.log('[ORACLE] Fetching $WORD market cap...');
 
   // Try DexScreener first
