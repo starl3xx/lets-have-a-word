@@ -259,6 +259,27 @@ export async function fetchFromCoinGecko(): Promise<MarketCapData | null> {
  *
  * @returns Market cap data or null if all sources fail
  */
+/**
+ * The live $WORD price in USD, redis-cached for 5 minutes — one external
+ * fetch per TTL across every caller, ~1ms for everyone else. Built for hot
+ * paths (the round-state poll prices the info bar's ≈$ with it). Returns
+ * null when no source has a usable price; failures are NOT cached, so a
+ * flaky source retries on the next call instead of blanking five minutes.
+ */
+export async function getCachedWordPriceUsd(): Promise<number | null> {
+  const { cacheGet, cacheSet } = await import('./redis');
+  const KEY = 'lhaw:word-price-usd';
+  const cached = await cacheGet<number>(KEY).catch(() => null);
+  if (cached !== null && cached > 0) return cached;
+
+  const marketData = await fetchWordTokenMarketCap().catch(() => null);
+  const priceUsd = marketData?.priceUsd;
+  if (!priceUsd || priceUsd <= 0) return null;
+
+  cacheSet(KEY, priceUsd, 300).catch(() => {});
+  return priceUsd;
+}
+
 export async function fetchWordTokenMarketCap(): Promise<MarketCapData | null> {
   console.log('[ORACLE] Fetching $WORD market cap...');
 
