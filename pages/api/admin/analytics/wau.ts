@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
+import { centralTimestampTz } from '../../../../src/lib/reporting-time';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
@@ -53,9 +54,18 @@ export default async function handler(
       cacheKey,
       CacheTTL.adminAnalytics,
       async () => {
-        // Query WAU view
+        // Inlined rather than read from view_wau, for the same reason as
+        // analytics/dau: DATE_TRUNC('week', created_at) on a timestamptz
+        // truncates in the SESSION's timezone, so the week boundary moves with
+        // the server's configuration. Weeks now start Monday 00:00 Central.
         const result = await db.execute<WAUDataPoint>(
-          sql`SELECT * FROM view_wau ORDER BY week_start DESC LIMIT 12`
+          sql`SELECT DATE_TRUNC('week', ${centralTimestampTz('created_at')})::date as week_start,
+                     COUNT(DISTINCT user_id) as active_users
+              FROM analytics_events
+              WHERE user_id IS NOT NULL
+              GROUP BY week_start
+              ORDER BY week_start DESC
+              LIMIT 12`
         );
 
         console.log('[analytics/wau] Raw result:', JSON.stringify(result).substring(0, 300));

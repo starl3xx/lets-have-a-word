@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { sql } from 'drizzle-orm';
+import { centralDayTz } from '../../../../src/lib/reporting-time';
 import { isAdminFid } from '../me';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../../src/lib/redis';
 
@@ -58,9 +59,26 @@ export default async function handler(
       return res.status(403).json({ error: `Forbidden: FID ${fid} is not an admin. Set LHAW_ADMIN_USER_IDS environment variable.` });
     }
 
-    // Query free/paid ratio view
+    // Inlined rather than read from view_free_paid_ratio, for the same reason as
+    // analytics/dau: the view's date(created_at) buckets in the SESSION's
+    // timezone. The ratio is per-day, so a misplaced guess changes both the
+    // numerator and the denominator of the wrong bar.
     const result = await db.execute<FreePaidDataPoint>(
-      sql`SELECT * FROM view_free_paid_ratio ORDER BY day DESC LIMIT 30`
+      sql`SELECT ${centralDayTz('created_at')} as day,
+                 COUNT(*) FILTER (WHERE event_type = 'free_guess_used') as free_guesses,
+                 COUNT(*) FILTER (WHERE event_type = 'paid_guess_used') as paid_guesses,
+                 CASE
+                   WHEN COUNT(*) FILTER (WHERE event_type = 'paid_guess_used') > 0
+                   THEN ROUND(
+                     COUNT(*) FILTER (WHERE event_type = 'free_guess_used')::numeric
+                     / COUNT(*) FILTER (WHERE event_type = 'paid_guess_used')::numeric, 2)
+                   ELSE 0::numeric
+                 END as free_to_paid_ratio
+          FROM analytics_events
+          WHERE event_type IN ('free_guess_used', 'paid_guess_used')
+          GROUP BY day
+          ORDER BY day DESC
+          LIMIT 30`
     );
 
     console.log('[analytics/free-paid] Raw result:', JSON.stringify(result).substring(0, 300));

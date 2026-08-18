@@ -95,6 +95,18 @@ export function centralTimestamp(column: string): SQL {
   return sql`(${sql.raw(column)} AT TIME ZONE 'UTC' AT TIME ZONE ${TZ})`;
 }
 
+/**
+ * The Central local timestamp of a `timestamptz` column — the counterpart to
+ * {@link centralTimestamp}, for `DATE_TRUNC` on something coarser than a day.
+ *
+ * `DATE_TRUNC('week', created_at)` on a timestamptz truncates in the SESSION's
+ * zone, so the week boundary moves with the server's configuration. Truncating
+ * the localized value pins it.
+ */
+export function centralTimestampTz(column: string): SQL {
+  return sql`(${sql.raw(column)} AT TIME ZONE ${TZ})`;
+}
+
 /** Today's date in Central. `CURRENT_TIMESTAMP` is already `timestamptz`. */
 export const centralToday: SQL = sql`(CURRENT_TIMESTAMP AT TIME ZONE ${TZ})::date`;
 

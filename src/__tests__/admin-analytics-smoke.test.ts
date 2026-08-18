@@ -19,12 +19,15 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import cohorts from '../../pages/api/admin/analytics/cohorts';
 import dashboardSummary from '../../pages/api/admin/analytics/dashboard-summary';
+import dau from '../../pages/api/admin/analytics/dau';
 import economy from '../../pages/api/admin/analytics/economy';
+import freePaid from '../../pages/api/admin/analytics/free-paid';
 import gameplay from '../../pages/api/admin/analytics/gameplay';
 import onboarding from '../../pages/api/admin/analytics/onboarding';
 import packPricing from '../../pages/api/admin/analytics/pack-pricing';
 import retention from '../../pages/api/admin/analytics/retention';
 import shareFunnel from '../../pages/api/admin/analytics/share-funnel';
+import wau from '../../pages/api/admin/analytics/wau';
 import wordToken from '../../pages/api/admin/analytics/word-token';
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => unknown | Promise<unknown>;
@@ -80,12 +83,15 @@ function expectRan({ status, body }: Outcome, name: string) {
 const ENDPOINTS: Array<[string, Handler, Record<string, string>?]> = [
   ['cohorts', cohorts as Handler],
   ['dashboard-summary', dashboardSummary as Handler],
+  ['dau', dau as Handler],
   ['economy', economy as Handler, { days: '7' }],
+  ['free-paid', freePaid as Handler],
   ['gameplay', gameplay as Handler, { days: '7' }],
   ['onboarding', onboarding as Handler],
   ['pack-pricing', packPricing as Handler],
   ['retention', retention as Handler],
   ['share-funnel', shareFunnel as Handler, { days: '7' }],
+  ['wau', wau as Handler],
   ['word-token', wordToken as Handler, { days: '7' }],
 ];
 
