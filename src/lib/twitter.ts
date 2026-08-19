@@ -16,7 +16,7 @@
 
 import { TwitterApi } from 'twitter-api-v2';
 import * as Sentry from '@sentry/nextjs';
-import { resolveTweetMentions } from './tweet-mentions';
+import { resolveTweetMentions, mentionRegex } from './tweet-mentions';
 
 // Configuration from environment variables
 const TWITTER_API_KEY = process.env.TWITTER_API_KEY;
@@ -218,10 +218,20 @@ export function convertToTwitterText(
 ): string {
   let text = farcasterText;
 
-  // Replace @letshaveaword with @letshaveaword_ (our Twitter handle)
-  text = text.replace(/@letshaveaword\b/g, '@letshaveaword_');
+  // Replace @letshaveaword with @letshaveaword_ (our Twitter handle).
+  // The lookahead, rather than \b, so a player called letshaveaword.eth is not
+  // rewritten into @letshaveaword_.eth: \b sees a boundary before the dot.
+  text = text.replace(/@letshaveaword(?![A-Za-z0-9_.-])/g, '@letshaveaword_');
 
-  text = text.replace(/@(\w+)/g, (match, username: string) => {
+  /**
+   * The same token shape `extractMentions` uses, and it has to be.
+   *
+   * A Farcaster name may contain dots and hyphens and run past 15 characters;
+   * a third of ours do. Matching `\w+` here would replace only the prefix and
+   * leave the rest welded to the new handle, turning
+   * "@dianbetty2461.base.eth" into "@theirhandle.base.eth".
+   */
+  text = text.replace(mentionRegex(), (match, username: string) => {
     // Keep our own handle
     if (username === 'letshaveaword_') return match;
 

@@ -28,6 +28,28 @@ describe('extractMentions', () => {
   it('returns nothing when there is nothing to resolve', () => {
     expect(extractMentions('The pot is now 12,000 $WORD.')).toEqual([]);
   });
+
+  /**
+   * 8,421 of our 26,338 usernames are not plain word characters: 7,442 end in
+   * .eth or .base.eth, 742 carry a hyphen, and 7,159 run past the 15 characters
+   * an X handle may be. Capturing a prefix of those is worse than missing them,
+   * because the prefix is somebody else's name.
+   */
+  it('captures a dotted name whole, not just its prefix', () => {
+    expect(extractMentions('@dianbetty2461.base.eth found it')).toEqual([
+      'dianbetty2461.base.eth',
+    ]);
+  });
+
+  it('captures hyphens and names longer than an X handle may be', () => {
+    expect(extractMentions('@some-very-long-player-name won')).toEqual([
+      'some-very-long-player-name',
+    ]);
+  });
+
+  it('does not swallow a full stop that ends the sentence', () => {
+    expect(extractMentions('Well played @wordsmith.')).toEqual(['wordsmith']);
+  });
 });
 
 describe('convertToTwitterText mention handling', () => {
@@ -64,6 +86,26 @@ describe('convertToTwitterText mention handling', () => {
     expect(convertToTwitterText('Play at @letshaveaword', mentions)).toBe(
       'Play at @letshaveaword_'
     );
+  });
+
+  it('replaces a dotted name entirely, leaving no fragment welded to the handle', () => {
+    // The bug this guards: matching only the \w prefix rewrote
+    // "@dianbetty2461.base.eth" to "@theirhandle.base.eth", which is a live
+    // account belonging to nobody the cast mentioned.
+    const mentions = new Map([['dianbetty2461.base.eth', 'realhandle']]);
+    expect(convertToTwitterText('@dianbetty2461.base.eth found it', mentions)).toBe(
+      '@realhandle found it'
+    );
+  });
+
+  it('strips a dotted name whole when no handle is known', () => {
+    expect(convertToTwitterText('@dianbetty2461.base.eth found it')).toBe(
+      'dianbetty2461.base.eth found it'
+    );
+  });
+
+  it('does not rewrite a player whose name merely starts with ours', () => {
+    expect(convertToTwitterText('@letshaveaword.eth played')).toBe('letshaveaword.eth played');
   });
 
   it('handles a mixed cast, resolving one player and stripping the other', () => {

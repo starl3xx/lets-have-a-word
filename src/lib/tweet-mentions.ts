@@ -41,8 +41,28 @@ import { resolveXHandles, isMentionable, isConfigured } from './walletlink';
  */
 const TTL_DAYS = 7;
 
-/** X handles are at most 15 characters; longer captures are not handles. */
-const MENTION_RE = /@(\w{1,15})\b/g;
+/**
+ * A mention token as Farcaster writes it, which is not what X allows.
+ *
+ * The name in a cast is a Farcaster username, and 8,421 of our 26,338 are not
+ * plain word characters: 7,442 are `.eth` or `.base.eth`, 742 carry a hyphen,
+ * and 7,159 are longer than the 15 an X handle may be. Matching `\w{1,15}`
+ * captures a PREFIX of those, and a prefix is the dangerous kind of wrong:
+ * "@dianbetty2461.base.eth" yields "dianbetty2461", which is a different
+ * player's name, and rewriting it leaves "@theirhandle.base.eth" pointing at
+ * somebody the cast never mentioned.
+ *
+ * Dots are allowed only between name characters, so a mention ending a sentence
+ * does not swallow the full stop. Both this module and `convertToTwitterText`
+ * must use it, because a replacement that spans fewer characters than the match
+ * leaves the remainder of the name stuck to the new handle.
+ */
+const MENTION_SOURCE = '@([A-Za-z0-9_](?:[A-Za-z0-9_-]*(?:\\.[A-Za-z0-9_-]+)*))';
+
+/** A fresh regex each time: /g carries lastIndex between uses. */
+export function mentionRegex(): RegExp {
+  return new RegExp(MENTION_SOURCE, 'g');
+}
 
 /** Names that are ours or structural, never a player to resolve. */
 const RESERVED = new Set(['letshaveaword', 'letshaveaword_', 'fid']);
@@ -55,7 +75,7 @@ const RESERVED = new Set(['letshaveaword', 'letshaveaword_', 'fid']);
  */
 export function extractMentions(castText: string): string[] {
   const found = new Set<string>();
-  for (const m of castText.matchAll(MENTION_RE)) {
+  for (const m of castText.matchAll(mentionRegex())) {
     const name = m[1].toLowerCase();
     if (!RESERVED.has(name)) found.add(name);
   }
@@ -92,8 +112,32 @@ export async function resolveTweetMentions(castText: string): Promise<Map<string
     const cutoff = new Date(Date.now() - TTL_DAYS * 24 * 60 * 60 * 1000);
     const stale: typeof rows = [];
 
+    /**
+     * A name held by more than one row names nobody in particular.
+     *
+     * `users.username` has no unique constraint (only `users_pkey` and
+     * `users_fid_unique`), and a Farcaster name released by one FID can be
+     * registered by another, so two rows can carry the same string. There are
+     * none today, which is exactly when to decide what to do about it.
+     *
+     * Taking whichever row the query returned last would @ that row's X
+     * account, and the cast meant one specific player. Ambiguity is not
+     * knowledge: these fall through to a plain name.
+     */
+    const seen = new Map<string, number>();
     for (const row of rows) {
       if (!row.username) continue;
+      const key = row.username.toLowerCase();
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    const ambiguous = new Set([...seen].filter(([, n]) => n > 1).map(([name]) => name));
+    if (ambiguous.size > 0) {
+      console.warn('[tweet-mentions] ambiguous usernames, left unmentioned:', [...ambiguous]);
+    }
+
+    for (const row of rows) {
+      if (!row.username) continue;
+      if (ambiguous.has(row.username.toLowerCase())) continue;
       const fresh = row.xCheckedAt && row.xCheckedAt > cutoff;
       if (fresh) {
         if (row.xHandle && row.xReachability === 'live') {
