@@ -13,8 +13,8 @@ import { extractMentions } from '../lib/tweet-mentions';
 
 describe('extractMentions', () => {
   it('finds player mentions, lowercased and deduplicated', () => {
-    const text = '🎣 @MindlessMonk found a bonus word! Congrats @mindlessmonk and @swalow1231.';
-    expect(extractMentions(text).sort()).toEqual(['mindlessmonk', 'swalow1231']);
+    const text = '🎣 @WordSmith found a bonus word! Congrats @wordsmith and @sharpguess.';
+    expect(extractMentions(text).sort()).toEqual(['sharpguess', 'wordsmith']);
   });
 
   it('ignores our own account, which has its own mapping', () => {
@@ -31,32 +31,32 @@ describe('extractMentions', () => {
 });
 
 describe('convertToTwitterText mention handling', () => {
-  const cast = '🎣 @presidojay1 found a bonus word and won 500 $WORD!';
+  const cast = '🎣 @quietplayer found a bonus word and won 500 $WORD!';
 
   it('strips the @ when no handle is known', () => {
     expect(convertToTwitterText(cast)).toBe(
-      '🎣 presidojay1 found a bonus word and won 500 $WORD!'
+      '🎣 quietplayer found a bonus word and won 500 $WORD!'
     );
   });
 
   it('strips the @ when the map is empty, which is what a failed lookup returns', () => {
     expect(convertToTwitterText(cast, new Map())).toBe(
-      '🎣 presidojay1 found a bonus word and won 500 $WORD!'
+      '🎣 quietplayer found a bonus word and won 500 $WORD!'
     );
   });
 
   it('rewrites to the real X handle when one was resolved live', () => {
-    // presidojay1 on Farcaster is prezz1111 on X: a real pairing from the
-    // index, and exactly why the username cannot be reused verbatim.
-    const mentions = new Map([['presidojay1', 'prezz1111']]);
+    // A player whose X handle differs from their Farcaster username, which
+    // is the common case and exactly why the name cannot be reused verbatim.
+    const mentions = new Map([['quietplayer', 'qp_onx']]);
     expect(convertToTwitterText(cast, mentions)).toBe(
-      '🎣 @prezz1111 found a bonus word and won 500 $WORD!'
+      '🎣 @qp_onx found a bonus word and won 500 $WORD!'
     );
   });
 
   it('matches case-insensitively, since the map is keyed lowercased', () => {
-    const mentions = new Map([['presidojay1', 'prezz1111']]);
-    expect(convertToTwitterText('@Presidojay1 won', mentions)).toBe('@prezz1111 won');
+    const mentions = new Map([['quietplayer', 'qp_onx']]);
+    expect(convertToTwitterText('@Quietplayer won', mentions)).toBe('@qp_onx won');
   });
 
   it('still maps our own handle, and never through the player map', () => {
@@ -67,8 +67,8 @@ describe('convertToTwitterText mention handling', () => {
   });
 
   it('handles a mixed cast, resolving one player and stripping the other', () => {
-    const mentions = new Map([['swalow1231', 'swalow1231']]);
-    const out = convertToTwitterText('@swalow1231 beat @presidojay1 to it', mentions);
-    expect(out).toBe('@swalow1231 beat presidojay1 to it');
+    const mentions = new Map([['sharpguess', 'sharpguess']]);
+    const out = convertToTwitterText('@sharpguess beat @quietplayer to it', mentions);
+    expect(out).toBe('@sharpguess beat quietplayer to it');
   });
 });
