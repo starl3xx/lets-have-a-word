@@ -39,6 +39,15 @@ export const users = pgTable('users', {
   // the wallet-cluster gate consults it on the guess path. null = never checked.
   coinbaseAttested: boolean('coinbase_attested'),
   coinbaseAttestedCheckedAt: timestamp('coinbase_attested_checked_at'),
+  // The player's real X handle, from walletlink.social. NOT the Farcaster
+  // username: they are separate namespaces, and the announcer used to tweet the
+  // Farcaster one, which lands on a stranger far more often than not.
+  // x_checked_at null = never looked, which is the retry signal and is
+  // deliberately distinct from "looked, found nothing".
+  xHandle: varchar('x_handle', { length: 15 }),
+  /** live | suspended | unclaimed | reassigned. Only 'live' earns an @mention. */
+  xReachability: varchar('x_reachability', { length: 12 }),
+  xCheckedAt: timestamp('x_checked_at'),
   xp: integer('xp').default(0).notNull(),
   // Reward gate grandfather column: the round of this user's first-ever guess.
   // Backfilled once from MIN(guesses.round_id) by the admin backfill endpoint;
