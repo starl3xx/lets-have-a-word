@@ -218,10 +218,22 @@ export function convertToTwitterText(
 ): string {
   let text = farcasterText;
 
-  // Replace @letshaveaword with @letshaveaword_ (our Twitter handle).
-  // The lookahead, rather than \b, so a player called letshaveaword.eth is not
-  // rewritten into @letshaveaword_.eth: \b sees a boundary before the dot.
-  text = text.replace(/@letshaveaword(?![A-Za-z0-9_.-])/g, '@letshaveaword_');
+  /**
+   * Replace @letshaveaword with @letshaveaword_ (our Twitter handle).
+   *
+   * Two lookaheads, because "is this the end of the name" and "is this a longer
+   * name" are different questions and a dot answers them differently.
+   *
+   * `\b` alone was wrong: it sees a boundary before a dot, so a player called
+   * letshaveaword.eth became @letshaveaword_.eth. Blocking on any dot was also
+   * wrong, and worse, because it is the common case: "@letshaveaword." ending a
+   * sentence then failed to rewrite and lost the @ entirely, dropping our own
+   * mention from the tweet.
+   *
+   * A dot continues the name only when a name character follows it, which is
+   * exactly the rule `mentionRegex` uses. Keep the two in step.
+   */
+  text = text.replace(/@letshaveaword(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9_-])/g, '@letshaveaword_');
 
   /**
    * The same token shape `extractMentions` uses, and it has to be.

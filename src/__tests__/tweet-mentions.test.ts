@@ -108,6 +108,25 @@ describe('convertToTwitterText mention handling', () => {
     expect(convertToTwitterText('@letshaveaword.eth played')).toBe('letshaveaword.eth played');
   });
 
+  /**
+   * A dot continues a name only when a name character follows it. Blocking on
+   * any dot dropped our own mention from every cast that ended a sentence with
+   * it, which is the common case and worse than the edge case it fixed.
+   */
+  it('still maps our handle when a full stop ends the sentence', () => {
+    expect(convertToTwitterText('Play at @letshaveaword.')).toBe('Play at @letshaveaword_.');
+  });
+
+  it('still maps our handle before other punctuation and at end of input', () => {
+    expect(convertToTwitterText('Play at @letshaveaword!')).toBe('Play at @letshaveaword_!');
+    expect(convertToTwitterText('Play at @letshaveaword')).toBe('Play at @letshaveaword_');
+    expect(convertToTwitterText('@letshaveaword, now')).toBe('@letshaveaword_, now');
+  });
+
+  it('does not double the suffix when the text already says @letshaveaword_', () => {
+    expect(convertToTwitterText('Play at @letshaveaword_')).toBe('Play at @letshaveaword_');
+  });
+
   it('handles a mixed cast, resolving one player and stripping the other', () => {
     const mentions = new Map([['sharpguess', 'sharpguess']]);
     const out = convertToTwitterText('@sharpguess beat @quietplayer to it', mentions);
