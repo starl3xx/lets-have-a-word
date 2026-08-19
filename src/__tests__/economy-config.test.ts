@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { formatWordAmountCompact } from '../lib/prize-display';
 import {
   WORD_HOLDER_THRESHOLD,
   WORD_BONUS_MCAP_THRESHOLD_USD,
@@ -294,6 +295,22 @@ describe('oracle-priced $WORD rewards', () => {
   describe('getBonusWordRewardWei', () => {
     it('pays $1.50 worth at the reference price', () => {
       expect(getBonusWordRewardWei(PRICE_E18)).toBe(5_859_375n * ONE_TOKEN);
+    });
+
+    it('is not 5M, which is what the bonus-word cast claimed until 2026-08-19', () => {
+      // The announcer hardcoded "won 5M $WORD" — the rounds 1-33 fixed amount.
+      // From round 34 the reward is $1.50 priced by oracle, so the post was
+      // overstating or understating the transfer on every single find. The cast
+      // now renders this value, so this is the assertion that keeps them equal.
+      const legacyFixedAmount = 5_000_000n * ONE_TOKEN;
+      expect(getBonusWordRewardWei(PRICE_E18)).not.toBe(legacyFixedAmount);
+      expect(formatWordAmountCompact(getBonusWordRewardWei(PRICE_E18))).toBe('5.86M');
+    });
+
+    it('still reads correctly when the oracle is down and the fixed amount is paid', () => {
+      // resolveBonusWordRewardAmount degrades to the legacy 5M rather than
+      // denying an earned reward, so that path has to render sensibly too.
+      expect(formatWordAmountCompact(5_000_000n * ONE_TOKEN)).toBe('5.00M');
     });
 
     it('pays more tokens as the price falls, preserving the USD value', () => {
