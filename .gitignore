@@ -12,3 +12,6 @@ out/
 next-env.d.ts
 .vercel
 .env*.local
+
+# walletlink.social API key, written by the provisioning script. Never commit.
+.walletlink-key

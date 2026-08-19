@@ -16,6 +16,7 @@
 
 import { TwitterApi } from 'twitter-api-v2';
 import * as Sentry from '@sentry/nextjs';
+import { resolveTweetMentions, mentionRegex } from './tweet-mentions';
 
 // Configuration from environment variables
 const TWITTER_API_KEY = process.env.TWITTER_API_KEY;
@@ -198,21 +199,66 @@ export async function getTypefullyPublishedUrl(draftId: number): Promise<string 
 /**
  * Convert Farcaster-style text to Twitter-friendly format
  *
- * - Removes @ mentions (they reference Farcaster users)
  * - Converts @letshaveaword to @letshaveaword_
+ * - Rewrites a player's @mention to their real X handle, when one is known and
+ *   still reaches them
+ * - Removes the @ from every other mention, since Farcaster usernames do not
+ *   map to X
  * - Keeps the rest intact
+ *
+ * @param mentions Lowercased Farcaster username to live X handle. Only handles
+ *   verified live belong in here; see `resolveTweetMentions`. Omitted or empty
+ *   means every player mention loses its @, which is the behaviour this
+ *   function had before handles could be resolved at all, and the behaviour it
+ *   must fall back to whenever the lookup fails.
  */
-export function convertToTwitterText(farcasterText: string): string {
+export function convertToTwitterText(
+  farcasterText: string,
+  mentions?: Map<string, string>
+): string {
   let text = farcasterText;
 
-  // Replace @letshaveaword with @letshaveaword_ (our Twitter handle)
-  text = text.replace(/@letshaveaword\b/g, '@letshaveaword_');
+  /**
+   * Replace @letshaveaword with @letshaveaword_ (our Twitter handle).
+   *
+   * Two lookaheads, because "is this the end of the name" and "is this a longer
+   * name" are different questions and a dot answers them differently.
+   *
+   * `\b` alone was wrong: it sees a boundary before a dot, so a player called
+   * letshaveaword.eth became @letshaveaword_.eth. Blocking on any dot was also
+   * wrong, and worse, because it is the common case: "@letshaveaword." ending a
+   * sentence then failed to rewrite and lost the @ entirely, dropping our own
+   * mention from the tweet.
+   *
+   * A dot continues the name only when a name character follows it, which is
+   * exactly the rule `mentionRegex` uses. Keep the two in step.
+   */
+  text = text.replace(/@letshaveaword(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9_-])/g, '@letshaveaword_');
 
-  // Remove other @ mentions (Farcaster usernames don't map to Twitter)
-  // But preserve the text by just removing the @
-  text = text.replace(/@(\w+)/g, (match, username) => {
+  /**
+   * The same token shape `extractMentions` uses, and it has to be.
+   *
+   * A Farcaster name may contain dots and hyphens and run past 15 characters;
+   * a third of ours do. Matching `\w+` here would replace only the prefix and
+   * leave the rest welded to the new handle, turning
+   * "@dianbetty2461.base.eth" into "@theirhandle.base.eth".
+   */
+  text = text.replace(mentionRegex(), (match, username: string) => {
     // Keep our own handle
     if (username === 'letshaveaword_') return match;
+
+    /**
+     * A player we resolved to a live X account keeps an @, pointed at the right
+     * person. Anything else loses it.
+     *
+     * Stripping is the safe default and stays the default: a Farcaster username
+     * used verbatim on X reaches whoever holds that name there, which is
+     * usually a stranger. Sampled 15 of ours and 14 were live accounts
+     * belonging to other people, one with 105,653 followers.
+     */
+    const x = mentions?.get(username.toLowerCase());
+    if (x) return `@${x}`;
+
     // Remove @ from other mentions
     return username;
   });
@@ -252,8 +298,19 @@ export async function postTweet(
     return null;
   }
 
+  /**
+   * Resolve player mentions to real X handles before converting.
+   *
+   * Done here rather than at the ~8 announcer call sites on purpose. The safe
+   * behaviour has to be the default: a new announcement added next month gets
+   * this without anyone remembering to ask for it, and a resolution failure
+   * returns an empty map, which is exactly the plain-name output this function
+   * produced before handles could be resolved at all.
+   */
+  const mentions = await resolveTweetMentions(text);
+
   // Convert text for Twitter format (both transports)
-  const twitterText = convertToTwitterText(text);
+  const twitterText = convertToTwitterText(text, mentions);
 
   // Preferred transport: Typefully
   if (getTypefullyKey()) {
