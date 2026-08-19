@@ -277,8 +277,21 @@ const WORD_PRICE_CACHE_TTL_S = 30 * 60;
 export async function getCachedWordPriceUsd(): Promise<number | null> {
   try {
     const { cacheGet } = await import('./redis');
-    const cached = await cacheGet<number>(WORD_PRICE_CACHE_KEY);
-    return cached !== null && cached > 0 ? cached : null;
+    // Vercel KV returns this value as a STRING, and cacheGet's <T> generic is
+    // an unchecked assertion, so nothing at compile time or runtime caught it.
+    //
+    // The string was worse than a null would have been. It passed the old
+    // `cached > 0` guard by JS coercion, reached usdPriceToE18, and threw
+    // there ("Refusing to convert non-positive $WORD price") — straight into
+    // wheel.ts's catch, which treats any failure as "use the frozen seed
+    // price". Net effect: the info bar silently showed the round's seed-time
+    // price for two days while the cache held a perfectly good live one.
+    //
+    // Coerced here, at the single choke point every consumer goes through,
+    // rather than at each call site.
+    const cached = await cacheGet<number | string>(WORD_PRICE_CACHE_KEY);
+    const price = typeof cached === 'string' ? Number(cached) : cached;
+    return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
   } catch {
     return null;
   }
