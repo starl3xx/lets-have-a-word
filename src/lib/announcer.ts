@@ -19,6 +19,7 @@ import { getPlaintextAnswer } from './encryption';
 import { getCurrentJackpotOnChain } from './jackpot-contract';
 import { postTweet } from './twitter';
 import { notifyRoundStarted, notifyRoundResolved, type NotificationResult } from './notifications';
+import { formatWordAmountCompact } from './prize-display';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -815,11 +816,18 @@ letshaveaword.fun`;
  * @param roundId - The round ID
  * @param finderFid - FID of the user who found the bonus word
  * @param word - The bonus word that was found
+ * @param awardedWei - $WORD actually transferred, in wei. Required rather than
+ *   optional on purpose: the amount is oracle-priced at $1.50 per find, so it
+ *   moves with the market. This post used to hardcode "5M $WORD", which was the
+ *   rounds 1-33 fixed amount and has been wrong since round 34 opened. Making
+ *   the caller pass what it paid is what stops the text drifting from the
+ *   transfer again.
  */
 export async function announceBonusWordFound(
   roundId: number,
   finderFid: number,
-  word: string
+  word: string,
+  awardedWei: string
 ) {
   // Get user info for the announcement (DB first, Neynar fallback)
   const username = (await getUsernameByFid(finderFid))?.replace(/^@/, '') ?? `fid:${finderFid}`;
@@ -841,7 +849,11 @@ export async function announceBonusWordFound(
     console.error('[announcer] Error getting remaining bonus words count:', error);
   }
 
-  const text = `🎣 @${username} found a bonus word and won 5M $WORD!
+  // Same compact 3-significant-digit rendering the round modal and archive use,
+  // so a number in a cast matches the number in the app.
+  const awarded = formatWordAmountCompact(BigInt(awardedWei));
+
+  const text = `🎣 @${username} found a bonus word and won ${awarded} $WORD!
 
 The word was "${word.toUpperCase()}"
 

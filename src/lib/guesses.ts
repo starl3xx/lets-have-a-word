@@ -493,7 +493,7 @@ async function handleBonusWordWin(
 
   // 6. Announce the win (non-blocking)
   try {
-    await announceBonusWordFound(roundId, fid, word);
+    await announceBonusWordFound(roundId, fid, word, bonusRewardAmount);
   } catch (error) {
     console.error('[guesses] Failed to announce bonus word found:', error);
     // Continue - announcer failures should never break the game
