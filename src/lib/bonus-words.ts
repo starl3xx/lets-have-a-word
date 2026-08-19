@@ -3,7 +3,7 @@
  * Bonus Words Feature: Query functions for bonus word status and winners
  */
 
-import { db, roundBonusWords, users, rounds, userBadges } from '../db';
+import { db, roundBonusWords, users, rounds, userBadges, bonusWordClaims } from '../db';
 import { eq, and, isNotNull, isNull, desc, inArray } from 'drizzle-orm';
 import { hasWordTokenBonus } from './word-token';
 import { getPlaintextAnswer } from './encryption';
@@ -177,7 +177,9 @@ export interface BonusWordWinner {
   wordIndex: number;
   claimedAt: string;
   txHash: string | null;
-  tokenRewardAmount: string; // "5000000" (5M $WORD)
+  /** Wei actually transferred for this find, or null if the claim row is missing.
+   *  NOT a constant: $1.50 oracle-priced from round 34, a flat 5M before that. */
+  rewardWei: string | null;
   hasOgHunterBadge?: boolean;
   hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
@@ -253,6 +255,30 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
     // Continue without $WORD badges on error
   }
 
+  // What each find actually paid, from the claim rows.
+  //
+  // This used to be hardcoded to 5M, which was true for all 128 finds of the
+  // ETH era and stopped being true at round 34: the reward is now $1.50 priced
+  // by oracle, so it moves with the market (round 34's first find paid
+  // 5,701,254). Keyed by wordIndex because a player can find more than one.
+  const rewardByWordIndex = new Map<number, string>();
+  try {
+    const claimRows = await db
+      .select({
+        wordIndex: roundBonusWords.wordIndex,
+        amountWei: bonusWordClaims.clanktonAmount,
+      })
+      .from(bonusWordClaims)
+      .innerJoin(roundBonusWords, eq(roundBonusWords.id, bonusWordClaims.bonusWordId))
+      .where(eq(roundBonusWords.roundId, roundId));
+    for (const row of claimRows) {
+      if (row.amountWei) rewardByWordIndex.set(row.wordIndex, row.amountWei);
+    }
+  } catch (error) {
+    // A missing amount renders as "—" rather than as a wrong number.
+    console.warn('[bonus-words] Could not read claim amounts:', error);
+  }
+
   return status.claimedWords.map(cw => {
     const badges = badgeMap.get(cw.claimedBy.fid);
     return {
@@ -263,7 +289,7 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
       wordIndex: cw.wordIndex,
       claimedAt: cw.claimedAt,
       txHash: cw.txHash,
-      tokenRewardAmount: '5000000', // 5M $WORD per bonus word
+      rewardWei: rewardByWordIndex.get(cw.wordIndex) ?? null,
       hasOgHunterBadge: badges?.hasOgHunter || false,
       hasWordTokenBadge: wordTokenHolderMap.get(cw.claimedBy.fid) || false,
       hasBonusWordBadge: badges?.hasBonusWord || false,
