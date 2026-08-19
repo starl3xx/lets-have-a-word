@@ -193,8 +193,19 @@ function GameContent() {
    * browser landing page for the whole session. useIsInMiniApp re-asks after a
    * false and caches only a confirmed true, which is the behaviour the SDK
    * itself documents.
+   *
+   * The probe is not the only evidence, though. useIsInMiniApp runs its OWN
+   * `sdk.isInMiniApp()` race, separate from the `sdk.context` read below, so on
+   * a slow host the two can disagree: the context can come back with a real
+   * user FID while the probe has already settled false. A context bearing a
+   * user FID only ever comes from a host, so treat it as proof and OR it in —
+   * otherwise a player could be authenticated, tracked and referred, and still
+   * be shown the landing page. That is the same stranding, reached by a
+   * different route.
    */
-  const { inMiniApp: isInMiniApp, resolved: hasCheckedContext } = useIsInMiniApp();
+  const { inMiniApp: probedInMiniApp, resolved: hasCheckedContext } = useIsInMiniApp();
+  const [contextProvedHost, setContextProvedHost] = useState(false);
+  const isInMiniApp = probedInMiniApp || contextProvedHost;
 
   // Get connected wallet from Wagmi for $WORD bonus check
   const { address: connectedWalletAddress } = useAccount();
@@ -391,6 +402,9 @@ function GameContent() {
 
       // Set FID immediately so dependent effects can start
       setFid(context.user.fid);
+      // A context carrying a user FID only comes from a host, so this is
+      // independent proof of one — see the note on isInMiniApp above.
+      setContextProvedHost(true);
       console.log('Farcaster FID:', context.user.fid);
 
       // Track notification opens for Neynar analytics (manual implementation)
