@@ -32,7 +32,7 @@ interface BonusWordWinner {
   wordIndex: number;
   claimedAt: string;
   txHash: string | null;
-  tokenRewardAmount: string;
+  rewardWei: string | null;
   hasOgHunterBadge?: boolean;
   hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
@@ -596,7 +596,12 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                     Bonus Word Finders
                   </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">5M $WORD each</p>
+                  {/* The reward stopped being a constant at round 34: it is $1.50
+                      priced by oracle now, a flat 5M for every find before that.
+                      Each row carries what it actually paid. */}
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {prizeCurrency === 'word' ? '$1.50 of $WORD each' : '5M $WORD each'}
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -635,6 +640,12 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                           size="sm"
                         />
                       </div>
+                      {/* What this find actually paid */}
+                      {winner.rewardWei && (
+                        <div className="text-xs text-gray-400 font-mono whitespace-nowrap">
+                          &rarr; {formatWordAmountCompact(BigInt(winner.rewardWei))} $WORD
+                        </div>
+                      )}
                       {/* Word - right aligned */}
                       <div className="text-sm text-cyan-600 font-mono font-bold uppercase mr-1">
                         {winner.word}
