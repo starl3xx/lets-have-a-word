@@ -94,6 +94,7 @@ import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState }
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
 import { useGuessInput } from '../src/hooks/useGuessInput';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
@@ -183,8 +184,28 @@ function GameContent() {
 
   // Farcaster context
   const [fid, setFid] = useState<number | null>(null);
-  const [isInMiniApp, setIsInMiniApp] = useState(false);
-  const [hasCheckedContext, setHasCheckedContext] = useState(false);
+  /**
+   * Whether we are inside a mini app host is the SDK's own question to answer,
+   * not something to infer from "did a context arrive within 2 seconds".
+   *
+   * The old inference latched: one slow handshake set isInMiniApp false
+   * permanently, the effect never re-ran, and a real player was stranded on the
+   * browser landing page for the whole session. useIsInMiniApp re-asks after a
+   * false and caches only a confirmed true, which is the behaviour the SDK
+   * itself documents.
+   *
+   * The probe is not the only evidence, though. useIsInMiniApp runs its OWN
+   * `sdk.isInMiniApp()` race, separate from the `sdk.context` read below, so on
+   * a slow host the two can disagree: the context can come back with a real
+   * user FID while the probe has already settled false. A context bearing a
+   * user FID only ever comes from a host, so treat it as proof and OR it in —
+   * otherwise a player could be authenticated, tracked and referred, and still
+   * be shown the landing page. That is the same stranding, reached by a
+   * different route.
+   */
+  const { inMiniApp: probedInMiniApp, resolved: hasCheckedContext } = useIsInMiniApp();
+  const [contextProvedHost, setContextProvedHost] = useState(false);
+  const isInMiniApp = probedInMiniApp || contextProvedHost;
 
   // Get connected wallet from Wagmi for $WORD bonus check
   const { address: connectedWalletAddress } = useAccount();
@@ -359,83 +380,114 @@ function GameContent() {
    */
   useEffect(() => {
     // Signal ready immediately - don't wait for context
-    // This dismisses Warpcast splash screen right away
+    // This dismisses the host splash screen right away
     sdk.actions.ready();
 
+    let cancelled = false;
+
+    // Read the remote context property ONCE. It is a comlink getter, so every
+    // access posts a fresh message to the host; holding the promise lets the
+    // late path await the same request the race already started.
+    const contextPromise = sdk.context;
+    type FarcasterContext = Awaited<typeof contextPromise>;
+
+    /**
+     * Everything that must happen when a real context arrives. Defined once so
+     * the fast path and the late path cannot drift apart — an earlier fix that
+     * only re-set the FID would have silently dropped notification tracking,
+     * cast-embed referral capture and Quick Auth.
+     */
+    const applyContext = (context: FarcasterContext | null) => {
+      if (cancelled || !context?.user?.fid) return;
+
+      // Set FID immediately so dependent effects can start
+      setFid(context.user.fid);
+      // A context carrying a user FID only comes from a host, so this is
+      // independent proof of one — see the note on isInMiniApp above.
+      setContextProvedHost(true);
+      console.log('Farcaster FID:', context.user.fid);
+
+      // Track notification opens for Neynar analytics (manual implementation)
+      // This replaces MiniAppProvider which caused SDK conflicts
+      trackNotificationOpen(context.user.fid, context.client?.clientFid);
+
+      // Extract referral from SDK context.location.embed (non-blocking)
+      // When opened from a cast embed, the host stores the original URL here (not in window.location)
+      const location = context.location as { type?: string; embed?: string } | undefined;
+      if (location?.type === 'cast_embed' && location.embed) {
+        try {
+          const embedUrl = new URL(location.embed);
+          const refParam = embedUrl.searchParams.get('ref');
+          if (refParam) {
+            const refFid = parseInt(refParam, 10);
+            if (!isNaN(refFid) && refFid > 0 && !sessionStorage.getItem('referrerFid')) {
+              sessionStorage.setItem('referrerFid', refFid.toString());
+              console.log(`[Referral] Captured from SDK context.location.embed: ${refFid}`);
+            }
+          }
+        } catch (e) {
+          console.error('[Referral] Failed to parse embed URL:', e);
+        }
+      }
+
+      // Get Quick Auth token in background (non-blocking)
+      // This happens transparently without user interaction
+      quickAuth.getToken().then(({ token }) => {
+        if (token) {
+          setAuthToken(token);
+          console.log('[QuickAuth] Token obtained successfully');
+        } else {
+          console.warn('[QuickAuth] No token returned');
+        }
+      }).catch((authError) => {
+        console.error('[QuickAuth] Failed to get token:', authError);
+        // Continue without auth token - will fall back to other auth methods
+      });
+    };
+
     const getFarcasterContext = async () => {
-      // Timeout helper - sdk.context can hang indefinitely in preview mode
+      // Timeout helper - sdk.context can hang indefinitely outside a host
       const timeoutPromise = new Promise<null>((resolve) => {
         setTimeout(() => resolve(null), 2000);
       });
 
       try {
         // Race between SDK context and timeout
-        const context = await Promise.race([sdk.context, timeoutPromise]);
+        const context = await Promise.race([contextPromise, timeoutPromise]);
         if (context?.user?.fid) {
-          // Set FID immediately so dependent effects can start
-          setFid(context.user.fid);
-          setIsInMiniApp(true);
-          setHasCheckedContext(true);
-          console.log('Farcaster FID:', context.user.fid);
-
-          // Track notification opens for Neynar analytics (manual implementation)
-          // This replaces MiniAppProvider which caused SDK conflicts
-          trackNotificationOpen(context.user.fid, context.client?.clientFid);
-
-          // Extract referral from SDK context.location.embed (non-blocking)
-          // When opened from a cast embed, Warpcast stores the original URL here (not in window.location)
-          const location = context.location as { type?: string; embed?: string } | undefined;
-          if (location?.type === 'cast_embed' && location.embed) {
-            try {
-              const embedUrl = new URL(location.embed);
-              const refParam = embedUrl.searchParams.get('ref');
-              if (refParam) {
-                const refFid = parseInt(refParam, 10);
-                if (!isNaN(refFid) && refFid > 0 && !sessionStorage.getItem('referrerFid')) {
-                  sessionStorage.setItem('referrerFid', refFid.toString());
-                  console.log(`[Referral] Captured from SDK context.location.embed: ${refFid}`);
-                }
-              }
-            } catch (e) {
-              console.error('[Referral] Failed to parse embed URL:', e);
-            }
-          }
-
-          // Get Quick Auth token in background (non-blocking)
-          // This happens transparently without user interaction
-          quickAuth.getToken().then(({ token }) => {
-            if (token) {
-              setAuthToken(token);
-              console.log('[QuickAuth] Token obtained successfully');
-            } else {
-              console.warn('[QuickAuth] No token returned');
-            }
-          }).catch((authError) => {
-            console.error('[QuickAuth] Failed to get token:', authError);
-            // Continue without auth token - will fall back to other auth methods
-          });
-        } else {
-          // No FID in context - check if dev mode
-          console.log('No FID in context');
-          if (isClientDevMode()) {
-            console.log('Dev mode enabled, using fallback FID');
-            setFid(12345); // Dev fallback
-          }
-          setIsInMiniApp(false);
-          setHasCheckedContext(true);
+          applyContext(context);
+          return;
         }
+
+        if (isClientDevMode()) {
+          console.log('Dev mode enabled, using fallback FID');
+          setFid(12345); // Dev fallback
+        }
+
+        // The 2s race is a RENDERING BUDGET, not a verdict. Losing it used to
+        // mean "not in a mini app, forever" — the losing promise was discarded
+        // and nothing re-checked, so a host that handshook slowly stranded a
+        // real player on the browser landing page. Keep waiting on the same
+        // request instead; whether we are in a host is useIsInMiniApp's call.
+        contextPromise
+          .then((late) => applyContext(late))
+          .catch(() => {
+            console.log('Not in Farcaster context');
+          });
       } catch (error) {
         console.log('Not in Farcaster context');
         if (isClientDevMode()) {
           console.log('Dev mode enabled, using fallback FID');
           setFid(12345); // Dev fallback
         }
-        setIsInMiniApp(false);
-        setHasCheckedContext(true);
       }
     };
 
     getFarcasterContext();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /**
