@@ -24,6 +24,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance } from 'wagmi';
 import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
+import { ERC_8021_SUFFIX } from '../config/wagmi';
 
 const WORD_PACK_SALES_ADDRESS = process.env
   .NEXT_PUBLIC_WORD_PACK_SALES_ADDRESS as `0x${string}` | undefined;
@@ -113,6 +114,10 @@ export function useSuperguessPayment(
         args: [BigInt(roundId ?? 0)],
         value: parseEther(ethAmount),
         chainId: base.id,
+        // Base Builder Code attribution, same as the pack purchase beside it
+        // (usePurchaseGuesses.ts). A Superguess is a real revenue transaction
+        // and went unattributed until now.
+        dataSuffix: ERC_8021_SUFFIX,
       });
     },
     [address, writeTransfer]

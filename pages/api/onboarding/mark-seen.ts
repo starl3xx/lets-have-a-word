@@ -16,7 +16,7 @@ import { db } from '../../../src/db';
 import { users } from '../../../src/db/schema';
 import { eq } from 'drizzle-orm';
 
-type OnboardingKey = 'intro' | 'ogHunterThanks' | 'superguessAnnouncement' | 'round34Announcement';
+type OnboardingKey = 'intro' | 'ogHunterThanks' | 'round34Announcement';
 
 interface MarkSeenRequest {
   fid: number;
@@ -39,8 +39,8 @@ export default async function handler(
   }
 
   // Validate key
-  if (!key || !['intro', 'ogHunterThanks', 'superguessAnnouncement', 'round34Announcement'].includes(key)) {
-    return res.status(400).json({ error: 'Invalid key. Must be "intro", "ogHunterThanks", "superguessAnnouncement", or "round34Announcement"' });
+  if (!key || !['intro', 'ogHunterThanks', 'round34Announcement'].includes(key)) {
+    return res.status(400).json({ error: 'Invalid key. Must be "intro", "ogHunterThanks", or "round34Announcement"' });
   }
 
   try {
@@ -48,7 +48,6 @@ export default async function handler(
     const columnMap: Record<OnboardingKey, Record<string, boolean>> = {
       intro: { hasSeenIntro: true },
       ogHunterThanks: { hasSeenOgHunterThanks: true },
-      superguessAnnouncement: { hasSeenSuperguessAnnouncement: true },
       round34Announcement: { hasSeenRound34Announcement: true },
     };
     const columnUpdate = columnMap[key];

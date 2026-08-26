@@ -139,3 +139,80 @@ describe('computeAssessment', () => {
     expect(verdict).toBe('quiet');
   });
 });
+
+/**
+ * A per-round claim count must not be filtered on reward_gate_claims.round_id.
+ *
+ * The table is keyed (date, wallet) and written with onConflictDoNothing, so
+ * round_id holds whatever the FIRST check of that wallet-day knew — and that
+ * check is normally round-less, because /api/user-state and the daily
+ * allocation both run checkPlayEligibility with no round in scope when the app
+ * is opened, long before any guess. The row is stamped NULL, the guess path's
+ * round-scoped insert conflicts and changes nothing, and the report read 0
+ * claims for round 34 while the gate was live and passing players.
+ *
+ * This asserts the count against a row that is NULL exactly the way production
+ * writes them. It fails on the round_id filter and passes on the window bound.
+ */
+describe('gate claims are counted by the round window, not round_id', () => {
+  it('counts a claim whose round_id was never stamped', async () => {
+    const { db } = await import('../db');
+    const { rounds, rewardGateClaims } = await import('../db/schema');
+    const { eq } = await import('drizzle-orm');
+    const handler = (await import('../../pages/api/admin/operational/farm-monitor')).default;
+
+    const [round] = await db
+      .insert(rounds)
+      .values({
+        rulesetId: 1,
+        answer: 'CLAIM',
+        salt: `s-gate-${process.hrtime.bigint()}`,
+        commitHash: 'c'.repeat(64),
+        prizePoolEth: '0',
+        seedNextRoundEth: '0',
+        prizeCurrency: 'word',
+        prizePoolWord: '0',
+      })
+      .returning();
+
+    const wallet = '0x00000000000000000000000000000000deadbeef';
+    try {
+      await db.insert(rewardGateClaims).values({
+        // Exactly how the round-less caller writes it: a real wallet-day
+        // claim carrying no round.
+        date: new Date().toISOString().slice(0, 10),
+        wallet,
+        fid: 999999001,
+        roundId: null,
+      });
+
+      const body = await new Promise<any>((resolve) => {
+        const res = {
+          status() {
+            return this;
+          },
+          json(payload: unknown) {
+            resolve(payload);
+            return this;
+          },
+          setHeader() {
+            return this;
+          },
+          end() {
+            return this;
+          },
+        };
+        handler(
+          { method: 'GET', query: { devFid: '6500', roundId: String(round.id) } } as any,
+          res as any
+        );
+      });
+
+      expect(body.gate.claims).toBe(1);
+      expect(body.gate.distinctClaimWallets).toBe(1);
+    } finally {
+      await db.delete(rewardGateClaims).where(eq(rewardGateClaims.wallet, wallet));
+      await db.delete(rounds).where(eq(rounds.id, round.id));
+    }
+  });
+});

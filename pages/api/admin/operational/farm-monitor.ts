@@ -83,6 +83,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Drizzle's db.execute result shape varies by driver; normalize.
     const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : r?.rows ?? []);
 
+    // The window the gate-claim queries below bound on, instead of round_id.
+    //
+    // reward_gate_claims is keyed (date, wallet) and written with
+    // onConflictDoNothing, so round_id only ever records what the FIRST check
+    // of that wallet-day happened to know. That first check is almost always
+    // round-LESS: /api/user-state and the daily allocation both call
+    // checkPlayEligibility with no round in scope (user-state.ts,
+    // daily-limits.ts), and they run on app open, well before any guess. So
+    // the row lands stamped NULL, the later round-scoped insert from the guess
+    // path conflicts and changes nothing, and `where round_id = N` counted ~0
+    // claims for every round — including the enrichment wallet set, which is
+    // why ticking "Trace $WORD funding" could silently walk an empty list.
+    //
+    // Both columns are naive `timestamp`, so this compares like with like and
+    // no timezone conversion applies.
+    const roundStartIso = round.startedAt.toISOString();
+    const roundEndIso = (round.resolvedAt ?? new Date()).toISOString();
+
     // ---- Cohorts ----
     // new guesser: first-ever guess is in this round (MIN(round_id) basis).
     // drive_by: guessed in no other round — reported, never in the verdict
@@ -163,7 +181,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           count(*)::int as claims,
           count(distinct wallet)::int as distinct_wallets
         from reward_gate_claims
-        where round_id = ${roundId}
+        where created_at >= ${roundStartIso}::timestamp
+          and created_at <= ${roundEndIso}::timestamp
       `)
     );
     const claimCount: number = claimStats?.claims ?? 0;
@@ -185,7 +204,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           select c.wallet, array_agg(distinct c.fid) as fids
           from reward_gate_claims c
           join users u on u.fid = c.fid
-          where c.round_id = ${roundId}
+          where c.created_at >= ${roundStartIso}::timestamp
+            and c.created_at <= ${roundEndIso}::timestamp
             and (u.first_guess_round is null
               or u.first_guess_round > ${REWARD_GATE_GRANDFATHER_LAST_ROUND})
           group by c.wallet
@@ -267,6 +287,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'no username, !-prefixed or user-<fid>/user<fid> placeholder, or .base.eth',
         agedRow: `user row created more than ${AGED_ROW_DAYS} days before round start`,
         gated: `first_guess_round NULL or > ${REWARD_GATE_GRANDFATHER_LAST_ROUND}`,
+        gateClaims:
+          'claim rows created while this round was running — bounded by ' +
+          'started_at/resolved_at, NOT by round_id, which is NULL whenever ' +
+          'the wallet-day was first checked without a round in scope',
       },
       cohorts: {
         guessers: cohorts?.guessers ?? 0,

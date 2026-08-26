@@ -22,7 +22,6 @@ import { EARLY_ADOPTER_LAST_ROUND } from '../../../src/lib/wordmarks';
 export interface OnboardingStatusResponse {
   hasSeenIntro: boolean;
   hasSeenOgHunterThanks: boolean;
-  hasSeenSuperguessAnnouncement: boolean;
   hasSeenRound34Announcement: boolean;
   /**
    * True only while the ACTIVE round pays $WORD. This is the leak guard: the
@@ -73,7 +72,6 @@ export default async function handler(
         columns: {
           hasSeenIntro: true,
           hasSeenOgHunterThanks: true,
-          hasSeenSuperguessAnnouncement: true,
           hasSeenRound34Announcement: true,
           firstGuessRound: true,
           addedMiniAppAt: true,
@@ -104,7 +102,6 @@ export default async function handler(
       return res.status(200).json({
         hasSeenIntro: false,
         hasSeenOgHunterThanks: false,
-        hasSeenSuperguessAnnouncement: false,
         hasSeenRound34Announcement: false,
         wordEraActive,
         grandfathered: false,
@@ -122,7 +119,6 @@ export default async function handler(
     return res.status(200).json({
       hasSeenIntro: user.hasSeenIntro,
       hasSeenOgHunterThanks: user.hasSeenOgHunterThanks,
-      hasSeenSuperguessAnnouncement: user.hasSeenSuperguessAnnouncement,
       hasSeenRound34Announcement: user.hasSeenRound34Announcement,
       wordEraActive,
       grandfathered:

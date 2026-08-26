@@ -275,6 +275,8 @@ async function handleExecute(
       );
 
       // Plain ETH transfer (no data — receive() only fires when msg.data is empty)
+      // No builder-code suffix, for the same reason as refunds.ts: a payout is
+      // not user activity, and calldata against a smart-wallet recipient reverts.
       const tx = await wallet.sendTransaction({
         to: identity.walletAddress,
         value: amountWei,

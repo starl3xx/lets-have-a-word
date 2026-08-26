@@ -14,7 +14,7 @@ import { ethers, type ContractTransactionResponse } from 'ethers';
  * Raw hex bytes (no 0x prefix) of the ERC-8021 builder code suffix.
  * Matches the client-side ERC_8021_SUFFIX in src/config/wagmi.ts.
  */
-const BUILDER_SUFFIX_HEX = '62635f6c756c34736c64770b0080218021802180218021802180218021';
+export const BUILDER_SUFFIX_HEX = '62635f6c756c34736c64770b0080218021802180218021802180218021';
 
 /**
  * Send a contract method call with the ERC-8021 builder code appended.

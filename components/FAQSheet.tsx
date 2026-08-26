@@ -338,21 +338,6 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       ),
     },
     {
-      question: "How does the $WORD fee distribution work?",
-      answer: (
-        <>
-          The <WordTokenLink>$WORD</WordTokenLink> ecosystem has a built-in fee structure:
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>50%</strong> → Game Treasury (operations, development)</li>
-            <li><strong>25%</strong> → Buyback &amp; Stake (market support)</li>
-            <li><strong>15%</strong> → Player Rewards (bonus/burn/top 10)</li>
-            <li><strong>10%</strong> → Top 10 Referral rewards</li>
-          </ul>
-          <p className="mt-2">View the full tokenomics breakdown in the $WORD sheet.</p>
-        </>
-      ),
-    },
-    {
       question: "How do I buy $WORD?",
       answer: (
         <>
@@ -381,21 +366,24 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What are Wordmarks?",
       answer: (
         <>
-          <strong>Wordmarks</strong> are permanent achievements earned by playing Let's Have A Word! They appear next to your name in leaderboards and game lists.
-          <p className="mt-2">Wordmarks you can earn:</p>
+          <strong>Wordmarks</strong> are permanent achievements earned by playing Let’s Have A Word! They appear next to your name in leaderboards and game lists.
+          <p className="mt-2">All 12 Wordmarks, in Lexicon order:</p>
           <ul className="list-disc list-inside mt-2 space-y-1">
-            <li><strong>🕵️‍♂️ OG Hunter</strong> — Participated in the OG Hunter prelaunch campaign</li>
-            <li><strong>🎣 Side Quest</strong> — Found a bonus word during a round</li>
-            <li><strong>🔥 Arsonist</strong> — Found a burn word during a round</li>
-            <li><strong>🏆 Jackpot Winner</strong> — Won a round jackpot</li>
-            <li><strong>✌️ Double Dub</strong> — Found two or more special words (bonus, burn, or secret) in the same round</li>
-            <li><strong>🤝 Patron</strong> — Someone you referred won a jackpot (you received the referrer payout)</li>
-            <li><strong>⚡ Quickdraw</strong> — Placed in the Top 10 Early Guessers</li>
-            <li><strong>📚 Encyclopedic</strong> — Guessed words starting with every letter A–Z</li>
-            <li><strong>🍩 Baker's Dozen</strong> — Earned by guessing words starting with 13 different letters, on 13 different days. Only the <em>first guess of each day</em> counts toward progress.</li>
-            <li><strong>🍿 Showstopper</strong> — Purchased a Superguess</li>
+            <li><strong>🕵️‍♂️ OG Hunter</strong>: Participated in the OG Hunter pre-launch campaign</li>
+            <li><strong>🎣 Side Quest</strong>: Found a bonus word during a round</li>
+            <li><strong>🏆 Jackpot Winner</strong>: Won a round jackpot</li>
+            <li><strong>✌️ Double Dub</strong>: Found two or more special words (bonus, burn, or secret) in the same round</li>
+            <li><strong>🤝 Patron</strong>: Someone you referred won a jackpot, so you received the referrer payout</li>
+            <li><strong>⚡ Quickdraw</strong>: Placed in the Top 10 Early Guessers</li>
+            <li><strong>📚 Encyclopedic</strong>: Guessed words starting with every letter A–Z</li>
+            <li><strong>🍩 Baker’s Dozen</strong>: Guessed words starting with 13 different letters, on 13 different days. Only the <em>first guess of each day</em> counts toward progress.</li>
+            <li><strong>🔥 Arsonist</strong>: Found a burn word during a round</li>
+            <li><strong>🍿 Showstopper</strong>: Purchased a Superguess</li>
+            <li><strong>💅 Early Adopter</strong>: Played in the first 18 rounds. This one is closed... nobody new can earn it.</li>
+            <li><strong>🚩 Trailblazer</strong>: Made a round’s #1 global guess. Awarded when that round resolves.</li>
           </ul>
-          <p className="mt-2">View your wordmarks collection in your Stats sheet under <strong>Lexicon</strong>.</p>
+          <p className="mt-2">View your Wordmarks collection in your Stats sheet under <strong>Lexicon</strong>. Tap any one of them, held or not, to see how it is earned, how rare it is, and the story of your own earn.</p>
+          <p className="mt-2"><strong>Sharing a Wordmark:</strong> every Wordmark you hold has a <strong>Share</strong> button in that view. It opens a cast already filled in with the Wordmark, how you earned it, and how many <em>other</em> players hold it, so a rare one reads as the brag it is. Wordmarks you have not earned yet show the goal instead of a Share button.</p>
         </>
       ),
     },
