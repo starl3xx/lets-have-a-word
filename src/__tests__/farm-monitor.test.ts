@@ -215,4 +215,104 @@ describe('gate claims are counted by the round window, not round_id', () => {
       await db.delete(rounds).where(eq(rounds.id, round.id));
     }
   });
+
+  /**
+   * A cancelled round has no resolved_at — the kill switch (operational.ts) and
+   * the seeding-failure path (rounds.ts) both set `cancelledAt` and leave
+   * `resolvedAt` null. Ending the window at `resolvedAt ?? now` therefore ran a
+   * cancelled round's window right up to the present, counting claims from every
+   * round since and pointing the funding trace at other rounds' wallets. Caught
+   * by Bugbot on PR #275.
+   */
+  it('does not sweep in later claims for a cancelled round', async () => {
+    const { db } = await import('../db');
+    const { rounds, rewardGateClaims } = await import('../db/schema');
+    const { eq, sql } = await import('drizzle-orm');
+    const handler = (await import('../../pages/api/admin/operational/farm-monitor')).default;
+
+    const [round] = await db
+      .insert(rounds)
+      .values({
+        rulesetId: 1,
+        answer: 'KILLS',
+        salt: `s-cancel-${process.hrtime.bigint()}`,
+        commitHash: 'c'.repeat(64),
+        prizePoolEth: '0',
+        seedNextRoundEth: '0',
+        prizeCurrency: 'word',
+        prizePoolWord: '0',
+        status: 'cancelled',
+      })
+      .returning();
+
+    // Set the round's clock IN SQL, relative to localtimestamp. These are naive
+    // `timestamp` columns holding the server's local wall-clock, so a JS Date
+    // would arrive in a different frame and the whole comparison would be
+    // meaningless — which is exactly the bug this test exists to pin.
+    //
+    // The window sits well in the past on purpose. reward_gate_claims
+    // accumulates rows from reward-gate.test.ts, so a recent window would count
+    // those too and the assertion would drift with whatever else has run. Ten
+    // days back, nothing else is in range: with the fix the window closes at
+    // day 9 and the claim below is excluded; with the bug it runs to now and
+    // sweeps in the claim (and every leftover row besides).
+    await db.execute(sql`
+      UPDATE rounds
+         SET started_at   = localtimestamp - interval '10 days',
+             cancelled_at = localtimestamp - interval '9 days'
+       WHERE id = ${round.id}
+    `);
+
+    const wallet = '0x0000000000000000000000000000000cance11ed';
+    try {
+      const report = () =>
+        new Promise<any>((resolve) => {
+          const res = {
+            status() {
+              return this;
+            },
+            json(payload: unknown) {
+              resolve(payload);
+              return this;
+            },
+            setHeader() {
+              return this;
+            },
+            end() {
+              return this;
+            },
+          };
+          handler(
+            { method: 'GET', query: { devFid: '6500', roundId: String(round.id) } } as any,
+            res as any
+          );
+        });
+
+      // Asserted as a DELTA, not an absolute count. reward_gate_claims is
+      // written by reward-gate.test.ts and accumulates across runs, so there is
+      // no window in a shared database that is reliably empty — an absolute
+      // assertion would drift with whatever else had run that day. What must
+      // hold is narrower and exact: adding a claim AFTER cancellation changes
+      // this round's numbers by nothing at all.
+      const before = (await report()).gate;
+
+      await db.insert(rewardGateClaims).values({
+        date: new Date().toISOString().slice(0, 10),
+        wallet,
+        fid: 999999002,
+        roundId: null,
+      });
+
+      const body = await report();
+
+      expect(body.round.status).toBe('cancelled');
+      // With the bug (window ending at `now`) this claim lands inside the
+      // cancelled round's window and both numbers go up by one.
+      expect(body.gate.claims).toBe(before.claims);
+      expect(body.gate.distinctClaimWallets).toBe(before.distinctClaimWallets);
+    } finally {
+      await db.delete(rewardGateClaims).where(eq(rewardGateClaims.wallet, wallet));
+      await db.delete(rounds).where(eq(rounds.id, round.id));
+    }
+  });
 });

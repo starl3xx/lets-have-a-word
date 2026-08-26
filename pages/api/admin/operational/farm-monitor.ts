@@ -96,10 +96,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // claims for every round — including the enrichment wallet set, which is
     // why ticking "Trace $WORD funding" could silently walk an empty list.
     //
-    // Both columns are naive `timestamp`, so this compares like with like and
-    // no timezone conversion applies.
-    const roundStartIso = round.startedAt.toISOString();
-    const roundEndIso = (round.resolvedAt ?? new Date()).toISOString();
+    // THE BOUNDS ARE COMPUTED IN SQL, NOT IN JAVASCRIPT. `created_at`,
+    // `started_at`, `resolved_at` and `cancelled_at` are all naive `timestamp`
+    // columns written by `DEFAULT now()`, which records the DATABASE SERVER's
+    // local wall-clock. Passing a JS `toISOString()` into the comparison comes
+    // in as UTC, so on any server not set to UTC the two sides are hours apart
+    // and the window silently matches nothing. Verified: a local Postgres on
+    // Central stored a claim at 16:41 while its own `now() AT TIME ZONE 'UTC'`
+    // read 21:41. Production is UTC, so a JS bound would have been right there
+    // by luck and wrong everywhere else — the same class of bug as the
+    // `AT TIME ZONE` reversal fixed on 2026-08-18. Comparing column to column
+    // keeps both sides in whatever convention the server actually uses.
+    //
+    // THE END OF THE WINDOW IS resolved_at OR cancelled_at, NOT JUST
+    // resolved_at. A cancelled round never gets a resolved_at — both the kill
+    // switch (operational.ts) and the seeding-failure path (rounds.ts) set
+    // `status: 'cancelled'` and `cancelledAt`, and leave `resolvedAt` null. So
+    // falling back to "now" for any unresolved round would make a cancelled
+    // round's window run from its cancellation to the present, counting every
+    // claim from every round since, and pointing the funding trace at wallets
+    // belonging to other rounds — the same misleading all-clear the round_id
+    // filter produced, reintroduced from the other direction. (Caught by
+    // Bugbot on PR #275.) LOCALTIMESTAMP is the correct "now" here because it
+    // is naive in the session's zone, exactly like the columns.
+    const claimWindow = sql`
+      c.created_at >= r.started_at
+      AND c.created_at <= coalesce(r.resolved_at, r.cancelled_at, localtimestamp)
+    `;
 
     // ---- Cohorts ----
     // new guesser: first-ever guess is in this round (MIN(round_id) basis).
@@ -179,10 +202,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await db.execute(sql`
         select
           count(*)::int as claims,
-          count(distinct wallet)::int as distinct_wallets
-        from reward_gate_claims
-        where created_at >= ${roundStartIso}::timestamp
-          and created_at <= ${roundEndIso}::timestamp
+          count(distinct c.wallet)::int as distinct_wallets
+        from reward_gate_claims c
+        join rounds r on r.id = ${roundId}
+        where ${claimWindow}
       `)
     );
     const claimCount: number = claimStats?.claims ?? 0;
@@ -204,8 +227,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           select c.wallet, array_agg(distinct c.fid) as fids
           from reward_gate_claims c
           join users u on u.fid = c.fid
-          where c.created_at >= ${roundStartIso}::timestamp
-            and c.created_at <= ${roundEndIso}::timestamp
+          join rounds r on r.id = ${roundId}
+          where ${claimWindow}
             and (u.first_guess_round is null
               or u.first_guess_round > ${REWARD_GATE_GRANDFATHER_LAST_ROUND})
           group by c.wallet
