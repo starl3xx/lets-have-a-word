@@ -43,10 +43,7 @@ import {
 } from '../../src/lib/rateLimit';
 import { guessWasRecorded } from '../../src/lib/guesses';
 import { AppErrorCodes } from '../../src/lib/appErrors';
-import { createClient as createQuickAuthClient } from '@farcaster/quick-auth';
-
-// Create Quick Auth client for JWT verification
-const quickAuthClient = createQuickAuthClient();
+import { resolveRequestFid } from '../../src/lib/requestAuth';
 
 /**
  * POST /api/guess
@@ -99,7 +96,9 @@ export default async function handler(
   }
 
   try {
-    const { word, frameMessage, signerUuid, ref, devFid, devState, miniAppFid, authToken } = req.body;
+    // authToken and miniAppFid are read by resolveRequestFid straight off the
+    // request; they are not destructured here because nothing else uses them.
+    const { word, frameMessage, signerUuid, ref, devFid, devState } = req.body;
 
     // Debug: Log referral parameter from request body
     console.log(`[Referral] Backend received ref=${ref} (type: ${typeof ref}) from request body`);
@@ -261,64 +260,53 @@ export default async function handler(
     let signerWallet: string | null = null;
     let spamScore: number | null = null;
 
-    if (isDevelopment && devFid) {
-      // Development mode: allow explicit FID for testing
-      fid = typeof devFid === 'number' ? devFid : parseInt(devFid, 10);
-      console.log(`⚠️  Development mode: using devFid ${fid}`);
-    } else if (isDevModeEnabled()) {
-      // Dev mode enabled but no devFid provided - use default FID
-      // This allows the web UI to work in dev mode without requiring auth
-      fid = 6500; // Default dev FID
-      console.log(`🎮 Dev mode: Using default FID ${fid} (no devFid in request)`);
-    } else if (authToken) {
-      // Quick Auth - JWT token verification for mini app users
-      try {
-        console.log(`📱 [QuickAuth] Verifying JWT token...`);
-        const verifyResult = await quickAuthClient.verifyJwt({
-          token: authToken,
-        });
+    // Dev mode, Quick Auth, the unverified-miniAppFid refusal and the
+    // wallet-native player session all live in resolveRequestFid now, in that
+    // order — the same order this block used to spell out inline. The only
+    // addition is the session, which slots in AFTER the miniAppFid refusal so
+    // that branch keeps its exact previous behaviour (a Base App client never
+    // sends miniAppFid, so it costs wallet players nothing).
+    //
+    // `trustDevFid` carries this endpoint's wider dev predicate across
+    // unchanged; see the note on ResolveOptions for why that is deliberate and
+    // why it should eventually go.
+    const auth = await resolveRequestFid(req, {
+      rejectUnverifiedMiniAppFid: true,
+      trustDevFid: isDevelopment,
+    });
 
-        if (!verifyResult || !verifyResult.sub) {
-          console.error(`📱 [QuickAuth] Verification failed: no FID in response`);
-          return res.status(401).json({
-            error: 'Invalid auth token',
-            message: 'Authentication failed. Please refresh and try again.',
-          });
-        }
+    if (auth.ok) {
+      fid = auth.fid;
 
-        fid = verifyResult.sub;
+      if (auth.origin === 'dev') {
+        console.log(`⚠️  Development mode: using FID ${fid}`);
+      } else if (auth.origin === 'quick_auth') {
         console.log(`📱 [QuickAuth] Verified FID ${fid}`);
-
-        // Set Sentry context
         Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
         Sentry.setTag('auth_type', 'quick_auth');
 
-        // Parse referral parameter
         const referrerFid = ref ? (typeof ref === 'number' ? ref : parseInt(ref, 10)) : null;
         console.log(`[Referral] QuickAuth: parsed referrerFid=${referrerFid} from ref=${ref} for FID ${fid}`);
 
-        // Upsert user
         await upsertUserFromFarcaster({
           fid,
           signerWallet: null,
           spamScore: null,
           referrerFid,
         });
-      } catch (verifyError: any) {
-        console.error(`📱 [QuickAuth] Verification error:`, verifyError);
-        return res.status(401).json({
-          error: 'Auth token verification failed',
-          message: 'Authentication error. Please refresh and try again.',
-        });
+      } else {
+        // Wallet-native player. No upsert: /api/auth/siwe already created or
+        // linked the row before it minted the session, and re-upserting here
+        // would need an FID-shaped identity this player does not have.
+        console.log(`🪪 [PlayerSession] Verified FID ${fid} (${auth.playerOrigin})`);
+        Sentry.setUser({ id: fid.toString(), username: `fid:${fid}` });
+        Sentry.setTag('auth_type', 'player_session');
+        if (auth.provenWallet) Sentry.setTag('wallet', auth.provenWallet);
       }
-    } else if (miniAppFid) {
-      // SECURITY: miniAppFid without auth token cannot be trusted
-      // The Farcaster SDK context is client-side only - anyone can spoof this value
-      console.error(`🚨 SECURITY: Rejected unverified miniAppFid=${miniAppFid}. Require auth token.`);
-      return res.status(401).json({
-        error: 'Authentication required',
-        message: 'Please refresh the app to sign in securely.',
-      });
+    } else if (auth.reason !== 'no_credential') {
+      // A credential was presented and was bad, or an unverified miniAppFid was
+      // presented. Neither may fall through to frame/signer.
+      return res.status(auth.status).json({ error: auth.error, message: auth.message });
     } else {
       // Production mode: require Farcaster authentication
       console.log(`📝 [guess] Step 6: Production auth - frameMessage=${!!frameMessage}, signerUuid=${!!signerUuid}`);

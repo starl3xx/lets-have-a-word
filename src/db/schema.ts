@@ -23,6 +23,14 @@ export const users = pgTable('users', {
   fid: integer('fid').notNull().unique(), // Farcaster ID
   username: varchar('username', { length: 100 }), // Farcaster username
   signerWalletAddress: varchar('signer_wallet_address', { length: 42 }), // Ethereum address
+  // How this player proved who they are. 'farcaster' is every pre-Base-App row
+  // and every Quick Auth sign-in; 'wallet' is a Base App player who signed a
+  // SIWE message and has no Farcaster account at all. Wallet rows carry a
+  // synthetic fid >= 1_000_000_000 (see WALLET_FID_MIN in src/lib/users.ts) and
+  // are the ONLY rows the partial unique index on lower(signer_wallet_address)
+  // constrains — existing Farcaster rows are left alone, because that column is
+  // a Neynar snapshot and is not guaranteed unique across FIDs.
+  identityOrigin: varchar('identity_origin', { length: 16 }).default('farcaster').notNull(),
   custodyAddress: varchar('custody_address', { length: 42 }), // Farcaster custody address
   referrerFid: integer('referrer_fid'), // FK to another user's FID
   spamScore: integer('spam_score'), // Neynar spam/trust score (higher = more trustworthy)
