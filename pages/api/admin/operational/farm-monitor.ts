@@ -148,10 +148,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             (u.first_guess_round is null
               or u.first_guess_round > ${REWARD_GATE_GRANDFATHER_LAST_ROUND}) as gated,
             (u.created_at < ${agedCutoffIso}::timestamptz) as aged_row,
-            (u.username is null
-              or u.username like '!%'
-              or u.username ~ '^user-?[0-9]+$'
-              or u.username ilike '%.base.eth') as suspicious_name
+            (coalesce(u.identity_origin, 'farcaster') = 'wallet') as wallet_native,
+            -- THE NAME LEG DOES NOT APPLY TO WALLET-NATIVE PLAYERS.
+            --
+            -- A Base App player signs in with SIWE and has no Farcaster
+            -- account, so upsertUserFromWallet leaves username NULL. The leg
+            -- below already treats a NULL username as suspicious, which would
+            -- make EVERY Base player a farm signal — not just the ones with
+            -- basenames. With the thresholds as they stand (nameLegMinNew 40,
+            -- suspiciousNameShare 0.5) forty Base App players arriving in one
+            -- round would be a 100% suspicious share and an automatic
+            -- 'farm-signature' verdict. A successful launch would trip the
+            -- alarm, and an alarm that fires on success stops being read.
+            --
+            -- The '.base.eth' clause is the same problem one step further on:
+            -- basenames were a farm shape when only a wave had them, and are
+            -- ordinary once Base is a supported door.
+            --
+            -- Wallet players are NOT unwatched — the funding leg covers them,
+            -- and that is the leg that actually caught the round-32 class,
+            -- which had real-shaped names and high scores and was invisible to
+            -- name checking. coalesce() so a guess with no user row still reads
+            -- as farcaster and stays suspicious, exactly as before.
+            (coalesce(u.identity_origin, 'farcaster') <> 'wallet'
+              and (u.username is null
+                or u.username like '!%'
+                or u.username ~ '^user-?[0-9]+$'
+                or u.username ilike '%.base.eth')) as suspicious_name
           from round_guessers rg
           left join users u on u.fid = rg.fid
         )
@@ -163,6 +186,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           count(*) filter (where new_guesser and aged_row)::int as new_aged_rows,
           count(*) filter (where gated)::int as gated_guessers,
           count(*) filter (where not gated)::int as grandfathered_guessers,
+          count(*) filter (where wallet_native)::int as wallet_native,
+          count(*) filter (where new_guesser and wallet_native)::int as new_wallet_native,
           count(*) filter (where username ilike '%.base.eth')::int as base_eth,
           count(*) filter (where username like '!%'
             or username ~ '^user-?[0-9]+$')::int as placeholder,
@@ -306,10 +331,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         driveBy:
           'guessed in no other round — data only, not in the verdict ' +
           '(trivially true for the latest round)',
-        suspiciousName:
-          'no username, !-prefixed or user-<fid>/user<fid> placeholder, or .base.eth',
         agedRow: `user row created more than ${AGED_ROW_DAYS} days before round start`,
         gated: `first_guess_round NULL or > ${REWARD_GATE_GRANDFATHER_LAST_ROUND}`,
+        walletNative:
+          'signed in with SIWE from Base App rather than Farcaster ' +
+          '(identity_origin = wallet). EXCLUDED from suspiciousName: these ' +
+          'players have no Farcaster username by construction, so a null one ' +
+          'is what they look like, not a signal. The funding leg covers them.',
+        suspiciousName:
+          'no username, !-prefixed or user-<fid>/user<fid> placeholder, or ' +
+          '.base.eth — evaluated for Farcaster-origin rows only',
         gateClaims:
           'claim rows created while this round was running — bounded by ' +
           'started_at/resolved_at, NOT by round_id, which is NULL whenever ' +
@@ -323,6 +354,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         newAgedRows: cohorts?.new_aged_rows ?? 0,
         gatedGuessers: cohorts?.gated_guessers ?? 0,
         grandfatheredGuessers: cohorts?.grandfathered_guessers ?? 0,
+        walletNative: cohorts?.wallet_native ?? 0,
+        newWalletNative: cohorts?.new_wallet_native ?? 0,
         usernames: {
           baseEth: cohorts?.base_eth ?? 0,
           placeholder: cohorts?.placeholder ?? 0,
