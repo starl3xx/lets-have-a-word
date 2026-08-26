@@ -52,11 +52,18 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
   const [error, setError] = useState<string | null>(null);
 
   // Does a session already exist? /api/auth/me answers from the cookie alone.
+  //
+  // `checking` is held until the server actually answers, and is RE-ENTERED
+  // whenever `enabled` flips true. The obvious shape — force `signed-out` while
+  // disabled, then fetch when enabled — is wrong in a way that costs a real
+  // player: `enabled` starts false while `useIsInMiniApp` is still probing, so
+  // the landing page would render "Connect wallet" during the genuine session
+  // check, and a returning player could tap it and start a second SIWE flow
+  // racing the cookie they already hold. Not knowing yet is `checking`, and the
+  // sign-in card stays hidden until we do.
   useEffect(() => {
-    if (!enabled) {
-      setStatus('signed-out');
-      return;
-    }
+    if (!enabled) return;
+    setStatus('checking');
     let cancelled = false;
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
@@ -85,15 +92,57 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
       let account = address;
 
       if (!account) {
-        // Prefer whichever connector this host actually provides. Inside Base
-        // App that is the injected one; on plain web it is Base Account.
-        const preferred =
-          connectors.find((c) => c.id === 'injected' && c.type === 'injected') ??
-          connectors.find((c) => c.id.toLowerCase().includes('base')) ??
-          connectors[0];
-        if (!preferred) throw new Error('No wallet connector available');
-        const result = await connectAsync({ connector: preferred });
-        account = result.accounts[0];
+        // Try connectors in order of what this host can actually do, and fall
+        // through on failure rather than giving up on the first.
+        //
+        // Selecting `injected` by id alone is useless: it is in the config in
+        // EVERY environment because we put it there, so it always matches and
+        // `baseAccount` — the one added for plain web — would never be reached.
+        // On a browser with no `window.ethereum` that means connect simply
+        // fails with no fallback, which is precisely the case baseAccount
+        // exists to serve. So the injected connector is offered only when an
+        // injected provider is actually present, and Base Account is always
+        // kept as the next candidate.
+        const hasInjectedProvider =
+          typeof window !== 'undefined' &&
+          (window as unknown as { ethereum?: unknown }).ethereum != null;
+
+        const injectedConnector = connectors.find((c) => c.id === 'injected');
+        const baseConnector = connectors.find((c) => c.id.toLowerCase().includes('base'));
+
+        const candidates = [
+          ...(hasInjectedProvider && injectedConnector ? [injectedConnector] : []),
+          ...(baseConnector ? [baseConnector] : []),
+          // Anything else configured, minus the Farcaster connector: it cannot
+          // work here by definition — this path only runs outside a host.
+          ...connectors.filter(
+            (c) =>
+              c !== injectedConnector &&
+              c !== baseConnector &&
+              !c.id.toLowerCase().includes('farcaster')
+          ),
+        ];
+
+        if (candidates.length === 0) throw new Error('No wallet connector available');
+
+        let lastError: unknown = null;
+        for (const connector of candidates) {
+          try {
+            const result = await connectAsync({ connector });
+            account = result.accounts[0];
+            if (account) break;
+          } catch (err) {
+            // A user rejecting the first prompt must not silently open the
+            // next one — that would be a second wallet popup they did not ask
+            // for. Stop on rejection; fall through only on genuine failures.
+            const rejected =
+              (err as { name?: string })?.name === 'UserRejectedRequestError' ||
+              /user rejected|denied/i.test((err as { message?: string })?.message ?? '');
+            if (rejected) throw err;
+            lastError = err;
+          }
+        }
+        if (!account) throw lastError ?? new Error('Could not connect a wallet');
       }
 
       if (!account) throw new Error('No account returned by the wallet');
