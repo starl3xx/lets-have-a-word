@@ -30,6 +30,7 @@ import {
 } from '../../src/lib/rateLimit';
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
+import { resolveRequestFid } from '../../src/lib/requestAuth';
 import { verifyPurchaseTransaction } from '../../src/lib/jackpot-contract';
 import {
   isWordEconomyConfigured,
@@ -74,7 +75,23 @@ export default async function handler(
 
   // Extract request metadata for rate limiting
   const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
-  const rateLimitFid = req.body?.fid || metadataFid;
+
+  // IDENTITY IS RESOLVED BEFORE THE RATE LIMIT, and the limit keys on the
+  // verified answer whenever there is one.
+  //
+  // Keying on the body `fid` was coherent while the body WAS the identity. It
+  // stopped being coherent the moment a credential could override it: a caller
+  // holding a valid cookie or token could rotate the body `fid` on every
+  // request, miss their own 4-per-5-minute bucket entirely, and still have the
+  // packs credited to their real identity — turning an endpoint that does
+  // onchain verification into an unthrottled RPC hammer for anyone signed in.
+  // (Caught by Bugbot on PR #277.)
+  //
+  // Resolving first costs a signature check on the authenticated path and
+  // nothing on the anonymous one, and the IP leg of the limiter still applies
+  // either way.
+  const auth = await resolveRequestFid(req, {});
+  const rateLimitFid = (auth.ok ? auth.fid : req.body?.fid) || metadataFid;
 
   // Milestone 9.6: Conservative rate limiting (4 requests per 5 minutes)
   const rateCheck = await checkPurchaseRateLimit(rateLimitFid, ip, userAgent);
@@ -89,11 +106,56 @@ export default async function handler(
   }
 
   try {
-    const { fid, packCount, txHash } = req.body;
+    const { fid: bodyFid, packCount, txHash } = req.body;
 
     // Milestone 9.5: Check operational guard (kill switch / dead day)
     const guardBlocked = await applyGameplayGuard(req, res);
     if (guardBlocked) return;
+
+    // WHO IS BUYING — phase 1 of closing the front-run described further down.
+    //
+    // This endpoint has always taken `fid` from the request body and believed
+    // it. That is what makes the txHash front-run possible: an attacker holding
+    // an FID Neynar has no record of can plant a victim's wallet
+    // (user-state.ts, last-resort branch), watch for the victim's purchase, and
+    // claim it first — pack_purchases.tx_hash is unique, so first submitter
+    // wins and the buyer loses their packs.
+    //
+    // A verified credential now wins whenever one is presented. The body `fid`
+    // is still accepted as a FALLBACK, deliberately: GuessPurchaseModal sends
+    // no token today, so requiring auth outright would break every purchase
+    // from a client that has not reloaded. The fallback is logged so the
+    // remaining unauthenticated share is measurable, and phase 2 deletes it
+    // once that reaches zero.
+    // `auth` is resolved above, before the rate limit — see the note there.
+    //
+    // In DEV MODE resolveRequestFid answers 6500 whenever the body carries no
+    // devFid, and that would otherwise win here and credit the packs to 6500
+    // instead of the player who paid. The modal now sends devFid the way the
+    // guess client does; this prefers an explicit body fid on the dev path
+    // regardless, so an older client cannot misdirect a purchase either.
+    // (Caught by Bugbot on PR #277.)
+    const fid =
+      auth.ok && !(auth.origin === 'dev' && typeof bodyFid === 'number')
+        ? auth.fid
+        : bodyFid;
+
+    if (auth.ok && auth.origin !== 'dev' && typeof bodyFid === 'number' && bodyFid !== auth.fid) {
+      // Not necessarily an attack — a stale client sending its own cached FID
+      // alongside a fresh cookie would look like this — but it is the exact
+      // shape the front-run would take, so it is never silent.
+      console.warn(
+        `🚨 [purchase-guess-pack] Body FID ${bodyFid} does not match verified FID ${auth.fid} — using the verified one`
+      );
+      Sentry.captureMessage('[purchase-guess-pack] Body/credential FID mismatch', {
+        level: 'warning',
+        extra: { bodyFid, verifiedFid: auth.fid, origin: auth.origin, txHash },
+      });
+    } else if (!auth.ok) {
+      console.warn(
+        `[purchase-guess-pack] Unauthenticated purchase for FID ${bodyFid} (${auth.reason}) — accepted under the phase-1 fallback`
+      );
+    }
 
     // Validate inputs
     if (!fid || typeof fid !== 'number') {
@@ -292,9 +354,41 @@ export default async function handler(
     // `pages/api/guess.ts:274` verifies a Farcaster QuickAuth JWT. Tracked
     // separately; it is a coordinated client and server change.
     //
+    // NOW ENFORCED FOR WALLET PLAYERS, AND ONLY FOR THEM.
+    //
+    // The binding is finally safe for one class of buyer. A wallet-native
+    // player's identity IS their address: SIWE proved control of it, and
+    // /api/auth/siwe wrote that same address to signer_wallet_address. So
+    // `verification.payer` and the account on file cannot legitimately differ,
+    // and a mismatch means someone is claiming a payment that is not theirs.
+    //
+    // It stays UNENFORCED for Farcaster players, for the reason above and one
+    // that has grown sharper: their signer_wallet_address comes from Neynar's
+    // verified_addresses, which is an EOA, while a purchase may well be paid
+    // from a Base Account smart wallet. Rejecting on mismatch there would take
+    // an honest buyer's ETH and give nothing back — the failure this file
+    // already refuses to risk on the underpayment check.
+    //
     // In the meantime the payer IS recorded below, so a disputed purchase can be
     // reconciled against who actually paid. The amount check remains the defence
     // that does the work.
+    if (auth.ok && auth.playerOrigin === 'wallet' && auth.provenWallet && verification.payer) {
+      const proven = auth.provenWallet.toLowerCase();
+      const payer = String(verification.payer).toLowerCase();
+      if (proven !== payer) {
+        console.error(
+          `🚨 [purchase-guess-pack] Wallet player FID ${fid} claimed a payment from ${payer}, ` +
+            `but their proven wallet is ${proven}`
+        );
+        Sentry.captureMessage('[purchase-guess-pack] Wallet-player payer mismatch', {
+          level: 'error',
+          extra: { fid, txHash, payer, provenWallet: proven },
+        });
+        return res.status(403).json({
+          error: 'That payment was made by a different wallet than the one you signed in with.',
+        });
+      }
+    }
 
     // The contract accepts any non-zero msg.value and treats `quantity` as a
     // caller-supplied label, so price is enforced here or nowhere. Without this

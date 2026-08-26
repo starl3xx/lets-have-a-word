@@ -47,6 +47,24 @@ type VolumeTier = 'BASE' | 'MID' | 'HIGH';
 
 interface GuessPurchaseModalProps {
   fid: number | null;
+  /**
+   * Farcaster Quick Auth token, when the host provided one.
+   *
+   * Without it this endpoint has no way to tell who is buying — it believed the
+   * `fid` in the body, which is what made the txHash front-run possible. A
+   * wallet-native player needs nothing here: their HttpOnly session cookie rides
+   * along with the fetch on its own.
+   */
+  authToken?: string | null;
+  /**
+   * Set only in client dev mode, mirroring SuperguessPurchaseModal.
+   *
+   * Without it, resolveRequestFid answers 6500 on the dev path — the default
+   * for "dev mode, no FID supplied" — and that would win over the buyer's real
+   * FID, crediting their packs to 6500. The guess client has always sent this;
+   * the purchase client did not.
+   */
+  devFid?: number;
   onClose: () => void;
   onPurchaseSuccess: (packCount: number) => void;
   onSuperguess?: () => void; // Opens the Superguess purchase modal
@@ -96,6 +114,8 @@ export default function GuessPurchaseModal({
   onSuperguess,
   superguessEligible,
   superguessActive,
+  authToken,
+  devFid,
 }: GuessPurchaseModalProps) {
   const { t } = useTranslation();
 
@@ -171,6 +191,11 @@ export default function GuessPurchaseModal({
               fid,
               packCount: selectedPackCount,
               txHash, // Send txHash for onchain verification
+              // Proves who is buying. `fid` above is still sent so an older
+              // server keeps working during the rollout; the server prefers
+              // this whenever it verifies.
+              ...(authToken ? { authToken } : {}),
+              ...(devFid ? { devFid } : {}),
             }),
             signal: controller.signal,
           });
