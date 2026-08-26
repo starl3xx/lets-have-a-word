@@ -18,12 +18,28 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const { mockPackVerify, mockLegacyVerify, mockTier, mockTierChecked } = vi.hoisted(() => ({
-  mockPackVerify: vi.fn(),
-  mockLegacyVerify: vi.fn(),
-  mockTier: vi.fn(async () => 0),
-  mockTierChecked: vi.fn(async () => ({ tier: 0, determined: true })),
-}));
+const { mockPackVerify, mockLegacyVerify, mockTier, mockTierChecked, mockRateLimit } =
+  vi.hoisted(() => ({
+    mockPackVerify: vi.fn(),
+    mockLegacyVerify: vi.fn(),
+    mockTier: vi.fn(async () => 0),
+    mockTierChecked: vi.fn(async () => ({ tier: 0, determined: true })),
+    mockRateLimit: vi.fn(),
+  }));
+
+/**
+ * The limiter is mocked so the test can see WHICH identity it was handed.
+ *
+ * The first version of this file used `vi.spyOn({ checkPurchaseRateLimit }, ...)`,
+ * which spies on a freshly built object literal — the handler imports the real
+ * function from the module and never touches that object, so the spy observed
+ * nothing and the test asserted nothing. Bugbot caught it on #277. Mocking the
+ * module is the only way to make the assertion real.
+ */
+vi.mock('../lib/rateLimit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/rateLimit')>();
+  return { ...actual, checkPurchaseRateLimit: mockRateLimit };
+});
 
 /**
  * Keep this file off the network.
@@ -132,6 +148,7 @@ beforeEach(() => {
     logIndex: 0,
   });
   mockLegacyVerify.mockReset().mockResolvedValue({ valid: false, error: 'legacy rail off' });
+  mockRateLimit.mockReset().mockResolvedValue({ allowed: true });
 });
 
 afterEach(async () => {
@@ -304,10 +321,7 @@ describe('phase-1 fallback', () => {
  * The two Bugbot findings on PR #277, pinned.
  */
 describe('rate limiting keys on the verified buyer', () => {
-  it('does not let a signed-in caller dodge their bucket by rotating the body FID', async () => {
-    const { checkPurchaseRateLimit } = await import('../lib/rateLimit');
-    const spy = vi.spyOn({ checkPurchaseRateLimit }, 'checkPurchaseRateLimit');
-
+  it('hands the limiter the verified FID, not the one in the body', async () => {
     await activeRound();
     const wallet = `0x${'7'.repeat(39)}4`;
     const player = await upsertUserFromWallet({ wallet });
@@ -322,25 +336,35 @@ describe('rate limiting keys on the verified buyer', () => {
 
     const token = await signPlayerSession({ fid: player.fid, origin: 'wallet', wallet }, SECRET);
 
-    // Two requests carrying DIFFERENT body FIDs but the same cookie. Whatever
-    // the limiter buckets on, it must be the identity that gets the packs —
-    // otherwise rotating the body is a free way around the 4-per-5-min cap on
-    // an endpoint that does onchain verification.
-    const txA = freshTx();
-    const txB = freshTx();
-    const a = await post({ fid: 111111, packCount: 1, txHash: txA }, { [PLAYER_SESSION_COOKIE]: token });
-    const b = await post({ fid: 222222, packCount: 1, txHash: txB }, { [PLAYER_SESSION_COOKIE]: token });
+    // A body FID that is not theirs. Before the fix the limiter bucketed on
+    // exactly this value, so rotating it on each request skipped the
+    // 4-per-5-minute cap while the packs still landed on the real identity.
+    await post({ fid: 111111, packCount: 1, txHash: freshTx() }, { [PLAYER_SESSION_COOKIE]: token });
 
-    // Both credited to the real player, never to the rotating body value.
-    for (const tx of [txA, txB]) {
-      const [row] = await db
-        .select({ fid: packPurchases.fid })
-        .from(packPurchases)
-        .where(eq(packPurchases.txHash, tx));
-      if (row) expect(row.fid).toBe(player.fid);
-    }
-    expect([a.status, b.status].every((s) => s === 200 || s === 429)).toBe(true);
-    spy.mockRestore();
+    expect(mockRateLimit).toHaveBeenCalled();
+    const [keyedFid] = mockRateLimit.mock.calls[0];
+    expect(keyedFid).toBe(player.fid);
+    expect(keyedFid).not.toBe(111111);
+  });
+
+  it('falls back to the body FID when there is no credential to key on', async () => {
+    await activeRound();
+    const [seeded] = await db
+      .insert(users)
+      .values({ fid: 900_500_004, username: 'anon', xp: 0 })
+      .returning();
+    createdFids.push(seeded.fid);
+
+    await post({ fid: seeded.fid, packCount: 1, txHash: freshTx() });
+
+    const [keyedFid] = mockRateLimit.mock.calls[0];
+    expect(keyedFid).toBe(seeded.fid);
+  });
+
+  it('still refuses when the limiter says no', async () => {
+    mockRateLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 300 });
+    const { status } = await post({ fid: 900_500_005, packCount: 1, txHash: freshTx() });
+    expect(status).toBe(429);
   });
 });
 
