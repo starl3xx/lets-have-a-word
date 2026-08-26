@@ -316,3 +316,101 @@ describe('gate claims are counted by the round window, not round_id', () => {
     }
   });
 });
+
+/**
+ * A successful Base App launch must not read as a farm.
+ *
+ * A wallet-native player signs in with SIWE and has no Farcaster account, so
+ * `upsertUserFromWallet` leaves `username` NULL — and the name leg already
+ * treats a NULL username as suspicious. With the thresholds as they stand
+ * (nameLegMinNew 40, suspiciousNameShare 0.5), forty Base App players arriving
+ * in one round would be a 100% suspicious share and an automatic
+ * `farm-signature`. An alarm that fires on success stops being read.
+ *
+ * They are not unwatched: the funding leg still covers them, and that is the
+ * leg that caught the round-32 class, which had real-shaped names and high
+ * scores and was invisible to name checking.
+ */
+describe('wallet-native players are not a farm signal', () => {
+  it('excludes them from the name leg but still counts them', async () => {
+    const { db } = await import('../db');
+    const { rounds, users, guesses } = await import('../db/schema');
+    const { eq, inArray } = await import('drizzle-orm');
+    const handler = (await import('../../pages/api/admin/operational/farm-monitor')).default;
+
+    const [round] = await db
+      .insert(rounds)
+      .values({
+        rulesetId: 1,
+        answer: 'BASES',
+        salt: `s-base-${process.hrtime.bigint()}`,
+        commitHash: 'c'.repeat(64),
+        prizePoolEth: '0',
+        seedNextRoundEth: '0',
+        prizeCurrency: 'word',
+        prizePoolWord: '0',
+      })
+      .returning();
+
+    // Enough to clear nameLegMinNew (40) on its own, so the verdict genuinely
+    // turns on whether these count as suspicious.
+    const base = 1_000_100_000 + Number(process.hrtime.bigint() % 100_000n) * 100;
+    const fids = Array.from({ length: 45 }, (_, i) => base + i);
+
+    try {
+      await db.insert(users).values(
+        fids.map((fid) => ({
+          fid,
+          username: null, // exactly what a SIWE sign-in leaves behind
+          signerWalletAddress: `0x${fid.toString(16).padStart(40, '0')}`,
+          identityOrigin: 'wallet' as const,
+          xp: 0,
+        }))
+      );
+      await db.insert(guesses).values(
+        fids.map((fid, i) => ({
+          roundId: round.id,
+          fid,
+          word: 'CRANE',
+          isPaid: false,
+          isCorrect: false,
+          guessIndexInRound: i + 1,
+        }))
+      );
+
+      const body = await new Promise<any>((resolve) => {
+        const res = {
+          status() {
+            return this;
+          },
+          json(payload: unknown) {
+            resolve(payload);
+            return this;
+          },
+          setHeader() {
+            return this;
+          },
+          end() {
+            return this;
+          },
+        };
+        handler(
+          { method: 'GET', query: { devFid: '6500', roundId: String(round.id) } } as any,
+          res as any
+        );
+      });
+
+      expect(body.cohorts.newGuessers).toBe(45);
+      // The whole point: 45 nameless players, zero of them a name signal.
+      expect(body.cohorts.newGuessersSuspicious).toBe(0);
+      expect(body.assessment.verdict).not.toBe('farm-signature');
+      // Still visible — excluded from the verdict, not from the report.
+      expect(body.cohorts.walletNative).toBe(45);
+      expect(body.cohorts.newWalletNative).toBe(45);
+    } finally {
+      await db.delete(guesses).where(eq(guesses.roundId, round.id));
+      await db.delete(users).where(inArray(users.fid, fids));
+      await db.delete(rounds).where(eq(rounds.id, round.id));
+    }
+  });
+});

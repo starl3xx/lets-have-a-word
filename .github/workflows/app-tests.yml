@@ -14,6 +14,10 @@ on:
 # by replaying migrations/: those start at 0009 and there is no drizzle journal,
 # so the directory cannot reconstruct the database from empty. schema.ts is also
 # the right source of truth here — it is what the application code reads.
+#
+# The exception is schema objects Drizzle cannot express — sequences, partial
+# indexes on expressions. Those are applied from their migration file after the
+# push; see the step below.
 
 jobs:
   vitest:
@@ -59,6 +63,21 @@ jobs:
 
       - name: Build schema from schema.ts
         run: npx drizzle-kit push --force
+
+      - name: Apply schema objects drizzle-kit cannot express
+        # drizzle-kit push builds tables and columns from schema.ts, and that is
+        # all it builds. Anything declared only in raw SQL is invisible to it —
+        # here that is wallet_player_fid_seq (a SEQUENCE, which Drizzle does not
+        # model at all) and users_wallet_identity_unique (a PARTIAL unique index
+        # on an expression). Without them, upsertUserFromWallet throws on
+        # nextval and every wallet-identity test fails, which is exactly how
+        # this was found.
+        #
+        # Idempotent by construction: every statement in the file is
+        # IF NOT EXISTS, so running it after push is a no-op for anything push
+        # already created. The same command recreates a local test database
+        # after `drizzle-kit push --force`.
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0031_wallet_identity.sql
 
       - name: Seed default game rules
         # rounds.ruleset_id has a FK to game_rules; without this every test that

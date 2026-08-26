@@ -24,6 +24,7 @@ import * as Sentry from '@sentry/nextjs';
 import { verifyFrameMessage } from '../../../src/lib/farcaster';
 import { creditWordPool } from '../../../src/lib/word-pool-credits';
 import { isDevModeEnabled, getDevUserId } from '../../../src/lib/devGameState';
+import { resolveRequestFid } from '../../../src/lib/requestAuth';
 import {
   isSuperguessFeatureEnabled,
   getActiveSuperguess,
@@ -64,30 +65,39 @@ export default async function handler(
 
   try {
     // 1. Auth
+    //
+    // Dev mode, Quick Auth and the wallet-native player session come from
+    // resolveRequestFid; signer and frame verification stay here, because they
+    // call Neynar and only this endpoint and guess.ts use them.
+    //
+    // The response contract is deliberately unchanged. This endpoint has always
+    // answered a bad token with a bare 401 "Authentication required" — the old
+    // code swallowed the verifier's error and fell through to the `!fid` check —
+    // so the resolver's more specific message is logged rather than returned.
+    // Sharpening a client-visible error is a separate decision from moving the
+    // code that produces it.
     let fid: number | null = null;
 
-    if (req.body.devFid && isDevModeEnabled()) {
-      fid = parseInt(req.body.devFid as string, 10);
-    } else if (req.body.authToken) {
-      // Quick Auth — JWT token from Farcaster Mini App SDK
-      try {
-        const { createClient } = await import('@farcaster/quick-auth');
-        const quickAuthClient = createClient();
-        const verifyResult = await quickAuthClient.verifyJwt({ token: req.body.authToken });
-        if (verifyResult?.sub) {
-          fid = parseInt(verifyResult.sub, 10);
-        }
-      } catch (err) {
-        console.error('[superguess/purchase] Quick Auth verification failed:', err);
+    const auth = await resolveRequestFid(req, {});
+    if (auth.ok) {
+      fid = auth.fid;
+    } else if (auth.reason === 'invalid_credential') {
+      // A token was presented and was bad. The old else-if chain never reached
+      // signer/frame in that case either, so this does not fall through.
+      console.error(`[superguess/purchase] Credential rejected: ${auth.error}`);
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!fid) {
+      if (req.body.signerUuid) {
+        // Signer UUID (Mini App SDK fallback)
+        const { verifySigner } = await import('../../../src/lib/farcaster');
+        const signerData = await verifySigner(req.body.signerUuid);
+        if (signerData) fid = signerData.fid;
+      } else if (req.body.frameMessage) {
+        const frameData = await verifyFrameMessage(req.body.frameMessage);
+        if (frameData) fid = frameData.fid;
       }
-    } else if (req.body.signerUuid) {
-      // Signer UUID (Mini App SDK fallback)
-      const { verifySigner } = await import('../../../src/lib/farcaster');
-      const signerData = await verifySigner(req.body.signerUuid);
-      if (signerData) fid = signerData.fid;
-    } else if (req.body.frameMessage) {
-      const frameData = await verifyFrameMessage(req.body.frameMessage);
-      if (frameData) fid = frameData.fid;
     }
 
     if (!fid) {

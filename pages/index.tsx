@@ -99,6 +99,7 @@ import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
+import { useWalletSignIn } from '../src/hooks/useWalletSignIn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 import { WORD_POOL_URL } from '../config/economy';
@@ -210,13 +211,24 @@ function GameContent() {
   // Get connected wallet from Wagmi for $WORD bonus check
   const { address: connectedWalletAddress } = useAccount();
 
-  // Effective FID: use real Farcaster FID, or dev fallback in dev mode
-  // This ensures consistent FID usage across guess submission, user state fetch, and share callbacks
+  // Wallet sign-in (SIWE) — the Base App door. Enabled only once we know we are
+  // NOT in a Farcaster host, so a Farcaster player never makes the /api/auth/me
+  // call and their path is untouched.
+  const walletSignIn = useWalletSignIn(hasCheckedContext && !isInMiniApp);
+
+  // Effective FID: real Farcaster FID, then a wallet-native player, then the
+  // dev fallback.
+  //
+  // Farcaster stays first. A player holding both credentials is the same person
+  // either way, but their Farcaster FID is the one carrying their history, and
+  // resolveRequestFid resolves the server side in exactly this order too — the
+  // two must not disagree about who is playing.
   const effectiveFid = useMemo(() => {
     if (fid) return fid;
+    if (walletSignIn.fid) return walletSignIn.fid;
     if (isClientDevMode()) return DEV_FALLBACK_FID;
     return null;
-  }, [fid]);
+  }, [fid, walletSignIn.fid]);
 
   // Wheel state (Milestone 2.3, updated Milestone 4.10)
   const [wheelWords, setWheelWords] = useState<WheelWord[]>([]);
@@ -1187,6 +1199,11 @@ function GameContent() {
         // Local development: use devFid
         requestBody.devFid = effectiveFid;
       }
+      // A wallet-native player (Base App) deliberately adds nothing here. Their
+      // credential is the HttpOnly player-session cookie, which a same-origin
+      // fetch sends on its own and which page scripts cannot read — so there is
+      // nothing to put in the body. resolveRequestFid picks it up server-side.
+      // The absence of a branch is the design, not an omission.
 
       // Get referral parameter from sessionStorage (captured on initial page load)
       // This ensures the ref is not lost if URL changed before first guess
@@ -1875,8 +1892,26 @@ function GameContent() {
     };
   }, [superguessActive, isSuperguessing, effectiveFid, hasSuperguessPreview]);
 
-  // Bypass browser fallback when Superguess preview params are active
-  if (hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
+  // Outside a Farcaster host, the fallback is no longer a dead end.
+  //
+  // Base App stopped being a Farcaster mini app host on 2026-04-09, so every
+  // Base App player lands here — and used to be told to go and get Farcaster.
+  // A player holding a wallet session is a real, resolvable player, so they
+  // fall through to the game instead; `effectiveFid` above is already their
+  // synthetic FID and every endpoint resolves them through resolveRequestFid.
+  //
+  // `status === 'checking'` deliberately still renders the fallback: it lasts
+  // one fetch, and flashing the game before we know who anyone is would be
+  // worse than the fallback appearing briefly.
+  const walletPlayerReady = walletSignIn.status === 'signed-in' && walletSignIn.fid != null;
+
+  if (
+    hasCheckedContext &&
+    !isInMiniApp &&
+    !isClientDevMode() &&
+    !hasSuperguessPreview &&
+    !walletPlayerReady
+  ) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-5">
@@ -1898,6 +1933,33 @@ function GameContent() {
           <p className="text-lg text-gray-700 font-medium">
             A global word hunt with real onchain prizes
           </p>
+
+          {/* Wallet sign-in. The primary path now, not a footnote: a Base App
+              player has a wallet and no Farcaster account, and this is the only
+              door open to them. Hidden while the session check is in flight so
+              the button never flickers away under a tap. */}
+          {walletSignIn.status !== 'checking' && (
+            <div className="bg-white rounded-xl shadow-card p-5 space-y-3">
+              <p className="text-gray-700 text-sm leading-relaxed">
+                Playing needs a wallet holding about <strong>$3 of $WORD</strong>. Sign in
+                to prove the wallet is yours... it costs no gas.
+              </p>
+              <button
+                onClick={walletSignIn.signIn}
+                disabled={walletSignIn.status === 'pending'}
+                className="btn-primary-lg w-full"
+              >
+                {walletSignIn.status === 'pending'
+                  ? 'Check your wallet...'
+                  : walletSignIn.isConnected
+                    ? 'Sign in with your wallet'
+                    : 'Connect wallet'}
+              </button>
+              {walletSignIn.error && (
+                <p className="text-sm text-red-600">{walletSignIn.error}</p>
+              )}
+            </div>
+          )}
 
           {/* Explanation Card */}
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
