@@ -2509,6 +2509,7 @@ function GameContent() {
       {showGuessPurchaseModal && (
         <GuessPurchaseModal
           fid={effectiveFid}
+          authToken={authToken}
           onClose={() => {
             setShowGuessPurchaseModal(false);
             markPackModalSeen();
