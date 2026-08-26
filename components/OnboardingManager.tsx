@@ -4,6 +4,13 @@
  * Orchestrates the post-launch onboarding flow:
  * 1. "How It Works" modal (FirstTimeOverlay) - shown to all new users
  * 2. "Hey, OG Hunter!" modal - shown only to OG Hunters after step 1
+ * 3. Round 34 announcement - only while a $WORD round is active
+ *
+ * The Superguess announcement used to sit between steps 2 and 3. It was a
+ * feature-launch notice, and everyone it was written for has long since been
+ * shown it; the only people still eligible were new players, for whom a "NEW:"
+ * banner about a shipped feature reads as noise. The SuperguessBar teaches it
+ * in place. `users.has_seen_superguess_announcement` is left alone as history.
  *
  * Flow logic:
  * - On mount, fetches /api/onboarding/status to determine what to show
@@ -20,7 +27,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import FirstTimeOverlay from './FirstTimeOverlay';
 import OgHunterThanksModal from './OgHunterThanksModal';
-import SuperguessAnnouncementModal from './SuperguessAnnouncementModal';
 import Round34AnnouncementModal from './Round34AnnouncementModal';
 import type { OnboardingStatusResponse } from '../pages/api/onboarding/status';
 
@@ -31,7 +37,7 @@ interface OnboardingManagerProps {
   disabled?: boolean;
 }
 
-type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'superguessAnnouncement' | 'round34Announcement' | 'done';
+type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'round34Announcement' | 'done';
 
 export default function OnboardingManager({
   fid,
@@ -67,8 +73,6 @@ export default function OnboardingManager({
           setStep('howItWorks');
         } else if (data.isOgHunter && !data.hasSeenOgHunterThanks) {
           setStep('ogHunterThanks');
-        } else if (!data.hasSeenSuperguessAnnouncement) {
-          setStep('superguessAnnouncement');
         } else if (data.wordEraActive && !data.hasSeenRound34Announcement) {
           setStep('round34Announcement');
         } else {
@@ -84,7 +88,7 @@ export default function OnboardingManager({
   }, [fid, disabled]);
 
   // Mark a modal as seen
-  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks' | 'superguessAnnouncement' | 'round34Announcement') => {
+  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks' | 'round34Announcement') => {
     try {
       await fetch('/api/onboarding/mark-seen', {
         method: 'POST',
@@ -102,22 +106,12 @@ export default function OnboardingManager({
     if (currentStep === 'howItWorks') {
       if (status?.isOgHunter && !status?.hasSeenOgHunterThanks) {
         setStep('ogHunterThanks');
-      } else if (!status?.hasSeenSuperguessAnnouncement) {
-        setStep('superguessAnnouncement');
       } else if (round34Pending) {
         setStep('round34Announcement');
       } else {
         setStep('done');
       }
     } else if (currentStep === 'ogHunterThanks') {
-      if (!status?.hasSeenSuperguessAnnouncement) {
-        setStep('superguessAnnouncement');
-      } else if (round34Pending) {
-        setStep('round34Announcement');
-      } else {
-        setStep('done');
-      }
-    } else if (currentStep === 'superguessAnnouncement') {
       if (round34Pending) {
         setStep('round34Announcement');
       } else {
@@ -138,12 +132,6 @@ export default function OnboardingManager({
   const handleOgHunterThanksDismiss = useCallback(async () => {
     await markSeen('ogHunterThanks');
     advanceFrom('ogHunterThanks');
-  }, [markSeen, advanceFrom]);
-
-  // Handle Superguess Announcement dismissal
-  const handleSuperguessAnnouncementDismiss = useCallback(async () => {
-    await markSeen('superguessAnnouncement');
-    advanceFrom('superguessAnnouncement');
   }, [markSeen, advanceFrom]);
 
   // Handle Round 34 Announcement dismissal
@@ -173,13 +161,6 @@ export default function OnboardingManager({
           fid={fid}
           onDismiss={handleOgHunterThanksDismiss}
           alreadyAwarded={status?.ogHunterAwarded ?? false}
-        />
-      )}
-
-      {step === 'superguessAnnouncement' && (
-        <SuperguessAnnouncementModal
-          fid={fid}
-          onDismiss={handleSuperguessAnnouncementDismiss}
         />
       )}
 

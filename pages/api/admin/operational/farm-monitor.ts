@@ -83,6 +83,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Drizzle's db.execute result shape varies by driver; normalize.
     const rowsOf = (r: any): any[] => (Array.isArray(r) ? r : r?.rows ?? []);
 
+    // The window the gate-claim queries below bound on, instead of round_id.
+    //
+    // reward_gate_claims is keyed (date, wallet) and written with
+    // onConflictDoNothing, so round_id only ever records what the FIRST check
+    // of that wallet-day happened to know. That first check is almost always
+    // round-LESS: /api/user-state and the daily allocation both call
+    // checkPlayEligibility with no round in scope (user-state.ts,
+    // daily-limits.ts), and they run on app open, well before any guess. So
+    // the row lands stamped NULL, the later round-scoped insert from the guess
+    // path conflicts and changes nothing, and `where round_id = N` counted ~0
+    // claims for every round — including the enrichment wallet set, which is
+    // why ticking "Trace $WORD funding" could silently walk an empty list.
+    //
+    // THE BOUNDS ARE COMPUTED IN SQL, NOT IN JAVASCRIPT. `created_at`,
+    // `started_at`, `resolved_at` and `cancelled_at` are all naive `timestamp`
+    // columns written by `DEFAULT now()`, which records the DATABASE SERVER's
+    // local wall-clock. Passing a JS `toISOString()` into the comparison comes
+    // in as UTC, so on any server not set to UTC the two sides are hours apart
+    // and the window silently matches nothing. Verified: a local Postgres on
+    // Central stored a claim at 16:41 while its own `now() AT TIME ZONE 'UTC'`
+    // read 21:41. Production is UTC, so a JS bound would have been right there
+    // by luck and wrong everywhere else — the same class of bug as the
+    // `AT TIME ZONE` reversal fixed on 2026-08-18. Comparing column to column
+    // keeps both sides in whatever convention the server actually uses.
+    //
+    // THE END OF THE WINDOW IS resolved_at OR cancelled_at, NOT JUST
+    // resolved_at. A cancelled round never gets a resolved_at — both the kill
+    // switch (operational.ts) and the seeding-failure path (rounds.ts) set
+    // `status: 'cancelled'` and `cancelledAt`, and leave `resolvedAt` null. So
+    // falling back to "now" for any unresolved round would make a cancelled
+    // round's window run from its cancellation to the present, counting every
+    // claim from every round since, and pointing the funding trace at wallets
+    // belonging to other rounds — the same misleading all-clear the round_id
+    // filter produced, reintroduced from the other direction. (Caught by
+    // Bugbot on PR #275.) LOCALTIMESTAMP is the correct "now" here because it
+    // is naive in the session's zone, exactly like the columns.
+    const claimWindow = sql`
+      c.created_at >= r.started_at
+      AND c.created_at <= coalesce(r.resolved_at, r.cancelled_at, localtimestamp)
+    `;
+
     // ---- Cohorts ----
     // new guesser: first-ever guess is in this round (MIN(round_id) basis).
     // drive_by: guessed in no other round — reported, never in the verdict
@@ -161,9 +202,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await db.execute(sql`
         select
           count(*)::int as claims,
-          count(distinct wallet)::int as distinct_wallets
-        from reward_gate_claims
-        where round_id = ${roundId}
+          count(distinct c.wallet)::int as distinct_wallets
+        from reward_gate_claims c
+        join rounds r on r.id = ${roundId}
+        where ${claimWindow}
       `)
     );
     const claimCount: number = claimStats?.claims ?? 0;
@@ -185,7 +227,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           select c.wallet, array_agg(distinct c.fid) as fids
           from reward_gate_claims c
           join users u on u.fid = c.fid
-          where c.round_id = ${roundId}
+          join rounds r on r.id = ${roundId}
+          where ${claimWindow}
             and (u.first_guess_round is null
               or u.first_guess_round > ${REWARD_GATE_GRANDFATHER_LAST_ROUND})
           group by c.wallet
@@ -267,6 +310,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'no username, !-prefixed or user-<fid>/user<fid> placeholder, or .base.eth',
         agedRow: `user row created more than ${AGED_ROW_DAYS} days before round start`,
         gated: `first_guess_round NULL or > ${REWARD_GATE_GRANDFATHER_LAST_ROUND}`,
+        gateClaims:
+          'claim rows created while this round was running — bounded by ' +
+          'started_at/resolved_at, NOT by round_id, which is NULL whenever ' +
+          'the wallet-day was first checked without a round in scope',
       },
       cohorts: {
         guessers: cohorts?.guessers ?? 0,

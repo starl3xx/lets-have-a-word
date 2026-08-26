@@ -906,6 +906,9 @@ export default function WalletSection({ user }: WalletSectionProps) {
       const signer = await provider.getSigner();
       const valueWei = ethers.parseEther(fundOperatorAmount);
 
+      // No builder-code suffix: this is the admin moving treasury ETH to the
+      // operator wallet. Attributing our own internal transfers would inflate
+      // the Base.dev numbers with activity no player drove.
       const tx = await signer.sendTransaction({
         to: balances.operatorWallet.address,
         value: valueWei,

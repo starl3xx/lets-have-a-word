@@ -64,7 +64,7 @@ export const users = pgTable('users', {
   rewardGateQualifiedAt: timestamp('reward_gate_qualified_at'),
   hasSeenIntro: boolean('has_seen_intro').default(false).notNull(), // Milestone 4.3: First-time overlay
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
-  hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: Superguess feature announcement
+  hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: retired 2026-08-22, kept to match the live column
   hasSeenRound34Announcement: boolean('has_seen_round34_announcement').default(false).notNull(), // Round 34: $WORD-era announcement; only offered while a $WORD round is active
   addedMiniAppAt: timestamp('added_mini_app_at'), // OG Hunter: When user added the mini app via SDK
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -830,6 +830,12 @@ export const rewardGateClaims = pgTable('reward_gate_claims', {
   date: date('date').notNull(), // Game-day (11:00 UTC boundary), same key as daily_guess_state
   wallet: varchar('wallet', { length: 42 }).notNull(),
   fid: integer('fid').notNull(),
+  // Whatever round the FIRST check of this wallet-day knew about, which is
+  // usually none: the row is created on app open by a round-less caller, and
+  // the (date, wallet) upsert below is onConflictDoNothing, so a later
+  // round-scoped check never fills it in. NEVER filter a per-round report on
+  // this column — bound on created_at against the round's window instead
+  // (see pages/api/admin/operational/farm-monitor.ts).
   roundId: integer('round_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({

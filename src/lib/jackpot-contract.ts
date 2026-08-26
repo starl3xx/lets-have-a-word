@@ -484,6 +484,13 @@ export async function topUpJackpotOnChain(amountWei: bigint): Promise<{
 
   // Send plain ETH transfer to contract (triggers receive() fallback)
   // Note: no data field — receive() only fires when msg.data is empty (no fallback() exists)
+  //
+  // DO NOT add the builder-code suffix here. Every other contract call in this
+  // file goes through sendWithBuilderCode, which makes this line look like an
+  // oversight. It is not: the suffix is calldata, calldata makes msg.data
+  // non-empty, receive() then does not fire, and with no fallback() the top-up
+  // REVERTS. Attribution is for user activity anyway, and this is the house
+  // funding its own contract.
   const tx = await wallet.sendTransaction({
     to: config.jackpotManagerAddress,
     value: amountWei,

@@ -125,6 +125,12 @@ async function sendRefundTransaction(
   );
 
   // Send plain ETH transfer (no data — receive() only fires when msg.data is empty)
+  //
+  // Deliberately carries no builder-code suffix. A refund is the house paying a
+  // player back, not user activity an app drove, so attributing it would be
+  // wrong on the merits. It is also unsafe: the recipient may be a smart
+  // wallet — every Base App player has one — and arbitrary calldata against a
+  // receive()-only wallet reverts, turning an owed refund into a failure.
   const tx = await wallet.sendTransaction({
     to: recipientAddress,
     value: amount,
