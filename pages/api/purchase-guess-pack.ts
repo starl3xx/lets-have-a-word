@@ -75,7 +75,23 @@ export default async function handler(
 
   // Extract request metadata for rate limiting
   const { fid: metadataFid, ip, userAgent } = extractRequestMetadata(req);
-  const rateLimitFid = req.body?.fid || metadataFid;
+
+  // IDENTITY IS RESOLVED BEFORE THE RATE LIMIT, and the limit keys on the
+  // verified answer whenever there is one.
+  //
+  // Keying on the body `fid` was coherent while the body WAS the identity. It
+  // stopped being coherent the moment a credential could override it: a caller
+  // holding a valid cookie or token could rotate the body `fid` on every
+  // request, miss their own 4-per-5-minute bucket entirely, and still have the
+  // packs credited to their real identity — turning an endpoint that does
+  // onchain verification into an unthrottled RPC hammer for anyone signed in.
+  // (Caught by Bugbot on PR #277.)
+  //
+  // Resolving first costs a signature check on the authenticated path and
+  // nothing on the anonymous one, and the IP leg of the limiter still applies
+  // either way.
+  const auth = await resolveRequestFid(req, {});
+  const rateLimitFid = (auth.ok ? auth.fid : req.body?.fid) || metadataFid;
 
   // Milestone 9.6: Conservative rate limiting (4 requests per 5 minutes)
   const rateCheck = await checkPurchaseRateLimit(rateLimitFid, ip, userAgent);
@@ -111,10 +127,20 @@ export default async function handler(
     // from a client that has not reloaded. The fallback is logged so the
     // remaining unauthenticated share is measurable, and phase 2 deletes it
     // once that reaches zero.
-    const auth = await resolveRequestFid(req, {});
-    const fid = auth.ok ? auth.fid : bodyFid;
+    // `auth` is resolved above, before the rate limit — see the note there.
+    //
+    // In DEV MODE resolveRequestFid answers 6500 whenever the body carries no
+    // devFid, and that would otherwise win here and credit the packs to 6500
+    // instead of the player who paid. The modal now sends devFid the way the
+    // guess client does; this prefers an explicit body fid on the dev path
+    // regardless, so an older client cannot misdirect a purchase either.
+    // (Caught by Bugbot on PR #277.)
+    const fid =
+      auth.ok && !(auth.origin === 'dev' && typeof bodyFid === 'number')
+        ? auth.fid
+        : bodyFid;
 
-    if (auth.ok && typeof bodyFid === 'number' && bodyFid !== auth.fid) {
+    if (auth.ok && auth.origin !== 'dev' && typeof bodyFid === 'number' && bodyFid !== auth.fid) {
       // Not necessarily an attack — a stale client sending its own cached FID
       // alongside a fresh cookie would look like this — but it is the exact
       // shape the front-run would take, so it is never silent.

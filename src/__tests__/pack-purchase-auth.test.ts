@@ -299,3 +299,81 @@ describe('phase-1 fallback', () => {
     expect(status).toBe(200);
   });
 });
+
+/**
+ * The two Bugbot findings on PR #277, pinned.
+ */
+describe('rate limiting keys on the verified buyer', () => {
+  it('does not let a signed-in caller dodge their bucket by rotating the body FID', async () => {
+    const { checkPurchaseRateLimit } = await import('../lib/rateLimit');
+    const spy = vi.spyOn({ checkPurchaseRateLimit }, 'checkPurchaseRateLimit');
+
+    await activeRound();
+    const wallet = `0x${'7'.repeat(39)}4`;
+    const player = await upsertUserFromWallet({ wallet });
+    createdFids.push(player.fid);
+
+    mockPackVerify.mockResolvedValue({
+      valid: true,
+      weiAmount: (10n ** 18n).toString(),
+      payer: wallet,
+      logIndex: 0,
+    });
+
+    const token = await signPlayerSession({ fid: player.fid, origin: 'wallet', wallet }, SECRET);
+
+    // Two requests carrying DIFFERENT body FIDs but the same cookie. Whatever
+    // the limiter buckets on, it must be the identity that gets the packs —
+    // otherwise rotating the body is a free way around the 4-per-5-min cap on
+    // an endpoint that does onchain verification.
+    const txA = freshTx();
+    const txB = freshTx();
+    const a = await post({ fid: 111111, packCount: 1, txHash: txA }, { [PLAYER_SESSION_COOKIE]: token });
+    const b = await post({ fid: 222222, packCount: 1, txHash: txB }, { [PLAYER_SESSION_COOKIE]: token });
+
+    // Both credited to the real player, never to the rotating body value.
+    for (const tx of [txA, txB]) {
+      const [row] = await db
+        .select({ fid: packPurchases.fid })
+        .from(packPurchases)
+        .where(eq(packPurchases.txHash, tx));
+      if (row) expect(row.fid).toBe(player.fid);
+    }
+    expect([a.status, b.status].every((s) => s === 200 || s === 429)).toBe(true);
+    spy.mockRestore();
+  });
+});
+
+describe('dev mode credits the buyer, not 6500', () => {
+  const originalDev = process.env.NEXT_PUBLIC_LHAW_DEV_MODE;
+  afterEach(() => {
+    if (originalDev === undefined) delete process.env.NEXT_PUBLIC_LHAW_DEV_MODE;
+    else process.env.NEXT_PUBLIC_LHAW_DEV_MODE = originalDev;
+  });
+
+  it('prefers an explicit body FID over the dev-mode 6500 default', async () => {
+    process.env.NEXT_PUBLIC_LHAW_DEV_MODE = 'true';
+    await activeRound();
+
+    const [buyer] = await db
+      .insert(users)
+      .values({ fid: 900_500_003, username: 'devbuyer', xp: 0 })
+      .returning();
+    createdFids.push(buyer.fid);
+
+    const txHash = freshTx();
+    // No devFid in the body: an older client that has not shipped the new prop.
+    const { status } = await post({ fid: buyer.fid, packCount: 1, txHash });
+    expect(status).toBe(200);
+
+    const [row] = await db
+      .select({ fid: packPurchases.fid })
+      .from(packPurchases)
+      .where(eq(packPurchases.txHash, txHash));
+
+    // resolveRequestFid would answer 6500 here. The buyer paid, so the buyer
+    // gets the packs.
+    expect(row?.fid).toBe(buyer.fid);
+    expect(row?.fid).not.toBe(6500);
+  });
+});
