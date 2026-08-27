@@ -27,6 +27,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { parseSiweMessage, verifySiweMessage } from 'viem/siwe';
@@ -132,6 +133,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     if (!valid) {
       console.warn(`[auth/siwe] Invalid signature for ${address}`);
+      // Reported loudly: this endpoint refusing silently is how EVERY Base
+      // Account sign-in failed for two days (2026-08-26/27) while looking
+      // like a session problem downstream. The 6492 marker distinguishes a
+      // smart-wallet signature from an EOA one at a glance.
+      Sentry.captureMessage('[auth/siwe] Signature did not verify', {
+        level: 'warning',
+        extra: {
+          address,
+          domain,
+          signatureLength: signature.length,
+          erc6492Wrapped: signature.toLowerCase().endsWith('6492'.repeat(16)),
+          clientBuild: req.headers?.['x-lhaw-build'] ?? null,
+          userAgent: req.headers?.['user-agent'],
+        },
+      });
+      await Sentry.flush(1500).catch(() => {});
       return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
 
@@ -168,6 +185,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     });
   } catch (error) {
     console.error('[auth/siwe] Verification error:', error);
+    Sentry.captureException(error, {
+      tags: { endpoint: 'auth-siwe' },
+      extra: {
+        clientBuild: req.headers?.['x-lhaw-build'] ?? null,
+        userAgent: req.headers?.['user-agent'],
+      },
+    });
+    await Sentry.flush(1500).catch(() => {});
     return res.status(500).json({ success: false, error: 'Sign-in failed' });
   }
 }
