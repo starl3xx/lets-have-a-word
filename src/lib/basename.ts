@@ -61,6 +61,13 @@ const RESOLVER_ABI = [
     type: 'function',
   },
   {
+    inputs: [{ name: 'node', type: 'bytes32' }],
+    name: 'addr',
+    outputs: [{ type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [
       { name: 'node', type: 'bytes32' },
       { name: 'key', type: 'string' },
@@ -98,6 +105,24 @@ export function baseReverseNode(address: string): `0x${string}` {
 export function shortenAddress(address: string): string {
   if (!address || address.length < 10) return address || '';
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/**
+ * Does a name's forward `addr` record point back at the address we started
+ * from? Exported so the rule can be tested without a chain.
+ *
+ * Address comparison is case-insensitive because the two sides arrive in
+ * different casings — checksummed from the contract, whatever the caller had
+ * on the other. A missing or zero forward record is a NON-match: an
+ * unresolvable name proves nothing about who owns it.
+ */
+export function forwardMatches(
+  forwardAddr: string | null | undefined,
+  address: string
+): boolean {
+  if (!forwardAddr || !address) return false;
+  if (/^0x0{40}$/i.test(forwardAddr)) return false;
+  return forwardAddr.toLowerCase() === address.toLowerCase();
 }
 
 function client() {
@@ -138,6 +163,33 @@ export async function resolveBasename(address: string): Promise<BasenameIdentity
     );
 
     if (!name || typeof name !== 'string') return empty;
+
+    // FORWARD VERIFICATION. A reverse record is set by whoever controls the
+    // address and is claimed, not proven: anyone can point theirs at any string,
+    // including somebody else's basename. Trusting it unchecked would let a
+    // player appear as another person in the stats panel, on the leaderboards
+    // and in the PERMANENT PUBLIC ARCHIVE of a game that pays out money.
+    //
+    // The name is only real if the name's own `addr` record points back at the
+    // address we started from — the standard ENS round-trip. A name that does
+    // not resolve back is discarded entirely rather than shown with a caveat;
+    // the truncated-address fallback is honest, and a half-trusted name is not.
+    // (Bugbot, PR #290.)
+    const forward = await withTimeout(
+      publicClient.readContract({
+        address: L2_RESOLVER,
+        abi: RESOLVER_ABI,
+        functionName: 'addr',
+        args: [namehash(name)],
+      })
+    );
+
+    if (!forwardMatches(forward as string | null, address)) {
+      console.warn(
+        `[basename] reverse record "${name}" on ${address} does not resolve back; ignoring`
+      );
+      return empty;
+    }
 
     // Best-effort only, and never allowed to cost us the name we already have.
     let avatar: string | null = null;

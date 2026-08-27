@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { playerDisplay, fallbackAvatarUrl } from '../lib/player-display';
-import { shortenAddress, baseReverseNode } from '../lib/basename';
+import { shortenAddress, baseReverseNode, forwardMatches } from '../lib/basename';
 import { WALLET_FID_MIN } from '../lib/users';
 
 const WALLET = '0x0Fc0F78fc939606db65F5BBF2F3715262C0b2F6E';
@@ -97,6 +97,38 @@ describe('address shortening', () => {
   it('passes through anything too short to shorten', () => {
     expect(shortenAddress('0x123')).toBe('0x123');
     expect(shortenAddress('')).toBe('');
+  });
+});
+
+describe('a reverse record is a claim, not a proof', () => {
+  /**
+   * Anyone can set the reverse record on an address they control to any
+   * string, including somebody else's basename. Without the forward
+   * round-trip, a player could appear as another person in the stats panel,
+   * on the leaderboards, and in the permanent public archive of a game that
+   * pays out money. (Bugbot, PR #290.)
+   */
+  it('accepts a name whose forward record points back', () => {
+    expect(forwardMatches(WALLET, WALLET)).toBe(true);
+  });
+
+  it('ignores casing, since the two sides arrive checksummed and not', () => {
+    expect(forwardMatches(WALLET.toLowerCase(), WALLET.toUpperCase())).toBe(true);
+  });
+
+  it('REJECTS a name that resolves to somebody else', () => {
+    expect(forwardMatches('0x1111111111111111111111111111111111111111', WALLET)).toBe(false);
+  });
+
+  it('rejects a name with no forward record at all', () => {
+    // An unresolvable name proves nothing about who owns it.
+    expect(forwardMatches(null, WALLET)).toBe(false);
+    expect(forwardMatches(undefined, WALLET)).toBe(false);
+    expect(forwardMatches('', WALLET)).toBe(false);
+  });
+
+  it('rejects the zero address, which is what an unset record reads as', () => {
+    expect(forwardMatches('0x0000000000000000000000000000000000000000', WALLET)).toBe(false);
   });
 });
 
