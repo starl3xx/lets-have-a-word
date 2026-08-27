@@ -1,5 +1,8 @@
 import sdk from '@farcaster/miniapp-sdk';
 import { haptics } from '../src/lib/haptics';
+import { withHostTimeout } from '../src/lib/hostActions';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
+import { WORD_BASE_APP_URL } from '../config/economy';
 
 interface WordBonusModalProps {
   onClose: () => void;
@@ -19,24 +22,39 @@ const WORD_TOKEN_ADDRESS = '0x304e649e69979298BD1AEE63e175ADf07885fb4b';
  * - Always available on tap
  */
 export default function WordBonusModal({ onClose }: WordBonusModalProps) {
+  const { inMiniApp, resolved } = useIsInMiniApp();
+
   /**
-   * Handle learn more - opens $WORD token page in Farcaster wallet
+   * Handle learn more - opens the $WORD token page.
+   *
+   * Off-host `viewToken` NEVER SETTLES, so the old unbounded await made BOTH
+   * the catch fallback and the `onClose()` below it unreachable: tapping this
+   * left the modal open forever with no token page and no way back. Branch
+   * before calling, exactly as components/word/BuyButton.tsx does, and send
+   * those players to the token's page on Base — where their wallet already is,
+   * one tap from a trade — rather than to a Basescan contract page.
    */
   const handleLearnMore = async () => {
     void haptics.buttonTapMinor();
 
+    if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+      window.open(WORD_BASE_APP_URL, '_blank', 'noopener,noreferrer');
+      onClose();
+      return;
+    }
+
     try {
       // Open the token page via Farcaster SDK viewToken action
-      await sdk.actions.viewToken({
-        token: `eip155:8453/erc20:${WORD_TOKEN_ADDRESS}`
-      });
+      await withHostTimeout(
+        sdk.actions.viewToken({
+          token: `eip155:8453/erc20:${WORD_TOKEN_ADDRESS}`,
+        }),
+        'viewToken'
+      );
     } catch (err) {
       // Fallback to standard URL if SDK fails
       console.error('[WordBonusModal] Error opening token page:', err);
-      window.open(
-        `https://basescan.org/token/${WORD_TOKEN_ADDRESS}`,
-        '_blank'
-      );
+      window.open(WORD_BASE_APP_URL, '_blank', 'noopener,noreferrer');
     }
 
     onClose();

@@ -17,6 +17,7 @@
  */
 import { createPortal } from 'react-dom';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout } from '../src/lib/hostActions';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
@@ -181,10 +182,13 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
         `${shareRarityClause(wordmark.holders)}\n` +
         `letshaveaword.fun`;
 
-      await sdk.actions.composeCast({
-        text: castText,
-        embeds: ['https://letshaveaword.fun'],
-      });
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: castText,
+          embeds: ['https://letshaveaword.fun'],
+        }),
+        'composeCast'
+      );
 
       void haptics.shareCompleted();
     } catch (error) {

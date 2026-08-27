@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout } from '../src/lib/hostActions';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
 
@@ -202,10 +203,13 @@ export default function WinnerShareCard({
       console.log('[WinnerShareCard] Opening Farcaster composer with text:', shareText);
 
       // Open Farcaster composer with prefilled text and embed
-      await sdk.actions.composeCast({
-        text: shareText,
-        embeds: ['https://letshaveaword.fun'],
-      });
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: shareText,
+          embeds: ['https://letshaveaword.fun'],
+        }),
+        'composeCast'
+      );
 
       // Note: We don't close the modal automatically - let user decide when to dismiss
     } catch (err) {
@@ -336,11 +340,17 @@ export default function WinnerShareCard({
               <span>{t('winner.shareOnFarcaster')}</span>
             </button>
 
-            {/* X (Twitter) Share Button */}
+            {/* X (Twitter) Share Button.
+                NOT disabled by isSharing: that flag belongs to the Farcaster
+                button, and this share is a plain web intent that works in every
+                host. While composeCast hung off-host, tapping the dead
+                Farcaster button permanently disabled this one — the only share
+                a Base App winner could actually complete, on the highest-stakes
+                screen in the game. A pending action may disable its own control
+                and nothing else. */}
             <button
               onClick={handleShareToX}
-              disabled={isSharing}
-              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-black hover:bg-gray-800 active:scale-95 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-black hover:bg-gray-800 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-3"
             >
               <span className="text-xl">𝕏</span>
               <span>{t('winner.shareOnX')}</span>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { formatWordAmount } from '../src/lib/word-amounts';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout } from '../src/lib/hostActions';
 import type { UserReferralsResponse } from '../pages/api/user/referrals';
 import { useTranslation } from '../src/hooks/useTranslation';
 
@@ -198,10 +199,13 @@ export default function ReferralSheet({
         `One correct guess wins the jackpot 🎯\n\n` +
         `Play with my link ↓ ${referralData.referralLink}`;
 
-      await sdk.actions.composeCast({
-        text: castText,
-        embeds: [referralData.referralLink],
-      });
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: castText,
+          embeds: [referralData.referralLink],
+        }),
+        'composeCast'
+      );
 
       void haptics.shareCompleted();
     } catch (error) {

@@ -6,6 +6,9 @@ import type { UserWordmarksResponse } from '../pages/api/user/wordmarks';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout, openXComposer } from '../src/lib/hostActions';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
+import { X_HANDLE } from '../config/economy';
 import { useTranslation } from '../src/hooks/useTranslation';
 import OgHunterBadge from './OgHunterBadge';
 import WordmarkDetailModal from './WordmarkDetailModal';
@@ -99,6 +102,7 @@ function EarningsStat({
 
 export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
   const { t } = useTranslation();
+  const { inMiniApp, resolved } = useIsInMiniApp();
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [xp, setXp] = useState<number>(0);
@@ -199,13 +203,26 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
         (totalWordEarned && totalWordEarned !== '0'
           ? `🪙 ${totalWordEarned} $WORD earned\n`
           : '') +
-        `⚡ ${xp.toLocaleString()} XP\n\n` +
-        `@letshaveaword`;
+        `⚡ ${xp.toLocaleString()} XP\n\n`;
 
-      await sdk.actions.composeCast({
-        text: castText,
-        embeds: ['https://letshaveaword.fun'],
-      });
+      // Share where the player actually is. `composeCast` needs a Farcaster
+      // host, so off-host (Base App, plain web) it never settles and this
+      // button was simply dead. The X web intent works everywhere. The handle
+      // differs per network, so it is appended per branch rather than baked
+      // into the text above — @letshaveaword is the Farcaster account.
+      if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+        openXComposer(X_HANDLE ? `${castText}${X_HANDLE}` : castText, 'https://letshaveaword.fun');
+        triggerHaptic('success');
+        return;
+      }
+
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: `${castText}@letshaveaword`,
+          embeds: ['https://letshaveaword.fun'],
+        }),
+        'composeCast'
+      );
 
       triggerHaptic('success');
     } catch (error) {
@@ -439,8 +456,15 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             </div>
 
             {/* Share Stats Button */}
+            {/* The icon follows the destination: off-host this shares to X,
+                and a Farcaster arch on a button that opens X would be a lie
+                about where the post is going. */}
             <button onClick={handleShareStats} className="btn-accent w-full flex items-center justify-center gap-2">
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              {inMiniApp ? (
+                <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              ) : (
+                <span className="text-base leading-none">𝕏</span>
+              )}
               {t('stats.shareButton')}
             </button>
 

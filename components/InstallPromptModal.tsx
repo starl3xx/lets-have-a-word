@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout } from '../src/lib/hostActions';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
@@ -137,10 +138,13 @@ export default function InstallPromptModal({
     setIsSharing(true);
 
     try {
-      await sdk.actions.composeCast({
-        text: shareText,
-        embeds: ['https://letshaveaword.fun'],
-      });
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: shareText,
+          embeds: ['https://letshaveaword.fun'],
+        }),
+        'composeCast'
+      );
 
       // Mark as seen
       markInstallPromptSeen();

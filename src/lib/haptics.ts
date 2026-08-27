@@ -4,6 +4,7 @@
 // when unavailable or unsupported.
 
 import { sdk } from "@farcaster/miniapp-sdk";
+import { withHostTimeout } from "./hostActions";
 
 let capabilities: string[] | null = null;
 let capabilitiesLoaded = false;
@@ -14,7 +15,12 @@ async function ensureCapabilitiesLoaded() {
   if (!capabilitiesPromise) {
     capabilitiesPromise = (async () => {
       try {
-        const caps = await sdk.getCapabilities();
+        // Bounded: off-host this never settles, so `capabilitiesPromise` would
+        // stay pending forever and every haptic call would await a promise
+        // that cannot resolve. They are all `void`-ed so nothing visibly
+        // blocks, but the pending awaits accumulate for the whole session —
+        // one per keystroke on the game's hottest path.
+        const caps = await withHostTimeout(sdk.getCapabilities(), 'getCapabilities', 2_000);
         capabilities = caps ?? [];
       } catch (err) {
         // In non-Farcaster or unsupported environments, just treat as no haptics.

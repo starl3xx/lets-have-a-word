@@ -130,6 +130,18 @@ export const WORD_BASE_APP_URL =
   'https://base.app/coin/base-mainnet/0x304e649e69979298bd1aee63e175adf07885fb4b';
 
 /**
+ * The game's handle on X, including the leading "@", for shares composed
+ * outside a Farcaster host.
+ *
+ * EMPTY BY DEFAULT, ON PURPOSE. "@letshaveaword" is the FARCASTER account and
+ * there is no evidence in this repo of the X handle. Guessing would @-mention
+ * whoever happens to hold that name on X, from every player's stats post, and a
+ * post cannot be recalled. Shares simply omit the mention until
+ * NEXT_PUBLIC_X_HANDLE is set.
+ */
+export const X_HANDLE = process.env.NEXT_PUBLIC_X_HANDLE?.trim() || '';
+
+/**
  * USD target every $WORD round is seeded at, in cents. $20.00 by default.
  *
  * Denominated in USD rather than tokens so a round is worth the same to a
