@@ -144,22 +144,34 @@ export async function signPlayerSession(
 }
 
 /**
- * Verify a session token and return what it attests to, or null.
- *
- * Returns null for every failure mode rather than distinguishing them: a
- * caller cannot act differently on "bad signature" versus "expired", and
- * telling them apart only helps someone probing. The signature is checked
- * first with `crypto.subtle.verify`, and the payload is only parsed after
- * that check passes, so an unsigned token never influences control flow.
+ * The one distinction inspection makes on failure: `expired` is true ONLY
+ * when the HMAC verified and the payload parsed cleanly but its `exp` has
+ * passed — a token this server provably minted. Nobody can produce that
+ * without the secret, which is what makes it safe to key guaranteed-delivery
+ * telemetry on (Bugbot, PR #283: keying on "any token-shaped bytes arrived"
+ * let an attacker farm the awaited Sentry flush with garbage headers).
  */
-export async function verifyPlayerSession(
+export type PlayerSessionInspection =
+  | { ok: true; session: PlayerSession }
+  | { ok: false; expired: boolean };
+
+/**
+ * Inspect a session token: verify, and on failure say only whether it was an
+ * authentic-but-expired token. The signature is checked first with
+ * `crypto.subtle.verify`, and the payload is only parsed after that check
+ * passes, so an unsigned token never influences control flow. Nothing about
+ * the distinction reaches the CLIENT — callers answer the same 401 with the
+ * same message either way; `expired` feeds telemetry, not responses.
+ */
+export async function inspectPlayerSession(
   token: string | undefined | null,
   secret: string
-): Promise<PlayerSession | null> {
-  if (!token || !secret) return null;
+): Promise<PlayerSessionInspection> {
+  const refused: PlayerSessionInspection = { ok: false, expired: false };
+  if (!token || !secret) return refused;
 
   const parts = token.split('.');
-  if (parts.length !== 2) return null;
+  if (parts.length !== 2) return refused;
 
   const [body, signature] = parts;
 
@@ -173,10 +185,10 @@ export async function verifyPlayerSession(
     );
   } catch {
     // Malformed base64 in the signature segment.
-    return null;
+    return refused;
   }
 
-  if (!valid) return null;
+  if (!valid) return refused;
 
   try {
     const payload = JSON.parse(
@@ -184,14 +196,36 @@ export async function verifyPlayerSession(
     ) as PlayerSessionPayload;
 
     if (typeof payload.fid !== 'number' || !Number.isInteger(payload.fid) || payload.fid <= 0) {
-      return null;
+      return refused;
     }
-    if (payload.origin !== 'farcaster' && payload.origin !== 'wallet') return null;
-    if (typeof payload.exp !== 'number') return null;
-    if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    if (payload.origin !== 'farcaster' && payload.origin !== 'wallet') return refused;
+    if (typeof payload.exp !== 'number') return refused;
+    if (payload.exp <= Math.floor(Date.now() / 1000)) {
+      // Authentic — the HMAC passed and the payload is ours — just old.
+      return { ok: false, expired: true };
+    }
 
-    return { fid: payload.fid, origin: payload.origin, wallet: payload.wallet };
+    return {
+      ok: true,
+      session: { fid: payload.fid, origin: payload.origin, wallet: payload.wallet },
+    };
   } catch {
-    return null;
+    return refused;
   }
+}
+
+/**
+ * Verify a session token and return what it attests to, or null.
+ *
+ * Returns null for every failure mode rather than distinguishing them: a
+ * caller cannot act differently on "bad signature" versus "expired", and
+ * telling them apart only helps someone probing. Callers that need the
+ * telemetry-only expired distinction use inspectPlayerSession.
+ */
+export async function verifyPlayerSession(
+  token: string | undefined | null,
+  secret: string
+): Promise<PlayerSession | null> {
+  const inspection = await inspectPlayerSession(token, secret);
+  return inspection.ok ? inspection.session : null;
 }

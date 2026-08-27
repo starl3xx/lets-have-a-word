@@ -169,16 +169,31 @@ describe('wallet-native players', () => {
     });
   });
 
-  it('refuses a session forged under a different secret', async () => {
+  it('refuses a session forged under a different secret — and does NOT flag it as presented', async () => {
     const token = await signPlayerSession({ fid: 1_000_000_006, origin: 'wallet' }, 'other-secret');
     const result = await resolveRequestFid(
       makeReq({ cookies: { [PLAYER_SESSION_COOKIE]: token } }),
       {}
     );
+    // presentedSessionToken keys an awaited Sentry flush in guess.ts, so it
+    // must be impossible to raise without a token WE minted. A forgery is
+    // exactly what an attacker can produce for free (Bugbot, PR #283).
     expect(result).toMatchObject({
       ok: false,
       reason: 'no_credential',
-      presentedSessionToken: true,
+      presentedSessionToken: false,
+    });
+  });
+
+  it('garbage in the session header is not "presented" either', async () => {
+    const result = await resolveRequestFid(
+      makeReq({ headers: { [PLAYER_SESSION_HEADER]: 'not-even-token-shaped' } }),
+      {}
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'no_credential',
+      presentedSessionToken: false,
     });
   });
 

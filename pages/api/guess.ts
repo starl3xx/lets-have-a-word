@@ -362,15 +362,16 @@ export default async function handler(
           userAgent: req.headers?.['user-agent'],
         };
         if (auth.presentedSessionToken) {
-          // A real session was presented and refused — the lost-session
-          // signature, and the event worth guaranteeing. Flushed before
-          // responding, because in a serverless function the runtime can
-          // freeze the instant the response is sent, which is how the only
-          // diagnostic event of 2026-08-27 appears to have been lost. The
-          // flush is safe to await here precisely because producing this
-          // event requires having held a session: a zero-credential caller
-          // cannot reach it, so it cannot be farmed into a 2s-per-request
-          // hold or a Sentry quota burn.
+          // An AUTHENTIC session token — HMAC-valid, merely expired — was
+          // presented and refused: the lost-session signature, and the event
+          // worth guaranteeing. Flushed before responding, because in a
+          // serverless function the runtime can freeze the instant the
+          // response is sent, which is how the only diagnostic event of
+          // 2026-08-27 appears to have been lost. The flush is safe to await
+          // here precisely because the flag cannot be raised without a token
+          // this server once minted — garbage in the header lands in the
+          // else branch (Bugbot, PR #283) — so it cannot be farmed into a
+          // 2s-per-request hold or a Sentry quota burn.
           Sentry.captureMessage('[Guess] Session token presented but refused', {
             level: 'warning',
             extra: noCredentialExtra,
