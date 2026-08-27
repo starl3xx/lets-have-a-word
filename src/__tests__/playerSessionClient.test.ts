@@ -11,7 +11,7 @@
  * alone and lets the next real request be the arbiter.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   getStoredPlayerSession,
   setStoredPlayerSession,
@@ -63,16 +63,33 @@ describe('round-trip', () => {
 });
 
 describe('the fid is stored so a transient fault cannot cost a signature', () => {
-  it('survives a reload without asking the server who we are', () => {
+  it('survives a reload without asking the server who we are', async () => {
     setStoredPlayerSession({ token: 'tok-xyz', fid: 1_000_000_051 });
-
-    // Simulate a fresh page load: same storage, no in-memory copy.
     const persisted = (globalThis as any).window.localStorage;
-    (globalThis as any).window = { localStorage: persisted };
 
-    const restored = getStoredPlayerSession();
+    // A reload is a FRESH MODULE over the same storage. Replacing `window`
+    // alone does not simulate it: the module-level in-memory mirror survives,
+    // and getStoredPlayerSession returns that before it ever reads
+    // localStorage — so the first version of this test passed even with
+    // persistence completely broken. vi.resetModules() is what actually drops
+    // the mirror. (Caught by Bugbot on PR #282.)
+    vi.resetModules();
+    (globalThis as any).window = { localStorage: persisted };
+    const fresh = await import('../lib/playerSessionClient');
+
+    const restored = fresh.getStoredPlayerSession();
     expect(restored?.fid).toBe(1_000_000_051);
     expect(restored?.token).toBe('tok-xyz');
+  });
+
+  it('reports no session after a reload when nothing was persisted', async () => {
+    // The other half: proves the case above is reading storage rather than a
+    // leftover mirror.
+    vi.resetModules();
+    (globalThis as any).window = { localStorage: new MemoryStorage() };
+    const fresh = await import('../lib/playerSessionClient');
+
+    expect(fresh.getStoredPlayerSession()).toBeNull();
   });
 });
 
