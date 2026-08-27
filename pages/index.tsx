@@ -2017,11 +2017,13 @@ function GameContent() {
               door open to them. Hidden while the session check is in flight so
               the button never flickers away under a tap.
 
-              The primary control is Base's official button, driving the
+              The one control is Base's official button, driving the
               Sign in with Base flow (wallet_connect + signInWithEthereum).
-              The plain link below it keeps the classic EOA path for players
-              with MetaMask-style wallets, so the branded button never opens
-              somebody else's wallet. */}
+              Deliberately no "other wallet" option: the supported doors are
+              Farcaster and Base App, exactly as the copy below says, and a
+              generic wallet link would invite a path we do not support. The
+              classic EOA dialect survives inside the hook as an internal
+              fallback for providers that cannot speak wallet_connect. */}
           {walletSignIn.status !== 'checking' && (
             <div className="bg-white rounded-xl shadow-card p-5 space-y-3">
               <p className="text-gray-700 text-sm leading-relaxed">
@@ -2033,20 +2035,12 @@ function GameContent() {
                   Check your wallet...
                 </button>
               ) : (
-                <>
-                  <SignInWithBaseButton
-                    align="center"
-                    variant="solid"
-                    colorScheme="light"
-                    onClick={() => void walletSignIn.signIn('base')}
-                  />
-                  <button
-                    onClick={() => void walletSignIn.signIn('auto')}
-                    className="text-sm text-gray-500 underline w-full text-center"
-                  >
-                    Use a different wallet
-                  </button>
-                </>
+                <SignInWithBaseButton
+                  align="center"
+                  variant="solid"
+                  colorScheme="light"
+                  onClick={() => void walletSignIn.signIn('base')}
+                />
               )}
               {walletSignIn.error && (
                 <p className="text-sm text-red-600">{walletSignIn.error}</p>
