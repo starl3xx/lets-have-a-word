@@ -21,7 +21,9 @@
  * without re-deriving it from fid ranges.
  */
 
-import { isWalletFid } from './users';
+// From ./wallet-fid, not ./users: this module is imported by client
+// components, and users.ts pulls in the database layer.
+import { isWalletFid } from './wallet-fid';
 import { shortenAddress } from './basename';
 
 export interface PlayerDisplay {

@@ -28,6 +28,8 @@ import { getPlaintextAnswer } from './encryption';
 import { getTop10LockForRound } from './top10-lock';
 import { getTotalWordTokenDistributed } from './jackpot-contract';
 import { isRealFcUsername } from './farcaster';
+import { playerDisplay } from './player-display';
+import { isWalletFid } from './users';
 import { usdCentsForTokens } from './word-amounts';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
@@ -756,6 +758,32 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
 /**
  * Get archived round with usernames for winner, referrer, and top guessers
  */
+/**
+ * Identity fields the archive needs for one player.
+ *
+ * The archive is PERMANENT: whatever name it renders is what a round looks
+ * like forever. Before the display columns existed, a wallet-native player was
+ * written into that record as "fid:1000000001" with a generated avatar, beside
+ * named Farcaster players.
+ */
+interface ArchiveUserData {
+  username: string | null;
+  wallet: string | null;
+  pfpUrl: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  identityOrigin: string | null;
+}
+
+const EMPTY_ARCHIVE_USER: ArchiveUserData = {
+  username: null,
+  wallet: null,
+  pfpUrl: null,
+  displayName: null,
+  avatarUrl: null,
+  identityOrigin: null,
+};
+
 export async function getArchivedRoundWithUsernames(roundNumber: number): Promise<ArchivedRoundWithUsernames | null> {
   // Dynamic imports to avoid circular dependencies
   const { hasWordTokenBonus } = await import('./word-token');
@@ -777,11 +805,18 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
 
     // Lookup usernames and wallets for all FIDs from local DB
     const uniqueFids = [...new Set(fidsToLookup)];
-    const userDataMap = new Map<number, { username: string | null; wallet: string | null; pfpUrl: string | null }>();
+    const userDataMap = new Map<number, ArchiveUserData>();
 
     if (uniqueFids.length > 0) {
       const userRecords = await db
-        .select({ fid: users.fid, username: users.username, signerWalletAddress: users.signerWalletAddress })
+        .select({
+          fid: users.fid,
+          username: users.username,
+          signerWalletAddress: users.signerWalletAddress,
+          displayName: users.displayName,
+          avatarUrl: users.avatarUrl,
+          identityOrigin: users.identityOrigin,
+        })
         .from(users)
         .where(sql`${users.fid} IN ${uniqueFids}`);
 
@@ -790,19 +825,29 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
           username: isRealFcUsername(user.username) ? user.username : null,
           wallet: user.signerWalletAddress,
           pfpUrl: null, // Will be filled from Neynar
+          // Carried so a wallet player can be named from their basename rather
+          // than as "fid:1000000001" in a record that is never rewritten.
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          identityOrigin: user.identityOrigin,
         });
       }
     }
 
-    // Fetch profiles from Neynar for all FIDs (for accurate usernames and PFPs)
-    if (uniqueFids.length > 0) {
+    // Fetch profiles from Neynar for all FIDs (for accurate usernames and PFPs).
+    // Farcaster fids only: Neynar has never heard of a synthetic wallet fid, so
+    // including one is a guaranteed-useless round trip — and the GUARD is on
+    // the filtered list, because a round played entirely by Base App players
+    // would otherwise call the API with an empty array.
+    const neynarFids = uniqueFids.filter((fid) => !isWalletFid(fid));
+    if (neynarFids.length > 0) {
       try {
-        console.log(`[archive] Fetching ${uniqueFids.length} profiles from Neynar:`, uniqueFids);
-        const neynarData = await neynarClient.fetchBulkUsers({ fids: uniqueFids });
+        console.log(`[archive] Fetching ${neynarFids.length} profiles from Neynar:`, neynarFids);
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: neynarFids });
         console.log(`[archive] Neynar returned ${neynarData.users?.length || 0} users`);
         if (neynarData.users) {
           for (const user of neynarData.users) {
-            const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
+            const existing = userDataMap.get(user.fid) || EMPTY_ARCHIVE_USER;
             userDataMap.set(user.fid, {
               ...existing,
               // Prefer Neynar username over local DB (more up-to-date)
@@ -812,7 +857,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
           }
           // Log any FIDs that Neynar didn't return data for
           const returnedFids = new Set(neynarData.users.map(u => u.fid));
-          const missingFids = uniqueFids.filter(fid => !returnedFids.has(fid));
+          const missingFids = neynarFids.filter(fid => !returnedFids.has(fid));
           if (missingFids.length > 0) {
             console.warn(`[archive] Neynar missing data for FIDs:`, missingFids);
           }
@@ -857,7 +902,14 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     // Fetch user data for top guessers (usernames and wallets)
     if (topGuesserFids.length > 0) {
       const userRecords = await db
-        .select({ fid: users.fid, username: users.username, signerWalletAddress: users.signerWalletAddress })
+        .select({
+          fid: users.fid,
+          username: users.username,
+          signerWalletAddress: users.signerWalletAddress,
+          displayName: users.displayName,
+          avatarUrl: users.avatarUrl,
+          identityOrigin: users.identityOrigin,
+        })
         .from(users)
         .where(sql`${users.fid} IN ${topGuesserFids}`);
 
@@ -867,16 +919,22 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             username: isRealFcUsername(user.username) ? user.username : null,
             wallet: user.signerWalletAddress,
             pfpUrl: null,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
+            identityOrigin: user.identityOrigin,
           });
         }
       }
 
-      // Fetch Neynar data for top guessers
-      try {
-        const neynarData = await neynarClient.fetchBulkUsers({ fids: topGuesserFids });
+      // Fetch Neynar data for top guessers. Same filter and same guard-on-the
+      // -filtered-list reasoning as the lookup above.
+      const neynarTopGuesserFids = topGuesserFids.filter((fid) => !isWalletFid(fid));
+      if (neynarTopGuesserFids.length > 0) {
+        try {
+        const neynarData = await neynarClient.fetchBulkUsers({ fids: neynarTopGuesserFids });
         if (neynarData.users) {
           for (const user of neynarData.users) {
-            const existing = userDataMap.get(user.fid) || { username: null, wallet: null, pfpUrl: null };
+            const existing = userDataMap.get(user.fid) || EMPTY_ARCHIVE_USER;
             userDataMap.set(user.fid, {
               ...existing,
               username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
@@ -884,8 +942,9 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
             });
           }
         }
-      } catch (error) {
-        console.warn('[archive] Error fetching top guesser profiles from Neynar:', error);
+        } catch (error) {
+          console.warn('[archive] Error fetching top guesser profiles from Neynar:', error);
+        }
       }
     }
 
@@ -966,10 +1025,23 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       const userData = userDataMap.get(guesser.fid);
       // Find payout amount for this guesser (if any)
       const payoutEntry = archived.payoutsJson?.topGuessers?.find(p => p.fid === guesser.fid);
+      // One renderer for both player kinds, so the permanent record names a
+      // Base App player by their basename rather than "fid:1000000001".
+      const display = playerDisplay({
+        fid: guesser.fid,
+        username: userData?.username,
+        displayName: userData?.displayName,
+        avatarUrl: userData?.avatarUrl,
+        signerWalletAddress: userData?.wallet,
+        identityOrigin: userData?.identityOrigin,
+        pfpUrl: userData?.pfpUrl,
+      });
       return {
         fid: guesser.fid,
-        username: userData?.username || `fid:${guesser.fid}`,
-        pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${guesser.fid}`,
+        username: display.name,
+        origin: display.origin,
+        isAddressFallback: display.isAddressFallback,
+        pfpUrl: display.avatarUrl,
         amountEth: payoutEntry?.amountEth || '0',
         guessCount: guesser.guess_count,
         rank: index + 1,
@@ -988,10 +1060,24 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     const winnerData = archived.winnerFid ? userDataMap.get(archived.winnerFid) : null;
     const referrerData = archived.referrerFid ? userDataMap.get(archived.referrerFid) : null;
 
+    const winnerDisplay = archived.winnerFid
+      ? playerDisplay({
+          fid: archived.winnerFid,
+          username: winnerData?.username,
+          displayName: winnerData?.displayName,
+          avatarUrl: winnerData?.avatarUrl,
+          signerWalletAddress: winnerData?.wallet,
+          identityOrigin: winnerData?.identityOrigin,
+          pfpUrl: winnerData?.pfpUrl,
+        })
+      : null;
+
     return {
       ...archived,
-      winnerUsername: winnerData?.username || (archived.winnerFid ? `fid:${archived.winnerFid}` : null),
-      winnerPfpUrl: winnerData?.pfpUrl || (archived.winnerFid ? `https://avatar.vercel.sh/${archived.winnerFid}` : null),
+      winnerUsername: winnerDisplay?.name ?? null,
+      winnerOrigin: winnerDisplay?.origin ?? null,
+      winnerIsAddressFallback: winnerDisplay?.isAddressFallback ?? false,
+      winnerPfpUrl: winnerDisplay?.avatarUrl ?? null,
       winnerHasOgHunterBadge: archived.winnerFid ? ogHunterBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasWordTokenBadge: archived.winnerFid ? wordTokenHolderFids.has(archived.winnerFid) : undefined,
       winnerHasBonusWordBadge: archived.winnerFid ? bonusWordBadgeFids.has(archived.winnerFid) : undefined,
