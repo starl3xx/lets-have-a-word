@@ -135,3 +135,12 @@ process.env.NEYNAR_APP_UUID = '';
 // ASSIGNED EMPTY rather than deleted, for the dotenv.config() reason documented
 // above — a missing key is exactly what it refills.
 process.env.BASE_NOTIFICATIONS_API_KEY = '';
+
+// Basename resolution, added 2026-08-27. Not a safety guard like the three
+// above — nothing is broadcast — but a SPEED and DETERMINISM one: sign-in now
+// resolves a player's basename onchain, and several suites create wallet
+// players, so an unguarded run would fire a real Base RPC call per created row.
+// That is slow, flaky, and rate-limited (429s observed while developing this).
+// The resolver returns its normal "no basename" answer when disabled, which is
+// the same shape a real address with no reverse record produces.
+process.env.BASENAME_RESOLUTION_DISABLED = 'true';

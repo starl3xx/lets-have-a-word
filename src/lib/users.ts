@@ -2,6 +2,7 @@ import { db, users } from '../db';
 import { eq, sql } from 'drizzle-orm';
 import type { UserRow } from '../db/schema';
 import { logReferralEvent, AnalyticsEventTypes } from './analytics';
+import { resolveBasename } from './basename';
 
 /**
  * Parameters for upserting a user from Farcaster context
@@ -250,12 +251,33 @@ export async function upsertUserFromWallet(
     const validReferrerFid =
       referrerFid && referrerFid !== user.fid && !user.referrerFid ? referrerFid : null;
 
-    if (validReferrerFid || (username && user.username !== username)) {
+    // Resolve a display identity for a wallet row that has never had one
+    // looked up. Without this, every wallet player who signed in BEFORE
+    // basenames existed would keep rendering as a truncated address forever,
+    // since resolution otherwise only happens at row creation. Their next
+    // sign-in heals it, so no backfill job is needed.
+    //
+    // Only when displayCheckedAt is NULL — "never looked". A row that was
+    // checked and found nothing is left alone rather than re-queried on every
+    // sign-in; a player who later registers a basename is the case a periodic
+    // refresh would serve, and that is not worth an RPC per login today.
+    // Farcaster-origin rows (case 2) are skipped entirely: their name comes
+    // from Neynar and must not be shadowed.
+    const needsDisplayLookup =
+      user.identityOrigin === 'wallet' && user.displayCheckedAt == null;
+    const resolved = needsDisplayLookup ? await resolveBasename(wallet) : null;
+
+    if (validReferrerFid || (username && user.username !== username) || needsDisplayLookup) {
       const [updated] = await db
         .update(users)
         .set({
           ...(validReferrerFid && { referrerFid: validReferrerFid }),
           ...(username && { username }),
+          ...(needsDisplayLookup && {
+            displayName: resolved?.name ?? null,
+            avatarUrl: resolved?.avatar ?? null,
+            displayCheckedAt: new Date(),
+          }),
           updatedAt: new Date(),
         })
         .where(eq(users.fid, user.fid))
@@ -301,6 +323,14 @@ export async function upsertUserFromWallet(
     );
   }
 
+  // Who are they? Resolved from the address SIWE just proved they control.
+  // NEVER allowed to fail a sign-in: resolveBasename returns nulls rather than
+  // throwing, and a player with no basename simply renders as a truncated
+  // address. `displayCheckedAt` is stamped either way, so "looked and found
+  // nothing" is distinguishable from "never looked" when we later add a
+  // refresh.
+  const identity = await resolveBasename(wallet);
+
   const inserted = await db
     .insert(users)
     .values({
@@ -308,6 +338,9 @@ export async function upsertUserFromWallet(
       username: username || null,
       signerWalletAddress: wallet,
       identityOrigin: 'wallet',
+      displayName: identity.name,
+      avatarUrl: identity.avatar,
+      displayCheckedAt: new Date(),
       referrerFid: referrerFid && referrerFid !== mintedFid ? referrerFid : null,
       spamScore: null,
       xp: 0,

@@ -82,6 +82,45 @@ describe('creating a wallet-native player', () => {
   });
 });
 
+describe('display identity', () => {
+  it('stamps displayCheckedAt on creation so a null means never looked', async () => {
+    // Resolution itself is disabled in tests (setup-guards), so the recorded
+    // answer is "checked, no basename" — the same shape a real address with no
+    // reverse record produces. What matters here is the DISTINCTION: null means
+    // never looked and is the retry signal that heals pre-existing rows.
+    const wallet = freshWallet('d1');
+    const user = await track(await upsertUserFromWallet({ wallet }));
+
+    expect(user.displayCheckedAt).not.toBeNull();
+    expect(user.displayName).toBeNull();
+  });
+
+  it('looks up a wallet row that has never been checked, on next sign-in', async () => {
+    // The heal path for players who signed in before basenames existed: their
+    // row exists, so creation-time resolution can never run for them again.
+    const wallet = freshWallet('d2');
+    const created = await track(await upsertUserFromWallet({ wallet }));
+
+    await db
+      .update(users)
+      .set({ displayCheckedAt: null })
+      .where(eq(users.fid, created.fid));
+
+    const second = await upsertUserFromWallet({ wallet });
+    expect(second.fid).toBe(created.fid);
+    expect(second.displayCheckedAt).not.toBeNull();
+  });
+
+  it('does not re-look a row that was already checked', async () => {
+    const wallet = freshWallet('d3');
+    const created = await track(await upsertUserFromWallet({ wallet }));
+    const firstCheck = created.displayCheckedAt;
+
+    const second = await upsertUserFromWallet({ wallet });
+    expect(second.displayCheckedAt?.getTime()).toBe(firstCheck?.getTime());
+  });
+});
+
 describe('sentinel rows are never a linkage target', () => {
   it('a non-positive fid holding the wallet is ignored, and a real row is minted', async () => {
     // THE 2026-08-27 LOCKOUT, THIRD ACT. A sentinel row (fid -1, created

@@ -77,7 +77,13 @@ jobs:
         # IF NOT EXISTS, so running it after push is a no-op for anything push
         # already created. The same command recreates a local test database
         # after `drizzle-kit push --force`.
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0031_wallet_identity.sql
+        # 0032 adds plain columns, which push DOES create from schema.ts, so it
+        # is belt-and-braces rather than a fix — but it costs nothing, keeps the
+        # two files applied by the same rule, and means this step stays correct
+        # if push is ever dropped from the pipeline.
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0031_wallet_identity.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0032_wallet_display_identity.sql
 
       - name: Seed default game rules
         # rounds.ruleset_id has a FK to game_rules; without this every test that
