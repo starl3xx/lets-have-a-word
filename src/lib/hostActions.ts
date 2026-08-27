@@ -26,8 +26,31 @@
  * will never settle, not a latency budget for a host that is merely slow.
  */
 
-/** Long enough that no real host trips it; short enough to feel like a failure. */
+/**
+ * For actions the host answers BY ITSELF: viewToken, viewProfile,
+ * getCapabilities. Long enough that no real host trips it, short enough that a
+ * failure feels like a failure.
+ */
 export const HOST_ACTION_TIMEOUT_MS = 8_000;
+
+/**
+ * For actions that wait on the PLAYER, not the host — composeCast above all.
+ *
+ * `composeCast` does not resolve when the composer opens; it resolves when the
+ * player posts or dismisses it. Someone writing a cast about their jackpot can
+ * easily take a minute, so an 8s bound here would reject mid-compose ON A REAL
+ * HOST: SharePromptModal would report "Failed to open share dialog" and never
+ * run the verification that awards the free guess, and the winner card would
+ * show an error while the player was still typing. That is a worse bug than
+ * the hang it was meant to prevent, and it would land on the Farcaster
+ * majority rather than the Base App minority (Bugbot, PR #289).
+ *
+ * So the bound here is a backstop against a leaked promise, NOT a latency
+ * budget. The real defence against the off-host hang is not calling
+ * composeCast off-host at all — every call site is host-gated, and off-host
+ * shares go to X, which works everywhere.
+ */
+export const HOST_COMPOSE_TIMEOUT_MS = 180_000;
 
 /**
  * Bound a host action so it always settles.

@@ -6,9 +6,9 @@ import type { UserWordmarksResponse } from '../pages/api/user/wordmarks';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
-import { withHostTimeout, openXComposer } from '../src/lib/hostActions';
+import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
-import { X_HANDLE } from '../config/economy';
+import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
 import { useTranslation } from '../src/hooks/useTranslation';
 import OgHunterBadge from './OgHunterBadge';
 import WordmarkDetailModal from './WordmarkDetailModal';
@@ -211,17 +211,18 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
       // differs per network, so it is appended per branch rather than baked
       // into the text above — @letshaveaword is the Farcaster account.
       if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
-        openXComposer(X_HANDLE ? `${castText}${X_HANDLE}` : castText, 'https://letshaveaword.fun');
+        openXComposer(`${castText}${X_HANDLE}`, 'https://letshaveaword.fun');
         triggerHaptic('success');
         return;
       }
 
       await withHostTimeout(
         sdk.actions.composeCast({
-          text: `${castText}@letshaveaword`,
+          text: `${castText}${FARCASTER_HANDLE}`,
           embeds: ['https://letshaveaword.fun'],
         }),
-        'composeCast'
+        'composeCast',
+        HOST_COMPOSE_TIMEOUT_MS
       );
 
       triggerHaptic('success');

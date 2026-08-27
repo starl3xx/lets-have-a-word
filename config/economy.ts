@@ -133,13 +133,16 @@ export const WORD_BASE_APP_URL =
  * The game's handle on X, including the leading "@", for shares composed
  * outside a Farcaster host.
  *
- * EMPTY BY DEFAULT, ON PURPOSE. "@letshaveaword" is the FARCASTER account and
- * there is no evidence in this repo of the X handle. Guessing would @-mention
- * whoever happens to hold that name on X, from every player's stats post, and a
- * post cannot be recalled. Shares simply omit the mention until
- * NEXT_PUBLIC_X_HANDLE is set.
+ * NOTE THE TRAILING UNDERSCORE — the X account is @letshaveaword_ while the
+ * FARCASTER account is @letshaveaword. They are different names on different
+ * networks, so a share must never carry the other one: mentioning
+ * "@letshaveaword" on X tags whoever holds that name there, from every
+ * player's post, and a post cannot be recalled.
  */
-export const X_HANDLE = process.env.NEXT_PUBLIC_X_HANDLE?.trim() || '';
+export const X_HANDLE = process.env.NEXT_PUBLIC_X_HANDLE?.trim() || '@letshaveaword_';
+
+/** The Farcaster handle, for casts. Deliberately NOT interchangeable with X_HANDLE. */
+export const FARCASTER_HANDLE = '@letshaveaword';
 
 /**
  * USD target every $WORD round is seeded at, in cents. $20.00 by default.

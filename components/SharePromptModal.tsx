@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
 import { useReloadHold } from '../src/lib/buildFreshness';
-import { withHostTimeout } from '../src/lib/hostActions';
+import { withHostTimeout, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -258,7 +258,8 @@ export default function SharePromptModal({
           text: shareText,
           embeds: [embedUrl],
         }),
-        'composeCast'
+        'composeCast',
+        HOST_COMPOSE_TIMEOUT_MS
       );
 
       console.log('[SharePromptModal] Composer opened');
