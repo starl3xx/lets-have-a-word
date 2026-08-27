@@ -31,6 +31,16 @@ export const users = pgTable('users', {
   // constrains — existing Farcaster rows are left alone, because that column is
   // a Neynar snapshot and is not guaranteed unique across FIDs.
   identityOrigin: varchar('identity_origin', { length: 16 }).default('farcaster').notNull(),
+  // Display identity for wallet-native players: their basename and, when the
+  // record is set, its avatar. SEPARATE from `username`, which two live
+  // consumers read as a Farcaster handle — announcer.ts prefixes it with "@"
+  // unconditionally and tweet-mentions.ts matches it against Farcaster handles,
+  // so a basename in that column becomes a broken mention on one network and an
+  // @mention of a stranger on the other. Null display_checked_at means never
+  // looked (the retry signal), distinct from looked-and-found-nothing.
+  displayName: varchar('display_name', { length: 100 }),
+  avatarUrl: varchar('avatar_url', { length: 500 }),
+  displayCheckedAt: timestamp('display_checked_at'),
   custodyAddress: varchar('custody_address', { length: 42 }), // Farcaster custody address
   referrerFid: integer('referrer_fid'), // FK to another user's FID
   spamScore: integer('spam_score'), // Neynar spam/trust score (higher = more trustworthy)
