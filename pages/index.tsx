@@ -102,6 +102,7 @@ import { WagmiProvider, useAccount } from 'wagmi';
 import { useWalletSignIn } from '../src/hooks/useWalletSignIn';
 import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 import { noteServerBuildSha, reloadIfStale, useReloadHold } from '../src/lib/buildFreshness';
+import { SignInWithBaseButton } from '@base-org/account-ui/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 import { WORD_POOL_URL } from '../config/economy';
@@ -2014,24 +2015,39 @@ function GameContent() {
           {/* Wallet sign-in. The primary path now, not a footnote: a Base App
               player has a wallet and no Farcaster account, and this is the only
               door open to them. Hidden while the session check is in flight so
-              the button never flickers away under a tap. */}
+              the button never flickers away under a tap.
+
+              The primary control is Base's official button, driving the
+              Sign in with Base flow (wallet_connect + signInWithEthereum).
+              The plain link below it keeps the classic EOA path for players
+              with MetaMask-style wallets, so the branded button never opens
+              somebody else's wallet. */}
           {walletSignIn.status !== 'checking' && (
             <div className="bg-white rounded-xl shadow-card p-5 space-y-3">
               <p className="text-gray-700 text-sm leading-relaxed">
                 Playing needs a wallet holding about <strong>$3 of $WORD</strong>. Sign in
                 to prove the wallet is yours... it costs no gas.
               </p>
-              <button
-                onClick={walletSignIn.signIn}
-                disabled={walletSignIn.status === 'pending'}
-                className="btn-primary-lg w-full"
-              >
-                {walletSignIn.status === 'pending'
-                  ? 'Check your wallet...'
-                  : walletSignIn.isConnected
-                    ? 'Sign in with your wallet'
-                    : 'Connect wallet'}
-              </button>
+              {walletSignIn.status === 'pending' ? (
+                <button disabled className="btn-primary-lg w-full">
+                  Check your wallet...
+                </button>
+              ) : (
+                <>
+                  <SignInWithBaseButton
+                    align="center"
+                    variant="solid"
+                    colorScheme="light"
+                    onClick={() => void walletSignIn.signIn('base')}
+                  />
+                  <button
+                    onClick={() => void walletSignIn.signIn('auto')}
+                    className="text-sm text-gray-500 underline w-full text-center"
+                  >
+                    Use a different wallet
+                  </button>
+                </>
+              )}
               {walletSignIn.error && (
                 <p className="text-sm text-red-600">{walletSignIn.error}</p>
               )}

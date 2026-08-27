@@ -37,7 +37,10 @@ export const config = createConfig({
   connectors: [
     farcasterMiniApp(),
     injected(),
-    baseAccount({ appName: 'Let’s Have A Word!' }),
+    baseAccount({
+      appName: 'Let’s Have A Word!',
+      appLogoUrl: 'https://www.letshaveaword.fun/LHAW-icon.png',
+    }),
   ],
   transports: {
     [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),

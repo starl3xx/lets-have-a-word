@@ -80,8 +80,13 @@ export interface WalletSignIn {
   address: `0x${string}` | undefined;
   isConnected: boolean;
   error: string | null;
-  /** Connect (if needed), sign, and exchange. Safe to call when connected. */
-  signIn: () => Promise<void>;
+  /**
+   * Connect (if needed), sign, and exchange. Safe to call when connected.
+   * 'base' puts the Base Account connector first — the branded Sign in with
+   * Base button must never open MetaMask; 'auto' keeps the injected-first
+   * order for the plain "use a different wallet" path.
+   */
+  signIn: (prefer?: 'base' | 'auto') => Promise<void>;
   /**
    * The server has definitively refused the session (a 401 on a real request).
    * Drops the stored token and returns the player to the sign-in card with
@@ -215,7 +220,7 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
     setStatus('signed-out');
   }, []);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (prefer: 'base' | 'auto' = 'auto') => {
     setError(null);
     setStatus('pending');
 
@@ -244,21 +249,29 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
       const injectedConnector = connectors.find((c) => c.id === 'injected');
       const baseConnector = connectors.find((c) => c.id.toLowerCase().includes('base'));
 
+      // A connected wallet short-circuits preference: whatever the branded
+      // button says, the wallet that must sign is the one already holding
+      // the connection (it is also the wallet the reward gate reads).
       const candidates: Connector[] = address && activeConnector
         ? [activeConnector]
-        : [
-            ...(hasInjectedProvider && injectedConnector ? [injectedConnector] : []),
-            ...(baseConnector ? [baseConnector] : []),
-            // Anything else configured, minus the Farcaster connector: it
-            // cannot work here by definition — this path only runs outside a
-            // host.
-            ...connectors.filter(
-              (c) =>
-                c !== injectedConnector &&
-                c !== baseConnector &&
-                !c.id.toLowerCase().includes('farcaster')
-            ),
-          ];
+        : prefer === 'base'
+          ? [
+              ...(baseConnector ? [baseConnector] : []),
+              ...(hasInjectedProvider && injectedConnector ? [injectedConnector] : []),
+            ]
+          : [
+              ...(hasInjectedProvider && injectedConnector ? [injectedConnector] : []),
+              ...(baseConnector ? [baseConnector] : []),
+              // Anything else configured, minus the Farcaster connector: it
+              // cannot work here by definition — this path only runs outside a
+              // host.
+              ...connectors.filter(
+                (c) =>
+                  c !== injectedConnector &&
+                  c !== baseConnector &&
+                  !c.id.toLowerCase().includes('farcaster')
+              ),
+            ];
 
       if (candidates.length === 0) throw new Error('No wallet connector available');
 
