@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
-import { withHostTimeout, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
+import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
 import { haptics } from '../src/lib/haptics';
@@ -237,13 +237,10 @@ export default function WinnerShareCard({
       // that name there, from a jackpot announcement, and a post cannot be
       // recalled.
       const xText = shareText.replace(FARCASTER_HANDLE, X_HANDLE);
-      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}`;
-      console.log('[WinnerShareCard] Opening X/Twitter composer with URL:', twitterUrl);
-
-      // Open in new window/tab
-      if (typeof window !== 'undefined') {
-        window.open(twitterUrl, '_blank', 'noopener,noreferrer');
-      }
+      // Shared helper rather than a hand-built URL, so the winner screen —
+      // the share that matters most — gets the installed-app deep link too,
+      // instead of a logged-out X inside an in-app browser tab.
+      openXComposer(xText);
     } catch (err) {
       console.error('[WinnerShareCard] Error sharing to X:', err);
       setError('Failed to open X composer');

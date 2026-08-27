@@ -20,6 +20,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
+import { X_BUTTON_CLASS } from '../src/lib/hostActions';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
@@ -261,7 +262,9 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
           <div className="flex gap-3">
             <button
               onClick={handleShare}
-              className="btn-accent flex-1 flex items-center justify-center gap-2"
+              className={`flex-1 flex items-center justify-center gap-2 ${
+                inMiniApp ? 'btn-accent' : 'py-4 px-6 ' + X_BUTTON_CLASS
+              }`}
             >
               {inMiniApp ? (
                 <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />

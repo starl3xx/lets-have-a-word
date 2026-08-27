@@ -9,6 +9,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
+import { X_BUTTON_CLASS } from '../src/lib/hostActions';
 import { useTranslation } from '../src/hooks/useTranslation';
 import OgHunterBadge from './OgHunterBadge';
 import WordmarkDetailModal from './WordmarkDetailModal';
@@ -460,7 +461,14 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             {/* The icon follows the destination: off-host this shares to X,
                 and a Farcaster arch on a button that opens X would be a lie
                 about where the post is going. */}
-            <button onClick={handleShareStats} className="btn-accent w-full flex items-center justify-center gap-2">
+            {/* Black where it opens X, purple where it casts: the button's
+                colour is part of telling the player where the post is going. */}
+            <button
+              onClick={handleShareStats}
+              className={`w-full flex items-center justify-center gap-2 ${
+                inMiniApp ? 'btn-accent' : 'py-4 px-6 ' + X_BUTTON_CLASS
+              }`}
+            >
               {inMiniApp ? (
                 <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
               ) : (

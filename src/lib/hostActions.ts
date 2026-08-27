@@ -82,18 +82,74 @@ export async function withHostTimeout<T>(
 /**
  * Open the X composer with prepopulated text.
  *
- * A plain web intent, so it works in every host including Base App's webview —
- * unlike `composeCast`, which needs a Farcaster host. Already the mechanism
- * behind the winner card's "Share on X" button; centralised here so the other
- * share surfaces do not each re-derive the URL.
+ * Works in every host including Base App's webview — unlike `composeCast`,
+ * which needs a Farcaster host.
+ *
+ * THE INSTALLED APP FIRST. `window.open` on the https intent lands in an
+ * in-app browser tab inside a webview, which means a logged-out X asking the
+ * player to sign in — on a phone where the X app is already installed and
+ * logged in. The `twitter://post` scheme hands the compose straight to the app.
+ *
+ * The fallback is guarded on VISIBILITY rather than on a bare timer. If the app
+ * opens, this page is backgrounded, so a timer alone would fire on return and
+ * open a duplicate browser composer after the player had already posted.
+ * Checking that we are still visible is what distinguishes "the scheme did
+ * nothing" from "the app took over".
+ *
+ * NOT VERIFIED ON A DEVICE — the deep link cannot be exercised from here, and
+ * webviews differ in whether they hand an unknown scheme to the OS or drop it
+ * silently. The https fallback is what makes an unhandled scheme merely slower
+ * rather than broken.
  */
 export function openXComposer(text: string, url?: string): void {
   if (typeof window === 'undefined') return;
-  const params = new URLSearchParams({ text });
-  if (url) params.set('url', url);
-  window.open(
-    `https://twitter.com/intent/tweet?${params.toString()}`,
-    '_blank',
-    'noopener,noreferrer'
-  );
+
+  // The app scheme takes one text field, so the link rides inside the message.
+  // The web intent keeps them separate, where `url` renders as a proper card.
+  const message = url ? `${text}\n\n${url}` : text;
+  const webUrl = `https://twitter.com/intent/tweet?${new URLSearchParams({ text: message }).toString()}`;
+  const appUrl = `twitter://post?message=${encodeURIComponent(message)}`;
+
+  let settled = false;
+  const openWeb = () => {
+    if (settled) return;
+    settled = true;
+    window.open(webUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const onHidden = () => {
+    // The app took over. Cancel the fallback so returning to the game does not
+    // open a second composer.
+    if (document.visibilityState === 'hidden') {
+      settled = true;
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onHidden);
+    }
+  };
+  document.addEventListener('visibilitychange', onHidden);
+
+  const timer = window.setTimeout(() => {
+    document.removeEventListener('visibilitychange', onHidden);
+    if (document.visibilityState === 'visible') openWeb();
+  }, 800);
+
+  try {
+    window.location.href = appUrl;
+  } catch {
+    // Some webviews reject an unknown scheme outright rather than ignoring it.
+    window.clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onHidden);
+    openWeb();
+  }
 }
+
+/**
+ * Styling for a button that opens X, so the three share surfaces cannot drift
+ * apart from each other or from the winner card's long-standing black button.
+ *
+ * The colour is not decoration: a purple Farcaster-styled button that opens X
+ * misreports where the post is going, the same way the Farcaster arch icon did.
+ * Padding is left to the call site, which owns its own layout.
+ */
+export const X_BUTTON_CLASS =
+  'bg-black hover:bg-gray-800 active:scale-95 text-white font-bold rounded-btn shadow-btn transition-all duration-fast';
