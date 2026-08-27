@@ -31,6 +31,8 @@ const DEBUG = process.env.NOTIFICATIONS_DEBUG_LOGS === 'true';
 const MAX_TITLE = 30;
 const MAX_MESSAGE = 200;
 const MAX_ADDRESSES_PER_REQUEST = 1000;
+/** The user-list endpoint caps at 500, unlike the 1000 the send endpoint takes. */
+const MAX_USERS_PER_PAGE = 500;
 
 /**
  * The endpoints share 20 requests per minute per IP. A broadcast is
@@ -104,8 +106,11 @@ export async function listOptedInWallets(maxPages = 10): Promise<string[]> {
   try {
     for (let page = 0; page < maxPages; page++) {
       const url = new URL(`${API_BASE}/app/users`);
+      // app_url is REQUIRED — without it the request is rejected and the
+      // caller silently sees an empty audience.
+      url.searchParams.set('app_url', APP_URL);
       url.searchParams.set('notification_enabled', 'true');
-      url.searchParams.set('limit', '1000');
+      url.searchParams.set('limit', String(MAX_USERS_PER_PAGE));
       if (cursor) url.searchParams.set('cursor', cursor);
 
       const res = await fetch(url.toString(), { headers: { 'x-api-key': API_KEY! } });
@@ -113,18 +118,19 @@ export async function listOptedInWallets(maxPages = 10): Promise<string[]> {
         console.error(`[base-notifications] user list failed: HTTP ${res.status}`);
         break;
       }
+      // Field names are `address` and `nextCursor`, per the API reference. An
+      // earlier version guessed at `walletAddress`/`next_cursor` and would have
+      // read every page as empty while reporting success.
       const data = (await res.json()) as {
-        users?: Array<{ walletAddress?: string; wallet_address?: string }>;
-        cursor?: string;
-        next_cursor?: string;
+        users?: Array<{ address?: string; notificationsEnabled?: boolean }>;
+        nextCursor?: string;
       };
 
       for (const u of data.users ?? []) {
-        const w = u.walletAddress ?? u.wallet_address;
-        if (w) wallets.push(w);
+        if (u.address) wallets.push(u.address);
       }
 
-      cursor = data.next_cursor ?? data.cursor;
+      cursor = data.nextCursor;
       if (!cursor || (data.users ?? []).length === 0) break;
       await sleep(REQUEST_SPACING_MS);
     }

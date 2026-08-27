@@ -167,7 +167,60 @@ async function notifyBasePlayers(params: { title: string; message: string; targe
   return mod.notifyBasePlayers(params);
 }
 
+/**
+ * Neynar takes a full URL; Base takes a path within the app. Carry the route
+ * across rather than dropping it — a round-resolved notification that opens
+ * /verify for a Farcaster player should not land a Base player on the home
+ * screen.
+ */
+function targetPathFrom(targetUrl?: string): string {
+  if (!targetUrl) return '/';
+  try {
+    const url = new URL(targetUrl);
+    return `${url.pathname || '/'}${url.search || ''}`;
+  } catch {
+    return targetUrl.startsWith('/') ? targetUrl : '/';
+  }
+}
+
+/**
+ * Send on every channel a player might be reachable on.
+ *
+ * THE TWO ARE INDEPENDENT, DELIBERATELY. An earlier version fired the Base send
+ * only after a successful Neynar response, which meant a Neynar outage — or
+ * simply missing Neynar configuration — silenced the ONLY channel Base App
+ * players have. They have no FID; Neynar cannot reach them at all. One
+ * provider's bad day must not take out an audience that provider never served.
+ *
+ * The Neynar result is what callers see, because that is the contract they were
+ * written against. Base failures are logged inside notifyBasePlayers and never
+ * surface as a failed send here.
+ */
 export async function sendNotification(
+  title: string,
+  body: string,
+  targetUrl?: string,
+  targetFids?: number[]
+): Promise<NotificationResult> {
+  const [neynarResult] = await Promise.all([
+    sendViaNeynar(title, body, targetUrl, targetFids).catch((error) => {
+      console.error('[notifications] Neynar send threw:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } as NotificationResult;
+    }),
+    notifyBasePlayers({
+      title,
+      message: body,
+      targetPath: targetPathFrom(targetUrl),
+    }).catch(() => undefined),
+  ]);
+
+  return neynarResult;
+}
+
+async function sendViaNeynar(
   title: string,
   body: string,
   targetUrl?: string,
@@ -222,17 +275,6 @@ export async function sendNotification(
         notificationId: data.notification_id,
       });
     }
-
-    // Base App players in the same breath. They have no FID, so Neynar cannot
-    // reach them at all — without this they simply never hear about a round.
-    //
-    // Awaited rather than fire-and-forget: this runs from cron and admin
-    // endpoints, never on the guess path, and detached work in a serverless
-    // function can be killed the moment the response returns. It costs one
-    // indexed query and, at any scale this game has, one request. It can never
-    // fail the Neynar result — notifyBasePlayers does not throw, and its return
-    // value is deliberately not consulted here.
-    await notifyBasePlayers({ title, message: body, targetPath: '/' }).catch(() => {});
 
     return {
       success: true,

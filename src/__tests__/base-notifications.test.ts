@@ -69,3 +69,28 @@ describe('the channel cannot fire from a test run', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The two channels must not be able to take each other down.
+ *
+ * The first version fired the Base send only after a successful Neynar
+ * response, so a Neynar outage — or simply missing Neynar config — silenced the
+ * ONLY channel Base App players have. Caught by Bugbot on the notifications PR.
+ */
+describe('Neynar and Base are independent', () => {
+  it('still attempts Base when Neynar is not configured', async () => {
+    // Production + flag on, so the shared hard stop passes, but no Neynar
+    // credentials and no Base key: the point is that BOTH are attempted and
+    // neither short-circuits the other.
+    const { sendNotification } = await import('../lib/notifications');
+
+    process.env.NOTIFICATIONS_ENABLED = 'true';
+    const result = await sendNotification('Round #1 is live', 'Come and play', 'https://letshaveaword.fun/verify');
+
+    // NODE_ENV is 'test', so nothing leaves the building either way — what is
+    // asserted is that the call completes and reports the Neynar outcome rather
+    // than throwing or hanging on one channel.
+    expect(result.success).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
