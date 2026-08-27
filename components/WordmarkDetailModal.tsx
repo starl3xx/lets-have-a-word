@@ -263,7 +263,11 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
               onClick={handleShare}
               className="btn-accent flex-1 flex items-center justify-center gap-2"
             >
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              {inMiniApp ? (
+                <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              ) : (
+                <span className="text-base leading-none">𝕏</span>
+              )}
               Share
             </button>
             <button onClick={onClose} className="btn-primary-lg flex-1">
