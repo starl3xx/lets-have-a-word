@@ -291,41 +291,62 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
             // SIGN IN WITH BASE. One approval: the wallet connects, builds
             // the SIWE message around OUR server nonce, and signs it —
             // including the ERC-6492 wrapper a smart account needs.
-            const resp = (await provider.request({
-              method: 'wallet_connect',
-              params: [
-                {
-                  version: '1',
-                  capabilities: {
-                    signInWithEthereum: { nonce, chainId: '0x2105' },
+            const requestSiwe = async () =>
+              (await provider.request({
+                method: 'wallet_connect',
+                params: [
+                  {
+                    version: '1',
+                    capabilities: {
+                      signInWithEthereum: { nonce, chainId: '0x2105' },
+                    },
                   },
-                },
-              ],
-            })) as WalletConnectSiweResponse;
+                ],
+              })) as WalletConnectSiweResponse;
 
-            const acct = resp?.accounts?.[0];
-            const siwe = acct?.capabilities?.signInWithEthereum;
-            if (acct?.address && siwe?.message && siwe?.signature) {
-              account = acct.address;
-              message = siwe.message;
-              signature = siwe.signature;
-              // Bring wagmi's view of the connection in line with the SDK
-              // session that wallet_connect just established, so balances and
-              // purchases see the wallet. Best-effort: the session token is
-              // what authenticates play, not wagmi state.
-              if (!isConnected) {
-                await connectAsync({ connector }).catch(() => {});
-              }
-              break;
+            const extract = (resp: WalletConnectSiweResponse) => {
+              const acct = resp?.accounts?.[0];
+              const siwe = acct?.capabilities?.signInWithEthereum;
+              return acct?.address && siwe?.message && siwe?.signature
+                ? { address: acct.address, message: siwe.message, signature: siwe.signature }
+                : null;
+            };
+
+            let signed = extract(await requestSiwe());
+            if (!signed) {
+              // An already-connected session (the expireSession retry path —
+              // wagmi stays connected when a session dies) can answer
+              // wallet_connect without re-running the capability. Drop the
+              // session and ask once more with the SAME nonce, which is only
+              // consumed server-side at verification.
+              await provider.request({ method: 'wallet_disconnect' }).catch(() => {});
+              signed = extract(await requestSiwe());
             }
-            // A provider that answered wallet_connect but without the
-            // capability payload: fall through to the classic dialect below.
+            if (!signed) {
+              // NEVER degrade to personal_sign here: a Base Account
+              // signature produced that way can never verify — that silent
+              // degradation was two days of invisible sign-in failure. Fail
+              // loudly instead; the next tap starts clean.
+              throw new Error('Sign-in did not complete. Please try again.');
+            }
+
+            account = signed.address;
+            message = signed.message;
+            signature = signed.signature;
+            // Bring wagmi's view of the connection in line with the SDK
+            // session that wallet_connect just established, so balances and
+            // purchases see the wallet. Best-effort: the session token is
+            // what authenticates play, not wagmi state.
+            if (!isConnected) {
+              await connectAsync({ connector }).catch(() => {});
+            }
+            break;
           }
 
-          // CLASSIC SIWE for EOA wallets (MetaMask and friends): connect,
-          // build the message ourselves, ask for a personal_sign. Proven
-          // against production — but a Base Account signature produced this
-          // way never verifies, which is why the branch above exists.
+          // CLASSIC SIWE, for connectors that cannot speak wallet_connect
+          // (MetaMask-style EOA wallets): connect, build the message
+          // ourselves, ask for a personal_sign. Proven against production —
+          // and never reached for a dialect-speaking connector, see above.
           let eoaAccount = address;
           if (!eoaAccount) {
             const result = await connectAsync({ connector });
