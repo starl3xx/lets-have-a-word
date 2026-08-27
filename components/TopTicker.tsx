@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatPrizeCompact } from '../src/lib/prize-display';
+import { noteServerBuildSha } from '../src/lib/buildFreshness';
 import type { RoundStatus } from '../src/lib/wheel';
 
 // Total words in the game dictionary (for percentage calculation)
@@ -137,6 +138,13 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
   const fetchRoundStatus = async () => {
     try {
       const response = await fetch('/api/round-state');
+
+      // Before ANY status branching: this poll runs every 15s for as long as
+      // the game is on screen, which makes it the stale-runtime detector — a
+      // page Base App resumed from memory finds out here that the server has
+      // moved on. Read from a header so the 204 no-active-round response
+      // still carries it; deploys land between rounds by design.
+      noteServerBuildSha(response.headers.get('x-lhaw-server-build'));
 
       // 204 No Content means no active round
       if (response.status === 204) {

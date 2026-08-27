@@ -159,16 +159,42 @@ describe('wallet-native players', () => {
       makeReq({ cookies: { [PLAYER_SESSION_COOKIE]: token } }),
       {}
     );
-    expect(result).toMatchObject({ ok: false, reason: 'no_credential' });
+    // presentedSessionToken lets telemetry tell "player lost their session"
+    // from "nothing arrived" — the two looked identical on 2026-08-27 and the
+    // difference was the whole diagnosis.
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'no_credential',
+      presentedSessionToken: true,
+    });
   });
 
-  it('refuses a session forged under a different secret', async () => {
+  it('refuses a session forged under a different secret — and does NOT flag it as presented', async () => {
     const token = await signPlayerSession({ fid: 1_000_000_006, origin: 'wallet' }, 'other-secret');
     const result = await resolveRequestFid(
       makeReq({ cookies: { [PLAYER_SESSION_COOKIE]: token } }),
       {}
     );
-    expect(result).toMatchObject({ ok: false, reason: 'no_credential' });
+    // presentedSessionToken keys an awaited Sentry flush in guess.ts, so it
+    // must be impossible to raise without a token WE minted. A forgery is
+    // exactly what an attacker can produce for free (Bugbot, PR #283).
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'no_credential',
+      presentedSessionToken: false,
+    });
+  });
+
+  it('garbage in the session header is not "presented" either', async () => {
+    const result = await resolveRequestFid(
+      makeReq({ headers: { [PLAYER_SESSION_HEADER]: 'not-even-token-shaped' } }),
+      {}
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'no_credential',
+      presentedSessionToken: false,
+    });
   });
 
   it('cannot mint anything when ADMIN_SECRET is absent', async () => {
@@ -246,6 +272,15 @@ describe('no credential at all', () => {
     // This is the whole purchase-guess-pack.ts hole in one assertion.
     const result = await resolveRequestFid(makeReq({ body: { fid: 6500 } }), {});
     expect(result).toMatchObject({ ok: false, reason: 'no_credential', status: 401 });
+  });
+
+  it('reports that nothing was presented, distinct from a bad session', async () => {
+    const result = await resolveRequestFid(makeReq({}), {});
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'no_credential',
+      presentedSessionToken: false,
+    });
   });
 });
 

@@ -36,7 +36,7 @@
 import type { NextApiRequest } from 'next';
 import { isDevModeEnabled } from './devGameState';
 import {
-  verifyPlayerSession,
+  inspectPlayerSession,
   PLAYER_SESSION_COOKIE,
   PLAYER_SESSION_HEADER,
   type PlayerOrigin,
@@ -73,6 +73,18 @@ export interface AuthFailure {
   status: number;
   error: string;
   message?: string;
+  /**
+   * Set on a `no_credential` failure ONLY when an AUTHENTIC session token was
+   * presented and refused as expired — HMAC-valid, payload ours, `exp` past.
+   * Deliberately NOT "any token-shaped bytes arrived": anyone can send
+   * garbage in the header, and endpoints key guaranteed-delivery telemetry
+   * (an awaited Sentry flush) on this flag, so it must be impossible to raise
+   * without a token this server once minted (Bugbot, PR #283). The failure
+   * still falls through as no_credential — an expired session is not an
+   * attack — but telemetry must be able to tell "player lost their session"
+   * from "nothing arrived at all"; conflating them cost hours on 2026-08-27.
+   */
+  presentedSessionToken?: boolean;
 }
 
 export type RequestAuthResult = AuthSuccess | AuthFailure;
@@ -209,19 +221,21 @@ export async function resolveRequestFid(
   // 4. Wallet-native player (Base App).
   const secret = process.env.ADMIN_SECRET;
   const token = readPlayerSessionToken(req);
+  let authenticButExpired = false;
   if (token && secret) {
-    const session = await verifyPlayerSession(token, secret);
-    if (session) {
+    const inspection = await inspectPlayerSession(token, secret);
+    if (inspection.ok) {
       return {
         ok: true,
-        fid: session.fid,
+        fid: inspection.session.fid,
         origin: 'player_session',
-        provenWallet: session.wallet,
-        playerOrigin: session.origin,
+        provenWallet: inspection.session.wallet,
+        playerOrigin: inspection.session.origin,
       };
     }
-    // A cookie that is present but bad is an expired session, not an attack.
-    // Callers that can fall through should still be allowed to.
+    // A token that is present but bad is an expired session or noise, not an
+    // attack. Callers that can fall through should still be allowed to.
+    authenticButExpired = inspection.expired;
   }
 
   return {
@@ -230,5 +244,6 @@ export async function resolveRequestFid(
     status: 401,
     error: 'Authentication required',
     message: 'Please refresh the app to sign in.',
+    presentedSessionToken: authenticButExpired,
   };
 }

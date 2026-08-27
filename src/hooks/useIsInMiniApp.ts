@@ -39,6 +39,16 @@ function inMaybeHostEnvironment(): boolean {
   );
 }
 
+// Base App (Coinbase Wallet) is an RN webview, so it passes the maybe-host
+// check above — but it stopped hosting Farcaster mini apps on 2026-04-09 and
+// will never answer the handshake. Without this, every Base App open pays the
+// full retry (~1s race + 1.5s wait + ~1s race) staring at a boot screen for a
+// no that was certain from the user agent. If Base App ever hosts again, the
+// FIRST probe answers true and this is never consulted.
+function isKnownNonHostWebview(): boolean {
+  return typeof navigator !== 'undefined' && /CoinbaseWalletRN/i.test(navigator.userAgent);
+}
+
 export function useIsInMiniApp(): MiniAppProbe {
   const [probe, setProbe] = useState<MiniAppProbe>(() =>
     confirmedInMiniApp
@@ -52,17 +62,26 @@ export function useIsInMiniApp(): MiniAppProbe {
       return;
     }
     let mounted = true;
+    let settled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const settle = (inMiniApp: boolean) => {
+      if (settled) return;
+      settled = true;
       if (inMiniApp) confirmedInMiniApp = true;
       if (mounted) setProbe({ inMiniApp, resolved: true });
     };
 
+    // Hard stop: `resolved` gates the entire first paint now (the boot screen
+    // in index.tsx), so a probe that never settles must not mean a page that
+    // never renders. 5s is past every legitimate path — first race, retry
+    // wait, second race — and only fires if the SDK promise itself hangs.
+    const hardStop = setTimeout(() => settle(false), 5000);
+
     sdk
       .isInMiniApp()
       .then((result) => {
-        if (result || !inMaybeHostEnvironment()) {
+        if (result || !inMaybeHostEnvironment() || isKnownNonHostWebview()) {
           settle(result);
           return;
         }
@@ -79,6 +98,7 @@ export function useIsInMiniApp(): MiniAppProbe {
 
     return () => {
       mounted = false;
+      clearTimeout(hardStop);
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);

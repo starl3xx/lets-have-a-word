@@ -51,6 +51,12 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // The deploy this server is running, for the client's stale-runtime check
+  // (src/lib/buildFreshness.ts). A HEADER, set before any branch, because it
+  // must ride on the 204 no-active-round response too — deploys land between
+  // rounds by design, which is exactly when the body has no room for it.
+  res.setHeader('x-lhaw-server-build', process.env.VERCEL_GIT_COMMIT_SHA || 'dev');
+
   try {
     // Milestone 9.0: Rate limiting (by IP)
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||

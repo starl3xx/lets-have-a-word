@@ -54,6 +54,18 @@ describe('round-trip', () => {
     expect(playerSessionHeaders()).toEqual({});
   });
 
+  it('carries the client build id when the page knows it', () => {
+    // A stale Base App webview resumed the previous deploy's bundle on
+    // 2026-08-27 and nothing server-side could tell. The build header makes
+    // the client version part of every authenticated request.
+    (globalThis as any).window.__NEXT_DATA__ = { buildId: 'build-test123' };
+    setStoredPlayerSession({ token: 'tok-abc', fid: 1_000_000_050 });
+    expect(playerSessionHeaders()).toEqual({
+      'x-lhaw-build': 'build-test123',
+      [PLAYER_SESSION_HEADER]: 'tok-abc',
+    });
+  });
+
   it('clears on request', () => {
     setStoredPlayerSession({ token: 'tok-abc', fid: 1 });
     clearStoredPlayerSession();

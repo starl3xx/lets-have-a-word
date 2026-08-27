@@ -5,6 +5,7 @@ import { useTranslation } from '../src/hooks/useTranslation';
 import { parseOperationalError } from './GamePausedBanner';
 import { usePurchaseGuesses } from '../src/hooks/usePurchaseGuesses';
 import { playerSessionHeaders } from '../src/lib/playerSessionClient';
+import { useReloadHold } from '../src/lib/buildFreshness';
 
 /**
  * Log analytics event (fire-and-forget)
@@ -145,6 +146,12 @@ export default function GuessPurchaseModal({
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // A stale-runtime reload between the onchain payment and the crediting POST
+  // loses the purchase: the txHash lives only in this component's memory and
+  // nothing server-side reconciles it. Hold automatic reloads for the whole
+  // pay-then-credit window.
+  useReloadHold(isPurchasing || isTxPending || isTxConfirming || isVerifying);
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
