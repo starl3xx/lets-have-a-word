@@ -43,6 +43,21 @@ export const PLAYER_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export const PLAYER_SESSION_COOKIE = 'lhaw_player_session';
 
+/**
+ * Header the client may present the same token in, when a cookie will not do.
+ *
+ * Base App's webview accepts the Set-Cookie on the sign-in response and then
+ * never sends it back: a player signs in successfully, sees their $WORD
+ * balance, and every guess arrives with no credential at all. Observed in
+ * production 2026-08-27. Nothing server-side can fix that, because the
+ * credential never leaves the device.
+ *
+ * The cookie remains the PREFERRED path and is still set — it is HttpOnly and
+ * works everywhere else. This is a fallback the client uses only when it holds
+ * a token it was handed directly.
+ */
+export const PLAYER_SESSION_HEADER = 'x-player-session';
+
 /** Label mixed into the key derivation. Changing it invalidates every session. */
 const KEY_DERIVATION_LABEL = 'lhaw:player-session:v1';
 

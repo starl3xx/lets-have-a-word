@@ -21,6 +21,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useConnect, useSignMessage } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 import { base } from 'wagmi/chains';
+import {
+  playerSessionHeaders,
+  getStoredPlayerSession,
+  setStoredPlayerSession,
+  clearStoredPlayerSession,
+} from '../lib/playerSessionClient';
 
 export type WalletSignInStatus =
   /** Have not yet asked the server whether a session exists. */
@@ -65,19 +71,60 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
     if (!enabled) return;
     setStatus('checking');
     let cancelled = false;
-    fetch('/api/auth/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+
+    /**
+     * ONLY A 401 MEANS THE TOKEN IS DEAD.
+     *
+     * An earlier version cleared the stored session on any non-ok response, so
+     * a 500, a 503, a 429 or a dropped connection destroyed a valid 30-day
+     * session and cost the player a fresh wallet signature to recover from
+     * someone else's transient fault. On anything other than a definitive
+     * refusal we keep the token and fall back to the fid stored beside it; the
+     * next real request is where the server gets to decide, and if the token
+     * truly is dead that request answers 401 and the player is prompted then.
+     */
+    const stored = getStoredPlayerSession();
+
+    fetch('/api/auth/me', { headers: playerSessionHeaders() })
+      .then(async (r) => {
         if (cancelled) return;
-        if (data?.fid) {
-          setFid(data.fid);
+
+        if (r.ok) {
+          const data = await r.json().catch(() => null);
+          if (data?.fid) {
+            setStoredPlayerSession(
+              stored ? { ...stored, fid: data.fid } : null
+            );
+            setFid(data.fid);
+            setStatus('signed-in');
+            return;
+          }
+        }
+
+        if (r.status === 401) {
+          clearStoredPlayerSession();
+          setFid(null);
+          setStatus('signed-out');
+          return;
+        }
+
+        // Server trouble, not a rejection.
+        if (stored) {
+          setFid(stored.fid);
           setStatus('signed-in');
         } else {
           setStatus('signed-out');
         }
       })
       .catch(() => {
-        if (!cancelled) setStatus('signed-out');
+        if (cancelled) return;
+        // Network failure says nothing about the token either.
+        if (stored) {
+          setFid(stored.fid);
+          setStatus('signed-in');
+        } else {
+          setStatus('signed-out');
+        }
       });
     return () => {
       cancelled = true;
@@ -183,6 +230,10 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
       if (!verifyRes.ok || !data?.success) {
         throw new Error(data?.error || 'Sign-in failed');
       }
+
+      // Held because Base App's webview will not return the cookie. Harmless
+      // where the cookie does work: the server tries the cookie first.
+      if (data.sessionToken) setStoredPlayerSession({ token: data.sessionToken, fid: data.fid });
 
       setFid(data.fid);
       setStatus('signed-in');

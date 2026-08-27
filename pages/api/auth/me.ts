@@ -17,6 +17,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import {
   verifyPlayerSession,
   PLAYER_SESSION_COOKIE,
+  PLAYER_SESSION_HEADER,
   type PlayerOrigin,
 } from '../../../src/lib/playerSession';
 
@@ -35,7 +36,13 @@ export default async function handler(
   }
 
   const secret = process.env.ADMIN_SECRET;
-  const token = req.cookies?.[PLAYER_SESSION_COOKIE];
+  // Cookie first, header second — same order and same reasoning as
+  // resolveRequestFid. A Base App client holds the token because its webview
+  // will not return the cookie.
+  const presented = req.headers?.[PLAYER_SESSION_HEADER];
+  const token =
+    req.cookies?.[PLAYER_SESSION_COOKIE] ??
+    (typeof presented === 'string' ? presented : Array.isArray(presented) ? presented[0] : undefined);
   if (!secret || !token) {
     return res.status(401).json({ error: 'Not signed in' });
   }

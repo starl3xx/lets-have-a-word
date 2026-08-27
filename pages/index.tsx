@@ -100,6 +100,7 @@ import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { useWalletSignIn } from '../src/hooks/useWalletSignIn';
+import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 import { WORD_POOL_URL } from '../config/economy';
@@ -1226,6 +1227,12 @@ function GameContent() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // A wallet player's session, presented explicitly. Empty for a
+          // Farcaster player, who authenticates with the Quick Auth token in
+          // the body above. Needed because Base App's webview accepts the
+          // sign-in cookie and then never sends it back, so the request would
+          // otherwise arrive with no credential at all.
+          ...playerSessionHeaders(),
         },
         body: JSON.stringify(requestBody),
       });

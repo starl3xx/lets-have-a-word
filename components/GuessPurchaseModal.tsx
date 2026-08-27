@@ -4,6 +4,7 @@ import { haptics } from '../src/lib/haptics';
 import { useTranslation } from '../src/hooks/useTranslation';
 import { parseOperationalError } from './GamePausedBanner';
 import { usePurchaseGuesses } from '../src/hooks/usePurchaseGuesses';
+import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 
 /**
  * Log analytics event (fire-and-forget)
@@ -186,7 +187,7 @@ export default function GuessPurchaseModal({
 
           const response = await fetch('/api/purchase-guess-pack', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...playerSessionHeaders() },
             body: JSON.stringify({
               fid,
               packCount: selectedPackCount,

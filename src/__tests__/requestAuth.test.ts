@@ -12,7 +12,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { NextApiRequest } from 'next';
 import { resolveRequestFid } from '../lib/requestAuth';
-import { signPlayerSession, PLAYER_SESSION_COOKIE } from '../lib/playerSession';
+import {
+  signPlayerSession,
+  PLAYER_SESSION_COOKIE,
+  PLAYER_SESSION_HEADER,
+} from '../lib/playerSession';
 
 const SECRET = 'test-secret-not-a-real-one';
 
@@ -175,6 +179,65 @@ describe('wallet-native players', () => {
       {}
     );
     expect(result).toMatchObject({ ok: false, reason: 'no_credential' });
+  });
+});
+
+describe('the session may arrive in a header, not only a cookie', () => {
+  /**
+   * Base App's webview accepts the Set-Cookie on sign-in and never sends it
+   * back. Observed in production 2026-08-27: the player signed in, saw their
+   * $WORD balance, and every guess arrived with no credential. Nothing
+   * server-side could fix that, because the credential never left the device.
+   */
+  it('accepts a valid token presented in the header with no cookie at all', async () => {
+    const token = await signPlayerSession(
+      { fid: 1_000_000_030, origin: 'wallet', wallet: '0xAbC0000000000000000000000000000000000021' },
+      SECRET
+    );
+    const result = await resolveRequestFid(
+      makeReq({ headers: { [PLAYER_SESSION_HEADER]: token } }),
+      {}
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      fid: 1_000_000_030,
+      origin: 'player_session',
+      provenWallet: '0xabc0000000000000000000000000000000000021',
+    });
+  });
+
+  it('prefers the cookie when both are present', async () => {
+    // The cookie is HttpOnly and cannot be read by a script, so where it works
+    // it stays the stronger of the two.
+    const cookieToken = await signPlayerSession({ fid: 1_000_000_031, origin: 'wallet' }, SECRET);
+    const headerToken = await signPlayerSession({ fid: 1_000_000_032, origin: 'wallet' }, SECRET);
+
+    const result = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: cookieToken },
+        headers: { [PLAYER_SESSION_HEADER]: headerToken },
+      }),
+      {}
+    );
+    expect(result).toMatchObject({ ok: true, fid: 1_000_000_031 });
+  });
+
+  it('does not accept a forged header token', async () => {
+    const token = await signPlayerSession({ fid: 1_000_000_033, origin: 'wallet' }, 'wrong-secret');
+    const result = await resolveRequestFid(
+      makeReq({ headers: { [PLAYER_SESSION_HEADER]: token } }),
+      {}
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'no_credential' });
+  });
+
+  it('still lets Quick Auth win over a header session', async () => {
+    const token = await signPlayerSession({ fid: 1_000_000_034, origin: 'wallet' }, SECRET);
+    const result = await resolveRequestFid(
+      makeReq({ body: { authToken: 'jwt' }, headers: { [PLAYER_SESSION_HEADER]: token } }),
+      { verifyQuickAuthToken: verifyOk(6500) }
+    );
+    expect(result).toMatchObject({ ok: true, fid: 6500, origin: 'quick_auth' });
   });
 });
 

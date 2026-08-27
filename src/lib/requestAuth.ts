@@ -38,6 +38,7 @@ import { isDevModeEnabled } from './devGameState';
 import {
   verifyPlayerSession,
   PLAYER_SESSION_COOKIE,
+  PLAYER_SESSION_HEADER,
   type PlayerOrigin,
 } from './playerSession';
 
@@ -86,17 +87,33 @@ export interface ResolveOptions {
   verifyQuickAuthToken?: (token: string) => Promise<number | null>;
 }
 
-/** Reads the session cookie without pulling in a cookie parser. */
-function readPlayerSessionCookie(req: NextApiRequest): string | undefined {
+/**
+ * The session token, from the cookie if it arrived and the header if it did not.
+ *
+ * The cookie is tried first and remains the preferred carrier: it is HttpOnly,
+ * so a script cannot read it, and it works in every ordinary browser. The
+ * header exists because Base App's webview accepts the Set-Cookie on sign-in
+ * and then never sends it back — a player signs in, sees their balance, and
+ * every guess arrives unauthenticated. HttpOnly protects nothing when the
+ * cookie is never transmitted, so a token the client holds and presents
+ * explicitly is strictly better than no session at all.
+ */
+function readPlayerSessionToken(req: NextApiRequest): string | undefined {
   const fromParsed = req.cookies?.[PLAYER_SESSION_COOKIE];
   if (fromParsed) return fromParsed;
 
-  const header = req.headers?.cookie;
-  if (!header) return undefined;
-  for (const part of header.split(';')) {
-    const [name, ...rest] = part.trim().split('=');
-    if (name === PLAYER_SESSION_COOKIE) return rest.join('=');
+  const cookieHeader = req.headers?.cookie;
+  if (cookieHeader) {
+    for (const part of cookieHeader.split(';')) {
+      const [name, ...rest] = part.trim().split('=');
+      if (name === PLAYER_SESSION_COOKIE) return rest.join('=');
+    }
   }
+
+  const presented = req.headers?.[PLAYER_SESSION_HEADER];
+  if (typeof presented === 'string' && presented.length > 0) return presented;
+  if (Array.isArray(presented) && presented[0]) return presented[0];
+
   return undefined;
 }
 
@@ -191,7 +208,7 @@ export async function resolveRequestFid(
 
   // 4. Wallet-native player (Base App).
   const secret = process.env.ADMIN_SECRET;
-  const token = readPlayerSessionCookie(req);
+  const token = readPlayerSessionToken(req);
   if (token && secret) {
     const session = await verifyPlayerSession(token, secret);
     if (session) {
