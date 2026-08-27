@@ -217,10 +217,17 @@ export async function upsertUserFromWallet(
   //
   // In production (2026-08-26) this affects exactly 2 wallets, each held by 2
   // FIDs, out of the whole table.
+  // `fid > 0`: sentinel and test rows (a fid of -1 existed in production from
+  // 2026-01) must never be a linkage target. A session minted for a
+  // non-positive fid fails verifyPlayerSession's own validation, so linking to
+  // one produces the worst possible outcome: sign-in succeeds, and every
+  // authenticated request afterwards is refused — which is exactly what
+  // happened on 2026-08-27 when the player's Base Account address turned out
+  // to be sitting on that fid -1 row.
   const holders = await db
     .select()
     .from(users)
-    .where(sql`lower(${users.signerWalletAddress}) = ${wallet}`)
+    .where(sql`lower(${users.signerWalletAddress}) = ${wallet} AND ${users.fid} > 0`)
     .orderBy(
       sql`(${users.identityOrigin} = 'wallet') DESC`,
       sql`${users.xp} DESC`,

@@ -159,6 +159,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     const user = await upsertUserFromWallet({ wallet: address, referrerFid });
 
+    // MINT-TIME INVARIANT. verifyPlayerSession refuses any fid <= 0, so a
+    // token minted for one is dead on arrival: sign-in reports success and
+    // every authenticated request afterwards 401s — the exact 2026-08-27
+    // lockout, caused by a sentinel row (fid -1) holding a real player's
+    // wallet address. The linkage query now excludes such rows; this is the
+    // second wall, so a future data problem fails HERE, loudly, instead of
+    // minting a credential that cannot work.
+    if (!Number.isInteger(user.fid) || user.fid <= 0) {
+      console.error(`[auth/siwe] refusing to mint a session for unusable fid ${user.fid}`);
+      Sentry.captureMessage('[auth/siwe] Unmintable fid from wallet upsert', {
+        level: 'error',
+        extra: { fid: user.fid, identityOrigin: user.identityOrigin },
+      });
+      await Sentry.flush(1500).catch(() => {});
+      return res.status(500).json({ success: false, error: 'Sign-in failed' });
+    }
+
     const token = await signPlayerSession(
       { fid: user.fid, origin: 'wallet', wallet: address },
       secret
