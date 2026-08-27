@@ -331,8 +331,30 @@ export default async function handler(
           return res.status(401).json({ error: 'Invalid Farcaster signer' });
         }
       } else {
-        return res.status(400).json({
-          error: 'Authentication required: provide frameMessage or signerUuid',
+        // NO CREDENTIAL OF ANY KIND.
+        //
+        // This message was written when every player was a Farcaster player and
+        // the only ways in were a frame message or a signer. A wallet-native
+        // player whose session cookie is missing or expired lands here too, and
+        // telling them to "provide frameMessage or signerUuid" is meaningless —
+        // the client cannot recognise it either, so it renders as "Something
+        // went wrong", which is how a Base App sign-in problem looked
+        // indistinguishable from a server fault.
+        //
+        // Reported to Sentry because this is now the signature of a lost
+        // session, not just a malformed request.
+        Sentry.captureMessage('[Guess] No credential presented', {
+          level: 'warning',
+          extra: {
+            hasCookieHeader: !!req.headers?.cookie,
+            hasFrameMessage: !!frameMessage,
+            hasSignerUuid: !!signerUuid,
+            userAgent: req.headers?.['user-agent'],
+          },
+        });
+        return res.status(401).json({
+          error: AppErrorCodes.AUTHENTICATION_REQUIRED,
+          message: 'Your session has expired. Sign in again to keep playing.',
         });
       }
 

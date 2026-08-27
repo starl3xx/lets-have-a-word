@@ -292,7 +292,10 @@ export const ErrorDisplayConfigs: Record<AppErrorCode, ErrorDisplayConfig> = {
   },
   [AppErrorCodes.AUTHENTICATION_REQUIRED]: {
     userTitle: 'Sign in required',
-    userBody: 'Please open this app in Warpcast to play.',
+    // Was "Please open this app in Warpcast to play." — true when every player
+    // was a Farcaster player, and wrong for a wallet player in Base App, who is
+    // in the right place and has simply lost their session.
+    userBody: 'Your session has expired. Sign in again to keep playing.',
     primaryCtaLabel: 'Dismiss',
     primaryCtaAction: 'dismiss',
     bannerVariant: 'warning',
