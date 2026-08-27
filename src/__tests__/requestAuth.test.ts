@@ -358,6 +358,34 @@ describe('a dead cookie must not veto a live header token', () => {
     const nothing = await resolveRequestFid(makeReq({}), {});
     expect(nothing).toMatchObject({ ok: false, sessionTokenCandidates: 0 });
   });
+
+  it('describes each refused candidate safely — carrier, shape, claim, refusal', async () => {
+    const expiredCookie = await signPlayerSession({ fid: 1_000_000_048, origin: 'wallet' }, SECRET, -1);
+    const result = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: expiredCookie },
+        headers: { [PLAYER_SESSION_HEADER]: 'not-even-token-shaped' },
+      }),
+      {}
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const shapes = result.refusedSessionShapes ?? [];
+    expect(shapes).toHaveLength(2);
+
+    const cookieShape = shapes.find((s) => s.src === 'cookie')!;
+    expect(cookieShape.refusal).toBe('expired');
+    expect(cookieShape.payloadParses).toBe(true);
+    expect(cookieShape.fidKind).toBe('number');
+    expect(cookieShape.claimedFid).toBe(1_000_000_048);
+    expect(cookieShape.claimedOrigin).toBe('wallet');
+    expect(cookieShape.parts).toBe(2);
+
+    const headerShape = shapes.find((s) => s.src === 'header')!;
+    expect(headerShape.refusal).toBe('inauthentic');
+    expect(headerShape.payloadParses).toBe(false);
+    expect(headerShape.parts).toBe(1);
+  });
 });
 
 describe('no credential at all', () => {

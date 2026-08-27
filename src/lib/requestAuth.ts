@@ -37,8 +37,10 @@ import type { NextApiRequest } from 'next';
 import { isDevModeEnabled } from './devGameState';
 import {
   inspectPlayerSession,
+  describeOpaqueSessionValue,
   PLAYER_SESSION_COOKIE,
   PLAYER_SESSION_HEADER,
+  type OpaqueSessionShape,
   type PlayerOrigin,
   type PlayerSession,
 } from './playerSession';
@@ -93,6 +95,11 @@ export interface AuthFailure {
    * shadowing on 2026-08-27.
    */
   sessionTokenCandidates?: number;
+  /**
+   * Safe structural description of each refused candidate, for telemetry.
+   * See PlayerSessionResolution.refusedShapes.
+   */
+  refusedSessionShapes?: RefusedCandidateShape[];
 }
 
 export type RequestAuthResult = AuthSuccess | AuthFailure;
@@ -127,20 +134,25 @@ export interface ResolveOptions {
  */
 const MAX_SESSION_TOKEN_CANDIDATES = 5;
 
-function readPlayerSessionTokens(req: NextApiRequest): string[] {
-  const candidates: string[] = [];
-  const push = (value: unknown) => {
+interface SessionCandidate {
+  value: string;
+  src: 'cookie' | 'header';
+}
+
+function readPlayerSessionTokens(req: NextApiRequest): SessionCandidate[] {
+  const candidates: SessionCandidate[] = [];
+  const push = (value: unknown, src: 'cookie' | 'header') => {
     if (
       typeof value === 'string' &&
       value.length > 0 &&
       candidates.length < MAX_SESSION_TOKEN_CANDIDATES &&
-      !candidates.includes(value)
+      !candidates.some((c) => c.value === value)
     ) {
-      candidates.push(value);
+      candidates.push({ value, src });
     }
   };
 
-  push(req.cookies?.[PLAYER_SESSION_COOKIE]);
+  push(req.cookies?.[PLAYER_SESSION_COOKIE], 'cookie');
 
   // The raw header too: duplicate cookie names (path/domain variants) reach
   // the parsed map as ONE winner, and the shadowed one may be the live one.
@@ -148,15 +160,22 @@ function readPlayerSessionTokens(req: NextApiRequest): string[] {
   if (cookieHeader) {
     for (const part of cookieHeader.split(';')) {
       const [name, ...rest] = part.trim().split('=');
-      if (name === PLAYER_SESSION_COOKIE) push(rest.join('='));
+      if (name === PLAYER_SESSION_COOKIE) push(rest.join('='), 'cookie');
     }
   }
 
   const presented = req.headers?.[PLAYER_SESSION_HEADER];
-  if (Array.isArray(presented)) presented.forEach(push);
-  else push(presented);
+  if (Array.isArray(presented)) presented.forEach((v) => push(v, 'header'));
+  else push(presented, 'header');
 
   return candidates;
+}
+
+export interface RefusedCandidateShape extends OpaqueSessionShape {
+  /** Which carrier presented it. */
+  src: 'cookie' | 'header';
+  /** Why it was refused: authentic-but-expired, or not ours at all. */
+  refusal: 'expired' | 'inauthentic';
 }
 
 export interface PlayerSessionResolution {
@@ -165,6 +184,13 @@ export interface PlayerSessionResolution {
   anyAuthenticExpired: boolean;
   /** How many token candidates the request presented (0 = none at all). */
   candidates: number;
+  /**
+   * Safe structural descriptions of every refused candidate, populated only
+   * on total failure. Diagnostics, never an auth input: after three days of
+   * Base App 401s, "both carriers present, all refused" could not say whether
+   * the values were mangled, stale, or minted for someone else.
+   */
+  refusedShapes: RefusedCandidateShape[];
 }
 
 /**
@@ -178,18 +204,29 @@ export async function resolvePlayerSessionFromRequest(
   const secret = process.env.ADMIN_SECRET;
   const tokens = readPlayerSessionTokens(req);
   let anyAuthenticExpired = false;
+  const refusedShapes: RefusedCandidateShape[] = [];
 
   if (secret) {
-    for (const token of tokens) {
-      const inspection = await inspectPlayerSession(token, secret);
+    for (const candidate of tokens) {
+      const inspection = await inspectPlayerSession(candidate.value, secret);
       if (inspection.ok) {
-        return { session: inspection.session, anyAuthenticExpired, candidates: tokens.length };
+        return {
+          session: inspection.session,
+          anyAuthenticExpired,
+          candidates: tokens.length,
+          refusedShapes: [],
+        };
       }
       if (inspection.expired) anyAuthenticExpired = true;
+      refusedShapes.push({
+        ...describeOpaqueSessionValue(candidate.value),
+        src: candidate.src,
+        refusal: inspection.expired ? 'expired' : 'inauthentic',
+      });
     }
   }
 
-  return { session: null, anyAuthenticExpired, candidates: tokens.length };
+  return { session: null, anyAuthenticExpired, candidates: tokens.length, refusedShapes };
 }
 
 /** The default JWT verifier, imported lazily so tests never touch the network. */
@@ -304,5 +341,6 @@ export async function resolveRequestFid(
     message: 'Please refresh the app to sign in.',
     presentedSessionToken: resolution.anyAuthenticExpired,
     sessionTokenCandidates: resolution.candidates,
+    refusedSessionShapes: resolution.refusedShapes,
   };
 }
