@@ -23,9 +23,16 @@ afterEach(() => {
   else process.env.ADMIN_SECRET = originalSecret;
 });
 
-function run(cookies: Record<string, string>, method = 'GET') {
+function run(
+  cookies: Record<string, string>,
+  method = 'GET',
+  requestHeaders: Record<string, string> = {}
+) {
   return new Promise<{ status: number; body: any; headers: Record<string, string> }>((resolve) => {
     let status = 200;
+    // Response-header capture — deliberately distinct from requestHeaders; a
+    // same-named local here once shadowed the parameter and silently dropped
+    // every request header on the floor.
     const headers: Record<string, string> = {};
     const res = {
       status(c: number) {
@@ -44,7 +51,10 @@ function run(cookies: Record<string, string>, method = 'GET') {
         return this;
       },
     };
-    handler({ method, cookies } as unknown as NextApiRequest, res as unknown as NextApiResponse);
+    handler(
+      { method, cookies, headers: requestHeaders } as unknown as NextApiRequest,
+      res as unknown as NextApiResponse
+    );
   });
 }
 
@@ -62,6 +72,24 @@ describe('a valid session', () => {
       origin: 'wallet',
       wallet: '0xabc0000000000000000000000000000000000011',
     });
+  });
+
+  it('answers from the header token when a dead cookie shadows it', async () => {
+    // The 2026-08-27 lockout: Base App's webview jar pinned a dead cookie it
+    // would neither update nor drop, and the first-token-wins resolver let it
+    // veto the freshly minted header token — "signed in" here, 401 on every
+    // guess, sign-in card again, forever.
+    const deadCookie = await signPlayerSession({ fid: 1_000_000_022, origin: 'wallet' }, 'old-rotated-secret');
+    const liveHeader = await signPlayerSession(
+      { fid: 1_000_000_023, origin: 'wallet', wallet: '0xAbC0000000000000000000000000000000000012' },
+      SECRET
+    );
+    const { status, body } = await run({ [PLAYER_SESSION_COOKIE]: deadCookie }, 'GET', {
+      'x-player-session': liveHeader,
+    });
+
+    expect(status).toBe(200);
+    expect(body.fid).toBe(1_000_000_023);
   });
 
   it('is never cached — a minted or expired session must not be served stale', async () => {

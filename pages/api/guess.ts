@@ -356,6 +356,9 @@ export default async function handler(
             .split(';')
             .some((p) => p.trim().startsWith(`${PLAYER_SESSION_COOKIE}=`)),
           hasPlayerSessionHeader: !!req.headers?.[PLAYER_SESSION_HEADER],
+          // With presentedSessionToken false, nonzero means every candidate
+          // was inauthentic — worth knowing apart from "nothing arrived".
+          sessionTokenCandidates: auth.sessionTokenCandidates ?? 0,
           clientBuild: req.headers?.['x-lhaw-build'] ?? null,
           hasFrameMessage: !!frameMessage,
           hasSignerUuid: !!signerUuid,

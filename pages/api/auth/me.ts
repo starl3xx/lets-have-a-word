@@ -14,12 +14,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import {
-  verifyPlayerSession,
-  PLAYER_SESSION_COOKIE,
-  PLAYER_SESSION_HEADER,
-  type PlayerOrigin,
-} from '../../../src/lib/playerSession';
+import type { PlayerOrigin } from '../../../src/lib/playerSession';
+import { resolvePlayerSessionFromRequest } from '../../../src/lib/requestAuth';
 
 interface MeResponse {
   fid: number;
@@ -35,19 +31,14 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const secret = process.env.ADMIN_SECRET;
-  // Cookie first, header second — same order and same reasoning as
-  // resolveRequestFid. A Base App client holds the token because its webview
-  // will not return the cookie.
-  const presented = req.headers?.[PLAYER_SESSION_HEADER];
-  const token =
-    req.cookies?.[PLAYER_SESSION_COOKIE] ??
-    (typeof presented === 'string' ? presented : Array.isArray(presented) ? presented[0] : undefined);
-  if (!secret || !token) {
-    return res.status(401).json({ error: 'Not signed in' });
-  }
-
-  const session = await verifyPlayerSession(token, secret);
+  // The SAME resolver the game endpoints use, so this can never disagree
+  // with them about who is signed in. It tries every presented token: on
+  // 2026-08-27 a dead cookie pinned in Base App's webview jar shadowed the
+  // freshly minted header token here AND on /api/guess, which read as
+  // "signed in, but every guess is a 401" — a permanent lockout the client
+  // could not clear, because the jar cookie is HttpOnly and the webview
+  // never honors an overwrite.
+  const { session } = await resolvePlayerSessionFromRequest(req);
   if (!session) {
     return res.status(401).json({ error: 'Not signed in' });
   }
