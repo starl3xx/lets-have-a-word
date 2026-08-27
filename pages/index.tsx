@@ -1273,6 +1273,31 @@ function GameContent() {
             console.error('API Error Stack:', errorData.devStack);
             throw new Error(`API Error: ${errorData.devDetails}`);
           }
+          // The reward gate refused. It says exactly why and what the player
+          // needs — showing "Something went wrong" instead is how a $3 shortfall
+          // looked identical to a server fault.
+          if (response.status === 403 && errorData.error === 'REWARD_GATE_LOCKED') {
+            setErrorMessage(errorData.message || 'Playing needs about $3 of $WORD, held or staked.');
+            setIsLoading(false);
+            return;
+          }
+
+          // No credential, or one that did not verify. For a wallet player this
+          // means the session cookie is gone, which is recoverable by signing in
+          // again rather than by retrying the same request forever.
+          if (response.status === 401) {
+            setErrorMessage(errorData.message || 'Your session has expired. Sign in again to keep playing.');
+            setIsLoading(false);
+            return;
+          }
+
+          // Anything else that bothered to explain itself: say what it said,
+          // rather than replacing it with a generic message.
+          if (errorData.message || errorData.error) {
+            setErrorMessage(String(errorData.message || errorData.error));
+            setIsLoading(false);
+            return;
+          }
         } catch (parseError) {
           // Response wasn't JSON or parsing failed
         }
