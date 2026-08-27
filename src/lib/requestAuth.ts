@@ -40,6 +40,7 @@ import {
   PLAYER_SESSION_COOKIE,
   PLAYER_SESSION_HEADER,
   type PlayerOrigin,
+  type PlayerSession,
 } from './playerSession';
 
 /** Which credential answered. */
@@ -85,6 +86,13 @@ export interface AuthFailure {
    * from "nothing arrived at all"; conflating them cost hours on 2026-08-27.
    */
   presentedSessionToken?: boolean;
+  /**
+   * How many session-token candidates the request carried (cookies plus
+   * header). With presentedSessionToken false, a nonzero count means every
+   * one was inauthentic — the discriminator that caught the dead-cookie
+   * shadowing on 2026-08-27.
+   */
+  sessionTokenCandidates?: number;
 }
 
 export type RequestAuthResult = AuthSuccess | AuthFailure;
@@ -100,33 +108,88 @@ export interface ResolveOptions {
 }
 
 /**
- * The session token, from the cookie if it arrived and the header if it did not.
+ * EVERY presented session token, in preference order: cookie(s) first, header
+ * value(s) second. Capped so a hostile request cannot buy unbounded HMACs.
  *
- * The cookie is tried first and remains the preferred carrier: it is HttpOnly,
- * so a script cannot read it, and it works in every ordinary browser. The
- * header exists because Base App's webview accepts the Set-Cookie on sign-in
- * and then never sends it back — a player signs in, sees their balance, and
- * every guess arrives unauthenticated. HttpOnly protects nothing when the
- * cookie is never transmitted, so a token the client holds and presents
- * explicitly is strictly better than no session at all.
+ * A LIST, not a single value, and that is the whole point. The first version
+ * returned the first token found (cookie first) and stopped, which locked out
+ * a real player on 2026-08-27: Base App's webview jar pinned a dead
+ * lhaw_player_session cookie it would neither update nor drop, and that dead
+ * cookie shadowed the freshly minted header token on every request — sign-in
+ * "worked", then /api/auth/me and every guess failed, then the sign-in card
+ * again, forever. The client cannot clear an HttpOnly cookie from a jar the
+ * webview refuses to write, so the server must not let one dead carrier veto
+ * a live one.
+ *
+ * The cookie still comes first: in an ordinary browser it is the HttpOnly
+ * credential and the header is empty, so the order only matters when both are
+ * present — and then each candidate gets verified until one is good.
  */
-function readPlayerSessionToken(req: NextApiRequest): string | undefined {
-  const fromParsed = req.cookies?.[PLAYER_SESSION_COOKIE];
-  if (fromParsed) return fromParsed;
+const MAX_SESSION_TOKEN_CANDIDATES = 5;
 
+function readPlayerSessionTokens(req: NextApiRequest): string[] {
+  const candidates: string[] = [];
+  const push = (value: unknown) => {
+    if (
+      typeof value === 'string' &&
+      value.length > 0 &&
+      candidates.length < MAX_SESSION_TOKEN_CANDIDATES &&
+      !candidates.includes(value)
+    ) {
+      candidates.push(value);
+    }
+  };
+
+  push(req.cookies?.[PLAYER_SESSION_COOKIE]);
+
+  // The raw header too: duplicate cookie names (path/domain variants) reach
+  // the parsed map as ONE winner, and the shadowed one may be the live one.
   const cookieHeader = req.headers?.cookie;
   if (cookieHeader) {
     for (const part of cookieHeader.split(';')) {
       const [name, ...rest] = part.trim().split('=');
-      if (name === PLAYER_SESSION_COOKIE) return rest.join('=');
+      if (name === PLAYER_SESSION_COOKIE) push(rest.join('='));
     }
   }
 
   const presented = req.headers?.[PLAYER_SESSION_HEADER];
-  if (typeof presented === 'string' && presented.length > 0) return presented;
-  if (Array.isArray(presented) && presented[0]) return presented[0];
+  if (Array.isArray(presented)) presented.forEach(push);
+  else push(presented);
 
-  return undefined;
+  return candidates;
+}
+
+export interface PlayerSessionResolution {
+  session: PlayerSession | null;
+  /** Some refused candidate was authentic but expired — see AuthFailure. */
+  anyAuthenticExpired: boolean;
+  /** How many token candidates the request presented (0 = none at all). */
+  candidates: number;
+}
+
+/**
+ * Try every presented token until one verifies. Shared by resolveRequestFid
+ * and /api/auth/me so the two can never disagree about who is signed in —
+ * disagreement is precisely the stuck state: "me" says signed in, guess 401s.
+ */
+export async function resolvePlayerSessionFromRequest(
+  req: NextApiRequest
+): Promise<PlayerSessionResolution> {
+  const secret = process.env.ADMIN_SECRET;
+  const tokens = readPlayerSessionTokens(req);
+  let anyAuthenticExpired = false;
+
+  if (secret) {
+    for (const token of tokens) {
+      const inspection = await inspectPlayerSession(token, secret);
+      if (inspection.ok) {
+        return { session: inspection.session, anyAuthenticExpired, candidates: tokens.length };
+      }
+      if (inspection.expired) anyAuthenticExpired = true;
+    }
+  }
+
+  return { session: null, anyAuthenticExpired, candidates: tokens.length };
 }
 
 /** The default JWT verifier, imported lazily so tests never touch the network. */
@@ -218,25 +281,20 @@ export async function resolveRequestFid(
     };
   }
 
-  // 4. Wallet-native player (Base App).
-  const secret = process.env.ADMIN_SECRET;
-  const token = readPlayerSessionToken(req);
-  let authenticButExpired = false;
-  if (token && secret) {
-    const inspection = await inspectPlayerSession(token, secret);
-    if (inspection.ok) {
-      return {
-        ok: true,
-        fid: inspection.session.fid,
-        origin: 'player_session',
-        provenWallet: inspection.session.wallet,
-        playerOrigin: inspection.session.origin,
-      };
-    }
-    // A token that is present but bad is an expired session or noise, not an
-    // attack. Callers that can fall through should still be allowed to.
-    authenticButExpired = inspection.expired;
+  // 4. Wallet-native player (Base App). Every presented token is tried — a
+  //    dead cookie pinned in a webview jar must not veto a live header token.
+  const resolution = await resolvePlayerSessionFromRequest(req);
+  if (resolution.session) {
+    return {
+      ok: true,
+      fid: resolution.session.fid,
+      origin: 'player_session',
+      provenWallet: resolution.session.wallet,
+      playerOrigin: resolution.session.origin,
+    };
   }
+  // Tokens that are present but bad are an expired session or noise, not an
+  // attack. Callers that can fall through should still be allowed to.
 
   return {
     ok: false,
@@ -244,6 +302,7 @@ export async function resolveRequestFid(
     status: 401,
     error: 'Authentication required',
     message: 'Please refresh the app to sign in.',
-    presentedSessionToken: authenticButExpired,
+    presentedSessionToken: resolution.anyAuthenticExpired,
+    sessionTokenCandidates: resolution.candidates,
   };
 }

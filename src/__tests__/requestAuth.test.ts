@@ -267,6 +267,99 @@ describe('the session may arrive in a header, not only a cookie', () => {
   });
 });
 
+describe('a dead cookie must not veto a live header token', () => {
+  /**
+   * THE 2026-08-27 LOCKOUT. Base App's webview jar pinned a dead
+   * lhaw_player_session cookie it would neither update nor drop. The old
+   * resolver took the first token found — the cookie — and stopped, so the
+   * freshly minted header token was never even looked at: sign-in "worked",
+   * then /api/auth/me and every guess 401'd, then the sign-in card again,
+   * forever. The client cannot clear an HttpOnly cookie from a jar the
+   * webview refuses to write, so the server must try every candidate.
+   */
+  it('resolves via the header when the cookie token is inauthentic', async () => {
+    const deadCookie = await signPlayerSession({ fid: 1_000_000_040, origin: 'wallet' }, 'old-rotated-secret');
+    const liveHeader = await signPlayerSession(
+      { fid: 1_000_000_041, origin: 'wallet', wallet: '0xAbC0000000000000000000000000000000000041' },
+      SECRET
+    );
+    const result = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: deadCookie },
+        headers: { [PLAYER_SESSION_HEADER]: liveHeader },
+      }),
+      {}
+    );
+    expect(result).toMatchObject({ ok: true, fid: 1_000_000_041, origin: 'player_session' });
+  });
+
+  it('resolves via the header when the cookie token is authentic but expired', async () => {
+    const expiredCookie = await signPlayerSession({ fid: 1_000_000_042, origin: 'wallet' }, SECRET, -1);
+    const liveHeader = await signPlayerSession({ fid: 1_000_000_043, origin: 'wallet' }, SECRET);
+    const result = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: expiredCookie },
+        headers: { [PLAYER_SESSION_HEADER]: liveHeader },
+      }),
+      {}
+    );
+    expect(result).toMatchObject({ ok: true, fid: 1_000_000_043 });
+  });
+
+  it('finds a live duplicate cookie the parsed map shadowed', async () => {
+    // Two cookies with the same name (path/domain variants) reach req.cookies
+    // as ONE winner; the raw header still carries both.
+    const dead = await signPlayerSession({ fid: 1_000_000_044, origin: 'wallet' }, 'old-rotated-secret');
+    const live = await signPlayerSession({ fid: 1_000_000_045, origin: 'wallet' }, SECRET);
+    const result = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: dead },
+        headers: {
+          cookie: `${PLAYER_SESSION_COOKIE}=${dead}; ${PLAYER_SESSION_COOKIE}=${live}`,
+        },
+      }),
+      {}
+    );
+    expect(result).toMatchObject({ ok: true, fid: 1_000_000_045 });
+  });
+
+  it('reports authentic-expired when every candidate is dead and one was ours', async () => {
+    const expiredCookie = await signPlayerSession({ fid: 1_000_000_046, origin: 'wallet' }, SECRET, -1);
+    const result = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: expiredCookie },
+        headers: { [PLAYER_SESSION_HEADER]: 'garbage' },
+      }),
+      {}
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'no_credential',
+      presentedSessionToken: true,
+      sessionTokenCandidates: 2,
+    });
+  });
+
+  it('counts candidates so telemetry can tell "all inauthentic" from "none"', async () => {
+    const forged = await signPlayerSession({ fid: 1_000_000_047, origin: 'wallet' }, 'old-rotated-secret');
+    const allDead = await resolveRequestFid(
+      makeReq({
+        cookies: { [PLAYER_SESSION_COOKIE]: forged },
+        headers: { [PLAYER_SESSION_HEADER]: 'garbage' },
+      }),
+      {}
+    );
+    expect(allDead).toMatchObject({
+      ok: false,
+      presentedSessionToken: false,
+      sessionTokenCandidates: 2,
+    });
+
+    const nothing = await resolveRequestFid(makeReq({}), {});
+    expect(nothing).toMatchObject({ ok: false, sessionTokenCandidates: 0 });
+  });
+});
+
 describe('no credential at all', () => {
   it('never trusts a bare fid in the body', async () => {
     // This is the whole purchase-guess-pack.ts hole in one assertion.
