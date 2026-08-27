@@ -326,8 +326,14 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
               // NEVER degrade to personal_sign here: a Base Account
               // signature produced that way can never verify — that silent
               // degradation was two days of invisible sign-in failure. Fail
-              // loudly instead; the next tap starts clean.
-              throw new Error('Sign-in did not complete. Please try again.');
+              // the WHOLE attempt: the loop's catch retries the next
+              // connector on ordinary errors, and the next candidate after
+              // Base is the injected one — which on a desktop with MetaMask
+              // would open the wrong wallet from under the branded button.
+              // The name marks it non-retryable for the catch below.
+              const abort = new Error('Sign-in did not complete. Please try again.');
+              abort.name = 'SignInAbortError';
+              throw abort;
             }
 
             account = signed.address;
@@ -370,11 +376,13 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
         } catch (err) {
           // A user rejecting the first prompt must not silently open the
           // next one — that would be a second wallet popup they did not ask
-          // for. Stop on rejection; fall through only on genuine failures.
+          // for. Stop on rejection, and on a deliberate abort from the
+          // dialect branch above; fall through only on genuine failures.
+          const name = (err as { name?: string })?.name;
           const rejected =
-            (err as { name?: string })?.name === 'UserRejectedRequestError' ||
+            name === 'UserRejectedRequestError' ||
             /user rejected|denied/i.test((err as { message?: string })?.message ?? '');
-          if (rejected) throw err;
+          if (rejected || name === 'SignInAbortError') throw err;
           lastError = err;
         }
       }
