@@ -316,10 +316,22 @@ export async function upsertUserFromWallet(
     .returning();
 
   if (inserted.length === 0) {
+    // The SAME filter and ordering as the holders query above, and for the
+    // same reason. A bare `where wallet = ?` here could hand back a sentinel
+    // row (Postgres promises no ordering, and the partial unique index only
+    // covers wallet-origin rows, so a non-wallet row holding the address does
+    // not even participate in the conflict) — the race would then resolve to
+    // an unusable identity and auth/siwe would 500 instead of adopting the
+    // player the winning insert just created. Bugbot, PR #286.
     const [raced] = await db
       .select()
       .from(users)
-      .where(sql`lower(${users.signerWalletAddress}) = ${wallet}`)
+      .where(sql`lower(${users.signerWalletAddress}) = ${wallet} AND ${users.fid} > 0`)
+      .orderBy(
+        sql`(${users.identityOrigin} = 'wallet') DESC`,
+        sql`${users.xp} DESC`,
+        users.fid
+      )
       .limit(1);
     if (!raced) {
       throw new Error(`Failed to create wallet player for ${wallet}`);
