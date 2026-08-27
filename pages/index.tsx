@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -174,6 +174,50 @@ function trackNotificationOpen(userFid: number, appFid?: number): void {
 function GameContent() {
   // Router for dev query params
   const router = useRouter();
+
+  /**
+   * The keyboard's real height, measured rather than assumed.
+   *
+   * The content column has to reserve room for the fixed keyboard, and it used
+   * to do that with a constant: `13rem + env(safe-area-inset-bottom)`. The
+   * keyboard sizes itself differently — `max(1.5rem, env(safe-area-inset-bottom))`
+   * — so it ABSORBS the inset where the content ADDS it. On a host that reports
+   * a bottom inset (Base App's browser: 34px) the content gave away space the
+   * keyboard never claimed, which squeezed the wheel until its outer words
+   * clipped AND left a visible gap above the keys. The Farcaster webview
+   * reports 0, so the two guesses happened to agree there and the bug only
+   * showed in Base App.
+   *
+   * Measuring ends the whole class of bug: whatever the keyboard is, in any
+   * host, is exactly what gets reserved.
+   */
+  const [keyboardHeight, setKeyboardHeight] = useState<number | null>(null);
+  const keyboardResizeRef = useRef<ResizeObserver | null>(null);
+
+  // A callback ref, not an effect: the keyboard is below an early return, so
+  // it mounts LATER than this component does. A `[]` effect would run while
+  // the node is still null and never see it.
+  const measureKeyboard = useCallback((node: HTMLDivElement | null) => {
+    keyboardResizeRef.current?.disconnect();
+    keyboardResizeRef.current = null;
+    if (!node) return;
+
+    const apply = () => {
+      const height = node.getBoundingClientRect().height;
+      if (height <= 0) return;
+      // Ignore sub-pixel noise so a resize cannot ping-pong renders.
+      setKeyboardHeight((prev) => (prev !== null && Math.abs(prev - height) < 0.5 ? prev : height));
+    };
+
+    apply();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(apply);
+      observer.observe(node);
+      keyboardResizeRef.current = observer;
+    }
+  }, []);
+
+  useEffect(() => () => keyboardResizeRef.current?.disconnect(), []);
 
   // Word input state - now managed as array of 5 letters (Milestone 4.3)
   const [letters, setLetters] = useState<string[]>(['', '', '', '', '']);
@@ -2231,7 +2275,14 @@ function GameContent() {
         <div
           className="flex-1 flex flex-col px-4 pt-1 overflow-hidden"
           style={{
-            paddingBottom: 'max(13rem, calc(13rem + env(safe-area-inset-bottom)))',
+            // Exactly the keyboard, once measured. The constant below is only
+            // the first-paint fallback, and it keeps the old shape so nothing
+            // jumps: the measurement lands in the same frame on every host
+            // that supports ResizeObserver.
+            paddingBottom:
+              keyboardHeight != null
+                ? `${keyboardHeight}px`
+                : 'max(13rem, calc(13rem + env(safe-area-inset-bottom)))',
           }}
         >
         <div className="max-w-md w-full mx-auto flex-1 relative flex flex-col">
@@ -2521,8 +2572,10 @@ function GameContent() {
 
       </div>
 
-      {/* Custom Keyboard (Milestone 4.4) */}
+      {/* Custom Keyboard (Milestone 4.4). Measured by the content column above,
+          which reserves exactly this element's height — see measureKeyboard. */}
       <div
+        ref={measureKeyboard}
         className="fixed bottom-0 left-0 right-0 bg-gray-100 pt-2"
         style={{
           zIndex: 50,
