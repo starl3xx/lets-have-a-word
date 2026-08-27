@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { formatWordAmount } from '../src/lib/word-amounts';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
+import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
 import type { UserReferralsResponse } from '../pages/api/user/referrals';
 import { useTranslation } from '../src/hooks/useTranslation';
 
@@ -27,6 +30,7 @@ export default function ReferralSheet({
   autoCopyOnOpen = false,
 }: ReferralSheetProps) {
   const { t } = useTranslation();
+  const { inMiniApp, resolved } = useIsInMiniApp();
   const [referralData, setReferralData] = useState<UserReferralsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -198,10 +202,26 @@ export default function ReferralSheet({
         `One correct guess wins the jackpot 🎯\n\n` +
         `Play with my link ↓ ${referralData.referralLink}`;
 
-      await sdk.actions.composeCast({
-        text: castText,
-        embeds: [referralData.referralLink],
-      });
+      // Off-host `composeCast` never settles, so this button was simply dead
+      // in Base App. The X web intent works everywhere; the referral link is
+      // the whole point of the share, so it rides as the intent's url.
+      if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+        // No `url` argument: the intent API appends it to the text, and the
+        // referral link is already the last line of castText — passing both
+        // posts the same link twice.
+        openXComposer(castText.replace(FARCASTER_HANDLE, X_HANDLE));
+        void haptics.shareCompleted();
+        return;
+      }
+
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: castText,
+          embeds: [referralData.referralLink],
+        }),
+        'composeCast',
+        HOST_COMPOSE_TIMEOUT_MS
+      );
 
       void haptics.shareCompleted();
     } catch (error) {
@@ -285,7 +305,11 @@ export default function ReferralSheet({
                   onClick={handleShare}
                   className="btn-accent flex-1 flex items-center justify-center gap-2 py-3"
                 >
-                  <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+                  {inMiniApp ? (
+                    <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+                  ) : (
+                    <span className="text-base leading-none">𝕏</span>
+                  )}
                   {t('referral.shareLink')}
                 </button>
 

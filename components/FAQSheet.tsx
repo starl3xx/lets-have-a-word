@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout } from '../src/lib/hostActions';
 import { WORD_POOL_URL } from '../config/economy';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 
@@ -57,9 +58,12 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
         }
         try {
           console.log('[FAQ] Attempting to view token...');
-          const result = await sdk.actions.viewToken({
-            token: 'eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b'
-          });
+          const result = await withHostTimeout(
+            sdk.actions.viewToken({
+              token: 'eip155:8453/erc20:0x304e649e69979298BD1AEE63e175ADf07885fb4b',
+            }),
+            'viewToken'
+          );
           console.log('[FAQ] viewToken result:', result);
         } catch (error) {
           console.error('[FAQ] Error opening token view:', error);
@@ -83,7 +87,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
           return;
         }
         try {
-          await sdk.actions.viewProfile({ fid });
+          await withHostTimeout(sdk.actions.viewProfile({ fid }), 'viewProfile');
         } catch (error) {
           console.error('Error opening profile:', error);
         }

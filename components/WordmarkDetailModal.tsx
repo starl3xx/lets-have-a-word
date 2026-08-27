@@ -17,6 +17,9 @@
  */
 import { createPortal } from 'react-dom';
 import sdk from '@farcaster/miniapp-sdk';
+import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
+import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
@@ -165,6 +168,7 @@ function formatEarnedDate(earnedAt: Date | string | undefined): string | null {
 }
 
 export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetailModalProps) {
+  const { inMiniApp, resolved } = useIsInMiniApp();
   const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
   const detail = wordmark.earned ? earnedDetail(wordmark) : null;
   const earnedDate = wordmark.earned ? formatEarnedDate(wordmark.earnedAt) : null;
@@ -181,10 +185,25 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
         `${shareRarityClause(wordmark.holders)}\n` +
         `letshaveaword.fun`;
 
-      await sdk.actions.composeCast({
-        text: castText,
-        embeds: ['https://letshaveaword.fun'],
-      });
+      // Same host branch as every other share: composeCast needs a Farcaster
+      // host, the X intent works anywhere.
+      if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+        openXComposer(
+          castText.replace(FARCASTER_HANDLE, X_HANDLE),
+          'https://letshaveaword.fun'
+        );
+        void haptics.shareCompleted();
+        return;
+      }
+
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: castText,
+          embeds: ['https://letshaveaword.fun'],
+        }),
+        'composeCast',
+        HOST_COMPOSE_TIMEOUT_MS
+      );
 
       void haptics.shareCompleted();
     } catch (error) {
@@ -244,7 +263,11 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
               onClick={handleShare}
               className="btn-accent flex-1 flex items-center justify-center gap-2"
             >
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              {inMiniApp ? (
+                <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              ) : (
+                <span className="text-base leading-none">𝕏</span>
+              )}
               Share
             </button>
             <button onClick={onClose} className="btn-primary-lg flex-1">

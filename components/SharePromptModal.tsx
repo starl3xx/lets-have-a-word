@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
 import { useReloadHold } from '../src/lib/buildFreshness';
+import { withHostTimeout, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -252,10 +253,14 @@ export default function SharePromptModal({
     try {
       console.log('[SharePromptModal] Opening composer with text:', shareText);
 
-      await sdk.actions.composeCast({
-        text: shareText,
-        embeds: [embedUrl],
-      });
+      await withHostTimeout(
+        sdk.actions.composeCast({
+          text: shareText,
+          embeds: [embedUrl],
+        }),
+        'composeCast',
+        HOST_COMPOSE_TIMEOUT_MS
+      );
 
       console.log('[SharePromptModal] Composer opened');
       setHasOpenedComposer(true);
@@ -368,12 +373,11 @@ export default function SharePromptModal({
             </span>
           </button>
 
-          {/* Secondary button */}
-          <button
-            onClick={onClose}
-            disabled={isSharing}
-            className="btn-secondary w-full"
-          >
+          {/* Secondary button. NEVER disabled by the share button's pending
+              state: a way out must not depend on another control succeeding.
+              While composeCast hung off-host this was the difference between a
+              modal and a trap, with a backdrop tap the only escape. */}
+          <button onClick={onClose} className="btn-secondary w-full">
             {t('anotherGuess.notNow')}
           </button>
         </div>

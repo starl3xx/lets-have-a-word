@@ -1583,7 +1583,18 @@ function GameContent() {
                     (isInMiniApp && hasMiniAppInstalled === false && !hasSeenInstallPrompt())
                   ) {
                     setShowInstallPromptModal(true);
-                  } else {
+                  } else if (isInMiniApp) {
+                    // The share bonus is a FARCASTER bonus today: the modal
+                    // composes a cast, and /api/share-callback awards the
+                    // guess only after Neynar finds that cast. A wallet player
+                    // can satisfy neither half, so offering it promised a free
+                    // guess that could not be earned — and the modal took the
+                    // tap and disabled its own "Not now" while it waited on a
+                    // composer that never opened. Hidden until the bonus has
+                    // an honest answer for them (an X share, awarded on an
+                    // AUTHENTICATED callback — share-callback still trusts a
+                    // body `fid` today, and the cast check is the only thing
+                    // making that safe).
                     setShowShareModal(true);
                   }
                   break;
@@ -1601,8 +1612,10 @@ function GameContent() {
             }
           } catch (error) {
             console.error('Error in modal decision:', error);
-            // Fallback: show share modal if eligible
-            if (canClaimShareBonus) {
+            // Fallback: show share modal if eligible. Same host condition as
+            // the decision path above — an error here must not become the way
+            // a wallet player reaches a Farcaster-only bonus.
+            if (canClaimShareBonus && isInMiniApp) {
               setShowShareModal(true);
             }
           }
