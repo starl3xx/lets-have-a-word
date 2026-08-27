@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import PlayerAvatar from './PlayerAvatar';
+import { playerLabel } from '../src/lib/player-display';
 import { formatPrize, formatPrizeCompact, formatWordAmountCompact } from '../src/lib/prize-display';
 import Top10StatusChip from './Top10StatusChip';
 import BadgeStack from './BadgeStack';
@@ -16,6 +17,7 @@ interface TopGuesser {
   pfpUrl: string;
   /** From /api/round/top-guessers. Optional so an older cached payload still renders. */
   origin?: 'farcaster' | 'wallet';
+  isAddressFallback?: boolean;
   hasOgHunterBadge?: boolean;
   hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
@@ -557,15 +559,14 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                         {/* Username + Badges + ETH Payout */}
                         <div className="flex-1 flex items-center gap-1 min-w-0">
                           <span className="text-sm font-medium text-gray-900 truncate">
-                            {/* "@" is a Farcaster handle thing. A basename is a
-                                name, not a handle, so "@starl3xx.base.eth"
-                                would be wrong and would imply a mention that
-                                resolves to nobody. */}
-                            {guesser.origin === 'wallet'
-                              ? guesser.username
-                              : (guesser.username?.startsWith('fid:') || guesser.username?.startsWith('!'))
-                                ? `fid:${guesser.fid}`
-                                : `@${guesser.username || `fid:${guesser.fid}`}`}
+                            {/* The shared rule, CALLED rather than copied: an
+                                inline version cannot see isAddressFallback and
+                                puts an "@" on a truncated address. */}
+                            {playerLabel({
+                              name: guesser.username || `fid:${guesser.fid}`,
+                              origin: guesser.origin ?? 'farcaster',
+                              isAddressFallback: guesser.isAddressFallback ?? false,
+                            })}
                           </span>
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}

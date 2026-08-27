@@ -71,7 +71,15 @@ export function fallbackAvatarUrl(source: PlayerDisplaySource): string {
  * Farcaster usernames can themselves look like names (vitalik.eth is a valid
  * one), so a dot cannot be the discriminator.
  */
-export function playerLabel(display: PlayerDisplay): string {
+export function playerLabel(
+  // Deliberately a narrow shape rather than the whole PlayerDisplay: the
+  // client receives these three fields from an API and should be able to call
+  // the real helper instead of reimplementing the rule from what it happens to
+  // have. An inlined copy is how this rule silently diverged once already —
+  // and an inline copy cannot see isAddressFallback, so it put an "@" on a
+  // truncated address (Bugbot, PR #291).
+  display: Pick<PlayerDisplay, 'name' | 'origin' | 'isAddressFallback'>
+): string {
   if (display.origin === 'farcaster' && !display.isAddressFallback && !display.name.startsWith('fid:')) {
     return display.name.startsWith('@') ? display.name : `@${display.name}`;
   }
@@ -86,9 +94,12 @@ export function playerDisplay(source: PlayerDisplaySource): PlayerDisplay {
 
   if (origin === 'farcaster') {
     const username = source.username?.trim();
-    // `user-<fid>` is a placeholder this codebase writes when Neynar knows
-    // nothing; it is not a name and must not be rendered as one.
-    if (username && !/^user-?\d+$/.test(username)) {
+    // Two non-names to reject, so no caller has to know about either:
+    //   `user-<fid>` is a placeholder this codebase writes when Neynar knows
+    //     nothing, and is the round-28 farm fingerprint besides;
+    //   `!12345` is Farcaster's own placeholder for an account it cannot
+    //     resolve, which several call sites special-cased by hand.
+    if (username && !/^user-?\d+$/.test(username) && !username.startsWith('!')) {
       return { name: username, avatarUrl, origin, isAddressFallback: false };
     }
   }

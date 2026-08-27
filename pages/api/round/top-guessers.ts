@@ -24,6 +24,9 @@ export interface TopGuesser {
   pfpUrl: string; // Farcaster profile picture URL
   /** Which door this player came through, so the UI can badge Farcaster vs Base. */
   origin: 'farcaster' | 'wallet';
+  /** True when `username` is a truncated address. The client needs it to call
+   *  playerLabel, which must not put an "@" on an address. */
+  isAddressFallback: boolean;
   hasOgHunterBadge: boolean;
   hasWordTokenBadge: boolean;
   hasBonusWordBadge: boolean;
@@ -127,6 +130,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
       fid,
       username: userData?.username || `FID ${fid}`,
       origin: 'farcaster' as const,
+      isAddressFallback: false,
       guessCount: guessCounts[i],
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       hasOgHunterBadge: false, // Dev mode: no badges
@@ -403,6 +407,7 @@ export default async function handler(
             fid: g.fid,
             username: display.name,
             origin: display.origin,
+            isAddressFallback: display.isAddressFallback,
             guessCount: Number(g.guessCount),
             pfpUrl: display.avatarUrl,
             hasOgHunterBadge: ogHunterFids.has(g.fid),

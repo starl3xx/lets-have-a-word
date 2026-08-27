@@ -183,3 +183,23 @@ describe('the @ prefix belongs to Farcaster only', () => {
     expect(playerLabel(playerDisplay({ fid: 6502 }))).toBe('fid:6502');
   });
 });
+
+describe("Farcaster's own !placeholder is not a name either", () => {
+  it('rejects a !12345 username and falls back to the address', () => {
+    // Farcaster renders an unresolvable account as "!12345". Several call
+    // sites special-cased it by hand; the rule lives here now so none of them
+    // has to know. (Bugbot, PR #291.)
+    const d = playerDisplay({ fid: 6503, username: '!12345', signerWalletAddress: WALLET });
+    expect(d.name).toBe('0x0Fc0…2F6E');
+    expect(d.isAddressFallback).toBe(true);
+  });
+
+  it('never puts an @ on a Farcaster-origin address fallback', () => {
+    // The exact defect an inlined copy of the rule reintroduced: the inline
+    // version could not see isAddressFallback, so it produced "@0x0Fc0…2F6E".
+    const d = playerDisplay({ fid: 6504, username: '!999', signerWalletAddress: WALLET });
+    expect(d.origin).toBe('farcaster');
+    expect(playerLabel(d)).toBe('0x0Fc0…2F6E');
+    expect(playerLabel(d)).not.toContain('@');
+  });
+});
