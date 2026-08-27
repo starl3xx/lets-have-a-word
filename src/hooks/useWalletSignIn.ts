@@ -46,6 +46,14 @@ export interface WalletSignIn {
   error: string | null;
   /** Connect (if needed), sign, and exchange. Safe to call when connected. */
   signIn: () => Promise<void>;
+  /**
+   * The server has definitively refused the session (a 401 on a real request).
+   * Drops the stored token and returns the player to the sign-in card with
+   * `message` shown, instead of leaving them in a game where every guess fails
+   * the same way. ONLY for a definitive 401 — a 500 or a timeout says nothing
+   * about the token and must not cost a wallet signature.
+   */
+  expireSession: (message?: string | null) => void;
 }
 
 export function useWalletSignIn(enabled: boolean): WalletSignIn {
@@ -130,6 +138,13 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
       cancelled = true;
     };
   }, [enabled]);
+
+  const expireSession = useCallback((message?: string | null) => {
+    clearStoredPlayerSession();
+    setFid(null);
+    setError(message ?? null);
+    setStatus('signed-out');
+  }, []);
 
   const signIn = useCallback(async () => {
     setError(null);
@@ -222,7 +237,10 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
 
       const verifyRes = await fetch('/api/auth/siwe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // playerSessionHeaders carries no token here (that is what we are
+        // acquiring) — it contributes the x-lhaw-build header, so a sign-in
+        // from a stale client is attributable server-side.
+        headers: { 'Content-Type': 'application/json', ...playerSessionHeaders() },
         body: JSON.stringify({ message, signature, ref: ref ? Number(ref) : undefined }),
       });
 
@@ -247,5 +265,5 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
     }
   }, [address, connectAsync, connectors, signMessageAsync]);
 
-  return { status, fid, address, isConnected, error, signIn };
+  return { status, fid, address, isConnected, error, signIn, expireSession };
 }

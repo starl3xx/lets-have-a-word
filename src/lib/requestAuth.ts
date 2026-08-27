@@ -73,6 +73,14 @@ export interface AuthFailure {
   status: number;
   error: string;
   message?: string;
+  /**
+   * Set on a `no_credential` failure when a session token WAS presented but
+   * did not verify (expired, or minted before a secret rotation). The failure
+   * still falls through as no_credential — an expired session is not an
+   * attack — but telemetry must be able to tell "player lost their session"
+   * from "nothing arrived at all"; conflating them cost hours on 2026-08-27.
+   */
+  presentedSessionToken?: boolean;
 }
 
 export type RequestAuthResult = AuthSuccess | AuthFailure;
@@ -230,5 +238,6 @@ export async function resolveRequestFid(
     status: 401,
     error: 'Authentication required',
     message: 'Please refresh the app to sign in.',
+    presentedSessionToken: !!token,
   };
 }

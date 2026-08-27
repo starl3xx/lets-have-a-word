@@ -25,6 +25,7 @@ import { useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance 
 import { parseEther } from 'viem';
 import { base } from 'wagmi/chains';
 import { ERC_8021_SUFFIX } from '../config/wagmi';
+import { useReloadHold } from '../lib/buildFreshness';
 
 const WORD_PACK_SALES_ADDRESS = process.env
   .NEXT_PUBLIC_WORD_PACK_SALES_ADDRESS as `0x${string}` | undefined;
@@ -66,6 +67,11 @@ export function useSuperguessPayment(
   const [phase, setPhase] = useState<SuperguessPaymentPhase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
+
+  // Same class of loss as the pack purchase: a stale-runtime reload between
+  // paying onchain and the /api/superguess/purchase call strands a paid tx
+  // with no crediting. Hold automatic reloads across the whole window.
+  useReloadHold(phase === 'transferring' || phase === 'transfer-confirming' || phase === 'purchasing');
 
   // Native ETH balance — what the purchase is now paid in. A first-time
   // player is far likelier to hold this than the reward token.

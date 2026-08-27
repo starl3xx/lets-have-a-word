@@ -44,6 +44,7 @@ import {
 import { guessWasRecorded } from '../../src/lib/guesses';
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { resolveRequestFid } from '../../src/lib/requestAuth';
+import { PLAYER_SESSION_COOKIE, PLAYER_SESSION_HEADER } from '../../src/lib/playerSession';
 
 /**
  * POST /api/guess
@@ -343,15 +344,46 @@ export default async function handler(
         //
         // Reported to Sentry because this is now the signature of a lost
         // session, not just a malformed request.
-        Sentry.captureMessage('[Guess] No credential presented', {
-          level: 'warning',
-          extra: {
-            hasCookieHeader: !!req.headers?.cookie,
-            hasFrameMessage: !!frameMessage,
-            hasSignerUuid: !!signerUuid,
-            userAgent: req.headers?.['user-agent'],
-          },
-        });
+        //
+        // The extras answer the questions 2026-08-27 could not: did a session
+        // token arrive at all (header or cookie), was one presented and
+        // refused, and WHICH CLIENT BUILD sent the request — a Base App
+        // webview can resume a bundle from days before the current deploy.
+        const cookieHeader = req.headers?.cookie ?? '';
+        const noCredentialExtra = {
+          hasCookieHeader: !!req.headers?.cookie,
+          hasPlayerSessionCookie: cookieHeader
+            .split(';')
+            .some((p) => p.trim().startsWith(`${PLAYER_SESSION_COOKIE}=`)),
+          hasPlayerSessionHeader: !!req.headers?.[PLAYER_SESSION_HEADER],
+          clientBuild: req.headers?.['x-lhaw-build'] ?? null,
+          hasFrameMessage: !!frameMessage,
+          hasSignerUuid: !!signerUuid,
+          userAgent: req.headers?.['user-agent'],
+        };
+        if (auth.presentedSessionToken) {
+          // A real session was presented and refused — the lost-session
+          // signature, and the event worth guaranteeing. Flushed before
+          // responding, because in a serverless function the runtime can
+          // freeze the instant the response is sent, which is how the only
+          // diagnostic event of 2026-08-27 appears to have been lost. The
+          // flush is safe to await here precisely because producing this
+          // event requires having held a session: a zero-credential caller
+          // cannot reach it, so it cannot be farmed into a 2s-per-request
+          // hold or a Sentry quota burn.
+          Sentry.captureMessage('[Guess] Session token presented but refused', {
+            level: 'warning',
+            extra: noCredentialExtra,
+          });
+          await Sentry.flush(2000).catch(() => {});
+        } else {
+          // Nothing presented at all: bots and malformed callers can hit this
+          // at line rate with no credential, so it stays fire-and-forget.
+          Sentry.captureMessage('[Guess] No credential presented', {
+            level: 'warning',
+            extra: noCredentialExtra,
+          });
+        }
         return res.status(401).json({
           error: AppErrorCodes.AUTHENTICATION_REQUIRED,
           message: 'Your session has expired. Sign in again to keep playing.',

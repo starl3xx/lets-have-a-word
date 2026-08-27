@@ -3,6 +3,13 @@ import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The git sha this client bundle was built from, inlined at build time.
+  // Compared against /api/round-state's buildSha so a page that Base App has
+  // resumed from memory can notice it is running a stale deploy and reload
+  // (src/lib/buildFreshness.ts). 'dev' disables the check outside Vercel.
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: process.env.VERCEL_GIT_COMMIT_SHA || 'dev',
+  },
   // Disable type checking during build (we run tsc separately)
   typescript: {
     ignoreBuildErrors: true,

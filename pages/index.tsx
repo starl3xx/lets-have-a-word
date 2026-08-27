@@ -101,6 +101,7 @@ import confetti from 'canvas-confetti';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { useWalletSignIn } from '../src/hooks/useWalletSignIn';
 import { playerSessionHeaders } from '../src/lib/playerSessionClient';
+import { noteServerBuildSha, reloadIfStale, useReloadHold } from '../src/lib/buildFreshness';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 import { WORD_POOL_URL } from '../config/economy';
@@ -175,6 +176,15 @@ function GameContent() {
 
   // Word input state - now managed as array of 5 letters (Milestone 4.3)
   const [letters, setLetters] = useState<string[]>(['', '', '', '', '']);
+
+  // A stale-runtime reload can otherwise land while the player is mid-word —
+  // the poll that discovers the skew fires up to 15s after arrival, well
+  // after typing can start, and letters live only in this state. Held until
+  // the boxes are empty again; the reload then happens at the next
+  // opportunity. (reloadIfStale in the 401 handler bypasses this on purpose:
+  // there, the guess already failed on stale code.)
+  useReloadHold(letters.some((letter) => letter !== ''));
+
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubmitGuessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -535,6 +545,9 @@ function GameContent() {
           fetch('/api/round-state'),
           fetch('/api/round/top-guessers'),
         ]);
+
+        // Header, not body: present on the 204 no-active-round response too.
+        noteServerBuildSha(roundRes.headers.get('x-lhaw-server-build'));
 
         if (roundRes.ok) {
           const roundData = await roundRes.json();
@@ -1200,11 +1213,11 @@ function GameContent() {
         // Local development: use devFid
         requestBody.devFid = effectiveFid;
       }
-      // A wallet-native player (Base App) deliberately adds nothing here. Their
-      // credential is the HttpOnly player-session cookie, which a same-origin
-      // fetch sends on its own and which page scripts cannot read — so there is
-      // nothing to put in the body. resolveRequestFid picks it up server-side.
-      // The absence of a branch is the design, not an omission.
+      // A wallet-native player (Base App) deliberately adds nothing to the
+      // BODY. Their credential is the player session, carried by the cookie
+      // where the webview cooperates and by the x-player-session header from
+      // playerSessionHeaders() below where it does not (Base App accepts the
+      // sign-in cookie and never sends it back). resolveRequestFid tries both.
 
       // Get referral parameter from sessionStorage (captured on initial page load)
       // This ensures the ref is not lost if URL changed before first guess
@@ -1290,10 +1303,23 @@ function GameContent() {
           }
 
           // No credential, or one that did not verify. For a wallet player this
-          // means the session cookie is gone, which is recoverable by signing in
-          // again rather than by retrying the same request forever.
+          // means the session is gone, which is recoverable by signing in again
+          // rather than by retrying the same request forever.
           if (response.status === 401) {
-            setErrorMessage(errorData.message || 'Your session has expired. Sign in again to keep playing.');
+            const expiredMessage =
+              errorData.message || 'Your session has expired. Sign in again to keep playing.';
+            if (!isInMiniApp) {
+              // A stale runtime is the one case where signing in again cannot
+              // help — the old code will lose the fresh session the same way.
+              // Swap the bundle first if the poll has flagged one.
+              if (reloadIfStale()) return;
+              // Otherwise: back to the sign-in card with the message, instead
+              // of a game where every guess fails identically. The old
+              // dead-end left a player signed-in-looking with a dead session
+              // and no way to recover (seen on device 2026-08-27).
+              walletSignIn.expireSession(expiredMessage);
+            }
+            setErrorMessage(expiredMessage);
             setIsLoading(false);
             return;
           }
@@ -1923,6 +1949,25 @@ function GameContent() {
       clearInterval(interval);
     };
   }, [superguessActive, isSuperguessing, effectiveFid, hasSuperguessPreview]);
+
+  // While the mini-app probe is still running we do not know whether this is
+  // a Farcaster host, Base App, or a plain browser — so render a neutral boot
+  // screen rather than the game. Rendering the game here was the "shows the
+  // game for a second or two, then the splash" flash reported from Base App,
+  // where the probe takes its longest path. In a real Farcaster host this
+  // lasts well under a second (the host answers the first handshake), and the
+  // probe hook hard-stops at 5s so this can never be terminal.
+  if (!hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center p-6">
+        <img
+          src="/LHAW-icon.png"
+          alt="Let’s Have A Word"
+          className="w-20 h-20 rounded-2xl shadow-lg animate-pulse"
+        />
+      </div>
+    );
+  }
 
   // Outside a Farcaster host, the fallback is no longer a dead end.
   //

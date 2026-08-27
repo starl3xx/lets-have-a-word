@@ -79,12 +79,35 @@ export function clearStoredPlayerSession(): void {
 }
 
 /**
+ * Which build of the client is actually running, for the `x-lhaw-build`
+ * header. Base App's webview can resume a page from memory days after the
+ * deploy it came from, and on 2026-08-27 that made a fixed bug look unfixed —
+ * with nothing server-side able to say which client had sent the request.
+ * Prefers the git sha inlined at build time (comparable to the Sentry
+ * release); falls back to the Next buildId.
+ */
+function clientBuildId(): string | undefined {
+  const sha = process.env.NEXT_PUBLIC_BUILD_SHA;
+  if (sha && sha !== 'dev') return sha;
+  if (typeof window === 'undefined') return undefined;
+  const buildId = (window as unknown as { __NEXT_DATA__?: { buildId?: string } }).__NEXT_DATA__
+    ?.buildId;
+  return typeof buildId === 'string' && buildId ? buildId : undefined;
+}
+
+/**
  * Headers to attach to an authenticated request.
  *
- * Empty when there is no token, which is the normal case for a Farcaster
- * player — they authenticate with a Quick Auth JWT and never touch this.
+ * The session header is present only when there is a token, which a Farcaster
+ * player never has — they authenticate with a Quick Auth JWT and never touch
+ * this. The build header rides along whenever it is known, so a failed request
+ * can be attributed to the client version that sent it.
  */
 export function playerSessionHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const build = clientBuildId();
+  if (build) headers['x-lhaw-build'] = build;
   const session = getStoredPlayerSession();
-  return session ? { [PLAYER_SESSION_HEADER]: session.token } : {};
+  if (session) headers[PLAYER_SESSION_HEADER] = session.token;
+  return headers;
 }

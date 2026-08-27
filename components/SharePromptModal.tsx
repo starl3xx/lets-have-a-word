@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
+import { useReloadHold } from '../src/lib/buildFreshness';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -189,6 +190,12 @@ export default function SharePromptModal({
   const [hasOpenedComposer, setHasOpenedComposer] = useState(false);
   const [verificationAttempts, setVerificationAttempts] = useState(0);
   const MAX_VERIFICATION_ATTEMPTS = 5;
+
+  // A stale-runtime reload between composeCast and the share-callback POST
+  // silently drops the bonus claim — the composer backgrounds the page, which
+  // is exactly when automatic reloads fire. Held until the modal unmounts,
+  // which releases via the effect cleanup.
+  useReloadHold(isSharing || hasOpenedComposer);
 
   /**
    * Verify the cast was posted
