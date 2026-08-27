@@ -85,62 +85,28 @@ export async function withHostTimeout<T>(
  * Works in every host including Base App's webview — unlike `composeCast`,
  * which needs a Farcaster host.
  *
- * THE INSTALLED APP FIRST. `window.open` on the https intent lands in an
- * in-app browser tab inside a webview, which means a logged-out X asking the
- * player to sign in — on a phone where the X app is already installed and
- * logged in. The `twitter://post` scheme hands the compose straight to the app.
+ * OPENED IMMEDIATELY, INSIDE THE CLICK GESTURE. An earlier version navigated
+ * the page to a `twitter://post` scheme and set an 800ms timer to fall back to
+ * the web intent. Both halves were wrong (Bugbot, PR #291): a delayed
+ * `window.open` is outside the user gesture, so popup blockers swallow it
+ * silently, and a scheme nothing handles can replace the webview with an error
+ * page — unloading the game, including from the winner screen. A share button
+ * that can lose a jackpot celebration is worse than one that opens a browser.
  *
- * The fallback is guarded on VISIBILITY rather than on a bare timer. If the app
- * opens, this page is backgrounded, so a timer alone would fire on return and
- * open a duplicate browser composer after the player had already posted.
- * Checking that we are still visible is what distinguishes "the scheme did
- * nothing" from "the app took over".
- *
- * NOT VERIFIED ON A DEVICE — the deep link cannot be exercised from here, and
- * webviews differ in whether they hand an unknown scheme to the OS or drop it
- * silently. The https fallback is what makes an unhandled scheme merely slower
- * rather than broken.
+ * GETTING TO THE APP IS THE OS'S JOB, not something a page can force. The best
+ * a page can do is give iOS the cleanest possible universal link, which is why
+ * this uses `x.com/intent/tweet`: measured 2026-08-27, it answers 200 directly,
+ * while `twitter.com/intent/tweet` 301s to it — and a redirect hop is exactly
+ * what stops a universal link matching and opening the installed app. Where the
+ * host insists on an in-app browser, that is the host's decision.
  */
 export function openXComposer(text: string, url?: string): void {
   if (typeof window === 'undefined') return;
 
-  // The app scheme takes one text field, so the link rides inside the message.
-  // The web intent keeps them separate, where `url` renders as a proper card.
-  const message = url ? `${text}\n\n${url}` : text;
-  const webUrl = `https://twitter.com/intent/tweet?${new URLSearchParams({ text: message }).toString()}`;
-  const appUrl = `twitter://post?message=${encodeURIComponent(message)}`;
+  const params = new URLSearchParams({ text });
+  if (url) params.set('url', url);
 
-  let settled = false;
-  const openWeb = () => {
-    if (settled) return;
-    settled = true;
-    window.open(webUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const onHidden = () => {
-    // The app took over. Cancel the fallback so returning to the game does not
-    // open a second composer.
-    if (document.visibilityState === 'hidden') {
-      settled = true;
-      window.clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onHidden);
-    }
-  };
-  document.addEventListener('visibilitychange', onHidden);
-
-  const timer = window.setTimeout(() => {
-    document.removeEventListener('visibilitychange', onHidden);
-    if (document.visibilityState === 'visible') openWeb();
-  }, 800);
-
-  try {
-    window.location.href = appUrl;
-  } catch {
-    // Some webviews reject an unknown scheme outright rather than ignoring it.
-    window.clearTimeout(timer);
-    document.removeEventListener('visibilitychange', onHidden);
-    openWeb();
-  }
+  window.open(`https://x.com/intent/tweet?${params.toString()}`, '_blank', 'noopener,noreferrer');
 }
 
 /**

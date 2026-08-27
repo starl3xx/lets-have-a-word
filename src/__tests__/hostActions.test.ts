@@ -63,78 +63,51 @@ describe('withHostTimeout', () => {
   });
 });
 
-describe('openXComposer prefers the installed X app', () => {
+describe('openXComposer', () => {
   function fakeWindow() {
-    const opened: string[] = [];
-    const listeners: Array<() => void> = [];
-    let href = '';
+    const opened: Array<[string, string]> = [];
     (globalThis as any).window = {
-      open: (u: string) => opened.push(u),
-      setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
-      clearTimeout: (t: any) => clearTimeout(t),
-      get location() {
-        return {
-          get href() {
-            return href;
-          },
-          set href(v: string) {
-            href = v;
-          },
-        };
-      },
+      open: (u: string, target: string) => opened.push([u, target]),
     };
-    (globalThis as any).document = {
-      visibilityState: 'visible' as string,
-      addEventListener: (_t: string, fn: () => void) => listeners.push(fn),
-      removeEventListener: () => {},
-    };
-    return {
-      opened,
-      get href() {
-        return (globalThis as any).window.location.href;
-      },
-      background() {
-        (globalThis as any).document.visibilityState = 'hidden';
-        listeners.forEach((fn) => fn());
-      },
-    };
+    return opened;
   }
 
   afterEach(() => {
     delete (globalThis as any).window;
-    delete (globalThis as any).document;
   });
 
-  it('navigates to the app scheme first', async () => {
-    const env = fakeWindow();
+  it('opens synchronously, so the click gesture still covers it', () => {
+    // A delayed window.open is outside the user gesture and popup blockers
+    // swallow it silently — which is how the fallback became a share button
+    // that did nothing at all (Bugbot, PR #291).
+    const opened = fakeWindow();
     openXComposer('hello');
-    expect(env.href).toBe(`twitter://post?message=${encodeURIComponent('hello')}`);
-    expect(env.opened).toHaveLength(0);
+    expect(opened).toHaveLength(1);
   });
 
-  it('falls back to the web intent when the app never takes over', async () => {
-    const env = fakeWindow();
+  it('uses x.com directly, which is the clean universal link', () => {
+    // twitter.com/intent/tweet 301s to this URL, and the redirect hop is what
+    // stops iOS matching the universal link and opening the installed app.
+    const opened = fakeWindow();
     openXComposer('hello');
-    await vi.advanceTimersByTimeAsync(900);
-    expect(env.opened).toHaveLength(1);
-    expect(env.opened[0]).toContain('twitter.com/intent/tweet');
+    expect(opened[0][0]).toContain('https://x.com/intent/tweet?');
+    expect(opened[0][0]).not.toContain('twitter.com');
   });
 
-  it('does NOT open a second composer once the app has taken over', async () => {
-    // The reason the fallback is guarded on visibility rather than a bare
-    // timer: the app backgrounds this page, and a naive timer would fire on
-    // return and open a browser composer after the player had already posted.
-    const env = fakeWindow();
+  it('never navigates the current page away', () => {
+    // Navigating to an unhandled scheme can replace the webview with an error
+    // page and unload the game, including from the winner screen.
+    const opened = fakeWindow();
     openXComposer('hello');
-    env.background();
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(env.opened).toHaveLength(0);
+    expect(opened[0][1]).toBe('_blank');
+    expect((globalThis as any).window.location).toBeUndefined();
   });
 
-  it('carries the url inside the message, since the app scheme has one field', async () => {
-    const env = fakeWindow();
+  it('passes the url as its own parameter, where X renders it as a card', () => {
+    const opened = fakeWindow();
     openXComposer('come play', 'https://letshaveaword.fun/?ref=1');
-    expect(decodeURIComponent(env.href)).toContain('come play');
-    expect(decodeURIComponent(env.href)).toContain('https://letshaveaword.fun/?ref=1');
+    const u = new URL(opened[0][0]);
+    expect(u.searchParams.get('text')).toBe('come play');
+    expect(u.searchParams.get('url')).toBe('https://letshaveaword.fun/?ref=1');
   });
 });
