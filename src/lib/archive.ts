@@ -740,6 +740,9 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerHasEncyclopedicBadge?: boolean;
   referrerUsername: string | null;
   referrerOrigin: 'farcaster' | 'wallet' | null;
+  /** Symmetric with the winner and top guessers: playerLabel needs this to
+   *  withhold the "@" when the name fell through to a truncated address. */
+  referrerIsAddressFallback: boolean;
   referrerPfpUrl: string | null;
   topGuessersWithUsernames: Array<{
     fid: number;
@@ -1112,6 +1115,7 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       winnerHasBakersDozenBadge: archived.winnerFid ? bakersDozenBadgeFids.has(archived.winnerFid) : undefined,
       referrerUsername: referrerDisplay?.name ?? null,
       referrerOrigin: referrerDisplay?.origin ?? null,
+      referrerIsAddressFallback: referrerDisplay?.isAddressFallback ?? false,
       referrerPfpUrl: referrerDisplay?.avatarUrl ?? null,
       topGuessersWithUsernames,
     };
