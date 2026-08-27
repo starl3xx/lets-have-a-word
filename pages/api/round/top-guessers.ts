@@ -11,6 +11,8 @@ import { guesses, rounds, users, userBadges } from '../../../src/db/schema';
 import { eq, and, or, sql, desc, asc, lte, isNull, inArray } from 'drizzle-orm';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { neynarClient, isRealFcUsername } from '../../../src/lib/farcaster';
+import { playerDisplay } from '../../../src/lib/player-display';
+import { isWalletFid } from '../../../src/lib/users';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../src/lib/top10-lock';
 import { cacheAside, CacheKeys, CacheTTL } from '../../../src/lib/redis';
 import { hasWordTokenBonus } from '../../../src/lib/word-token';
@@ -20,6 +22,8 @@ export interface TopGuesser {
   username: string | null;
   guessCount: number;
   pfpUrl: string; // Farcaster profile picture URL
+  /** Which door this player came through, so the UI can badge Farcaster vs Base. */
+  origin: 'farcaster' | 'wallet';
   hasOgHunterBadge: boolean;
   hasWordTokenBadge: boolean;
   hasBonusWordBadge: boolean;
@@ -122,6 +126,7 @@ async function generateMockTopGuessers(rng: () => number): Promise<TopGuesser[]>
     return {
       fid,
       username: userData?.username || `FID ${fid}`,
+      origin: 'farcaster' as const,
       guessCount: guessCounts[i],
       pfpUrl: userData?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
       hasOgHunterBadge: false, // Dev mode: no badges
@@ -220,6 +225,9 @@ export default async function handler(
               fid: guesses.fid,
               username: users.username,
               signerWalletAddress: users.signerWalletAddress,
+              displayName: users.displayName,
+              avatarUrl: users.avatarUrl,
+              identityOrigin: users.identityOrigin,
               guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
               // Track when player made their last guess (for tiebreaker)
               lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
@@ -237,7 +245,14 @@ export default async function handler(
                 )
               )
             )
-            .groupBy(guesses.fid, users.username, users.signerWalletAddress)
+            .groupBy(
+              guesses.fid,
+              users.username,
+              users.signerWalletAddress,
+              users.displayName,
+              users.avatarUrl,
+              users.identityOrigin
+            )
             // Primary: most guesses (desc), Secondary: who reached that count first (asc)
             .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
             .limit(10),
@@ -313,6 +328,11 @@ export default async function handler(
             allFids.filter(fid => !validFids.includes(fid)));
         }
 
+        // Only real Farcaster fids are worth asking Neynar about. A synthetic
+        // wallet fid is guaranteed absent there, so sending it is a wasted
+        // round trip on a request that already fans out to the chain.
+        const farcasterFids = validFids.filter((fid) => !isWalletFid(fid));
+
         const walletsToCheck = topGuessersData
           .filter((g) => g.signerWalletAddress)
           .map((g) => ({ fid: g.fid, wallet: g.signerWalletAddress! }));
@@ -328,9 +348,11 @@ export default async function handler(
                 }))
               )
             : Promise.resolve([]),
-          // Neynar profile fetch
-          validFids.length > 0
-            ? neynarClient.fetchBulkUsers({ fids: validFids }).catch((err) => {
+          // Neynar profile fetch. Wallet fids are excluded: Neynar has never
+          // heard of a synthetic fid, so including them is a guaranteed-useless
+          // round trip on every leaderboard read.
+          farcasterFids.length > 0
+            ? neynarClient.fetchBulkUsers({ fids: farcasterFids }).catch((err) => {
                 console.error('[top-guessers] Failed to fetch profiles from Neynar:', err);
                 return { users: [] };
               })
@@ -365,11 +387,24 @@ export default async function handler(
           const neynarProfile = neynarProfiles.get(g.fid);
           // Only use local DB username if it's a real username (not null, empty, or "unknown")
           const localUsername = isRealFcUsername(g.username) && g.username !== 'unknown' ? g.username : null;
+          // One renderer for both player kinds. A wallet player used to appear
+          // here as "fid:1000000001" with a placeholder — on a public
+          // leaderboard, next to named Farcaster players.
+          const display = playerDisplay({
+            fid: g.fid,
+            username: neynarProfile?.username || localUsername,
+            displayName: g.displayName,
+            avatarUrl: g.avatarUrl,
+            signerWalletAddress: g.signerWalletAddress,
+            identityOrigin: g.identityOrigin,
+            pfpUrl: neynarProfile?.pfpUrl,
+          });
           return {
             fid: g.fid,
-            username: neynarProfile?.username || localUsername || `fid:${g.fid}`,
+            username: display.name,
+            origin: display.origin,
             guessCount: Number(g.guessCount),
-            pfpUrl: neynarProfile?.pfpUrl || `https://avatar.vercel.sh/${g.fid}`,
+            pfpUrl: display.avatarUrl,
             hasOgHunterBadge: ogHunterFids.has(g.fid),
             hasWordTokenBadge: wordTokenHolders.has(g.fid),
             hasBonusWordBadge: bonusWordFids.has(g.fid),

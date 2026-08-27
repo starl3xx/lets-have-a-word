@@ -59,6 +59,25 @@ export function fallbackAvatarUrl(source: PlayerDisplaySource): string {
   return `https://avatar.vercel.sh/${key}`;
 }
 
+/**
+ * The name as it should appear inline.
+ *
+ * "@" IS A FARCASTER THING. A Farcaster username is a handle and reads
+ * naturally with the prefix; a basename is a name, not a handle, and
+ * "@starl3xx.base.eth" is simply wrong — it also implies a mention that would
+ * resolve to nobody. A truncated address obviously takes no prefix either.
+ *
+ * The rule keys on ORIGIN rather than on the shape of the string, because
+ * Farcaster usernames can themselves look like names (vitalik.eth is a valid
+ * one), so a dot cannot be the discriminator.
+ */
+export function playerLabel(display: PlayerDisplay): string {
+  if (display.origin === 'farcaster' && !display.isAddressFallback && !display.name.startsWith('fid:')) {
+    return display.name.startsWith('@') ? display.name : `@${display.name}`;
+  }
+  return display.name;
+}
+
 export function playerDisplay(source: PlayerDisplaySource): PlayerDisplay {
   const origin: 'farcaster' | 'wallet' =
     source.identityOrigin === 'wallet' || isWalletFid(source.fid) ? 'wallet' : 'farcaster';

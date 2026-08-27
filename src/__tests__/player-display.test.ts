@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { playerDisplay, fallbackAvatarUrl } from '../lib/player-display';
+import { playerDisplay, fallbackAvatarUrl, playerLabel } from '../lib/player-display';
 import { shortenAddress, baseReverseNode, forwardMatches } from '../lib/basename';
 import { WALLET_FID_MIN } from '../lib/users';
 
@@ -142,5 +142,44 @@ describe('the reverse node ENS actually resolves', () => {
     expect(node).toMatch(/^0x[0-9a-f]{64}$/);
     // Case-insensitive input must produce the same node.
     expect(baseReverseNode(WALLET.toLowerCase())).toBe(node);
+  });
+});
+
+describe('the @ prefix belongs to Farcaster only', () => {
+  it('prefixes a Farcaster handle', () => {
+    const d = playerDisplay({ fid: 6500, username: 'starl3xx' });
+    expect(playerLabel(d)).toBe('@starl3xx');
+  });
+
+  it('does NOT prefix a basename', () => {
+    // "@starl3xx.base.eth" is wrong twice over: a basename is a name rather
+    // than a handle, and the prefix implies a mention that resolves to nobody.
+    const d = playerDisplay({
+      fid: WALLET_FID_MIN + 10,
+      identityOrigin: 'wallet',
+      displayName: 'starl3xx.base.eth',
+      signerWalletAddress: WALLET,
+    });
+    expect(playerLabel(d)).toBe('starl3xx.base.eth');
+  });
+
+  it('does not prefix a truncated address', () => {
+    const d = playerDisplay({
+      fid: WALLET_FID_MIN + 11,
+      identityOrigin: 'wallet',
+      signerWalletAddress: WALLET,
+    });
+    expect(playerLabel(d)).toBe('0x0Fc0…2F6E');
+  });
+
+  it('keys on origin, not on dots — a Farcaster name can contain them', () => {
+    // vitalik.eth is a valid Farcaster username, so the shape of the string
+    // cannot be the discriminator.
+    const d = playerDisplay({ fid: 5650, username: 'vitalik.eth' });
+    expect(playerLabel(d)).toBe('@vitalik.eth');
+  });
+
+  it('never prefixes the fid fallback', () => {
+    expect(playerLabel(playerDisplay({ fid: 6502 }))).toBe('fid:6502');
   });
 });

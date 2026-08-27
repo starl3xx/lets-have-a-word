@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import PlayerAvatar from './PlayerAvatar';
 import { formatPrize, formatPrizeCompact, formatWordAmountCompact } from '../src/lib/prize-display';
 import Top10StatusChip from './Top10StatusChip';
 import BadgeStack from './BadgeStack';
@@ -13,6 +14,8 @@ interface TopGuesser {
   username: string;
   guessCount: number;
   pfpUrl: string;
+  /** From /api/round/top-guessers. Optional so an older cached payload still renders. */
+  origin?: 'farcaster' | 'wallet';
   hasOgHunterBadge?: boolean;
   hasWordTokenBadge?: boolean;
   hasBonusWordBadge?: boolean;
@@ -544,19 +547,25 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                         <div className="text-gray-500 text-sm font-medium w-5 text-right">
                           {rank}.
                         </div>
-                        {/* Avatar */}
-                        <img
+                        {/* Avatar, badged with the door this player came through */}
+                        <PlayerAvatar
                           src={guesser.pfpUrl}
                           alt={guesser.username}
-                          className="w-7 h-7 rounded-full object-cover border border-gray-200"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${guesser.fid}`;
-                          }}
+                          origin={guesser.origin ?? 'farcaster'}
+                          sizeClass="w-7 h-7"
                         />
                         {/* Username + Badges + ETH Payout */}
                         <div className="flex-1 flex items-center gap-1 min-w-0">
                           <span className="text-sm font-medium text-gray-900 truncate">
-                            {(guesser.username?.startsWith('fid:') || guesser.username?.startsWith('!')) ? `fid:${guesser.fid}` : `@${guesser.username || `fid:${guesser.fid}`}`}
+                            {/* "@" is a Farcaster handle thing. A basename is a
+                                name, not a handle, so "@starl3xx.base.eth"
+                                would be wrong and would imply a mention that
+                                resolves to nobody. */}
+                            {guesser.origin === 'wallet'
+                              ? guesser.username
+                              : (guesser.username?.startsWith('fid:') || guesser.username?.startsWith('!'))
+                                ? `fid:${guesser.fid}`
+                                : `@${guesser.username || `fid:${guesser.fid}`}`}
                           </span>
                           <BadgeStack
                             hasOgHunterBadge={guesser.hasOgHunterBadge}
