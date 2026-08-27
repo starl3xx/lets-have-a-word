@@ -82,6 +82,30 @@ describe('creating a wallet-native player', () => {
   });
 });
 
+describe('sentinel rows are never a linkage target', () => {
+  it('a non-positive fid holding the wallet is ignored, and a real row is minted', async () => {
+    // THE 2026-08-27 LOCKOUT, THIRD ACT. A sentinel row (fid -1, created
+    // 2026-01-01 in production) held the player's Base Account address, so
+    // every Sign in with Base linked them to fid -1 — and a session minted
+    // for a non-positive fid fails verifyPlayerSession's own validation.
+    // Sign-in reported success; every guess 401'd.
+    const wallet = freshWallet('5e');
+    await track(
+      (
+        await db
+          .insert(users)
+          .values({ fid: -911, username: 'user--911', signerWalletAddress: wallet })
+          .returning()
+      )[0]
+    );
+
+    const user = await track(await upsertUserFromWallet({ wallet }));
+
+    expect(user.fid).toBeGreaterThanOrEqual(WALLET_FID_MIN);
+    expect(user.identityOrigin).toBe('wallet');
+  });
+});
+
 describe('linking to an existing Farcaster player', () => {
   it('resolves to their FID instead of stranding them on a new account', async () => {
     const wallet = freshWallet('dd');
