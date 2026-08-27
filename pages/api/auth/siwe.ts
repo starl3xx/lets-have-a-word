@@ -59,6 +59,16 @@ interface SiweResponse {
   fid?: number;
   /** Present on success so the client can show who it signed in as. */
   wallet?: string;
+  /**
+   * The same token as the cookie, handed to the client directly.
+   *
+   * This forfeits HttpOnly for clients that choose to store it, which is a real
+   * cost and taken deliberately: Base App's webview accepts the cookie here and
+   * never sends it back, so for those players HttpOnly protects a credential
+   * that is never transmitted. The cookie is still set and is still preferred
+   * wherever it works.
+   */
+  sessionToken?: string;
   error?: string;
 }
 
@@ -150,7 +160,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     console.log(`[auth/siwe] Signed in ${address} as FID ${user.fid} (${user.identityOrigin})`);
 
-    return res.status(200).json({ success: true, fid: user.fid, wallet: address.toLowerCase() });
+    return res.status(200).json({
+      success: true,
+      fid: user.fid,
+      wallet: address.toLowerCase(),
+      sessionToken: token,
+    });
   } catch (error) {
     console.error('[auth/siwe] Verification error:', error);
     return res.status(500).json({ success: false, error: 'Sign-in failed' });

@@ -21,6 +21,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useConnect, useSignMessage } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 import { base } from 'wagmi/chains';
+import {
+  playerSessionHeaders,
+  setStoredPlayerSession,
+  clearStoredPlayerSession,
+} from '../lib/playerSessionClient';
 
 export type WalletSignInStatus =
   /** Have not yet asked the server whether a session exists. */
@@ -65,7 +70,7 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
     if (!enabled) return;
     setStatus('checking');
     let cancelled = false;
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', { headers: playerSessionHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return;
@@ -73,6 +78,9 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
           setFid(data.fid);
           setStatus('signed-in');
         } else {
+          // Whatever we were holding is no longer accepted. Drop it rather than
+          // presenting a dead token on every subsequent request.
+          clearStoredPlayerSession();
           setStatus('signed-out');
         }
       })
@@ -183,6 +191,10 @@ export function useWalletSignIn(enabled: boolean): WalletSignIn {
       if (!verifyRes.ok || !data?.success) {
         throw new Error(data?.error || 'Sign-in failed');
       }
+
+      // Held because Base App's webview will not return the cookie. Harmless
+      // where the cookie does work: the server tries the cookie first.
+      if (data.sessionToken) setStoredPlayerSession(data.sessionToken);
 
       setFid(data.fid);
       setStatus('signed-in');
