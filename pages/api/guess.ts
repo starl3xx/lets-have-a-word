@@ -356,9 +356,14 @@ export default async function handler(
             .split(';')
             .some((p) => p.trim().startsWith(`${PLAYER_SESSION_COOKIE}=`)),
           hasPlayerSessionHeader: !!req.headers?.[PLAYER_SESSION_HEADER],
-          // With presentedSessionToken false, nonzero means every candidate
-          // was inauthentic — worth knowing apart from "nothing arrived".
-          sessionTokenCandidates: auth.sessionTokenCandidates ?? 0,
+          // Field names must dodge Sentry's server-side scrubber, which nulls
+          // keys matching /token/i — it silently ate `sessionTokenCandidates`
+          // on 2026-08-27 and cost a diagnostic round-trip to a real player.
+          sessionCandidateCount: auth.sessionTokenCandidates ?? 0,
+          // The structure of every refused candidate: which carrier, whether
+          // it was even token-shaped, whose fid it claimed, minted when, and
+          // whether it died as inauthentic or merely expired.
+          refusedShapes: auth.refusedSessionShapes ?? [],
           clientBuild: req.headers?.['x-lhaw-build'] ?? null,
           hasFrameMessage: !!frameMessage,
           hasSignerUuid: !!signerUuid,

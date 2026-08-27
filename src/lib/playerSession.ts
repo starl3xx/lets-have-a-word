@@ -229,3 +229,71 @@ export async function verifyPlayerSession(
   const inspection = await inspectPlayerSession(token, secret);
   return inspection.ok ? inspection.session : null;
 }
+
+/**
+ * A SAFE structural description of a token that failed verification, for
+ * telemetry. Decodes the (unauthenticated, publicly decodable) payload for
+ * diagnostics only — NOTHING here may ever feed an auth decision. Contains no
+ * signature material beyond lengths. Field names avoid 'token'/'auth'/
+ * 'secret'/'key' because Sentry's server-side scrubber nulls matching keys —
+ * it already ate `sessionTokenCandidates` on 2026-08-27.
+ *
+ * Exists because three days of Base App 401s could not answer basic
+ * questions: was the refused value even token-shaped, whose fid did it claim,
+ * and WHEN was it minted?
+ */
+export interface OpaqueSessionShape {
+  len: number;
+  parts: number;
+  seg0Len: number;
+  seg1Len: number;
+  /** Only base64url characters and the one separator? False = mangled. */
+  cleanCharset: boolean;
+  payloadParses: boolean;
+  fidKind: 'number' | 'string' | 'missing';
+  claimedFid: number | null;
+  claimedOrigin: string | null;
+  /** Positive = still had that many days to live when refused. */
+  expDaysFromNow: number | null;
+}
+
+export function describeOpaqueSessionValue(value: string): OpaqueSessionShape {
+  const parts = value.split('.');
+  const shape: OpaqueSessionShape = {
+    len: value.length,
+    parts: parts.length,
+    seg0Len: parts[0]?.length ?? 0,
+    seg1Len: parts[1]?.length ?? 0,
+    cleanCharset: /^[A-Za-z0-9_.-]+$/.test(value),
+    payloadParses: false,
+    fidKind: 'missing',
+    claimedFid: null,
+    claimedOrigin: null,
+    expDaysFromNow: null,
+  };
+
+  try {
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0]))) as {
+      fid?: unknown;
+      origin?: unknown;
+      exp?: unknown;
+    };
+    shape.payloadParses = true;
+    shape.fidKind =
+      typeof payload.fid === 'number' ? 'number' : typeof payload.fid === 'string' ? 'string' : 'missing';
+    shape.claimedFid =
+      typeof payload.fid === 'number'
+        ? payload.fid
+        : typeof payload.fid === 'string'
+          ? parseInt(payload.fid, 10) || null
+          : null;
+    shape.claimedOrigin = typeof payload.origin === 'string' ? payload.origin : null;
+    if (typeof payload.exp === 'number') {
+      shape.expDaysFromNow = Math.round((payload.exp - Date.now() / 1000) / 86_400);
+    }
+  } catch {
+    // Not decodable — the shape numbers above already say so.
+  }
+
+  return shape;
+}
