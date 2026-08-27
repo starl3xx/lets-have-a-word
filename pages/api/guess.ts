@@ -267,12 +267,12 @@ export default async function handler(
     // that branch keeps its exact previous behaviour (a Base App client never
     // sends miniAppFid, so it costs wallet players nothing).
     //
-    // `trustDevFid` carries this endpoint's wider dev predicate across
-    // unchanged; see the note on ResolveOptions for why that is deliberate and
-    // why it should eventually go.
+    // The dev path is gated on NEXT_PUBLIC_LHAW_DEV_MODE alone. It used to be
+    // widened by `isDevelopment`, which is `|| !process.env.NEYNAR_API_KEY` —
+    // meaning one unset variable would have let any caller authenticate as any
+    // FID by putting it in the body. See the note in requestAuth.ts.
     const auth = await resolveRequestFid(req, {
       rejectUnverifiedMiniAppFid: true,
-      trustDevFid: isDevelopment,
     });
 
     if (auth.ok) {

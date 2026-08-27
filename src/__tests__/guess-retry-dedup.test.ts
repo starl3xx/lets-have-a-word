@@ -92,6 +92,31 @@ const { submitGuessWithDailyLimits } = vi.hoisted(() => ({
 }));
 vi.mock('../lib/daily-limits', () => ({ submitGuessWithDailyLimits }));
 
+/**
+ * This file is about the retry/dedup window, not about authentication.
+ *
+ * It used to reach the guess path by deleting NEYNAR_API_KEY, which worked
+ * only because guess.ts widened its dev predicate with
+ * `|| !process.env.NEYNAR_API_KEY` — an unset key meant any body-supplied
+ * devFid was believed. That widening was an authentication bypass and has been
+ * removed, so the test now presents a resolved credential instead. Setting
+ * NEXT_PUBLIC_LHAW_DEV_MODE would not do: dev mode also enables the fixed-
+ * solution bypass, and WORD here is CRANE, so every guess would return
+ * 'correct' before reaching the code under test.
+ */
+vi.mock('../lib/requestAuth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/requestAuth')>();
+  return {
+    ...actual,
+    resolveRequestFid: async () => ({
+      ok: true as const,
+      fid: 424242,
+      origin: 'quick_auth' as const,
+      playerOrigin: 'farcaster' as const,
+    }),
+  };
+});
+
 import handler from '../../pages/api/guess';
 import { guessWasRecorded } from '../lib/guesses';
 import type { SubmitGuessResult } from '../types';
@@ -136,7 +161,7 @@ describe('a failed guess does not block the retry', () => {
   beforeEach(() => {
     store.clear();
     submitGuessWithDailyLimits.mockReset();
-    delete process.env.NEYNAR_API_KEY; // take the devFid auth path
+
   });
 
   it('lets the retry through after submission throws', async () => {

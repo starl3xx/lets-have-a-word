@@ -82,27 +82,6 @@ export interface ResolveOptions {
    * that never receive that field can leave it off; it changes nothing for them.
    */
   rejectUnverifiedMiniAppFid?: boolean;
-  /**
-   * Whether a caller-supplied `devFid` may be believed. Defaults to
-   * `isDevModeEnabled()`, which is the safe rule.
-   *
-   * It is an option because `guess.ts` uses a WIDER one:
-   *
-   *     const isDevelopment = !process.env.NEYNAR_API_KEY || isDevModeEnabled();
-   *
-   * — so a missing NEYNAR_API_KEY, on its own, makes any request carrying
-   * `devFid` authenticate as that FID. In production that would be a complete
-   * authentication bypass caused by one unset environment variable. It is not
-   * reachable today (NEYNAR_API_KEY is a required var, and the key is set), and
-   * `src/__tests__/guess-retry-dedup.test.ts:139` deliberately deletes it to
-   * reach this path, so the behaviour is load-bearing in the suite.
-   *
-   * It is passed in explicitly rather than reproduced here so that the
-   * behaviour is preserved exactly by this refactor while being visible and
-   * one line to remove — tightening it is a security change and deserves to
-   * land on its own, not smuggled in under a refactor.
-   */
-  trustDevFid?: boolean;
   /** Injected in tests so the JWT verifier is not reached over the network. */
   verifyQuickAuthToken?: (token: string) => Promise<number | null>;
 }
@@ -152,14 +131,19 @@ export async function resolveRequestFid(
       : undefined);
   const miniAppFid = body.miniAppFid;
 
-  // 1. Dev mode, the only path that trusts a bare number. Two branches, kept
-  //    separate because guess.ts keeps them separate: an explicit devFid is
-  //    honoured under the caller's (possibly wider) predicate, while the 6500
-  //    fallback requires dev mode proper.
+  // 1. Dev mode, the only path that trusts a bare number, and it is gated on
+  //    NEXT_PUBLIC_LHAW_DEV_MODE alone.
+  //
+  //    guess.ts used to widen this with `|| !process.env.NEYNAR_API_KEY`, so a
+  //    single unset environment variable made any request carrying `devFid`
+  //    authenticate as that FID — a complete authentication bypass in
+  //    production, unreachable only because the key happens to be set. That
+  //    predicate is gone and there is deliberately no option to reinstate it:
+  //    an unset API key says nothing about whether the caller is a developer.
   const parsedDevFid = devFid == null ? NaN : parseInt(String(devFid), 10);
   const haveDevFid = Number.isInteger(parsedDevFid) && parsedDevFid > 0;
 
-  if ((opts.trustDevFid ?? isDevModeEnabled()) && haveDevFid) {
+  if (isDevModeEnabled() && haveDevFid) {
     return { ok: true, fid: parsedDevFid, origin: 'dev', playerOrigin: 'farcaster' };
   }
   if (isDevModeEnabled()) {
