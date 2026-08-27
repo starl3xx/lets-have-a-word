@@ -179,7 +179,17 @@ export default function InstallPromptModal({
     setIsInstalling(true);
 
     try {
-      const result = await sdk.actions.addMiniApp();
+      // Bounded, for the same reason as FirstTimeOverlay: addMiniApp() never
+      // settles outside a Farcaster host — no resolve, no reject — so an
+      // unbounded await leaves the button spinning forever with nothing for
+      // the catch to catch. This modal is host-gated at its call site now, and
+      // this makes the hang impossible rather than merely unreachable.
+      const result = await Promise.race([
+        sdk.actions.addMiniApp(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('addMiniApp timed out')), 10_000)
+        ),
+      ]);
       const notificationsEnabled = !!result.notificationDetails;
 
       // Record the add
