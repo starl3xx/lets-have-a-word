@@ -253,7 +253,16 @@ export default async function handler(
         console.error('[user-state] User insert failed:', insertError);
         throw new Error(`Database insert error: ${insertError instanceof Error ? insertError.message : 'Unknown'}`);
       }
-    } else if (walletAddress && existingUser[0].signerWalletAddress !== walletAddress) {
+      // Case-INSENSITIVE, because an address is the same address whatever its
+      // casing. The column holds both checksummed (Neynar) and lowercased
+      // (ours) forms, so a strict !== read a wallet-native player's own
+      // checksummed address as an attempted CHANGE on every poll: a Neynar
+      // lookup for an FID Neynar has never heard of, a refusal, and a Sentry
+      // warning, several times a minute (2026-08-27).
+    } else if (
+      walletAddress &&
+      existingUser[0].signerWalletAddress?.toLowerCase() !== walletAddress.toLowerCase()
+    ) {
       // SECURITY: signer_wallet_address decides where money is sent —
       // getWinnerPayoutAddress() resolves through it for the ETH jackpot and
       // economics.ts reads it for top-10 $WORD rewards. The FID here is

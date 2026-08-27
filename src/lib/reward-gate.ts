@@ -382,5 +382,30 @@ async function claimWalletForDay(
     )
     .limit(1);
 
-  return existing != null && existing.fid !== fid;
+  if (existing == null || existing.fid === fid) return false;
+
+  // A claim held by a NON-POSITIVE fid is not a real player's claim. It can
+  // only exist because the gate ran for an identity that cannot play — and on
+  // 2026-08-27 exactly that happened: a sentinel row (fid -1) had captured a
+  // player's wallet address, so the broken sign-ins claimed the wallet as fid
+  // -1 and locked the real owner out of their own wallet for the rest of the
+  // day, minutes before they finally signed in properly. Hand the claim to the
+  // real player instead of honouring a claim nobody can ever use.
+  if (existing.fid <= 0) {
+    await db
+      .update(rewardGateClaims)
+      .set({ fid, roundId: roundId ?? null })
+      .where(
+        and(
+          eq(rewardGateClaims.date, dateStr),
+          eq(rewardGateClaims.wallet, normalized)
+        )
+      );
+    console.warn(
+      `[RewardGate] Took over a sentinel claim on ${normalized} (was fid ${existing.fid}) for FID ${fid}`
+    );
+    return false;
+  }
+
+  return true;
 }

@@ -157,6 +157,57 @@ describe('Reward Gate', () => {
       expect(again.eligible).toBe(true);
     });
 
+    it('takes over a claim held by a sentinel fid instead of locking the owner out', async () => {
+      // 2026-08-27: a sentinel row (fid -1) had captured a player's wallet
+      // address, so the broken sign-ins claimed the wallet AS fid -1. When the
+      // player finally signed in properly, minutes later, the day's claim was
+      // already spent by an identity that can never play — and they were told
+      // to go and buy $WORD they already held 72 million of.
+      mockBalance(BAR_FALLBACK * 10);
+      const wallet = randomWallet();
+
+      await db.insert(rewardGateClaims).values({
+        date: getTodayUTC(),
+        wallet: wallet.toLowerCase(),
+        fid: -1,
+      });
+
+      const fid = await makeUser({ wallet });
+      const result = await checkPlayEligibility(fid);
+
+      expect(result.eligible).toBe(true);
+      expect(result.reason).toBeUndefined();
+
+      // The claim is now the real player's, so the takeover happens once.
+      const claims = await db
+        .select()
+        .from(rewardGateClaims)
+        .where(eq(rewardGateClaims.wallet, wallet.toLowerCase()));
+      expect(claims.length).toBe(1);
+      expect(claims[0].fid).toBe(fid);
+    });
+
+    it('still blocks a second REAL fid after a sentinel takeover', async () => {
+      // The takeover must not become a general bypass: once a real player
+      // holds the claim, one-wallet-one-fid-per-day applies as before.
+      mockBalance(BAR_FALLBACK * 10);
+      const wallet = randomWallet();
+
+      await db.insert(rewardGateClaims).values({
+        date: getTodayUTC(),
+        wallet: wallet.toLowerCase(),
+        fid: -1,
+      });
+
+      const fidA = await makeUser({ wallet });
+      const fidB = await makeUser({ wallet });
+
+      expect((await checkPlayEligibility(fidA)).eligible).toBe(true);
+      const second = await checkPlayEligibility(fidB);
+      expect(second.eligible).toBe(false);
+      expect(second.reason).toBe('wallet_already_claimed');
+    });
+
     it('records the entry floor on the first full pass against a frozen bar', async () => {
       // seedPriceE18 1e12 → $0.000001/token → $3 bar = 3,000,000 tokens
       mockBalance(3_000_000);

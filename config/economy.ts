@@ -118,6 +118,18 @@ export const WORD_POOL_ADDRESS =
 export const WORD_POOL_URL = `https://www.geckoterminal.com/base/pools/${WORD_POOL_ADDRESS}`;
 
 /**
+ * $WORD on Base App, which is where a wallet-native player should be sent to
+ * buy it: their wallet already lives there, so it is one tap to a trade rather
+ * than a chart on a site they have no account with.
+ *
+ * Verified to resolve (2026-08-27): this route renders the token page titled
+ * "Word on Base app", while `base.app/coin/<address>` without the network
+ * segment 404s. Left as a constant so a route change is one edit.
+ */
+export const WORD_BASE_APP_URL =
+  'https://base.app/coin/base-mainnet/0x304e649e69979298bd1aee63e175adf07885fb4b';
+
+/**
  * USD target every $WORD round is seeded at, in cents. $20.00 by default.
  *
  * Denominated in USD rather than tokens so a round is worth the same to a

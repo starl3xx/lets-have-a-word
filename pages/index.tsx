@@ -1571,8 +1571,17 @@ function GameContent() {
                   // Check if we should show InstallPromptModal instead
                   // Show to users who haven't installed mini app AND haven't seen this prompt before
                   // Dev override: ?forceInstallPrompt=1 bypasses the checks
+                  // `isInMiniApp` is required, not merely `hasMiniAppInstalled
+                  // === false`: that flag is a server record of whether they
+                  // ever added the app, which is false for EVERY Base App
+                  // player — and the modal's whole action, addMiniApp(), never
+                  // settles outside a host, so it would stick on "Adding..."
+                  // with no error and no way out (seen on device 2026-08-27).
                   const forceInstallPrompt = router.query.forceInstallPrompt === '1';
-                  if (forceInstallPrompt || (hasMiniAppInstalled === false && !hasSeenInstallPrompt())) {
+                  if (
+                    forceInstallPrompt ||
+                    (isInMiniApp && hasMiniAppInstalled === false && !hasSeenInstallPrompt())
+                  ) {
                     setShowInstallPromptModal(true);
                   } else {
                     setShowShareModal(true);

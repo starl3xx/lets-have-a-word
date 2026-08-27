@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { triggerHaptic } from '../src/lib/haptics';
 import sdk from '@farcaster/miniapp-sdk';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 
 interface FirstTimeOverlayProps {
   onDismiss: () => void;
@@ -62,6 +63,24 @@ export default function FirstTimeOverlay({
   const [phase, setPhase] = useState<OverlayPhase>('tutorial');
   const [isAddingApp, setIsAddingApp] = useState(false);
 
+  /**
+   * "Add app" is a Farcaster host action and nothing else.
+   *
+   * `sdk.actions.addMiniApp()` NEVER SETTLES outside a host — not resolve, not
+   * reject — so the button it drives sticks on "Adding..." forever with no
+   * error and no way forward. Reported from Base App on 2026-08-27, where the
+   * concept does not even exist: Base App stopped hosting mini apps on
+   * 2026-04-09, so there is nothing to add.
+   *
+   * The phase is therefore skipped entirely outside a confirmed host, rather
+   * than shown-and-disabled: a prompt to add something unaddable is noise at
+   * the exact moment a new player is deciding whether to stay. `resolved`
+   * gates it so a slow host handshake cannot make a real Farcaster player miss
+   * the prompt.
+   */
+  const { inMiniApp, resolved } = useIsInMiniApp();
+  const canAddApp = inMiniApp || !resolved;
+
   // Log initial view event
   useEffect(() => {
     logOnboardingEvent('onboarding_how_it_works_viewed', fid, {
@@ -73,11 +92,12 @@ export default function FirstTimeOverlay({
     triggerHaptic('light');
     logOnboardingEvent('onboarding_how_it_works_completed', fid);
 
-    if (tutorialOnly) {
-      // Skip add-app phase entirely when tutorialOnly
+    if (tutorialOnly || !canAddApp) {
+      // Skip add-app entirely: either the caller asked for the tutorial alone,
+      // or there is no host to add the app to (see canAddApp above).
       logOnboardingEvent('onboarding_flow_completed', fid, {
         addAppShown: false,
-        source: 'tutorial_only',
+        source: tutorialOnly ? 'tutorial_only' : 'no_host',
       });
       onDismiss();
     } else {
