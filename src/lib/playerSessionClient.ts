@@ -24,14 +24,25 @@ import { PLAYER_SESSION_HEADER } from './playerSession';
 
 const STORAGE_KEY = 'lhaw.playerSession';
 
-/** In-memory mirror, so a host that also blocks storage still works for the visit. */
-let inMemoryToken: string | null = null;
+export interface StoredPlayerSession {
+  token: string;
+  /**
+   * Kept alongside the token so a transient failure of /api/auth/me does not
+   * cost the player their session. Without it, the only way to learn who the
+   * token belongs to is to ask the server, and a 500 would be indistinguishable
+   * from a rejection.
+   */
+  fid: number;
+}
 
-export function setStoredPlayerSession(token: string | null): void {
-  inMemoryToken = token;
+/** In-memory mirror, so a host that also blocks storage still works for the visit. */
+let inMemory: StoredPlayerSession | null = null;
+
+export function setStoredPlayerSession(session: StoredPlayerSession | null): void {
+  inMemory = session;
   if (typeof window === 'undefined') return;
   try {
-    if (token) window.localStorage.setItem(STORAGE_KEY, token);
+    if (session) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     else window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Private mode, or a webview with storage disabled. The in-memory copy
@@ -39,18 +50,30 @@ export function setStoredPlayerSession(token: string | null): void {
   }
 }
 
-export function getStoredPlayerSession(): string | null {
-  if (inMemoryToken) return inMemoryToken;
+export function getStoredPlayerSession(): StoredPlayerSession | null {
+  if (inMemory) return inMemory;
   if (typeof window === 'undefined') return null;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    inMemoryToken = stored;
-    return stored;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredPlayerSession>;
+    if (typeof parsed?.token !== 'string' || typeof parsed?.fid !== 'number') return null;
+    inMemory = { token: parsed.token, fid: parsed.fid };
+    return inMemory;
   } catch {
+    // Unparseable — treat as absent rather than throwing on every request.
     return null;
   }
 }
 
+/**
+ * Forget the session. Called ONLY when the server has definitively refused the
+ * token with a 401.
+ *
+ * Not on a 500, a 503, a 429 or a dropped connection: those say nothing about
+ * whether the token is valid, and discarding it would cost the player a full
+ * wallet signature to recover from someone else's transient fault.
+ */
 export function clearStoredPlayerSession(): void {
   setStoredPlayerSession(null);
 }
@@ -62,6 +85,6 @@ export function clearStoredPlayerSession(): void {
  * player — they authenticate with a Quick Auth JWT and never touch this.
  */
 export function playerSessionHeaders(): Record<string, string> {
-  const token = getStoredPlayerSession();
-  return token ? { [PLAYER_SESSION_HEADER]: token } : {};
+  const session = getStoredPlayerSession();
+  return session ? { [PLAYER_SESSION_HEADER]: session.token } : {};
 }
