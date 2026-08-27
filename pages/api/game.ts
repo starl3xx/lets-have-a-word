@@ -9,7 +9,6 @@ import {
   getDevUserId,
   isValidDevBackendState,
 } from '../../src/lib/devGameState';
-import { getActiveRoundStatus } from '../../src/lib/wheel';
 import { getOrCreateDailyState, getFreeGuessesRemaining } from '../../src/lib/daily-limits';
 
 /**
@@ -125,37 +124,24 @@ export default async function handler(
       return res.status(200).json(devGameState);
     }
 
-    // Production mode: return real game state
-    // Fetch round status
-    const roundStatus = await getActiveRoundStatus();
-
-    // Fetch user state (use devFid if provided, for development)
-    const isDevelopment = !process.env.NEYNAR_API_KEY;
-    if (!isDevelopment && !devFid) {
-      return res.status(401).json({
-        error: 'Authentication required in production mode',
-      });
-    }
-
-    const dailyState = await getOrCreateDailyState(fid);
-    const freeRemaining = getFreeGuessesRemaining(dailyState);
-
-    const gameState: GameStateResponse = {
-      roundId: roundStatus.roundId,
-      prizePoolEth: roundStatus.prizePoolEth,
-      prizePoolUsd: roundStatus.prizePoolUsd,
-      globalGuessCount: roundStatus.globalGuessCount,
-      userState: {
-        fid,
-        freeGuessesRemaining: freeRemaining,
-        paidGuessesRemaining: dailyState.paidGuessCredits,
-        totalGuessesRemaining: freeRemaining + dailyState.paidGuessCredits,
-        wordBonusActive: dailyState.freeAllocatedClankton > 0, // legacy DB column name
-      },
-      devMode: false,
-    };
-
-    return res.status(200).json(gameState);
+    // DEV MODE ONLY, which is what this endpoint has always claimed to be.
+    //
+    // docs/GAME_DOCUMENTATION.md documents it as "GET /api/game (Dev Mode
+    // Only)" and nothing in the app calls it — it returned 500 for six weeks
+    // during the ETH-to-$WORD gap and nobody noticed. The production branch
+    // that used to live here did not enforce that at all: it gated on
+    // `isDevelopment = !process.env.NEYNAR_API_KEY` and refused only when a
+    // devFid was ALSO absent, so in production anyone could pass
+    // `?devFid=<someone else>` and read that player's free and paid guess
+    // balances. `fid` came straight from that query parameter and was never
+    // verified against anything.
+    //
+    // Low severity — a read, of numbers that are not secret — but an
+    // unauthenticated read of another player's state, with no legitimate
+    // production caller to break by closing it. Rather than leave the branch
+    // unreachable behind a guard, it is gone: dev mode answers above, and
+    // everything else is a 404.
+    return res.status(404).json({ error: 'Not found' });
   } catch (error: any) {
     console.error('Error in /api/game:', error);
     return res.status(500).json({ error: 'Internal server error' });
