@@ -20,6 +20,7 @@ import { db } from '../db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { logAnalyticsEvent } from './analytics';
+import { isWalletFid } from './users';
 
 export const WALLET_TOO_FRESH_ERROR = 'WALLET_TOO_FRESH';
 
@@ -248,6 +249,29 @@ export async function checkWalletHistory(
   const allowlist = getAllowlistedFids();
   if (allowlist.has(fid)) {
     return { eligible: true, txCount: null, reason: 'Allowlisted FID' };
+  }
+
+  // THIS GATE CANNOT MEASURE A SMART WALLET, so it must not judge one.
+  //
+  // It counts outgoing transactions with eth_getTransactionCount, which for a
+  // Base Account — a contract — is the CREATE nonce, essentially always 0 no
+  // matter how heavily the wallet is used, because its activity flows through
+  // the ERC-4337 EntryPoint rather than originating EVM transactions. Every
+  // wallet-native player would therefore read as "too fresh" on a SUCCESSFUL
+  // measurement, which never fails open (only an RPC error does). This runs on
+  // the guess path AND at win time via winner-eligibility with forceRefresh, so
+  // arming WALLET_HISTORY_GATING_ENABLED would void a Base App jackpot winner
+  // and tell them their account was flagged for review.
+  //
+  // Exempting them is also the right answer on the merits: the reward gate
+  // already requires ~$3 of $WORD held or staked per wallet per day, which is a
+  // real cost this cohort pays and the EOA-nonce heuristic was only ever a
+  // proxy for. The farm wallets this gate was built for (rounds 28/29) sat at
+  // 8-12 outgoing txs — an EOA footprint, from an era before wallet players
+  // existed. If a genuine activity signal is wanted here later, read the
+  // EntryPoint nonce or an indexer's count; do not reuse the EOA nonce.
+  if (isWalletFid(fid)) {
+    return { eligible: true, txCount: null, reason: 'Wallet-native player (gated by $WORD holding)' };
   }
 
   const { wallet, cached, checkedAt } = await loadUserForGate(fid);
