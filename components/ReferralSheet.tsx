@@ -5,6 +5,7 @@ import sdk from '@farcaster/miniapp-sdk';
 import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
+import { X_BUTTON_CLASS } from '../src/lib/hostActions';
 import type { UserReferralsResponse } from '../pages/api/user/referrals';
 import { useTranslation } from '../src/hooks/useTranslation';
 
@@ -303,7 +304,9 @@ export default function ReferralSheet({
                 {/* Share Button */}
                 <button
                   onClick={handleShare}
-                  className="btn-accent flex-1 flex items-center justify-center gap-2 py-3"
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 ${
+                    inMiniApp ? 'btn-accent' : 'px-4 ' + X_BUTTON_CLASS
+                  }`}
                 >
                   {inMiniApp ? (
                     <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />

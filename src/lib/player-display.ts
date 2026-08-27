@@ -59,6 +59,33 @@ export function fallbackAvatarUrl(source: PlayerDisplaySource): string {
   return `https://avatar.vercel.sh/${key}`;
 }
 
+/**
+ * The name as it should appear inline.
+ *
+ * "@" IS A FARCASTER THING. A Farcaster username is a handle and reads
+ * naturally with the prefix; a basename is a name, not a handle, and
+ * "@starl3xx.base.eth" is simply wrong — it also implies a mention that would
+ * resolve to nobody. A truncated address obviously takes no prefix either.
+ *
+ * The rule keys on ORIGIN rather than on the shape of the string, because
+ * Farcaster usernames can themselves look like names (vitalik.eth is a valid
+ * one), so a dot cannot be the discriminator.
+ */
+export function playerLabel(
+  // Deliberately a narrow shape rather than the whole PlayerDisplay: the
+  // client receives these three fields from an API and should be able to call
+  // the real helper instead of reimplementing the rule from what it happens to
+  // have. An inlined copy is how this rule silently diverged once already —
+  // and an inline copy cannot see isAddressFallback, so it put an "@" on a
+  // truncated address (Bugbot, PR #291).
+  display: Pick<PlayerDisplay, 'name' | 'origin' | 'isAddressFallback'>
+): string {
+  if (display.origin === 'farcaster' && !display.isAddressFallback && !display.name.startsWith('fid:')) {
+    return display.name.startsWith('@') ? display.name : `@${display.name}`;
+  }
+  return display.name;
+}
+
 export function playerDisplay(source: PlayerDisplaySource): PlayerDisplay {
   const origin: 'farcaster' | 'wallet' =
     source.identityOrigin === 'wallet' || isWalletFid(source.fid) ? 'wallet' : 'farcaster';
@@ -67,9 +94,12 @@ export function playerDisplay(source: PlayerDisplaySource): PlayerDisplay {
 
   if (origin === 'farcaster') {
     const username = source.username?.trim();
-    // `user-<fid>` is a placeholder this codebase writes when Neynar knows
-    // nothing; it is not a name and must not be rendered as one.
-    if (username && !/^user-?\d+$/.test(username)) {
+    // Two non-names to reject, so no caller has to know about either:
+    //   `user-<fid>` is a placeholder this codebase writes when Neynar knows
+    //     nothing, and is the round-28 farm fingerprint besides;
+    //   `!12345` is Farcaster's own placeholder for an account it cannot
+    //     resolve, which several call sites special-cased by hand.
+    if (username && !/^user-?\d+$/.test(username) && !username.startsWith('!')) {
       return { name: username, avatarUrl, origin, isAddressFallback: false };
     }
   }

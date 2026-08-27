@@ -82,18 +82,40 @@ export async function withHostTimeout<T>(
 /**
  * Open the X composer with prepopulated text.
  *
- * A plain web intent, so it works in every host including Base App's webview —
- * unlike `composeCast`, which needs a Farcaster host. Already the mechanism
- * behind the winner card's "Share on X" button; centralised here so the other
- * share surfaces do not each re-derive the URL.
+ * Works in every host including Base App's webview — unlike `composeCast`,
+ * which needs a Farcaster host.
+ *
+ * OPENED IMMEDIATELY, INSIDE THE CLICK GESTURE. An earlier version navigated
+ * the page to a `twitter://post` scheme and set an 800ms timer to fall back to
+ * the web intent. Both halves were wrong (Bugbot, PR #291): a delayed
+ * `window.open` is outside the user gesture, so popup blockers swallow it
+ * silently, and a scheme nothing handles can replace the webview with an error
+ * page — unloading the game, including from the winner screen. A share button
+ * that can lose a jackpot celebration is worse than one that opens a browser.
+ *
+ * GETTING TO THE APP IS THE OS'S JOB, not something a page can force. The best
+ * a page can do is give iOS the cleanest possible universal link, which is why
+ * this uses `x.com/intent/tweet`: measured 2026-08-27, it answers 200 directly,
+ * while `twitter.com/intent/tweet` 301s to it — and a redirect hop is exactly
+ * what stops a universal link matching and opening the installed app. Where the
+ * host insists on an in-app browser, that is the host's decision.
  */
 export function openXComposer(text: string, url?: string): void {
   if (typeof window === 'undefined') return;
+
   const params = new URLSearchParams({ text });
   if (url) params.set('url', url);
-  window.open(
-    `https://twitter.com/intent/tweet?${params.toString()}`,
-    '_blank',
-    'noopener,noreferrer'
-  );
+
+  window.open(`https://x.com/intent/tweet?${params.toString()}`, '_blank', 'noopener,noreferrer');
 }
+
+/**
+ * Styling for a button that opens X, so the three share surfaces cannot drift
+ * apart from each other or from the winner card's long-standing black button.
+ *
+ * The colour is not decoration: a purple Farcaster-styled button that opens X
+ * misreports where the post is going, the same way the Farcaster arch icon did.
+ * Padding is left to the call site, which owns its own layout.
+ */
+export const X_BUTTON_CLASS =
+  'bg-black hover:bg-gray-800 active:scale-95 text-white font-bold rounded-btn shadow-btn transition-all duration-fast';

@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { withHostTimeout, HOST_ACTION_TIMEOUT_MS } from '../lib/hostActions';
+import { withHostTimeout, openXComposer, HOST_ACTION_TIMEOUT_MS } from '../lib/hostActions';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -60,5 +60,54 @@ describe('withHostTimeout', () => {
     await expect(withHostTimeout(Promise.resolve('ok'), 'viewToken', 50)).resolves.toBe('ok');
     await vi.advanceTimersByTimeAsync(500);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('openXComposer', () => {
+  function fakeWindow() {
+    const opened: Array<[string, string]> = [];
+    (globalThis as any).window = {
+      open: (u: string, target: string) => opened.push([u, target]),
+    };
+    return opened;
+  }
+
+  afterEach(() => {
+    delete (globalThis as any).window;
+  });
+
+  it('opens synchronously, so the click gesture still covers it', () => {
+    // A delayed window.open is outside the user gesture and popup blockers
+    // swallow it silently — which is how the fallback became a share button
+    // that did nothing at all (Bugbot, PR #291).
+    const opened = fakeWindow();
+    openXComposer('hello');
+    expect(opened).toHaveLength(1);
+  });
+
+  it('uses x.com directly, which is the clean universal link', () => {
+    // twitter.com/intent/tweet 301s to this URL, and the redirect hop is what
+    // stops iOS matching the universal link and opening the installed app.
+    const opened = fakeWindow();
+    openXComposer('hello');
+    expect(opened[0][0]).toContain('https://x.com/intent/tweet?');
+    expect(opened[0][0]).not.toContain('twitter.com');
+  });
+
+  it('never navigates the current page away', () => {
+    // Navigating to an unhandled scheme can replace the webview with an error
+    // page and unload the game, including from the winner screen.
+    const opened = fakeWindow();
+    openXComposer('hello');
+    expect(opened[0][1]).toBe('_blank');
+    expect((globalThis as any).window.location).toBeUndefined();
+  });
+
+  it('passes the url as its own parameter, where X renders it as a card', () => {
+    const opened = fakeWindow();
+    openXComposer('come play', 'https://letshaveaword.fun/?ref=1');
+    const u = new URL(opened[0][0]);
+    expect(u.searchParams.get('text')).toBe('come play');
+    expect(u.searchParams.get('url')).toBe('https://letshaveaword.fun/?ref=1');
   });
 });
