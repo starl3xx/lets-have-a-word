@@ -129,3 +129,9 @@ process.env.TWITTER_ENABLED = 'false';
  */
 process.env.NEYNAR_SIGNER_UUID = '';
 process.env.NEYNAR_APP_UUID = '';
+// Base App push, added 2026-08-27. Same reasoning as the two above and the same
+// treatment: a broadcast to every wallet that pinned the app cannot be recalled,
+// so the feature flag is not allowed to be the only thing in front of it.
+// ASSIGNED EMPTY rather than deleted, for the dotenv.config() reason documented
+// above — a missing key is exactly what it refills.
+process.env.BASE_NOTIFICATIONS_API_KEY = '';
