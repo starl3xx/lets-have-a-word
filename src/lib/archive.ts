@@ -726,6 +726,10 @@ export async function getArchivedRound(roundNumber: number): Promise<RoundArchiv
 export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerUsername: string | null;
   winnerPfpUrl: string | null;
+  /** Which door the winner came through, for badging. Null when no winner. */
+  winnerOrigin: 'farcaster' | 'wallet' | null;
+  /** True when winnerUsername is a truncated address rather than a name. */
+  winnerIsAddressFallback: boolean;
   winnerHasOgHunterBadge?: boolean;
   winnerHasWordTokenBadge?: boolean;
   winnerHasBonusWordBadge?: boolean;
@@ -735,10 +739,13 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
   winnerHasQuickdrawBadge?: boolean;
   winnerHasEncyclopedicBadge?: boolean;
   referrerUsername: string | null;
+  referrerOrigin: 'farcaster' | 'wallet' | null;
   referrerPfpUrl: string | null;
   topGuessersWithUsernames: Array<{
     fid: number;
     username: string | null;
+    origin: 'farcaster' | 'wallet';
+    isAddressFallback: boolean;
     pfpUrl: string | null;
     amountEth: string;
     guessCount: number;
@@ -1060,6 +1067,22 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
     const winnerData = archived.winnerFid ? userDataMap.get(archived.winnerFid) : null;
     const referrerData = archived.referrerFid ? userDataMap.get(archived.referrerFid) : null;
 
+    // The referrer is the third render site and was left on the fid fallback
+    // when the other two moved — so a Base App referrer was still written into
+    // permanent history as a synthetic fid beside a named winner (Bugbot,
+    // PR #292).
+    const referrerDisplay = archived.referrerFid
+      ? playerDisplay({
+          fid: archived.referrerFid,
+          username: referrerData?.username,
+          displayName: referrerData?.displayName,
+          avatarUrl: referrerData?.avatarUrl,
+          signerWalletAddress: referrerData?.wallet,
+          identityOrigin: referrerData?.identityOrigin,
+          pfpUrl: referrerData?.pfpUrl,
+        })
+      : null;
+
     const winnerDisplay = archived.winnerFid
       ? playerDisplay({
           fid: archived.winnerFid,
@@ -1087,8 +1110,9 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       winnerHasQuickdrawBadge: archived.winnerFid ? quickdrawBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasEncyclopedicBadge: archived.winnerFid ? encyclopedicBadgeFids.has(archived.winnerFid) : undefined,
       winnerHasBakersDozenBadge: archived.winnerFid ? bakersDozenBadgeFids.has(archived.winnerFid) : undefined,
-      referrerUsername: referrerData?.username || (archived.referrerFid ? `fid:${archived.referrerFid}` : null),
-      referrerPfpUrl: referrerData?.pfpUrl || (archived.referrerFid ? `https://avatar.vercel.sh/${archived.referrerFid}` : null),
+      referrerUsername: referrerDisplay?.name ?? null,
+      referrerOrigin: referrerDisplay?.origin ?? null,
+      referrerPfpUrl: referrerDisplay?.avatarUrl ?? null,
       topGuessersWithUsernames,
     };
   });
