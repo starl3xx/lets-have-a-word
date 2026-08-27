@@ -115,7 +115,13 @@ if (NODE_ENV === 'production' && NOTIFICATIONS_ENABLED === 'true') {
  *
  * CRITICAL: Returns false in any non-production environment
  */
-function notificationsAreActive(): boolean {
+/**
+ * Exported so base-notifications.ts can share the exact same hard stop rather
+ * than reimplementing it. One guard in one place: on 2026-08-14 a sourced
+ * .env.local disarmed several of these at once, and a broadcast push cannot be
+ * recalled.
+ */
+export function notificationsAreActive(): boolean {
   // Hard stop in non-production - NEVER send from dev/staging
   if (NODE_ENV !== 'production') {
     if (NOTIFICATIONS_DEBUG_LOGS) {
@@ -154,6 +160,13 @@ export interface NotificationResult {
  * @param targetFids - Optional array of FIDs to target (omit for all users)
  * @returns Result of the notification attempt
  */
+/** Lazily imported: base-notifications.ts imports notificationsAreActive from
+ *  this file, so a static import here would be a cycle. */
+async function notifyBasePlayers(params: { title: string; message: string; targetPath?: string }) {
+  const mod = await import('./base-notifications');
+  return mod.notifyBasePlayers(params);
+}
+
 export async function sendNotification(
   title: string,
   body: string,
@@ -209,6 +222,17 @@ export async function sendNotification(
         notificationId: data.notification_id,
       });
     }
+
+    // Base App players in the same breath. They have no FID, so Neynar cannot
+    // reach them at all — without this they simply never hear about a round.
+    //
+    // Awaited rather than fire-and-forget: this runs from cron and admin
+    // endpoints, never on the guess path, and detached work in a serverless
+    // function can be killed the moment the response returns. It costs one
+    // indexed query and, at any scale this game has, one request. It can never
+    // fail the Neynar result — notifyBasePlayers does not throw, and its return
+    // value is deliberately not consulted here.
+    await notifyBasePlayers({ title, message: body, targetPath: '/' }).catch(() => {});
 
     return {
       success: true,
