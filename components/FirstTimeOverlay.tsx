@@ -74,12 +74,18 @@ export default function FirstTimeOverlay({
    *
    * The phase is therefore skipped entirely outside a confirmed host, rather
    * than shown-and-disabled: a prompt to add something unaddable is noise at
-   * the exact moment a new player is deciding whether to stay. `resolved`
-   * gates it so a slow host handshake cannot make a real Farcaster player miss
-   * the prompt.
+   * the exact moment a new player is deciding whether to stay.
+   *
+   * A CONFIRMED host only. An earlier version treated "still probing" as
+   * permission, reasoning that a slow handshake should not cost a real
+   * Farcaster player the prompt — but `useIsInMiniApp` caches only a confirmed
+   * yes, so OFF-host every mount starts unresolved and the hang came straight
+   * back (Bugbot, PR #288). The trade is not symmetric: a Farcaster player who
+   * finishes the tutorial inside the first second misses one prompt, while the
+   * other way round a Base App player meets a button that never finishes.
    */
-  const { inMiniApp, resolved } = useIsInMiniApp();
-  const canAddApp = inMiniApp || !resolved;
+  const { inMiniApp } = useIsInMiniApp();
+  const canAddApp = inMiniApp;
 
   // Log initial view event
   useEffect(() => {
@@ -110,7 +116,20 @@ export default function FirstTimeOverlay({
   const handleAddMiniApp = async () => {
     setIsAddingApp(true);
     try {
-      const result = await sdk.actions.addMiniApp();
+      // Raced against a timeout, so "Adding..." can never be terminal.
+      //
+      // The gate above should mean this only runs inside a real host, but the
+      // failure it guards against is a promise that NEVER SETTLES — no
+      // resolve, no reject, nothing for the catch below to catch. A guard that
+      // can be reasoned around is not enough for that: the property worth
+      // having is structural, so the await itself is bounded. A host that has
+      // not answered in ten seconds is not going to.
+      const result = await Promise.race([
+        sdk.actions.addMiniApp(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('addMiniApp timed out')), 10_000)
+        ),
+      ]);
       const notificationsEnabled = !!result.notificationDetails;
 
       if (notificationsEnabled) {
