@@ -2038,6 +2038,28 @@ function GameContent() {
   // where the probe takes its longest path. In a real Farcaster host this
   // lasts well under a second (the host answers the first handshake), and the
   // probe hook hard-stops at 5s so this can never be terminal.
+  const walletPlayerReady = walletSignIn.status === 'signed-in' && walletSignIn.fid != null;
+
+  /**
+   * The one-time link offer, at the only moment it is free.
+   *
+   * MUST STAY ABOVE EVERY EARLY RETURN. It sat below the boot screen's return,
+   * so the first render skipped the hook and the next one ran it — React sees a
+   * changing hook count and crashes. Production traffic always passes through
+   * that boot screen while client dev mode skips it, so this would have been an
+   * outage that local testing could not reproduce (Bugbot, PR #297).
+   *
+   * Gated on isWalletFid rather than on being off-host: a player who has
+   * ALREADY linked resolves to their real Farcaster fid, and offering them the
+   * prompt again would ask them to solve a problem they just solved.
+   */
+  useEffect(() => {
+    if (!walletPlayerReady || !walletSignIn.fid) return;
+    if (!isWalletFid(walletSignIn.fid)) return;
+    if (hasSeenLinkPrompt()) return;
+    setShowLinkPrompt(true);
+  }, [walletPlayerReady, walletSignIn.fid]);
+
   if (!hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center p-6">
@@ -2061,21 +2083,7 @@ function GameContent() {
   // `status === 'checking'` deliberately still renders the fallback: it lasts
   // one fetch, and flashing the game before we know who anyone is would be
   // worse than the fallback appearing briefly.
-  const walletPlayerReady = walletSignIn.status === 'signed-in' && walletSignIn.fid != null;
 
-  /**
-   * The one-time link offer, at the only moment it is free.
-   *
-   * Gated on isWalletFid rather than on being off-host: a player who has
-   * ALREADY linked resolves to their real Farcaster fid, and offering them the
-   * prompt again would be asking them to solve a problem they just solved.
-   */
-  useEffect(() => {
-    if (!walletPlayerReady || !walletSignIn.fid) return;
-    if (!isWalletFid(walletSignIn.fid)) return;
-    if (hasSeenLinkPrompt()) return;
-    setShowLinkPrompt(true);
-  }, [walletPlayerReady, walletSignIn.fid]);
 
   if (
     hasCheckedContext &&
