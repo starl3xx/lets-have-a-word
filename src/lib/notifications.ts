@@ -162,7 +162,12 @@ export interface NotificationResult {
  */
 /** Lazily imported: base-notifications.ts imports notificationsAreActive from
  *  this file, so a static import here would be a cycle. */
-async function notifyBasePlayers(params: { title: string; message: string; targetPath?: string }) {
+async function notifyBasePlayers(params: {
+  title: string;
+  message: string;
+  targetPath?: string;
+  targetFids?: number[];
+}) {
   const mod = await import('./base-notifications');
   return mod.notifyBasePlayers(params);
 }
@@ -214,6 +219,10 @@ export async function sendNotification(
       title,
       message: body,
       targetPath: targetPathFrom(targetUrl),
+      // THREADED THROUGH, not dropped. Without this a targeted send honoured
+      // targetFids on the Neynar rail and broadcast to every Base App player
+      // on this one — and a push cannot be recalled.
+      targetFids,
     }).catch(() => undefined),
   ]);
 
