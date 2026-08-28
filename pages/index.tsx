@@ -102,6 +102,8 @@ import { WagmiProvider, useAccount } from 'wagmi';
 import { useWalletSignIn } from '../src/hooks/useWalletSignIn';
 import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 import { noteServerBuildSha, reloadIfStale, useReloadHold } from '../src/lib/buildFreshness';
+import { LinkAccountPrompt, hasSeenLinkPrompt } from '../components/AccountLinkCard';
+import { isWalletFid } from '../src/lib/wallet-fid';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
@@ -310,6 +312,7 @@ function GameContent() {
 
   // Install prompt modal state (post-guess prompt for non-installed users)
   const [showInstallPromptModal, setShowInstallPromptModal] = useState(false);
+  const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [hasMiniAppInstalled, setHasMiniAppInstalled] = useState<boolean | null>(null);
 
   // Winner share card state (Milestone 4.14)
@@ -2043,6 +2046,20 @@ function GameContent() {
   // worse than the fallback appearing briefly.
   const walletPlayerReady = walletSignIn.status === 'signed-in' && walletSignIn.fid != null;
 
+  /**
+   * The one-time link offer, at the only moment it is free.
+   *
+   * Gated on isWalletFid rather than on being off-host: a player who has
+   * ALREADY linked resolves to their real Farcaster fid, and offering them the
+   * prompt again would be asking them to solve a problem they just solved.
+   */
+  useEffect(() => {
+    if (!walletPlayerReady || !walletSignIn.fid) return;
+    if (!isWalletFid(walletSignIn.fid)) return;
+    if (hasSeenLinkPrompt()) return;
+    setShowLinkPrompt(true);
+  }, [walletPlayerReady, walletSignIn.fid]);
+
   if (
     hasCheckedContext &&
     !isInMiniApp &&
@@ -2606,6 +2623,18 @@ function GameContent() {
           disabled={isLoading || !hasActiveRound || (superguessActive && !isSuperguessing)}
         />
       </div>
+
+      {/* One-time offer to bring an existing Farcaster account across */}
+      {showLinkPrompt && (
+        <LinkAccountPrompt
+          onLinked={() => {
+            // The session now names the Farcaster account, so everything on
+            // screen belongs to the wrong player until it reloads.
+            window.location.reload();
+          }}
+          onDismiss={() => setShowLinkPrompt(false)}
+        />
+      )}
 
       {/* Share Prompt Modal (Milestone 4.2) */}
       {showShareModal && pendingShareResult && (
