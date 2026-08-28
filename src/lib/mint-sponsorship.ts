@@ -27,9 +27,14 @@ export interface BudgetStore {
   expire(key: string, seconds: number): Promise<unknown>;
 }
 
-/** Redis reports a missing key as -2 and a key with no expiry as -1. */
+/**
+ * Redis reports a missing key as -2, a key with no expiry as -1, and 0 for one
+ * with under a second left. That last one is the trap: it is neither "gone" nor
+ * "no expiry", and treating it as either is wrong in a different way.
+ */
 const TTL_MISSING = -2;
 const TTL_NO_EXPIRY = -1;
+const TTL_SUB_SECOND = 0;
 
 /** Ceiling for a key found without one. Never longer than a voucher's life. */
 const FALLBACK_TTL_SECONDS = 600;
@@ -78,10 +83,18 @@ export async function refundBudget(store: BudgetStore, keys: string[]): Promise<
   for (const key of keys) {
     try {
       const ttl = await store.ttl(key);
-      if (ttl === TTL_MISSING) continue;
+
+      // Gone, or gone within the second. Neither is worth refunding, and a
+      // sub-second TTL fell into the fallback below and bought a dying voucher
+      // a fresh ten minutes of sponsoring a mint whose onchain deadline had
+      // not moved. (Bugbot, PR #300.)
+      if (ttl === TTL_MISSING || ttl === TTL_SUB_SECOND) continue;
 
       await store.incr(key);
-      await store.expire(key, ttl > 0 ? ttl : FALLBACK_TTL_SECONDS);
+
+      // ONLY a key with no expiry gets the fallback. Everything else gets its
+      // own remaining life back, because a refund must never extend a voucher.
+      await store.expire(key, ttl === TTL_NO_EXPIRY ? FALLBACK_TTL_SECONDS : ttl);
       if (ttl === TTL_NO_EXPIRY) {
         console.warn('[mint-sponsorship] Voucher key had no expiry; one applied');
       }

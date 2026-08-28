@@ -79,6 +79,18 @@ describe('a refund never resurrects an expired voucher', () => {
     expect(after.value).toBe(3);
     expect(after.ttl).toBe(90);
   });
+
+  it('does not revive a voucher with under a second left', async () => {
+    // Redis reports 0 for a key about to expire. Treated as "no expiry" it
+    // took the ten-minute fallback, which bought a dying voucher a fresh ten
+    // minutes of sponsoring a mint whose ONCHAIN deadline had not moved, so
+    // every one of those sponsorships could only pay for a revert.
+    const redis = fakeRedis({ [K]: { value: 1, ttl: 0 } });
+    await refundBudget(redis, [K]);
+    const after = redis.peek(K)!;
+    expect(after.ttl).toBe(0);
+    expect(after.value).toBe(1);
+  });
 });
 
 describe('a spend is refunded when nothing was sponsored', () => {
