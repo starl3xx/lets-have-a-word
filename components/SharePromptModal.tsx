@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
 import { useReloadHold } from '../src/lib/buildFreshness';
-import { withHostTimeout, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
+import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
+import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
+import { playerSessionHeaders } from '../src/lib/playerSessionClient';
+import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
 import sdk from '@farcaster/miniapp-sdk';
 import type { SubmitGuessResult } from '../src/types';
 import { haptics } from '../src/lib/haptics';
@@ -10,6 +13,9 @@ import { getRandomTemplate, renderShareTemplate } from '../src/lib/shareTemplate
 
 interface SharePromptModalProps {
   fid: number | null;
+  /** Quick Auth token. share-callback is authenticated now, so a Farcaster
+   *  player must present one or their bonus cannot be awarded. */
+  authToken?: string | null;
   guessResult?: SubmitGuessResult;
   onClose: () => void;
   onShareSuccess: () => void;
@@ -27,11 +33,13 @@ interface SharePromptModalProps {
  */
 export default function SharePromptModal({
   fid,
+  authToken,
   guessResult,
   onClose,
   onShareSuccess,
 }: SharePromptModalProps) {
   const { t, getRandomInterjection } = useTranslation();
+  const { inMiniApp, resolved } = useIsInMiniApp();
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prizePoolEth, setPrizePoolEth] = useState<string>('0.0000');
@@ -203,10 +211,13 @@ export default function SharePromptModal({
    */
   const verifyShare = async (): Promise<boolean> => {
     try {
+      // CREDENTIALS, not a claimed fid. The endpoint authenticates now: a
+      // Farcaster player presents their Quick Auth token, a wallet player
+      // their session header. `fid` is no longer read from the body at all.
       const response = await fetch('/api/share-callback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid }),
+        headers: { 'Content-Type': 'application/json', ...playerSessionHeaders() },
+        body: JSON.stringify({ authToken }),
       });
 
       const data = await response.json();
@@ -252,6 +263,20 @@ export default function SharePromptModal({
 
     try {
       console.log('[SharePromptModal] Opening composer with text:', shareText);
+
+      // OFF-HOST: share to X, and the bonus is awarded on the intent. A wallet
+      // player cannot cast, so verifyRecentShareCast can never find anything
+      // for them — waiting to "verify" would mean a bonus they can never earn.
+      // The server bounds this the same way it bounds everyone: idempotent per
+      // FID per UTC day, so the ceiling is the +1 a Farcaster player gets.
+      if (!inMiniApp && (resolved || !(await sdk.isInMiniApp()))) {
+        openXComposer(shareText.replace(FARCASTER_HANDLE, X_HANDLE), embedUrl);
+        setHasOpenedComposer(true);
+        const awarded = await verifyShare();
+        if (!awarded) setError('Could not add your free guess. Try again in a moment.');
+        setIsSharing(false);
+        return;
+      }
 
       await withHostTimeout(
         sdk.actions.composeCast({
