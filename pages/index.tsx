@@ -2171,20 +2171,23 @@ function GameContent() {
               which carries Base's fixed geometry, so the only things that
               differ between them are the colour and the mark. */}
           <div className="mt-6 space-y-3">
-            {/* farcaster.xyz, not warpcast.com. The old domain 301s here, and a
-                redirect hop is what stops iOS handing a link to the installed
-                app: the universal link matches the FIRST url, and by the time
-                the 301 resolves the browser owns the navigation. So the button
-                whose whole job is "open Farcaster" was opening a web page
-                instead. Same reason share links use x.com/intent directly
-                rather than twitter.com.
+            {/* The mini app's canonical launch URL, which opens the GAME.
+                Previously this pointed at warpcast.com/letshaveaword: the wrong
+                domain and the wrong destination.
 
-                TODO: this still lands on the account PROFILE rather than the
-                game. The canonical launch URL is
-                farcaster.xyz/miniapps/<app-id>/<slug> and the app-id is not
-                recorded anywhere in this repo. */}
+                Two separate faults, both worth remembering. The old domain 301s
+                to farcaster.xyz, and a redirect hop is what stops iOS handing a
+                link to the installed app, because the universal link matches the
+                FIRST url and by the time the 301 resolves the browser owns the
+                navigation. Same reason share links use x.com/intent directly
+                rather than twitter.com. And even once it arrived, it landed on
+                the account PROFILE, so a player who tapped "Play on Farcaster"
+                still had to go and find the game.
+
+                Verified 200 with zero redirects. If the app is ever
+                re-registered this id changes with it. */}
             <a
-              href="https://farcaster.xyz/letshaveaword"
+              href="https://farcaster.xyz/miniapps/yzTRNYuz4cok/lets-have-a-word"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-door bg-accent hover:bg-accent-700"
