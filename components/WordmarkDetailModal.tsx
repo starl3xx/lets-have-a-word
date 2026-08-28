@@ -23,11 +23,15 @@ import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
 import { X_BUTTON_CLASS } from '../src/lib/hostActions';
 import type { UserWordmark } from '../src/lib/wordmarks';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
+import WordmarkMintButton from './WordmarkMintButton';
 import { triggerHaptic, haptics } from '../src/lib/haptics';
 
 interface WordmarkDetailModalProps {
   wordmark: UserWordmark;
   onClose: () => void;
+  /** Whose Lexicon this is. Needed to mint, because a Wordmark is awarded to a
+   *  fid and the contract's ledger is keyed on one. */
+  fid?: number;
 }
 
 /** Uppercase a guessed word from metadata, defensively. */
@@ -168,7 +172,7 @@ function formatEarnedDate(earnedAt: Date | string | undefined): string | null {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetailModalProps) {
+export default function WordmarkDetailModal({ wordmark, onClose, fid }: WordmarkDetailModalProps) {
   const { inMiniApp, resolved } = useIsInMiniApp();
   const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
   const detail = wordmark.earned ? earnedDetail(wordmark) : null;
@@ -257,6 +261,10 @@ export default function WordmarkDetailModal({ wordmark, onClose }: WordmarkDetai
         )}
 
         <p className="text-xs text-gray-400">{rarityLine(wordmark)}</p>
+
+        {/* Renders nothing until the contract is deployed, and nothing for a
+            Wordmark this player has not earned. */}
+        {fid ? <WordmarkMintButton wordmark={wordmark} fid={fid} /> : null}
 
         {wordmark.earned ? (
           <div className="flex gap-3">

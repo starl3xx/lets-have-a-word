@@ -557,6 +557,7 @@ export default function StatsSheet({ fid, onClose, authToken }: StatsSheetProps)
           <WordmarkDetailModal
             wordmark={selectedWordmark}
             onClose={() => setSelectedWordmark(null)}
+            fid={fid}
           />
         )}
       </div>
