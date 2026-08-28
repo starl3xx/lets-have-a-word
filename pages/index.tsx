@@ -2062,7 +2062,7 @@ function GameContent() {
 
   if (!hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center p-6">
+      <div className="min-h-screen bg-gradient-to-b from-accent-50 to-white flex items-center justify-center p-6">
         <img
           src="/LHAW-icon.png"
           alt="Let’s Have A Word"
@@ -2093,7 +2093,7 @@ function GameContent() {
     !walletPlayerReady
   ) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen bg-gradient-to-b from-accent-50 to-white flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-5">
           {/* Logo */}
           <div className="flex justify-center">
@@ -2118,11 +2118,11 @@ function GameContent() {
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
             <p className="text-gray-700 text-sm leading-relaxed">
               <strong>Let’s Have A Word</strong> is an onchain word game designed for{' '}
-              <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+              <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">
                 Farcaster
               </a>
               {' '}and{' '}
-              <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
+              <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">
                 Base
               </a>
               {' '}... social apps with built-in wallets. It’s free to play.
@@ -2146,7 +2146,7 @@ function GameContent() {
                     word: browserFallbackStats.prizePoolWord,
                   })}
                 </span>
-                <span className="text-sm text-gray-400 font-normal">prize pool</span>
+                <span className="text-sm text-gray-500 font-normal">prize pool</span>
               </div>
               <div className="flex justify-center items-center gap-2 text-xs text-gray-500">
                 <span><span className="font-medium text-gray-700">{browserFallbackStats.globalGuessCount.toLocaleString()}</span> guesses</span>
@@ -2201,7 +2201,7 @@ function GameContent() {
                     warning: it explains what signing in will ask of you, and
                     a player who has the $WORD should not read it as a refusal.
                     The requirement itself is enforced by the reward gate. */}
-                <p className="flex items-start gap-2 text-left text-sm text-primary-700 bg-primary-50 border border-primary-200 rounded-lg px-3 py-2">
+                <p className="flex items-start gap-2 text-left text-sm text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">
                   <span aria-hidden="true">ℹ️</span>
                   <span>
                     Playing requires a wallet holding about <strong>$3 of $WORD</strong>. Sign
@@ -2241,7 +2241,7 @@ function GameContent() {
               href={WORD_POOL_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-gray-400 hover:text-purple-600 font-mono break-all"
+              className="text-xs text-gray-500 hover:text-accent-600 font-mono break-all"
             >
               0x304e649e...07885fb4b
             </a>
@@ -2249,24 +2249,24 @@ function GameContent() {
 
           {/* Footer */}
           <div className="pt-2 space-y-1">
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               New to Farcaster?{' '}
               <a
                 href="https://farcaster.xyz/~/code/ZFYXLS"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-600 underline"
+                className="text-accent-600 underline"
               >
                 Get started
               </a>
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               Prefer the Base app?{' '}
               <a
                 href="https://base.app/invite/starl3xx/23BC6Y0C"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-600 underline"
+                className="text-accent-600 underline"
               >
                 Join here
               </a>
