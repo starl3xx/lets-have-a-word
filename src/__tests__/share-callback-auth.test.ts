@@ -101,3 +101,46 @@ describe('an unauthenticated caller cannot claim anybody a bonus', () => {
     expect(status).toBe(401);
   });
 });
+
+describe('the branch is where they shared, not who they are', () => {
+  /**
+   * The interaction between account linking and the share bonus, and the worst
+   * possible one: after linking, a veteran playing in Base App resolves to
+   * their REAL Farcaster fid with playerOrigin 'farcaster'. An identity-based
+   * test would then demand a cast they cannot make from Base App and quietly
+   * cost them the daily bonus — exactly the players the link flow exists to
+   * keep. (Bugbot, PR #295.)
+   *
+   * `auth.origin` is the honest discriminator and cannot be claimed by the
+   * client: a Quick Auth token can only be minted by a Farcaster host, and a
+   * player session is SIWE-derived, so it means off-host whichever identity it
+   * now names.
+   *
+   * ASSERTS THE RESPONSE, not a spy. A first version used vi.spyOn on the
+   * farcaster module and passed even with the bug restored — a direct ESM
+   * import cannot be intercepted that way, so the assertion was vacuous. The
+   * observable difference is what the caller is told.
+   */
+  it('does not demand a cast from a LINKED player whose session names a Farcaster fid', async () => {
+    // A FRESH fid per run. The handler early-returns 200 "already claimed"
+    // once hasSharedToday is set, so a fixed fid makes this test pass on its
+    // second run no matter what the branch does — which is exactly how the
+    // first two versions of it were vacuous.
+    const fid = 900_000_000 + Number(process.hrtime.bigint() % 50_000_000n);
+    const token = await signPlayerSession(
+      // Exactly what link-redeem mints: a player session naming the Farcaster
+      // account, carrying the wallet they proved.
+      { fid, origin: 'farcaster', wallet: '0x00000000000000000000000000000000000000bb' },
+      SECRET
+    );
+
+    const { status, body } = await run({ cookies: { [PLAYER_SESSION_COOKIE]: token } });
+
+    // The bonus is actually AWARDED. The identity-keyed version instead went
+    // looking for a cast — which in any environment without Neynar throws, and
+    // in production would simply never be found — so this player was denied a
+    // bonus they cannot possibly satisfy.
+    expect(status).toBe(200);
+    expect(body?.ok).toBe(true);
+  });
+});

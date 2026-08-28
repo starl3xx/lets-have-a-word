@@ -22,7 +22,6 @@ import {
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { verifyRecentShareCast } from '../../src/lib/farcaster';
 import { resolveRequestFid } from '../../src/lib/requestAuth';
-import { isWalletFid } from '../../src/lib/wallet-fid';
 
 export interface ShareCallbackResponse {
   ok: boolean;
@@ -80,17 +79,29 @@ export default async function handler(
 
     const fid = auth.fid;
 
-    // A wallet player has no Farcaster account, so they cannot cast and
-    // verifyRecentShareCast can never find anything for them. They share to X
-    // instead, and the bonus is awarded on the share INTENT.
+    // THE QUESTION IS WHERE THEY SHARED, NOT WHO THEY ARE.
     //
-    // The exposure is bounded by the same rule that bounds it for everyone
-    // else: awardShareBonus is idempotent per FID per UTC day, so the ceiling
-    // is +1 guess per account per day — exactly what a Farcaster player gets.
-    // Real verification is not available at any price we would pay: X's read
-    // endpoints are a paid tier, and it would only cover players who have
-    // linked an X handle to their wallet.
-    const isWalletPlayer = isWalletFid(fid) || auth.playerOrigin === 'wallet';
+    // An earlier version keyed this on identity — isWalletFid, or a 'wallet'
+    // playerOrigin — which breaks for exactly the players account linking
+    // exists to keep. After linking, a veteran playing in Base App resolves to
+    // their REAL Farcaster fid with playerOrigin 'farcaster', so an
+    // identity-based test would demand a cast they cannot make from Base App
+    // and quietly cost them their daily bonus (Bugbot, PR #295).
+    //
+    // `auth.origin` answers the right question and cannot be claimed by the
+    // client. A Quick Auth token can only be minted by a Farcaster host, so
+    // quick_auth means they are in the mini app and a cast is expected. A
+    // player session is SIWE-derived, which means they are off-host and shared
+    // to X, whichever identity that session now names.
+    //
+    // Doing this from a request field instead would let any authenticated
+    // player skip the cast check by claiming they shared to X, which is a real
+    // change to the majority cohort's economy rather than a fix for a minority.
+    //
+    // Exposure stays bounded by the rule that already bounds everyone:
+    // awardShareBonus is idempotent per FID per UTC day, so the ceiling is +1
+    // guess per account per day either way.
+    const awardOnIntent = auth.origin === 'player_session';
 
     // Check if user already has the bonus today (early return for idempotency)
     const existingState = await getOrCreateDailyState(fid);
@@ -105,11 +116,11 @@ export default async function handler(
 
     // Milestone 9.6: Actually verify the cast exists on Farcaster
     // Look for a cast mentioning letshaveaword.fun in the last 10 minutes
-    const verifiedCast = isWalletPlayer
+    const verifiedCast = awardOnIntent
       ? null
       : await verifyRecentShareCast(fid, 'letshaveaword.fun', 10);
 
-    if (!isWalletPlayer && !verifiedCast) {
+    if (!awardOnIntent && !verifiedCast) {
       // Cast not found - could be timing issue or user didn't actually post
       console.log(`[share-callback] No verified cast found for FID ${fid}`);
       return res.status(200).json({
@@ -120,8 +131,8 @@ export default async function handler(
     }
 
     console.log(
-      isWalletPlayer
-        ? `[share-callback] Awarding on share intent for wallet FID ${fid}`
+      awardOnIntent
+        ? `[share-callback] Awarding on share intent (off-host) for FID ${fid}`
         : `[share-callback] Verified cast ${verifiedCast!.castHash} for FID ${fid}`
     );
 
@@ -148,7 +159,7 @@ export default async function handler(
       userId: fid.toString(),
       data: {
         castHash: verifiedCast?.castHash ?? null,
-        shareTarget: isWalletPlayer ? 'x' : 'farcaster',
+        shareTarget: awardOnIntent ? 'x' : 'farcaster',
         bonusAwarded: true,
         newFreeGuessesRemaining,
         verified: true,
