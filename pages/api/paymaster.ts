@@ -67,47 +67,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(rpcError(id, -32000, `Not sponsored: ${decision.reason}`));
   }
 
-  // A Wordmark mint is only sponsored if this server issued its voucher, and
-  // ONE VOUCHER BUYS ONE SPONSORSHIP. The contract reverts on a replayed mint
-  // and a revert still consumes gas, so merely reading the voucher and leaving
-  // it in place would let a single issued voucher fund an unbounded number of
-  // failing mints for its whole ten-minute life — the exact drain this check
-  // exists to stop (Bugbot, PR #300).
+  // A Wordmark mint is only sponsored if this server issued its voucher, and a
+  // voucher pays for a BOUNDED number of sponsorships rather than an unlimited
+  // one. The contract reverts on a replayed mint and a revert still consumes
+  // gas, so a voucher that merely had to exist would let one issue fund an
+  // unbounded run of failing mints for its whole ten-minute life.
   //
-  // ERC-7677 is a two-call handshake and only the second one leads to a real
-  // transaction, so the stub call may look but must not consume. Consuming on
-  // the stub would break every honest mint, since the wallet would find the
-  // voucher gone when it came back for the real signature.
+  // A budget rather than a single use, because three ordinary things ask for
+  // the same voucher twice: an upstream timeout, a forwarded JSON-RPC error,
+  // and a wallet re-requesting pm_getPaymasterData after gas changes. A strict
+  // one-shot turns all three into a dead mint the player cannot retry. The
+  // budget is small, so the drain stays bounded at MINT_SPONSOR_BUDGET
+  // failures per voucher, and the voucher endpoint will not issue a second one
+  // for a Wordmark that is already minted. (Bugbot, PR #300.)
+  //
+  // ERC-7677 is a two-call handshake and only the second leads to a real
+  // transaction, so the stub call looks without spending.
+  const spend = method === 'pm_getPaymasterData' ? decision.requiresVouchers ?? [] : [];
+
   if (decision.requiresVouchers?.length) {
     if (!redis) {
       console.warn('[paymaster] Refusing a mint: no Redis to check the voucher against');
       return res.status(200).json(rpcError(id, -32000, 'Not sponsored: cannot verify voucher'));
     }
 
-    const consume = method === 'pm_getPaymasterData';
-    const spent: string[] = [];
-
     for (const signature of decision.requiresVouchers) {
-      const key = mintAuthKey(signature);
-      const authorised = consume ? await redis.getdel(key) : await redis.get(key);
-
-      if (authorised === null || authorised === undefined) {
-        // Put back anything already taken in this batch. Otherwise one bad call
-        // at the end silently burns the vouchers in front of it and the player
-        // has to walk back to the app for new ones.
-        for (const s of spent) {
-          await redis.set(mintAuthKey(s), authorised ?? 1, { ex: 600 });
-        }
-        console.warn('[paymaster] Refusing a mint with no matching voucher');
+      const remaining = await redis.get(mintAuthKey(signature));
+      const left = typeof remaining === 'number' ? remaining : parseInt(String(remaining ?? ''), 10);
+      if (!Number.isFinite(left) || left <= 0) {
+        console.warn('[paymaster] Refusing a mint with no remaining voucher budget');
         return res
           .status(200)
           .json(rpcError(id, -32000, 'Not sponsored: no voucher for this mint'));
       }
-      if (consume) spent.push(signature);
+    }
+  }
+
+  /** Give back a spend. Used when the sponsorship never actually happened. */
+  async function refund(): Promise<void> {
+    if (!redis) return;
+    for (const signature of spend) {
+      try {
+        await redis.incr(mintAuthKey(signature));
+      } catch {
+        // A voucher left short is a retry the player has to redo, not a
+        // security problem. Never let it mask the real error below.
+      }
     }
   }
 
   try {
+    // Spent BEFORE the upstream call, because that call is what costs money and
+    // two concurrent requests must not both find the budget intact. Refunded on
+    // any path where no sponsorship was actually issued.
+    if (redis) {
+      for (const signature of spend) {
+        await redis.decr(mintAuthKey(signature));
+      }
+    }
+
     const upstreamRes = await fetch(upstream, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -117,8 +135,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const json = await upstreamRes.json();
+
+    // A forwarded error is not a sponsorship. Charging the voucher for one
+    // would spend the player's only retry on the upstream's bad day.
+    if (!upstreamRes.ok || json?.error) {
+      await refund();
+    }
     return res.status(200).json(json);
   } catch (error) {
+    // A timeout is the loudest case: the wallet is blocked, the upstream never
+    // signed anything, and without this the voucher would be gone and an honest
+    // mint dead with no way to retry it.
+    await refund();
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[paymaster] Upstream call failed:', message);
     Sentry.captureException(error, { tags: { component: 'paymaster' } });

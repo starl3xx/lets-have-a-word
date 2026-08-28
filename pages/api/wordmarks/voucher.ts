@@ -40,6 +40,21 @@ const VOUCHER_TTL_SECONDS = 600;
 
 export const MINT_AUTH_PREFIX = 'lhaw:mintauth:';
 
+/**
+ * How many sponsorships one voucher pays for.
+ *
+ * Not one. Three ordinary things ask for the same voucher twice: an upstream
+ * paymaster timeout, a forwarded JSON-RPC error, and a wallet re-requesting
+ * pm_getPaymasterData when gas estimates move. A strict one-shot turns each of
+ * those into a mint the player cannot retry.
+ *
+ * Small, because every unit is a sponsored transaction that may revert. With
+ * the mintedByFid check below refusing a second voucher for an already-minted
+ * Wordmark, the worst case is this many sponsored failures per Wordmark a
+ * player has genuinely earned and not yet claimed.
+ */
+export const MINT_SPONSOR_BUDGET = 3;
+
 /** The key /api/paymaster looks up. Exported so the two cannot drift apart. */
 export function mintAuthKey(signature: string): string {
   return `${MINT_AUTH_PREFIX}${ethers.keccak256(signature)}`;
@@ -160,9 +175,10 @@ export default async function handler(
       { fid, to, id, deadline }
     );
 
-    // Authorise the gas for THIS voucher and nothing else. Expires with it, so
-    // an unused authorisation cannot be banked.
-    await redis.set(mintAuthKey(signature), fid, { ex: VOUCHER_TTL_SECONDS });
+    // Authorise the gas for THIS voucher and nothing else, for a bounded number
+    // of attempts. Expires with the voucher, so an unused budget cannot be
+    // banked and spent later.
+    await redis.set(mintAuthKey(signature), MINT_SPONSOR_BUDGET, { ex: VOUCHER_TTL_SECONDS });
 
     console.log(`[wordmarks/voucher] Issued ${type} (id ${id}) for FID ${fid} to ${to}`);
 
