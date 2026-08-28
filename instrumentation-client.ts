@@ -32,17 +32,45 @@ Sentry.init({
   //   Sentry.replayIntegration(),
   // ],
 
-  // Filter out noisy errors
+  // Filter out noisy errors.
+  //
+  // ignoreErrors matches the MESSAGE. The two extension patterns below have
+  // therefore never matched anything: an extension's error message is whatever
+  // its own minified code threw, not a path. Filtering by where the code CAME
+  // from is denyUrls, and that was missing entirely.
   ignoreErrors: [
-    // Browser extensions
-    /extensions\//i,
-    /^chrome:\/\//i,
     // Network errors that are expected
     'Network request failed',
     'Failed to fetch',
     'Load failed',
     // Rate limiting (expected behavior)
     'Too many requests',
+  ],
+
+  /**
+   * Matched against the stack frame URLs, which is how extension noise is
+   * actually excluded.
+   *
+   * Every wallet extension injects a script into every page, conventionally
+   * named `inpage`. Two of them on one page collide over minified globals and
+   * throw things like "Identifier 'T' has already been declared" from
+   * `inpage.iife.js`, attributed to us because window.onerror catches
+   * everything on the page. It is a fight between two extensions on somebody's
+   * laptop and there is nothing to fix in this app.
+   *
+   * Worth having before a traffic spike rather than after: a wallet-heavy
+   * audience means a lot of extensions, and this noise buries real errors in
+   * exactly the window where seeing them matters.
+   */
+  denyUrls: [
+    // Wallet extension injected scripts (inpage.js, inpage.iife.js, ...).
+    // Sentry rewrites the origin to app:///, so the filename is what survives.
+    /inpage\./i,
+    // Extension protocols, when the origin does reach us.
+    /^chrome-extension:\/\//i,
+    /^moz-extension:\/\//i,
+    /^safari-(web-)?extension:\/\//i,
+    /extensions\//i,
   ],
 
   // Add context about the user (FID if available)
