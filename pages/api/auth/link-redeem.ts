@@ -40,6 +40,15 @@ interface RedeemResponse {
   sessionToken: string;
 }
 
+function setSessionCookie(res: NextApiResponse, token: string): void {
+  res.setHeader(
+    'Set-Cookie',
+    `${PLAYER_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${PLAYER_SESSION_TTL_SECONDS}${
+      process.env.NODE_ENV === 'production' ? '; Secure' : ''
+    }`
+  );
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<RedeemResponse | { error: string }>
@@ -70,6 +79,38 @@ export default async function handler(
     return res.status(400).json({ error: 'Enter the code from Farcaster' });
   }
 
+  const wallet = auth.provenWallet.toLowerCase();
+
+  // CHECKED BEFORE THE CODE IS SPENT. consumeLinkCode is a GETDEL, so every
+  // path after it has burned a code the player would have to walk back to
+  // Farcaster to replace. This check needs no code at all — the wallet comes
+  // from the session — so doing it first means the common "already linked"
+  // case costs nothing (Bugbot, PR #294).
+  //
+  // An already-linked wallet is not an error to report: the link they came to
+  // make already exists. Hand them a session for the account that wallet
+  // belongs to and leave their unused code alone to expire.
+  const [preExisting] = await db
+    .select({ fid: users.fid, username: users.username })
+    .from(userAddresses)
+    .innerJoin(users, eq(users.fid, userAddresses.fid))
+    .where(sql`lower(${userAddresses.address}) = ${wallet}`)
+    .limit(1);
+
+  if (preExisting) {
+    const existingToken = await signPlayerSession(
+      { fid: preExisting.fid, origin: 'farcaster', wallet },
+      secret
+    );
+    setSessionCookie(res, existingToken);
+    console.log(`[auth/link-redeem] ${wallet} was already linked to FID ${preExisting.fid}`);
+    return res.status(200).json({
+      fid: preExisting.fid,
+      username: preExisting.username ?? null,
+      sessionToken: existingToken,
+    });
+  }
+
   const farcasterFid = await consumeLinkCode(code.trim());
   if (!farcasterFid) {
     // Expired, already used, or never existed. All the same to the caller —
@@ -83,8 +124,6 @@ export default async function handler(
     console.error(`[auth/link-redeem] Code resolved to a wallet fid ${farcasterFid}`);
     return res.status(400).json({ error: 'That code cannot be used here' });
   }
-
-  const wallet = auth.provenWallet.toLowerCase();
 
   const [target] = await db
     .select({ fid: users.fid, username: users.username })
@@ -101,22 +140,18 @@ export default async function handler(
     // address vouches for exactly one player, so a second link attempt for the
     // same wallet is a no-op rather than a way to attach it to two accounts and
     // double the daily allocation the reward gate bounds per wallet.
-    await db
+    // Still onConflictDoNothing rather than a bare insert: the check above is
+    // not a lock, so two redemptions racing for the same wallet must not turn
+    // into a 500. The unique index is the real guarantee.
+    const inserted = await db
       .insert(userAddresses)
       .values({ fid: farcasterFid, address: wallet, linkedVia: 'link_code' })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: userAddresses.id });
 
-    const [existingLink] = await db
-      .select({ fid: userAddresses.fid })
-      .from(userAddresses)
-      .where(sql`lower(${userAddresses.address}) = ${wallet}`)
-      .limit(1);
-
-    if (existingLink && existingLink.fid !== farcasterFid) {
-      // Already vouching for somebody else. Refuse rather than move it.
-      console.warn(
-        `[auth/link-redeem] ${wallet} already links to FID ${existingLink.fid}, refusing ${farcasterFid}`
-      );
+    if (inserted.length === 0) {
+      // Lost that race. Whoever won holds the link; report rather than guess.
+      console.warn(`[auth/link-redeem] Lost an insert race linking ${wallet}`);
       return res
         .status(409)
         .json({ error: 'This wallet is already linked to another account' });
@@ -134,12 +169,7 @@ export default async function handler(
     secret
   );
 
-  res.setHeader(
-    'Set-Cookie',
-    `${PLAYER_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${PLAYER_SESSION_TTL_SECONDS}${
-      process.env.NODE_ENV === 'production' ? '; Secure' : ''
-    }`
-  );
+  setSessionCookie(res, token);
 
   console.log(`[auth/link-redeem] Linked ${wallet} to FID ${target.fid}`);
 

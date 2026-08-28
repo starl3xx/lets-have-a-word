@@ -8,6 +8,8 @@ import { eq, and, isNotNull, isNull, desc, inArray } from 'drizzle-orm';
 import { hasWordTokenBonus } from './word-token';
 import { getPlaintextAnswer } from './encryption';
 import { isRealFcUsername } from './farcaster';
+import { playerDisplay } from './player-display';
+import { isWalletFid } from './wallet-fid';
 
 /**
  * Claimed bonus word info for API responses
@@ -19,6 +21,10 @@ export interface ClaimedBonusWord {
     fid: number;
     username: string;
     pfpUrl: string;
+    /** Which door this player came through, so the list can badge them. */
+    origin: 'farcaster' | 'wallet';
+    /** True when `username` is a truncated address rather than a name. */
+    isAddressFallback: boolean;
   };
   claimedAt: string;
   txHash: string | null;
@@ -71,7 +77,17 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
 
   // Get user info for all claimed bonus words
   const claimedFids = claimedWords.map(bw => bw.claimedByFid!);
-  const userDataMap = new Map<number, { username: string | null; pfpUrl: string }>();
+  const userDataMap = new Map<
+    number,
+    {
+      username: string | null;
+      pfpUrl: string;
+      displayName?: string | null;
+      avatarUrl?: string | null;
+      signerWalletAddress?: string | null;
+      identityOrigin?: string | null;
+    }
+  >();
 
   if (claimedFids.length > 0) {
     const userRecords = await db
@@ -82,15 +98,27 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
     // Query each FID individually for compatibility
     for (const fid of claimedFids) {
       const userRecord = await db
-        .select({ fid: users.fid, username: users.username })
+        .select({
+          fid: users.fid,
+          username: users.username,
+          displayName: users.displayName,
+          avatarUrl: users.avatarUrl,
+          signerWalletAddress: users.signerWalletAddress,
+          identityOrigin: users.identityOrigin,
+        })
         .from(users)
         .where(eq(users.fid, fid))
         .limit(1);
 
       if (userRecord.length > 0) {
+        const row = userRecord[0];
         userDataMap.set(fid, {
-          username: isRealFcUsername(userRecord[0].username) ? userRecord[0].username : null,
+          username: isRealFcUsername(row.username) ? row.username : null,
           pfpUrl: `https://avatar.vercel.sh/${fid}`,
+          displayName: row.displayName,
+          avatarUrl: row.avatarUrl,
+          signerWalletAddress: row.signerWalletAddress,
+          identityOrigin: row.identityOrigin,
         });
       }
     }
@@ -98,11 +126,19 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
     // Optionally enrich with Neynar data for profile pictures
     try {
       const { neynarClient } = await import('./farcaster');
-      const neynarData = await neynarClient.fetchBulkUsers({ fids: claimedFids });
+      // Farcaster fids only: Neynar has never heard of a synthetic wallet fid.
+      const neynarFids = claimedFids.filter((fid) => !isWalletFid(fid));
+      const neynarData = neynarFids.length
+        ? await neynarClient.fetchBulkUsers({ fids: neynarFids })
+        : { users: [] };
       if (neynarData.users) {
         for (const user of neynarData.users) {
-          const existing = userDataMap.get(user.fid) || { username: null, pfpUrl: `https://avatar.vercel.sh/${user.fid}` };
+          const existing = userDataMap.get(user.fid) || {
+            username: null,
+            pfpUrl: `https://avatar.vercel.sh/${user.fid}`,
+          };
           userDataMap.set(user.fid, {
+            ...existing,
             username: isRealFcUsername(user.username) ? user.username : isRealFcUsername(existing.username) ? existing.username : null,
             pfpUrl: user.pfp_url || existing.pfpUrl,
           });
@@ -120,14 +156,27 @@ export async function getBonusWordStatus(roundId: number): Promise<BonusWordStat
       username: null,
       pfpUrl: `https://avatar.vercel.sh/${bw.claimedByFid}`,
     };
+    // The same renderer as every other list, so a Base App finder is named by
+    // their basename rather than "fid:1000000001" next to named players.
+    const display = playerDisplay({
+      fid: bw.claimedByFid!,
+      username: userData.username,
+      displayName: userData.displayName,
+      avatarUrl: userData.avatarUrl,
+      signerWalletAddress: userData.signerWalletAddress,
+      identityOrigin: userData.identityOrigin,
+      pfpUrl: userData.pfpUrl,
+    });
 
     return {
       word: getPlaintextAnswer(bw.word), // Decrypt the word
       wordIndex: bw.wordIndex,
       claimedBy: {
         fid: bw.claimedByFid!,
-        username: userData.username || `fid:${bw.claimedByFid}`,
-        pfpUrl: userData.pfpUrl,
+        username: display.name,
+        pfpUrl: display.avatarUrl,
+        origin: display.origin,
+        isAddressFallback: display.isAddressFallback,
       },
       claimedAt: bw.claimedAt?.toISOString() || new Date().toISOString(),
       txHash: bw.txHash,
@@ -173,6 +222,10 @@ export interface BonusWordWinner {
   fid: number;
   username: string;
   pfpUrl: string;
+  /** Which door this player came through, so the list can badge them. */
+  origin: 'farcaster' | 'wallet';
+  /** True when `username` is a truncated address rather than a name. */
+  isAddressFallback: boolean;
   word: string;
   wordIndex: number;
   claimedAt: string;
@@ -285,6 +338,8 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
       fid: cw.claimedBy.fid,
       username: cw.claimedBy.username,
       pfpUrl: cw.claimedBy.pfpUrl,
+      origin: cw.claimedBy.origin,
+      isAddressFallback: cw.claimedBy.isAddressFallback,
       word: cw.word,
       wordIndex: cw.wordIndex,
       claimedAt: cw.claimedAt,

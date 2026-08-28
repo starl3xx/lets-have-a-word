@@ -33,6 +33,9 @@ interface BonusWordWinner {
   fid: number;
   username: string;
   pfpUrl: string;
+  /** From the API. Optional so an older cached payload still renders. */
+  origin?: 'farcaster' | 'wallet';
+  isAddressFallback?: boolean;
   word: string;
   wordIndex: number;
   claimedAt: string;
@@ -53,6 +56,9 @@ interface BurnWordFinder {
   fid: number;
   username: string;
   pfpUrl: string | null;
+  /** From the API. Optional so an older cached payload still renders. */
+  origin?: 'farcaster' | 'wallet';
+  isAddressFallback?: boolean;
   word: string;
   burnAmount: string;
   txHash: string | null;
@@ -624,19 +630,21 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                       <div className="text-gray-500 text-sm font-medium w-5 text-right">
                         {index + 1}.
                       </div>
-                      {/* Avatar */}
-                      <img
+                      {/* Avatar, badged with the door this player came through */}
+                      <PlayerAvatar
                         src={winner.pfpUrl}
                         alt={winner.username}
-                        className="w-7 h-7 rounded-full object-cover border border-cyan-200"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${winner.fid}`;
-                        }}
+                        origin={winner.origin ?? 'farcaster'}
+                        sizeClass="w-7 h-7"
                       />
                       {/* Username + Badges */}
                       <div className="flex-1 flex items-center gap-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900 truncate">
-                          {(winner.username?.startsWith('fid:') || winner.username?.startsWith('!')) ? `fid:${winner.fid}` : `@${winner.username || `fid:${winner.fid}`}`}
+                          {playerLabel({
+                            name: winner.username || `fid:${winner.fid}`,
+                            origin: winner.origin ?? 'farcaster',
+                            isAddressFallback: winner.isAddressFallback ?? false,
+                          })}
                         </span>
                         <BadgeStack
                           hasOgHunterBadge={winner.hasOgHunterBadge}
@@ -689,19 +697,21 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                       <div className="text-gray-500 text-sm font-medium w-5 text-right">
                         {index + 1}.
                       </div>
-                      {/* Avatar */}
-                      <img
+                      {/* Avatar, badged with the door this player came through */}
+                      <PlayerAvatar
                         src={finder.pfpUrl || `https://avatar.vercel.sh/${finder.fid}`}
                         alt={finder.username}
-                        className="w-7 h-7 rounded-full object-cover border border-orange-200"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = `https://avatar.vercel.sh/${finder.fid}`;
-                        }}
+                        origin={finder.origin ?? 'farcaster'}
+                        sizeClass="w-7 h-7"
                       />
                       {/* Username + Badges */}
                       <div className="flex-1 flex items-center gap-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900 truncate">
-                          {(finder.username?.startsWith('fid:') || finder.username?.startsWith('!')) ? `fid:${finder.fid}` : `@${finder.username || `fid:${finder.fid}`}`}
+                          {playerLabel({
+                            name: finder.username || `fid:${finder.fid}`,
+                            origin: finder.origin ?? 'farcaster',
+                            isAddressFallback: finder.isAddressFallback ?? false,
+                          })}
                         </span>
                         <BadgeStack
                           hasOgHunterBadge={finder.hasOgHunterBadge}
