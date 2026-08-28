@@ -68,14 +68,20 @@ describe('openXComposer', () => {
     const opened: Array<[string, string]> = [];
     const clicked: string[] = [];
     const el = {
-      href: '',
+      _src: '',
       style: {} as Record<string, string>,
-      click() {
-        clicked.push(this.href);
+      set src(v: string) {
+        this._src = v;
+        clicked.push(v);
       },
+      get src() {
+        return this._src;
+      },
+      remove() {},
     };
     (globalThis as any).window = {
       open: (u: string, target: string) => opened.push([u, target]),
+      setTimeout: () => 0,
     };
     (globalThis as any).document = {
       createElement: () => el,
@@ -89,7 +95,10 @@ describe('openXComposer', () => {
     delete (globalThis as any).document;
   });
 
-  it('attempts the installed app first', () => {
+  it('attempts the installed app first, inside a frame', () => {
+    // A frame cannot navigate the top document, so an unhandled scheme can
+    // never replace the game with an error page — the failure an anchor or a
+    // location assignment both risk (Bugbot, PR #294).
     const { clicked } = fakeEnv();
     openXComposer('hello');
     expect(clicked).toHaveLength(1);

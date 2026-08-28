@@ -97,10 +97,13 @@ export async function withHostTimeout<T>(
  * real chance. Worst case the player gets the tab they get today; best case
  * they land in the app and the tab is behind them.
  *
- * An ANCHOR CLICK, not `window.location.href`. Assigning location with a scheme
- * nothing handles can replace the webview with an error page and unload the
- * game, including from the winner screen. A declined anchor navigation leaves
- * the page alone.
+ * A HIDDEN IFRAME, not a location assignment and not an anchor click. Both of
+ * those navigate the TOP document, so a scheme the host does not handle can
+ * replace the game with an error page — including from the winner screen. An
+ * anchor without `target` is still a same-window navigation and carries exactly
+ * that risk (Bugbot, PR #294). An iframe cannot touch the top document by
+ * construction: an unhandled scheme fails inside the frame and the game is
+ * untouched.
  *
  * REPORTED FROM A DEVICE 2026-08-27: Base App opens the https link in its own
  * in-app browser rather than handing it to the X app. Whether it honours the
@@ -118,12 +121,14 @@ export function openXComposer(text: string, url?: string): void {
   const appMessage = url ? `${text}\n\n${url}` : text;
 
   try {
-    const a = document.createElement('a');
-    a.href = `twitter://post?message=${encodeURIComponent(appMessage)}`;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const frame = document.createElement('iframe');
+    frame.style.display = 'none';
+    frame.src = `twitter://post?message=${encodeURIComponent(appMessage)}`;
+    document.body.appendChild(frame);
+    // Tidy-up only, not a fallback: the web tab below has already opened by
+    // the time this runs, and removing the frame has no effect on whether the
+    // OS took the scheme.
+    window.setTimeout(() => frame.remove(), 1_000);
   } catch {
     // Host refused the scheme outright. The web tab below still opens.
   }
