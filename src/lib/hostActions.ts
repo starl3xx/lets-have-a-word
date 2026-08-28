@@ -82,31 +82,53 @@ export async function withHostTimeout<T>(
 /**
  * Open the X composer with prepopulated text.
  *
- * Works in every host including Base App's webview — unlike `composeCast`,
- * which needs a Farcaster host.
+ * TWO ATTEMPTS, BOTH INSIDE THE CLICK GESTURE, in this order:
  *
- * OPENED IMMEDIATELY, INSIDE THE CLICK GESTURE. An earlier version navigated
- * the page to a `twitter://post` scheme and set an 800ms timer to fall back to
- * the web intent. Both halves were wrong (Bugbot, PR #291): a delayed
- * `window.open` is outside the user gesture, so popup blockers swallow it
- * silently, and a scheme nothing handles can replace the webview with an error
- * page — unloading the game, including from the winner screen. A share button
- * that can lose a jackpot celebration is worse than one that opens a browser.
+ *   1. `twitter://post`, via a programmatic anchor click. If the X app is
+ *      installed and the host hands unknown schemes to the OS, the compose
+ *      lands in the app the player is already logged into.
+ *   2. `x.com/intent/tweet` in a new tab, unconditionally.
  *
- * GETTING TO THE APP IS THE OS'S JOB, not something a page can force. The best
- * a page can do is give iOS the cleanest possible universal link, which is why
- * this uses `x.com/intent/tweet`: measured 2026-08-27, it answers 200 directly,
- * while `twitter.com/intent/tweet` 301s to it — and a redirect hop is exactly
- * what stops a universal link matching and opening the installed app. Where the
- * host insists on an in-app browser, that is the host's decision.
+ * WHY BOTH RATHER THAN ONE THEN THE OTHER. An earlier version fired the scheme
+ * and set an 800ms timer to fall back. Bugbot killed it, correctly: a delayed
+ * `window.open` is outside the user gesture, so popup blockers swallow it and
+ * the share silently does nothing. Firing both synchronously means the web tab
+ * is guaranteed — the behaviour before any of this — while the scheme gets a
+ * real chance. Worst case the player gets the tab they get today; best case
+ * they land in the app and the tab is behind them.
+ *
+ * An ANCHOR CLICK, not `window.location.href`. Assigning location with a scheme
+ * nothing handles can replace the webview with an error page and unload the
+ * game, including from the winner screen. A declined anchor navigation leaves
+ * the page alone.
+ *
+ * REPORTED FROM A DEVICE 2026-08-27: Base App opens the https link in its own
+ * in-app browser rather than handing it to the X app. Whether it honours the
+ * scheme is the host's decision and not something a page can force — this is
+ * the best a page can do, and it is never worse than the web tab alone.
  */
 export function openXComposer(text: string, url?: string): void {
   if (typeof window === 'undefined') return;
 
   const params = new URLSearchParams({ text });
   if (url) params.set('url', url);
+  const webUrl = `https://x.com/intent/tweet?${params.toString()}`;
 
-  window.open(`https://x.com/intent/tweet?${params.toString()}`, '_blank', 'noopener,noreferrer');
+  // The app scheme carries one text field, so the link rides inside it.
+  const appMessage = url ? `${text}\n\n${url}` : text;
+
+  try {
+    const a = document.createElement('a');
+    a.href = `twitter://post?message=${encodeURIComponent(appMessage)}`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    // Host refused the scheme outright. The web tab below still opens.
+  }
+
+  window.open(webUrl, '_blank', 'noopener,noreferrer');
 }
 
 /**

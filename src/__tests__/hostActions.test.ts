@@ -64,47 +64,64 @@ describe('withHostTimeout', () => {
 });
 
 describe('openXComposer', () => {
-  function fakeWindow() {
+  function fakeEnv() {
     const opened: Array<[string, string]> = [];
+    const clicked: string[] = [];
+    const el = {
+      href: '',
+      style: {} as Record<string, string>,
+      click() {
+        clicked.push(this.href);
+      },
+    };
     (globalThis as any).window = {
       open: (u: string, target: string) => opened.push([u, target]),
     };
-    return opened;
+    (globalThis as any).document = {
+      createElement: () => el,
+      body: { appendChild: () => {}, removeChild: () => {} },
+    };
+    return { opened, clicked };
   }
 
   afterEach(() => {
     delete (globalThis as any).window;
+    delete (globalThis as any).document;
   });
 
-  it('opens synchronously, so the click gesture still covers it', () => {
-    // A delayed window.open is outside the user gesture and popup blockers
-    // swallow it silently — which is how the fallback became a share button
-    // that did nothing at all (Bugbot, PR #291).
-    const opened = fakeWindow();
+  it('attempts the installed app first', () => {
+    const { clicked } = fakeEnv();
+    openXComposer('hello');
+    expect(clicked).toHaveLength(1);
+    expect(clicked[0]).toContain('twitter://post?message=');
+  });
+
+  it('ALWAYS opens the web tab as well, so the share can never do nothing', () => {
+    // A delayed fallback is outside the click gesture and popup blockers
+    // swallow it silently — which turned the share into a dead button.
+    const { opened } = fakeEnv();
+    openXComposer('hello');
+    expect(opened).toHaveLength(1);
+    expect(opened[0][0]).toContain('https://x.com/intent/tweet?');
+  });
+
+  it('uses x.com, not twitter.com, which costs a redirect hop', () => {
+    const { opened } = fakeEnv();
+    openXComposer('hello');
+    expect(opened[0][0]).not.toContain('twitter.com/intent');
+  });
+
+  it('still opens the web tab when the host refuses the scheme', () => {
+    const { opened } = fakeEnv();
+    (globalThis as any).document.createElement = () => {
+      throw new Error('scheme refused');
+    };
     openXComposer('hello');
     expect(opened).toHaveLength(1);
   });
 
-  it('uses x.com directly, which is the clean universal link', () => {
-    // twitter.com/intent/tweet 301s to this URL, and the redirect hop is what
-    // stops iOS matching the universal link and opening the installed app.
-    const opened = fakeWindow();
-    openXComposer('hello');
-    expect(opened[0][0]).toContain('https://x.com/intent/tweet?');
-    expect(opened[0][0]).not.toContain('twitter.com');
-  });
-
-  it('never navigates the current page away', () => {
-    // Navigating to an unhandled scheme can replace the webview with an error
-    // page and unload the game, including from the winner screen.
-    const opened = fakeWindow();
-    openXComposer('hello');
-    expect(opened[0][1]).toBe('_blank');
-    expect((globalThis as any).window.location).toBeUndefined();
-  });
-
-  it('passes the url as its own parameter, where X renders it as a card', () => {
-    const opened = fakeWindow();
+  it('passes the url as its own parameter for the web card', () => {
+    const { opened } = fakeEnv();
     openXComposer('come play', 'https://letshaveaword.fun/?ref=1');
     const u = new URL(opened[0][0]);
     expect(u.searchParams.get('text')).toBe('come play');

@@ -14,6 +14,8 @@
 
 import { db } from '../db';
 import { isRealFcUsername } from './farcaster';
+import { playerDisplay } from './player-display';
+import { isWalletFid } from './wallet-fid';
 import { roundBurnWords, roundBonusWords, wordRewards, guesses, users, userBadges } from '../db/schema';
 import type { RoundBurnWordRow } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
@@ -333,6 +335,10 @@ export interface BurnWordFinder {
   fid: number;
   username: string;
   pfpUrl: string | null;
+  /** Which door this player came through, so the list can badge them. */
+  origin: 'farcaster' | 'wallet';
+  /** True when `username` is a truncated address rather than a name. */
+  isAddressFallback: boolean;
   word: string;
   burnAmount: string;
   txHash: string | null;
@@ -381,18 +387,36 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
       fid: users.fid,
       username: users.username,
       signerWalletAddress: users.signerWalletAddress,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      identityOrigin: users.identityOrigin,
     })
     .from(users)
     .where(inArray(users.fid, finderFids));
 
-  const userMap = new Map<number, { fid: number; username: string | null; signerWalletAddress: string | null; pfpUrl: string }>(
+  const userMap = new Map<
+    number,
+    {
+      fid: number;
+      username: string | null;
+      signerWalletAddress: string | null;
+      pfpUrl: string;
+      displayName?: string | null;
+      avatarUrl?: string | null;
+      identityOrigin?: string | null;
+    }
+  >(
     userRecords.map(u => [u.fid, { ...u, username: isRealFcUsername(u.username) ? u.username : null, pfpUrl: `https://avatar.vercel.sh/${u.fid}` }])
   );
 
   // Enrich with Neynar data for usernames and profile pictures
   try {
     const { neynarClient } = await import('./farcaster');
-    const neynarData = await neynarClient.fetchBulkUsers({ fids: finderFids });
+    // Farcaster fids only: Neynar has never heard of a synthetic wallet fid.
+    const neynarFids = finderFids.filter((fid) => !isWalletFid(fid));
+    const neynarData = neynarFids.length
+      ? await neynarClient.fetchBulkUsers({ fids: neynarFids })
+      : { users: [] };
     if (neynarData.users) {
       for (const user of neynarData.users) {
         const existing = userMap.get(user.fid);
@@ -462,10 +486,24 @@ export async function getBurnWordFinders(roundId: number): Promise<BurnWordFinde
     const userBadgeSet = badgeMap.get(fid) || new Set();
     const decryptedWord = getPlaintextAnswer(bw.word);
 
+    // The same renderer as every other list, so a Base App finder is named by
+    // their basename rather than "fid:1000000001" next to named players.
+    const display = playerDisplay({
+      fid,
+      username: user?.username,
+      displayName: user?.displayName,
+      avatarUrl: user?.avatarUrl,
+      signerWalletAddress: user?.signerWalletAddress,
+      identityOrigin: user?.identityOrigin,
+      pfpUrl: user?.pfpUrl,
+    });
+
     return {
       fid,
-      username: user?.username || `fid:${fid}`,
-      pfpUrl: user?.pfpUrl || `https://avatar.vercel.sh/${fid}`,
+      username: display.name,
+      pfpUrl: display.avatarUrl,
+      origin: display.origin,
+      isAddressFallback: display.isAddressFallback,
       word: decryptedWord,
       burnAmount: bw.burnAmount,
       txHash: bw.txHash,
