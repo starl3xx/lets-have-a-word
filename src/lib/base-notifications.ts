@@ -247,33 +247,95 @@ export async function sendBaseNotification(params: {
  * Base App, so notifying it would be both useless and a little creepy; they are
  * reached through Neynar, which is the channel they opted into.
  */
+/**
+ * Who a Base push would reach, resolved from the database.
+ *
+ * SEPARATE FROM THE SENDING, and exported, because this is the half that can
+ * do damage and the half that cannot be tested through notifyBasePlayers:
+ * that function is gated on notificationsAreActive(), which hard-stops outside
+ * production — correctly, since a test run must never be able to push. Pulling
+ * the audience out means the rule "a targeted send never becomes a broadcast"
+ * can be proven without faking production.
+ *
+ * Pass targetFids to restrict. OMITTING IT MEANS EVERYONE, so a caller that
+ * means to reach one player must say so.
+ */
+export async function resolveBaseAudience(targetFids?: number[]): Promise<string[]> {
+  const targeted = Array.isArray(targetFids);
+  // A targeted send with no recipients is not a broadcast.
+  if (targeted && targetFids!.length === 0) return [];
+
+  const { db } = await import('../db');
+  const { users, userAddresses } = await import('../db/schema');
+  const { and, eq, isNotNull, inArray } = await import('drizzle-orm');
+
+  const fidFilter = targetFids ?? [];
+
+  // TWO SOURCES, because a Base App player is not always a wallet-origin row.
+  // After account linking a returning Farcaster player keeps their original row
+  // — identity_origin 'farcaster' — while playing in Base App through a linked
+  // address. Selecting only wallet rows would mean linking silently costs a
+  // player the one notification channel they have.
+  const walletRows = await db
+    .select({ wallet: users.signerWalletAddress })
+    .from(users)
+    .where(
+      targeted
+        ? and(
+            eq(users.identityOrigin, 'wallet'),
+            isNotNull(users.signerWalletAddress),
+            inArray(users.fid, fidFilter)
+          )
+        : and(eq(users.identityOrigin, 'wallet'), isNotNull(users.signerWalletAddress))
+    );
+
+  const linkedRows = await db
+    .select({ wallet: userAddresses.address })
+    .from(userAddresses)
+    .where(targeted ? inArray(userAddresses.fid, fidFilter) : undefined);
+
+  const seen = new Set<string>();
+  const addresses: string[] = [];
+  for (const row of [...walletRows, ...linkedRows]) {
+    const w = row.wallet;
+    if (typeof w !== 'string' || w.length === 0) continue;
+    const key = w.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    addresses.push(w);
+  }
+  return addresses;
+}
+
 export async function notifyBasePlayers(params: {
   title: string;
   message: string;
   targetPath?: string;
+  /**
+   * Restrict to these players. OMITTING THIS BROADCASTS to everyone reachable,
+   * so a caller that means to reach one player must say so — sendNotification
+   * honoured targetFids on the Neynar rail and passed nothing here, which made
+   * the first targeted send a silent broadcast to the entire Base App
+   * audience. A push cannot be recalled, and this is the only channel these
+   * players have.
+   */
+  targetFids?: number[];
 }): Promise<BaseNotificationResult> {
   if (!configured()) {
     return { success: false, sentCount: 0, failedCount: 0, error: 'Base notifications disabled' };
   }
 
   try {
-    // Imported lazily so notifications.ts — which announcer.ts and economics.ts
-    // both pull in — does not drag the database layer into their module graph.
-    const { db } = await import('../db');
-    const { users } = await import('../db/schema');
-    const { and, eq, isNotNull } = await import('drizzle-orm');
-
-    const rows = await db
-      .select({ wallet: users.signerWalletAddress })
-      .from(users)
-      .where(and(eq(users.identityOrigin, 'wallet'), isNotNull(users.signerWalletAddress)));
-
-    const walletAddresses = rows
-      .map((r) => r.wallet)
-      .filter((w): w is string => typeof w === 'string' && w.length > 0);
+    const walletAddresses = await resolveBaseAudience(params.targetFids);
 
     if (walletAddresses.length === 0) {
-      if (DEBUG) console.log('[base-notifications] no wallet-native players yet');
+      if (DEBUG) {
+        console.log(
+          params.targetFids
+            ? '[base-notifications] none of the targeted players are reachable here'
+            : '[base-notifications] no wallet-native players yet'
+        );
+      }
       return { success: true, sentCount: 0, failedCount: 0 };
     }
 
