@@ -711,6 +711,16 @@ export const userAddresses = pgTable('user_addresses', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   fidIdx: index('user_addresses_fid_idx').on(table.fid),
+  // DECLARED HERE, not only in the migration. drizzle-kit push builds from
+  // this file, so an index that exists only in SQL is one push --force can
+  // drop — and the memory of that trap is why 0031's sequence and partial
+  // index had to be applied separately in CI. Without this index
+  // onConflictDoNothing never conflicts, so one wallet could attach to several
+  // accounts and multiply the daily allocation the link flow exists to bound.
+  // (Bugbot, PR #294.)
+  addressUnique: uniqueIndex('user_addresses_address_unique').on(
+    sql`lower(${table.address})`
+  ),
 }));
 
 export type UserAddressRow = typeof userAddresses.$inferSelect;
