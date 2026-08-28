@@ -13,11 +13,14 @@ import { X_BUTTON_CLASS } from '../src/lib/hostActions';
 import { useTranslation } from '../src/hooks/useTranslation';
 import OgHunterBadge from './OgHunterBadge';
 import WordmarkDetailModal from './WordmarkDetailModal';
+import { LinkCodeIssuer, LinkCodeRedeemer } from './AccountLinkCard';
 import { WORDMARK_COLORS, WORDMARK_COLOR_FALLBACK } from './wordmark-display';
 
 interface StatsSheetProps {
   fid: number | null;
   onClose: () => void;
+  /** Quick Auth token, for issuing a Base app link code. Farcaster path only. */
+  authToken?: string | null;
 }
 
 /**
@@ -101,7 +104,7 @@ function EarningsStat({
   );
 }
 
-export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
+export default function StatsSheet({ fid, onClose, authToken }: StatsSheetProps) {
   const { t } = useTranslation();
   const { inMiniApp, resolved } = useIsInMiniApp();
   const [stats, setStats] = useState<UserStatsResponse | null>(null);
@@ -458,6 +461,23 @@ export default function StatsSheet({ fid, onClose }: StatsSheetProps) {
             </div>
 
             {/* Share Stats Button */}
+            {/* Linking the two doors. A returning Farcaster player who opens
+                the game in Base App otherwise starts over — no grandfathering,
+                no Early Adopter Wordmark, no XP — because their Base Account is
+                a different wallet from the Neynar-verified one. Each side shows
+                only its own half of the handshake. */}
+            {inMiniApp ? (
+              <LinkCodeIssuer authToken={authToken} />
+            ) : profile?.origin === 'wallet' ? (
+              <LinkCodeRedeemer
+                onLinked={() => {
+                  // The session now names the Farcaster account, so everything
+                  // on screen is about the wrong player until it reloads.
+                  window.location.reload();
+                }}
+              />
+            ) : null}
+
             {/* The icon follows the destination: off-host this shares to X,
                 and a Farcaster arch on a button that opens X would be a lie
                 about where the post is going. */}

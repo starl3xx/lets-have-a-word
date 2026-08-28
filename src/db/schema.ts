@@ -684,6 +684,37 @@ export type BadgeType = WordmarkType;
  * User Wordmarks Table (table name 'user_badges' kept for backwards compatibility)
  * Stores permanent achievements (Wordmarks) earned by players
  */
+/**
+ * Addresses a player has PROVEN they control, beyond the one Neynar knows.
+ *
+ * A Base Account is a different wallet from the Neynar-verified EOA in
+ * users.signer_wallet_address, so a returning Farcaster player opening the game
+ * in Base App matched nothing and became a brand-new account — losing
+ * grandfathering, their Early Adopter Wordmark, XP and history. This table is
+ * how the two are tied together.
+ *
+ * The unique index is on the ADDRESS ALONE, not (fid, address): an address may
+ * vouch for exactly one player, or linking becomes a way to attach one wallet
+ * to several accounts and multiply the daily allocation the reward gate's
+ * one-wallet-one-fid rule exists to bound.
+ *
+ * Deliberately NOT users.signer_wallet_address, which is the payout address and
+ * a Neynar snapshot. This answers a different question and must never quietly
+ * redirect anybody's winnings.
+ */
+export const userAddresses = pgTable('user_addresses', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull(),
+  address: varchar('address', { length: 42 }).notNull(),
+  /** 'link_code' is the two-session handshake: Quick Auth issues, SIWE redeems. */
+  linkedVia: varchar('linked_via', { length: 16 }).default('link_code').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  fidIdx: index('user_addresses_fid_idx').on(table.fid),
+}));
+
+export type UserAddressRow = typeof userAddresses.$inferSelect;
+
 export const userBadges = pgTable('user_badges', {
   id: serial('id').primaryKey(),
   fid: integer('fid').notNull(),
