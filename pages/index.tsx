@@ -105,6 +105,15 @@ import { noteServerBuildSha, reloadIfStale, useReloadHold } from '../src/lib/bui
 import { LinkAccountPrompt, hasSeenLinkPrompt } from '../components/AccountLinkCard';
 import { isWalletFid } from '../src/lib/wallet-fid';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
+// Per-icon subpaths, not the '@phosphor-icons/react' barrel. Phosphor is not
+// in Next's default optimizePackageImports list (lucide-react is, and that is
+// now gone), so a barrel import pulls the whole 9,000-icon set into the dev
+// bundle and leans on production tree-shaking to undo it. These two paths
+// resolve through the package's './dist/ssr/*' export to one module each.
+// InfoIcon/WarningCircleIcon rather than Info/WarningCircle: the bare names
+// are still exported but marked @deprecated in v2.
+import { InfoIcon } from '@phosphor-icons/react/dist/ssr/Info';
+import { WarningCircleIcon } from '@phosphor-icons/react/dist/ssr/WarningCircle';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
 import { WORD_POOL_URL } from '../config/economy';
@@ -2094,44 +2103,41 @@ function GameContent() {
   ) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-accent-50 to-white flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full text-center space-y-5">
-          {/* Logo */}
-          <div className="flex justify-center">
+        {/* THE DECISION COMES FIRST.
+            This screen has one job: pick a door. Ordered logo, title, pitch,
+            paragraph, round, buttons, the two doors landed around 450px and
+            the wallet requirement below them fell off the bottom of an
+            iPhone SE, so the one thing a player has to read before signing
+            was the one thing they had to scroll for.
+
+            Now the identity block is a single 56px row instead of an 80px
+            stacked logo, which buys back about 120px, and everything needed
+            to choose (what this is, that it is running, both doors, what
+            signing costs) sits above the fold on the shortest phone we
+            support. The paragraph moves below a hairline: it explains the
+            game to someone still deciding, and someone arriving from a
+            shared round has already decided. */}
+        <div className="max-w-md w-full flex flex-col">
+          {/* Identity: logo beside the title, not stacked above it. */}
+          <div className="flex items-center gap-3.5">
             <img
               src="/LHAW-icon.png"
               alt="Let’s Have A Word"
-              className="w-20 h-20 rounded-2xl shadow-lg"
+              className="w-14 h-14 rounded-btn shadow-lg flex-shrink-0"
             />
+            <h1 className="text-[22px] leading-tight font-bold text-gray-900">
+              Let’s Have A Word!
+            </h1>
           </div>
-
-          {/* Title */}
-          <h1 className="text-2xl font-bold text-gray-900">
-            Let’s Have A Word!
-          </h1>
 
           {/* Value Proposition */}
-          <p className="text-lg text-gray-700 font-medium">
-            A global word hunt with real onchain prizes
+          <p className="mt-5 text-lg text-gray-700 font-medium">
+            A global word hunt with real onchain prizes.
           </p>
-
-          {/* Explanation Card */}
-          <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
-            <p className="text-gray-700 text-sm leading-relaxed">
-              <strong>Let’s Have A Word</strong> is an onchain word game designed for{' '}
-              <a href="https://farcaster.xyz/~/code/ZFYXLS" target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">
-                Farcaster
-              </a>
-              {' '}and{' '}
-              <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-accent-600 underline">
-                Base
-              </a>
-              {' '}... social apps with built-in wallets. It’s free to play.
-            </p>
-          </div>
 
           {/* Live Round Stats */}
           {browserFallbackStats && (
-            <div className="bg-white rounded-xl shadow-card px-4 py-3 border border-green-200">
+            <div className="mt-6 bg-white rounded-xl shadow-card px-4 py-3 border border-green-200">
               <div className="flex items-center justify-center gap-2 text-sm mb-2">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -2158,14 +2164,18 @@ function GameContent() {
 
           {/* THE TWO DOORS, one above the other and the same size.
               They are alternatives, so presenting one as a large primary
-              button and the other as a small link misrepresents the choice —
-              a Farcaster player and a Base player are equally welcome. */}
-          <div className="space-y-3">
+              button and the other as a small link misrepresents the choice:
+              a Farcaster player and a Base player are equally welcome.
+
+              "The same size" now means the same shape too. Both use .btn-door,
+              which carries Base's fixed geometry, so the only things that
+              differ between them are the colour and the mark. */}
+          <div className="mt-6 space-y-3">
             <a
               href="https://warpcast.com/letshaveaword"
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-accent w-full flex items-center justify-center gap-2 py-4 px-6 text-base font-semibold"
+              className="btn-door bg-accent hover:bg-accent-700"
             >
               <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
               Play on Farcaster
@@ -2186,7 +2196,11 @@ function GameContent() {
           {walletSignIn.status !== 'checking' && (
               <div className="space-y-2">
                 {walletSignIn.status === 'pending' ? (
-                  <button disabled className="btn-primary-lg w-full">
+                  // .btn-door, not btn-primary-lg: this stands exactly where
+                  // Base's button was a moment ago, and btn-primary-lg is 60px
+                  // tall with a 12px radius, so the row used to resize and
+                  // change colour under the finger that just tapped it.
+                  <button disabled className="btn-door bg-gray-800">
                     Check your wallet...
                   </button>
                 ) : (
@@ -2201,27 +2215,44 @@ function GameContent() {
                     warning: it explains what signing in will ask of you, and
                     a player who has the $WORD should not read it as a refusal.
                     The requirement itself is enforced by the reward gate. */}
-                <p className="flex items-start gap-2 text-left text-sm text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">
-                  <span aria-hidden="true">ℹ️</span>
+                <p className="flex items-start gap-2 text-left text-sm text-accent-700 bg-accent-50 border border-accent-200 rounded-[8px] px-3 py-2">
+                  <InfoIcon size={18} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
                   <span>
                     Playing requires a wallet holding about <strong>$3 of $WORD</strong>. Sign
                     in to prove the wallet is yours... it costs no gas.
                   </span>
                 </p>
+                {/* Left-aligned and icon-led, in the same 8px column as the
+                    note above it, so it reads as this button's answer rather
+                    than a centred sentence floating in the page. */}
                 {walletSignIn.error && (
-                  <p className="text-sm text-red-600">{walletSignIn.error}</p>
+                  <p className="flex items-start gap-2 text-left text-sm text-red-600" role="alert">
+                    <WarningCircleIcon size={18} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>{walletSignIn.error}</span>
+                  </p>
                 )}
               </div>
           )}
           </div>
 
-          {/* $WORD Token Info */}
-          <div className="bg-white rounded-xl shadow-card px-4 py-3 text-center space-y-1 border border-purple-200">
-            <div className="flex items-center justify-center gap-1.5 text-sm">
+          {/* BELOW THE FOLD BY DESIGN, behind a hairline.
+              Everything above answers "should I, and how". Everything below
+              answers "what is this", which is the question of someone who has
+              not decided yet. */}
+          <hr className="mt-8 border-gray-200" />
+
+          <p className="mt-5 text-gray-700 text-sm leading-relaxed">
+            <strong>Let’s Have A Word</strong> is an onchain word game designed for
+            Farcaster and Base ... social apps with built-in wallets. It’s free to play.
+          </p>
+
+          {/* $WORD Token Info. No card: it is a reference detail, and giving it
+              the same elevation as the live round said they mattered equally. */}
+          <div className="mt-6 space-y-1">
+            <div className="flex items-center justify-between gap-3 text-sm">
               <span className="font-semibold text-gray-900">$WORD</span>
               {wordTokenData && (
-                <>
-                  <span className="text-gray-400">·</span>
+                <span className="flex items-center gap-1.5 tabular-nums">
                   <span className="text-gray-600">
                     {parseFloat(wordTokenData.marketCap) >= 1_000_000
                       ? `$${(parseFloat(wordTokenData.marketCap) / 1_000_000).toFixed(2)}M`
@@ -2234,21 +2265,21 @@ function GameContent() {
                       {parseFloat(wordTokenData.priceChange24h) >= 0 ? '+' : ''}{wordTokenData.priceChange24h}%
                     </span>
                   )}
-                </>
+                </span>
               )}
             </div>
             <a
               href={WORD_POOL_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-gray-500 hover:text-accent-600 font-mono break-all"
+              className="block text-xs text-gray-500 hover:text-accent-600 font-mono break-all"
             >
               0x304e649e...07885fb4b
             </a>
           </div>
 
           {/* Footer */}
-          <div className="pt-2 space-y-1">
+          <div className="mt-6 space-y-1">
             <p className="text-xs text-gray-500">
               New to Farcaster?{' '}
               <a

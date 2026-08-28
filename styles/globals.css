@@ -218,6 +218,26 @@
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
+  /* A "door": one of the two ways into the game on the browser fallback.
+     Base's <SignInWithBaseButton> is a sealed component. Its only props are
+     align/variant/colorScheme, and its CSS is inlined by the package, so
+     nothing about its geometry is reachable from here. Measured from
+     node_modules/@base-org/account-ui/dist/frameworks/preact/
+     SignInWithBaseButton-css.js: 56px tall, 8px radius, 17px/400, content
+     row with an 8px gap around a 16px mark.
+
+     The two doors are alternatives, not a primary and a fallback, so this
+     matches those numbers exactly and differs only in colour and mark. The
+     radius is written out rather than using rounded-btn (12px) or rounded-lg
+     (which tracks --radius) so it cannot drift away from Base's 8px
+     silently. If Base changes their button, change this to match. */
+  .btn-door {
+    @apply h-14 w-full px-6 rounded-[8px] text-[17px] font-normal text-white
+           flex items-center justify-center gap-2
+           active:scale-95 transition-all duration-fast shadow-btn
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
   /* Accent button (purple - for sharing/special actions) */
   .btn-accent {
     @apply py-4 px-6 rounded-btn font-bold text-white bg-accent
