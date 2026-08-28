@@ -1583,18 +1583,12 @@ function GameContent() {
                     (isInMiniApp && hasMiniAppInstalled === false && !hasSeenInstallPrompt())
                   ) {
                     setShowInstallPromptModal(true);
-                  } else if (isInMiniApp) {
-                    // The share bonus is a FARCASTER bonus today: the modal
-                    // composes a cast, and /api/share-callback awards the
-                    // guess only after Neynar finds that cast. A wallet player
-                    // can satisfy neither half, so offering it promised a free
-                    // guess that could not be earned — and the modal took the
-                    // tap and disabled its own "Not now" while it waited on a
-                    // composer that never opened. Hidden until the bonus has
-                    // an honest answer for them (an X share, awarded on an
-                    // AUTHENTICATED callback — share-callback still trusts a
-                    // body `fid` today, and the cast check is the only thing
-                    // making that safe).
+                  } else {
+                    // Both player kinds now have a real path: a Farcaster
+                    // player casts and the cast is verified, a wallet player
+                    // shares to X and the bonus is awarded on the intent. The
+                    // callback authenticates either way, which is what made
+                    // awarding-without-a-cast safe to do at all.
                     setShowShareModal(true);
                   }
                   break;
@@ -1615,7 +1609,7 @@ function GameContent() {
             // Fallback: show share modal if eligible. Same host condition as
             // the decision path above — an error here must not become the way
             // a wallet player reaches a Farcaster-only bonus.
-            if (canClaimShareBonus && isInMiniApp) {
+            if (canClaimShareBonus) {
               setShowShareModal(true);
             }
           }
@@ -2617,6 +2611,7 @@ function GameContent() {
       {showShareModal && pendingShareResult && (
         <SharePromptModal
           fid={effectiveFid}
+          authToken={authToken}
           guessResult={pendingShareResult}
           onClose={handleShareModalClose}
           onShareSuccess={handleShareSuccess}

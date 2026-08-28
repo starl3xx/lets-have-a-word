@@ -21,6 +21,8 @@ import {
 } from '../../src/lib/rateLimit';
 import { AppErrorCodes } from '../../src/lib/appErrors';
 import { verifyRecentShareCast } from '../../src/lib/farcaster';
+import { resolveRequestFid } from '../../src/lib/requestAuth';
+import { isWalletFid } from '../../src/lib/wallet-fid';
 
 export interface ShareCallbackResponse {
   ok: boolean;
@@ -61,12 +63,34 @@ export default async function handler(
   console.log('[share-callback] API called with body:', req.body);
 
   try {
-    const { fid } = req.body;
-
-    // Validate inputs
-    if (!fid || typeof fid !== 'number') {
-      return res.status(400).json({ ok: false, message: 'Invalid FID' });
+    // AUTHENTICATED, not asserted. This endpoint used to read `fid` straight
+    // out of the request body: anyone could POST any FID and, if that player
+    // happened to have a matching cast, collect their free guess. The Neynar
+    // cast check was the only thing making that survivable, so awarding
+    // WITHOUT a cast — which is the only thing a wallet player can do — turns
+    // it into an unauthenticated "+1 free guess for any FID" faucet pointed at
+    // 5,303 dormant accounts. The auth had to land in the same change.
+    const auth = await resolveRequestFid(req, { rejectUnverifiedMiniAppFid: true });
+    if (!auth.ok) {
+      return res.status(auth.status).json({
+        ok: false,
+        message: auth.message ?? 'Sign in to claim your share bonus',
+      });
     }
+
+    const fid = auth.fid;
+
+    // A wallet player has no Farcaster account, so they cannot cast and
+    // verifyRecentShareCast can never find anything for them. They share to X
+    // instead, and the bonus is awarded on the share INTENT.
+    //
+    // The exposure is bounded by the same rule that bounds it for everyone
+    // else: awardShareBonus is idempotent per FID per UTC day, so the ceiling
+    // is +1 guess per account per day — exactly what a Farcaster player gets.
+    // Real verification is not available at any price we would pay: X's read
+    // endpoints are a paid tier, and it would only cover players who have
+    // linked an X handle to their wallet.
+    const isWalletPlayer = isWalletFid(fid) || auth.playerOrigin === 'wallet';
 
     // Check if user already has the bonus today (early return for idempotency)
     const existingState = await getOrCreateDailyState(fid);
@@ -81,10 +105,11 @@ export default async function handler(
 
     // Milestone 9.6: Actually verify the cast exists on Farcaster
     // Look for a cast mentioning letshaveaword.fun in the last 10 minutes
-    console.log(`[share-callback] Verifying cast for FID ${fid}...`);
-    const verifiedCast = await verifyRecentShareCast(fid, 'letshaveaword.fun', 10);
+    const verifiedCast = isWalletPlayer
+      ? null
+      : await verifyRecentShareCast(fid, 'letshaveaword.fun', 10);
 
-    if (!verifiedCast) {
+    if (!isWalletPlayer && !verifiedCast) {
       // Cast not found - could be timing issue or user didn't actually post
       console.log(`[share-callback] No verified cast found for FID ${fid}`);
       return res.status(200).json({
@@ -94,7 +119,11 @@ export default async function handler(
       });
     }
 
-    console.log(`[share-callback] Verified cast ${verifiedCast.castHash} for FID ${fid}`);
+    console.log(
+      isWalletPlayer
+        ? `[share-callback] Awarding on share intent for wallet FID ${fid}`
+        : `[share-callback] Verified cast ${verifiedCast!.castHash} for FID ${fid}`
+    );
 
     // Award share bonus now that we've verified the cast
     const updated = await awardShareBonus(fid);
@@ -118,7 +147,8 @@ export default async function handler(
     logAnalyticsEvent(AnalyticsEventTypes.SHARE_SUCCESS, {
       userId: fid.toString(),
       data: {
-        castHash: verifiedCast.castHash,
+        castHash: verifiedCast?.castHash ?? null,
+        shareTarget: isWalletPlayer ? 'x' : 'farcaster',
         bonusAwarded: true,
         newFreeGuessesRemaining,
         verified: true,
@@ -128,7 +158,8 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       verified: true,
-      castHash: verifiedCast.castHash,
+      // Absent for a wallet player: there is no cast to point at.
+      castHash: verifiedCast?.castHash,
       newFreeGuessesRemaining,
       message: 'Share bonus awarded! You earned +1 free guess.',
     });
