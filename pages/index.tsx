@@ -2171,8 +2171,20 @@ function GameContent() {
               which carries Base's fixed geometry, so the only things that
               differ between them are the colour and the mark. */}
           <div className="mt-6 space-y-3">
+            {/* farcaster.xyz, not warpcast.com. The old domain 301s here, and a
+                redirect hop is what stops iOS handing a link to the installed
+                app: the universal link matches the FIRST url, and by the time
+                the 301 resolves the browser owns the navigation. So the button
+                whose whole job is "open Farcaster" was opening a web page
+                instead. Same reason share links use x.com/intent directly
+                rather than twitter.com.
+
+                TODO: this still lands on the account PROFILE rather than the
+                game. The canonical launch URL is
+                farcaster.xyz/miniapps/<app-id>/<slug> and the app-id is not
+                recorded anywhere in this repo. */}
             <a
-              href="https://warpcast.com/letshaveaword"
+              href="https://farcaster.xyz/letshaveaword"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-door bg-accent hover:bg-accent-700"
