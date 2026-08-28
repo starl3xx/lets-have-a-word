@@ -3,6 +3,12 @@ import * as Sentry from '@sentry/nextjs';
 import { willSponsor } from '../../src/lib/paymaster-policy';
 import { redis } from '../../src/lib/redis';
 import { mintAuthKey } from './wordmarks/voucher';
+import {
+  hasBudget,
+  spendBudget,
+  refundBudget,
+  type BudgetStore,
+} from '../../src/lib/mint-sponsorship';
 
 /**
  * POST /api/paymaster — ERC-7677 paymaster proxy
@@ -84,6 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // ERC-7677 is a two-call handshake and only the second leads to a real
   // transaction, so the stub call looks without spending.
   const spend = method === 'pm_getPaymasterData' ? decision.requiresVouchers ?? [] : [];
+  const keys = (decision.requiresVouchers ?? []).map(mintAuthKey);
 
   if (decision.requiresVouchers?.length) {
     if (!redis) {
@@ -91,40 +98,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json(rpcError(id, -32000, 'Not sponsored: cannot verify voucher'));
     }
 
-    for (const signature of decision.requiresVouchers) {
-      const remaining = await redis.get(mintAuthKey(signature));
-      const left = typeof remaining === 'number' ? remaining : parseInt(String(remaining ?? ''), 10);
-      if (!Number.isFinite(left) || left <= 0) {
-        console.warn('[paymaster] Refusing a mint with no remaining voucher budget');
-        return res
-          .status(200)
-          .json(rpcError(id, -32000, 'Not sponsored: no voucher for this mint'));
-      }
+    if (!(await hasBudget(redis as unknown as BudgetStore, keys))) {
+      console.warn('[paymaster] Refusing a mint with no remaining voucher budget');
+      return res.status(200).json(rpcError(id, -32000, 'Not sponsored: no voucher for this mint'));
     }
   }
 
-  /** Give back a spend. Used when the sponsorship never actually happened. */
-  async function refund(): Promise<void> {
-    if (!redis) return;
-    for (const signature of spend) {
-      try {
-        await redis.incr(mintAuthKey(signature));
-      } catch {
-        // A voucher left short is a retry the player has to redo, not a
-        // security problem. Never let it mask the real error below.
-      }
-    }
-  }
+  const spendKeys = spend.map(mintAuthKey);
+  const refund = () =>
+    redis ? refundBudget(redis as unknown as BudgetStore, spendKeys) : Promise.resolve();
 
   try {
     // Spent BEFORE the upstream call, because that call is what costs money and
     // two concurrent requests must not both find the budget intact. Refunded on
     // any path where no sponsorship was actually issued.
-    if (redis) {
-      for (const signature of spend) {
-        await redis.decr(mintAuthKey(signature));
-      }
-    }
+    if (redis) await spendBudget(redis as unknown as BudgetStore, spendKeys);
 
     const upstreamRes = await fetch(upstream, {
       method: 'POST',
