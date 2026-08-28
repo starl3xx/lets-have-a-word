@@ -24,7 +24,14 @@ Let's Have A Word is a social word-guessing game on Farcaster where players worl
 Let's Have A Word is available as a Farcaster mini app. You can play in:
 - Warpcast
 - Other Farcaster clients
-- The Base app (which shares the same identity and wallet infrastructure)
+- The Base app, by signing in with your Base Account
+
+The Base app stopped being a Farcaster mini app host in April 2026, so the two are
+separate identities. They do not share a wallet: your Base Account is a different
+address from the one Farcaster has verified for you. If you have played on
+Farcaster before, **link the two accounts before you play** so your Wordmarks, XP,
+streak and grandfathering come with you. Guesses made on an unlinked account stay
+there.
 
 ### Eligibility Requirements
 
@@ -304,7 +311,26 @@ You need a Neynar user score of 0.6 or higher to prevent bot abuse. If you're be
 
 ### Can I play outside of Farcaster?
 
-Currently, Let's Have A Word uses the Farcaster stack and is available through Farcaster clients and the Base app. A standalone web version may be explored in the future.
+Yes. There are two doors and they are equal: **Play on Farcaster**, or **Sign in
+with Base** with any Base Account. Signing in proves the wallet is yours. It is a
+signature, not a transaction, so it costs no gas and moves no money.
+
+### How do I keep my Farcaster account in the Base app?
+
+Link them, before you play. In Farcaster, open Stats and tap *Get a link code*,
+then paste that code in the Base app after signing in. It lasts 10 minutes.
+
+Your Wordmarks, XP, streak, referrals and grandfathering come across. Guesses
+already made on the unlinked account stay where they are, which is why linking
+first is worth the minute it takes. Your payout address is not changed by
+linking.
+
+### Why does my name show as a number?
+
+If you signed in with a wallet and have no Farcaster account, there is no username
+to show. Set a **Basename** on your Base Account and it is picked up
+automatically, or link a Farcaster account to bring its name and avatar across.
+The small badge on an avatar shows which door a player came through.
 
 ### Is the game fair?
 
