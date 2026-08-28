@@ -11,6 +11,7 @@
 8. [UI/UX Patterns](#uiux-patterns)
 9. [Word Lists & Validation](#word-lists--validation)
 10. [Farcaster Integration](#farcaster-integration)
+10a. [Base App Integration](#base-app-integration) (identity, Sign in with Base, account linking, onchain Wordmarks)
 11. [OG Hunter Prelaunch Campaign](#og-hunter-prelaunch-campaign)
 12. [Key Features by Milestone](#key-features-by-milestone) (includes [Milestone 14: $WORD Token Game Mechanics](#milestone-14-word-token-game-mechanics))
 13. [Daily Guess Flow](#daily-guess-flow)
@@ -1087,6 +1088,136 @@ User lands on splash → Sees campaign info → Adds app → Shares cast → Bad
 2. Go to `/admin/operations`
 3. Click "Start Round" button
 4. Round starts with random word and onchain commitment
+
+---
+
+## Base App Integration
+
+### The split, and why nothing here is a Farcaster mini app concern
+
+Base App **stopped hosting Farcaster mini apps on 2026-04-09**. It is now a plain
+web app host that injects an EIP-1193 provider. Nothing in the section above
+applies there: no manifest is read, `sdk.isInMiniApp()` is false, and every
+`sdk.actions.*` call neither resolves nor rejects, so a `catch` or `finally`
+written around one is unreachable.
+
+The practical rule: **branch on host before calling a host action**, never on the
+result of calling it. `useIsInMiniApp` and the `ExternalLink` component already
+encode this fork.
+
+### Identity: synthetic FIDs
+
+A player is an FID everywhere in this schema. 24 tables carry one as their user
+reference and most endpoints read one. A Base App player has no Farcaster
+account, so they are minted a **synthetic FID** from `wallet_player_fid_seq`
+starting at `1_000_000_000`.
+
+Real Farcaster FIDs are in the low millions and Postgres `integer` caps at
+2,147,483,647, so the ranges cannot collide. Every join, index, payout path and
+Wordmark keeps working untouched. `isWalletFid()` in `src/lib/wallet-fid.ts` is
+the test; that module imports nothing so it is safe in a client bundle.
+
+### Auth: Sign in with Base
+
+`wallet_connect` with the `signInWithEthereum` capability, so the **wallet builds
+and signs its own SIWE message** around a server nonce.
+
+This matters: a Base Account is a **smart contract wallet**. Its signatures are
+ERC-1271 / ERC-6492, not ECDSA, so `personal_sign` over a message the client
+composed will never verify. The classic EOA dialect survives inside the hook only
+as a fallback for providers that cannot speak `wallet_connect`.
+
+Sessions are HMAC-signed cookies (`src/lib/playerSession.ts`), resolved by
+`resolveRequestFid`. Base App's webview pins cookies it will neither update nor
+drop, so resolution tries **every** presented credential rather than the first.
+
+### Account linking
+
+A returning Farcaster player opening Base App is a new player, because their Base
+Account is a different wallet from the Neynar-verified EOA in
+`users.signer_wallet_address`. Without linking they lose grandfathering, their
+Wordmarks, XP, streak and referral history.
+
+Neither side can prove both identities alone: inside the mini app the connected
+wallet is the Farcaster one, and inside Base App there is no host to issue a
+Quick Auth token. So the player carries a short code across.
+
+1. `POST /api/auth/link-code` from a **Farcaster** session issues a 6-character
+   code, Redis, 10 minute TTL, unambiguous alphabet (no O/0, no I/1/L).
+2. `POST /api/auth/link-redeem` from a **wallet** session consumes it with
+   `GETDEL` and writes `user_addresses`.
+
+Both halves are independently authenticated and the code only ties them together.
+Points worth knowing:
+
+- **The address is the source of truth, not the fid in the token.** A pre-link
+  session stays cryptographically valid for its full 30 days and cannot be
+  revoked, so resolution asks who owns the address *now*.
+- **A unique index on `lower(address)`**, not on `(fid, address)`. An address
+  vouches for exactly one player, or linking becomes a way to multiply the daily
+  allocation the reward gate exists to bound.
+- **Guesses are not migrated.** Linking attaches the wallet going forward. This
+  is why the one-time prompt fires on first sign-in, when the account is blank.
+- **`signer_wallet_address` is untouched.** That is the payout address, and a
+  link flow has no business redirecting winnings.
+
+### Display names
+
+`src/lib/player-display.ts` is the single naming authority:
+Farcaster username → basename → truncated address → `fid:NNN` as a last resort.
+It rejects `user-<fid>` and `!12345` placeholders.
+
+Basenames are ENS-shaped on Base. `src/lib/basename.ts` resolves them, and two
+details are easy to get wrong: **ENS hashes the ASCII label, not raw address
+bytes**, and a reverse record is a claim rather than proof, so a forward `addr`
+round-trip is required.
+
+The `@` prefix keys on **origin**, not on dots. A Farcaster username can itself
+contain them (`vitalik.eth` is valid), and a basename is a name rather than a
+handle.
+
+### What differs on the wallet path
+
+| Farcaster | Base App |
+|---|---|
+| `composeCast` | Share to X (`openXComposer`) |
+| `sdk.actions.viewToken` | `base.app/coin/base-mainnet/<addr>` |
+| `sdk.actions.viewProfile` | `base.app/profile/<wallet>` |
+| Neynar push notifications | Base notification rail |
+| Share bonus on a verified cast | Awarded on share **intent** |
+
+The share bonus branches on **where the player shared, not who they are**
+(`auth.origin`), because after linking a veteran playing in Base App resolves to
+their real Farcaster fid and cannot cast from there.
+
+### Onchain Wordmarks
+
+Wordmarks can be minted as soulbound ERC-1155 tokens on Base. The **player**
+sends the transaction, not the house: an airdrop from the operator wallet would
+attribute one transacting address instead of thousands.
+
+- `POST /api/wordmarks/voucher` authenticates, confirms the `user_badges` row,
+  checks `mintedByFid` onchain, and signs an EIP-712 voucher.
+- The player calls `mint(...)` carrying the ERC-8021 builder-code suffix.
+- The ledger is keyed on **fid**, not address, or one player could mint the same
+  Wordmark once per wallet they control.
+- Transfers revert. Early Adopter gates grandfathering, so a tradeable one would
+  be a grandfathering right with a market price.
+
+Dormant until `NEXT_PUBLIC_WORDMARKS_ADDRESS` is set. See `contracts/src/Wordmarks.sol`.
+
+### Attribution
+
+Every user-signed transaction carries `ERC_8021_SUFFIX` (`src/config/wagmi.ts`)
+so Base credits the app. Verified byte-for-byte against `ox`'s reference
+implementation.
+
+Four sites deliberately carry **no** suffix, all plain ETH transfers where
+`receive()` only fires on empty `msg.data`: the jackpot top-up (a suffix makes it
+**revert**), refunds, airdrops, and admin operator funding.
+
+> Setting `dataSuffix` once on the wagmi config would be more robust than
+> per-call, but that option is wagmi **3** and this repo is on 2.19.4.
 
 ---
 
@@ -2242,7 +2373,7 @@ Each round includes **10 hidden bonus words** drawn from the full 4,438-word dic
 Each round also includes **5 hidden burn words**. Finding one destroys $WORD tokens permanently — a deflationary mechanic that keeps the economy honest.
 
 - Each burn word permanently destroys **5M $WORD tokens** via `ERC20Burnable.burn()` (reduces `totalSupply()`)
-- The finder receives **+100 XP** and the **"Arsonist" wordmark** — bragging rights, but no token reward
+- The finder receives **+100 XP** and the **"Arsonist" Wordmark** — bragging rights, but no token reward
 - Uses the same `keccak256` commitment system as bonus words
 - Stored in the `round_burn_words` table with encrypted words and per-word salts
 - Implementation: `src/lib/burn-words.ts`

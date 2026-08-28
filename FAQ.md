@@ -43,13 +43,13 @@ This commit–reveal process makes every round transparent, verifiable, and fair
 
 ## What are bonus words?
 
-Each round has **10 hidden bonus words**, randomly selected from the full word list. When you guess one, you automatically receive **5M $WORD tokens** (or **2.5M** when market cap is above $150K). You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet. You also earn **+250 XP** and the **Side Quest** wordmark.
+Each round has **10 hidden bonus words**, randomly selected from the full word list. When you guess one, you automatically receive **5M $WORD tokens** (or **2.5M** when market cap is above $150K). You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet. You also earn **+250 XP** and the **Side Quest** Wordmark.
 
 Bonus words are committed onchain as keccak256 hashes before the round starts, so no one (including the game's creator) can change them mid-round. When you find one, the contract verifies your word against the committed hash before releasing tokens.
 
 ## What are burn words?
 
-Each round has **5 hidden burn words**, randomly selected from the full word list. When you guess one, **5M $WORD tokens are permanently destroyed** — burned from the supply forever. You don't receive any $WORD for finding a burn word, but you do earn **+100 XP** and the **Arsonist** wordmark.
+Each round has **5 hidden burn words**, randomly selected from the full word list. When you guess one, **5M $WORD tokens are permanently destroyed** — burned from the supply forever. You don't receive any $WORD for finding a burn word, but you do earn **+100 XP** and the **Arsonist** Wordmark.
 
 Like bonus words, burn words are committed onchain as keccak256 hashes before the round starts. The contract verifies the word against its committed hash before executing the burn.
 
@@ -61,7 +61,7 @@ During a Superguess, all other players are paused and watch live as spectators. 
 
 Tiers are priced in USD ($20–$90) and convert to ETH at purchase. On a $WORD round, 80% of the payment grows the prize pool. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
 
-## What are wordmarks?
+## What are Wordmarks?
 
 Wordmarks are **collectible badges** displayed on your profile. You earn them by hitting specific milestones or achievements during gameplay. Once earned, they're yours permanently.
 
@@ -77,6 +77,8 @@ Here's the full list:
 - **Encyclopedic** — Guessed words starting with every letter A–Z
 - **Baker's Dozen** — Guessed words starting with 13 different letters, on 13 different days (only the first guess of each day counts)
 - **Showstopper** — Purchased a Superguess
+- **Early Adopter** — Played in any of the first 18 rounds
+- **Trailblazer** — Made a round's #1 global guess
 
 ---
 
@@ -304,6 +306,36 @@ $WORD is an ERC-20 token on Base (address: 0x304e649e69979298BD1AEE63e175ADf0788
 
 ## Can I play outside of Farcaster?
 
-Let's Have A Word! uses the Farcaster stack. You can play in Farcaster clients and the Base app, which share the same identity and wallet infrastructure.
+**Yes.** There are two doors and they are equal: **Play on Farcaster**, or **Sign in with Base** with any Base Account.
 
-Standalone web play isn't supported yet. A standalone web version may be explored later.
+Signing in proves the wallet is yours. It is a signature, not a transaction, so it costs no gas and moves no money.
+
+The Base app stopped being a Farcaster mini app host in April 2026, so the two are separate identities now. They do not share a wallet: your Base Account is a different address from the one Farcaster has verified for you. If you have played on Farcaster before, link the two rather than starting over.
+
+## I’ve played on Farcaster. How do I keep my account in the Base app?
+
+Link them, and do it **before you play**. Without linking, the Base app sees a brand new player, because your Base Account is a different wallet from the one Farcaster knows about.
+
+**In Farcaster:** open Stats and tap *Get a link code*. Tap the code to copy it. It lasts 10 minutes.
+
+**In the Base app:** sign in, then paste the code when you are asked, or find the same panel in Stats.
+
+Your Wordmarks, XP, streak, referrals and reward-gate grandfathering all come with you.
+
+One thing does not: **guesses already made on the unlinked account stay there.** Linking attaches the wallet to your real account going forward; it does not move play history backwards. That is why linking first is worth the minute it takes.
+
+Two other things linking deliberately leaves alone. Your payout address is unchanged, because a link flow has no business quietly redirecting where winnings go. And a wallet can vouch for exactly one player, so it cannot be attached to several accounts.
+
+## Why does my name show as a number?
+
+If you signed in with a wallet and have no Farcaster account, there is no username to show, so the game falls back to your account number.
+
+To fix it, set a **Basename** on your Base Account and it is picked up automatically. If you do have a Farcaster account, link it and your Farcaster name and avatar come across.
+
+The small badge on an avatar shows which door a player came through, Farcaster or Base. It is not a ranking.
+
+## Do I need ETH to play in the Base app?
+
+Not to play. The reward gate asks for about **$3 of $WORD**, held or staked, and guessing itself costs nothing.
+
+You need a little ETH only if you buy a guess pack or a Superguess, which are priced in ETH in both eras.

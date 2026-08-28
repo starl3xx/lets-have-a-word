@@ -463,8 +463,30 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "Can I play outside of Farcaster?",
       answer: (
         <>
-          Let's Have A Word! uses the Farcaster stack. You can play in Farcaster clients and the Base app, which share the same identity and wallet infrastructure.
-          <p className="mt-2">Standalone web play isn't supported yet. A standalone web version may be explored later.</p>
+          Yes. There are two doors and they are equal: <strong>Play on Farcaster</strong>, or <strong>Sign in with Base</strong> with any Base Account.
+          <p className="mt-2">Signing in proves the wallet is yours. It is a signature, not a transaction, so it costs no gas and moves no money.</p>
+          <p className="mt-2">The Base app stopped being a Farcaster mini app host in April 2026, so the two are separate identities now. If you have played on Farcaster before, link your account rather than starting over. See the next question.</p>
+        </>
+      ),
+    },
+    {
+      question: "I’ve played on Farcaster. How do I keep my account in the Base app?",
+      answer: (
+        <>
+          Link them, and do it before you play. Your Base Account is a different wallet from the one Farcaster knows about, so without linking the Base app sees a brand new player.
+          <p className="mt-2"><strong>In Farcaster:</strong> open Stats and tap <em>Get a link code</em>. Tap the code to copy it. It lasts 10 minutes.</p>
+          <p className="mt-2"><strong>In the Base app:</strong> sign in, then paste the code when you are asked, or find it in Stats.</p>
+          <p className="mt-2">Your Wordmarks, XP, streak, referrals and grandfathering all come with you. One thing does not: <strong>guesses you already made on the unlinked account stay there</strong>, which is why linking first is worth the minute it takes.</p>
+        </>
+      ),
+    },
+    {
+      question: "Why does my name show as a number?",
+      answer: (
+        <>
+          If you signed in with a wallet and have no Farcaster account, there is no username to show, so the game falls back to your account number.
+          <p className="mt-2">To fix it, set a <strong>Basename</strong> on your Base Account and it will be picked up automatically. If you do have a Farcaster account, link it and your Farcaster name and avatar come across.</p>
+          <p className="mt-2">The small badge on an avatar shows which door a player came through, Farcaster or Base. It is not a ranking.</p>
         </>
       ),
     },
