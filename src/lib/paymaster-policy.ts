@@ -138,6 +138,13 @@ export function willSponsor(
       if (!signature) {
         return { allowed: false, reason: 'Malformed Wordmark mint call' };
       }
+      // One voucher authorises one mint. A batch repeating the same signature
+      // is asking to be paid for N-1 guaranteed reverts, since the contract
+      // rejects the replay: exactly the drain the voucher check exists to stop,
+      // wearing a single valid voucher as cover (Bugbot, PR #300).
+      if (vouchers.includes(signature)) {
+        return { allowed: false, reason: 'A batch cannot reuse one Wordmark voucher' };
+      }
       vouchers.push(signature);
       continue;
     }

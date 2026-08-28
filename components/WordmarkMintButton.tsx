@@ -66,13 +66,30 @@ export default function WordmarkMintButton({ wordmark, fid }: Props) {
     query: { enabled: Boolean(WORDMARKS_ADDRESS) && id !== undefined && fid > 0 },
   });
 
-  const { data: txHash, writeContract, reset: resetWrite } = useWriteContract();
+  const {
+    data: txHash,
+    writeContract,
+    reset: resetWrite,
+    error: writeError,
+  } = useWriteContract();
   // useSendCalls resolves to a bundle id, not a receipt. The receipt arrives
   // separately, which is why the sponsored branch cannot simply await it.
-  const { data: sendCallsResult, sendCalls, reset: resetSendCalls } = useSendCalls();
-  const { data: callsStatus } = useWaitForCallsStatus({ id: sendCallsResult?.id });
+  const {
+    data: sendCallsResult,
+    sendCalls,
+    reset: resetSendCalls,
+    error: sendCallsError,
+  } = useSendCalls();
+  const { data: callsStatus, error: callsStatusError } = useWaitForCallsStatus({
+    id: sendCallsResult?.id,
+  });
   const { data: capabilities } = useCapabilities();
-  const { isSuccess: mined } = useWaitForTransactionReceipt({ hash: txHash });
+  const { data: receipt, error: receiptError } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // A RECEIPT IS NOT A SUCCESS. A reverted transaction has one too, so an
+  // expired voucher or a replayed mint would otherwise flip the button to
+  // "Minted" having minted nothing (Bugbot, PR #300).
+  const mined = receipt?.status === 'success';
 
   const canSponsor = Boolean(
     paymasterUrl() &&
@@ -84,7 +101,11 @@ export default function WordmarkMintButton({ wordmark, fid }: Props) {
   const done = mined || sponsoredDone || alreadyMinted === true;
 
   useEffect(() => {
-    if (callsStatus?.receipts?.[0]?.transactionHash) setSponsoredDone(true);
+    // Same bar the pack purchase uses: the bundle has to have CONFIRMED, not
+    // merely produced a receipt. A reverted userOp still has one.
+    if (callsStatus?.status === 'success' && callsStatus.receipts?.[0]?.transactionHash) {
+      setSponsoredDone(true);
+    }
   }, [callsStatus]);
 
   useEffect(() => {
@@ -94,6 +115,33 @@ export default function WordmarkMintButton({ wordmark, fid }: Props) {
       void refetchMinted();
     }
   }, [mined, sponsoredDone, refetchMinted]);
+
+  // NEITHER writeContract NOR sendCalls IS AWAITED, so a rejected prompt or a
+  // failed bundle never reaches the try/catch around them. It lands in these
+  // flags instead, and without reading them the button stayed disabled on
+  // "Check your wallet..." until the modal was closed (Bugbot, PR #300).
+  const walletError = writeError || sendCallsError || callsStatusError || receiptError;
+  useEffect(() => {
+    if (!walletError) return;
+    setBusy(false);
+    const message = walletError.message ?? '';
+    // A rejection is a decision, not a fault. Saying "something went wrong"
+    // to somebody who just pressed cancel reads as a bug in the app.
+    setError(
+      /reject|denied|cancel/i.test(message)
+        ? 'You cancelled the signature.'
+        : 'That mint did not go through. Try again.'
+    );
+  }, [walletError]);
+
+  // A reverted transaction is not an error the hooks report: the receipt
+  // arrives normally and simply says "reverted".
+  useEffect(() => {
+    if (receipt && receipt.status !== 'success') {
+      setBusy(false);
+      setError('That mint did not go through. Try again.');
+    }
+  }, [receipt]);
 
   const mint = useCallback(async () => {
     if (!WORDMARKS_ADDRESS || id === undefined) return;

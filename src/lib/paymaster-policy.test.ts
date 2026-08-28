@@ -193,6 +193,24 @@ describe('willSponsor: Wordmark mints', () => {
     expect(decision.requiresVouchers).toBeUndefined();
   });
 
+  it('refuses a batch that reuses one voucher across several mints', () => {
+    // The hole this closes: one legitimately issued voucher, repeated N times
+    // in a batch. The contract rejects the replays, so N-1 are guaranteed
+    // reverts, and a revert still consumes gas the paymaster pays for. Every
+    // signature passed the Redis check, because they were all the same
+    // signature. (Bugbot, PR #300.)
+    const decision = willSponsor(
+      executeBatch([
+        { target: WORDMARKS, data: mintCall() },
+        { target: WORDMARKS, data: mintCall() },
+      ]),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toMatch(/reuse one Wordmark voucher/i);
+  });
+
   it('refuses a mint whose arguments do not decode', () => {
     const decision = willSponsor(
       execute(WORDMARKS, WORDMARK_MINT_SELECTOR + 'aabb'),

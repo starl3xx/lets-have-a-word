@@ -113,6 +113,30 @@ export default async function handler(
     return res.status(503).json({ error: 'Minting is temporarily unavailable' });
   }
 
+  // ALREADY MINTED IS A REFUSAL, NOT A NO-OP. Without this the endpoint keeps
+  // issuing fresh, individually valid vouchers for a Wordmark that can only
+  // ever revert onchain, and each one buys a sponsored failure. The database
+  // cannot answer this — mintedByFid is the only authority — so it costs one
+  // RPC read (Bugbot, PR #300).
+  try {
+    const provider = new ethers.JsonRpcProvider(
+      process.env.BASE_RPC_URL || 'https://mainnet.base.org'
+    );
+    const wordmarks = new ethers.Contract(
+      contract,
+      ['function mintedByFid(uint256,uint256) view returns (bool)'],
+      provider
+    );
+    if (await wordmarks.mintedByFid(fid, id)) {
+      return res.status(409).json({ error: 'You have already minted that Wordmark' });
+    }
+  } catch (error) {
+    // FAILS CLOSED. An RPC hiccup must not become a way to mint vouchers for
+    // already-claimed Wordmarks by making the check unavailable.
+    console.error('[wordmarks/voucher] Could not read mintedByFid:', error);
+    return res.status(503).json({ error: 'Could not check your Wordmark. Try again.' });
+  }
+
   const deadline = Math.floor(Date.now() / 1000) + VOUCHER_TTL_SECONDS;
   const to = ethers.getAddress(address);
 
