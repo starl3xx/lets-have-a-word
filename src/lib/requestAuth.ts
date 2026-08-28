@@ -224,12 +224,18 @@ async function applyAddressLink(session: PlayerSession): Promise<PlayerSession> 
     // Imported lazily so this module's importers do not all drag in the
     // database layer.
     const { db } = await import('../db');
-    const { userAddresses } = await import('../db/schema');
-    const { sql } = await import('drizzle-orm');
+    const { userAddresses, users } = await import('../db/schema');
+    const { sql, eq } = await import('drizzle-orm');
 
+    // INNER JOIN, so a link pointing at a missing account cannot be honoured.
+    // upsertUserFromWallet already treats a dangling link as stale and mints
+    // normally; without the same rule here, sign-in would succeed while every
+    // later request — including with the freshly minted token — resolved to an
+    // account that does not exist (Bugbot, PR #293).
     const [linked] = await db
-      .select({ fid: userAddresses.fid })
+      .select({ fid: users.fid })
       .from(userAddresses)
+      .innerJoin(users, eq(users.fid, userAddresses.fid))
       .where(sql`lower(${userAddresses.address}) = ${session.wallet.toLowerCase()}`)
       .limit(1);
 

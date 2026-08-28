@@ -197,3 +197,38 @@ describe('a pre-link session cannot outlive the link', () => {
     expect(after.session?.origin).toBe('farcaster');
   });
 });
+
+describe('a link pointing at a missing account is ignored, everywhere', () => {
+  it('leaves a wallet session as itself rather than resolving to a ghost', async () => {
+    // upsertUserFromWallet already falls through on a dangling link and mints
+    // normally. Without the same rule in session resolution, sign-in would
+    // succeed while every later request resolved to an account that does not
+    // exist — the player would be a ghost. (Bugbot, PR #293.)
+    const { signPlayerSession } = await import('../lib/playerSession');
+    const { resolvePlayerSessionFromRequest } = await import('../lib/requestAuth');
+
+    const wallet = freshWallet('17');
+    const walletFid = WALLET_FID_MIN + 901;
+    createdFids.push(walletFid);
+
+    await db.insert(users).values({
+      fid: walletFid,
+      identityOrigin: 'wallet',
+      signerWalletAddress: wallet,
+    });
+    // A link to a fid with no users row.
+    await db.insert(userAddresses).values({ fid: 799_999_998, address: wallet });
+
+    const secret = process.env.ADMIN_SECRET || 'test-secret-not-a-real-one';
+    process.env.ADMIN_SECRET = secret;
+    const token = await signPlayerSession({ fid: walletFid, origin: 'wallet', wallet }, secret);
+
+    const resolved = await resolvePlayerSessionFromRequest({
+      cookies: { lhaw_player_session: token },
+      headers: {},
+    } as never);
+
+    expect(resolved.session?.fid).toBe(walletFid);
+    expect(resolved.session?.origin).toBe('wallet');
+  });
+});
