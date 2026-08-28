@@ -2114,42 +2114,6 @@ function GameContent() {
             A global word hunt with real onchain prizes
           </p>
 
-          {/* Wallet sign-in. The primary path now, not a footnote: a Base App
-              player has a wallet and no Farcaster account, and this is the only
-              door open to them. Hidden while the session check is in flight so
-              the button never flickers away under a tap.
-
-              The one control is Base's official button, driving the
-              Sign in with Base flow (wallet_connect + signInWithEthereum).
-              Deliberately no "other wallet" option: the supported doors are
-              Farcaster and Base App, exactly as the copy below says, and a
-              generic wallet link would invite a path we do not support. The
-              classic EOA dialect survives inside the hook as an internal
-              fallback for providers that cannot speak wallet_connect. */}
-          {walletSignIn.status !== 'checking' && (
-            <div className="bg-white rounded-xl shadow-card p-5 space-y-3">
-              <p className="text-gray-700 text-sm leading-relaxed">
-                Playing needs a wallet holding about <strong>$3 of $WORD</strong>. Sign in
-                to prove the wallet is yours... it costs no gas.
-              </p>
-              {walletSignIn.status === 'pending' ? (
-                <button disabled className="btn-primary-lg w-full">
-                  Check your wallet...
-                </button>
-              ) : (
-                <SignInWithBaseButton
-                  align="center"
-                  variant="solid"
-                  colorScheme="light"
-                  onClick={() => void walletSignIn.signIn('base')}
-                />
-              )}
-              {walletSignIn.error && (
-                <p className="text-sm text-red-600">{walletSignIn.error}</p>
-              )}
-            </div>
-          )}
-
           {/* Explanation Card */}
           <div className="bg-white rounded-xl shadow-card p-5 text-left space-y-3">
             <p className="text-gray-700 text-sm leading-relaxed">
@@ -2161,10 +2125,7 @@ function GameContent() {
               <a href="https://base.app/invite/starl3xx/23BC6Y0C" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
                 Base
               </a>
-              {' '}— social apps with built-in wallets. It’s free to play.
-            </p>
-            <p className="text-gray-400 text-sm">
-              A standalone web version may come later.
+              {' '}... social apps with built-in wallets. It’s free to play.
             </p>
           </div>
 
@@ -2195,6 +2156,65 @@ function GameContent() {
             </div>
           )}
 
+          {/* THE TWO DOORS, one above the other and the same size.
+              They are alternatives, so presenting one as a large primary
+              button and the other as a small link misrepresents the choice —
+              a Farcaster player and a Base player are equally welcome. */}
+          <div className="space-y-3">
+            <a
+              href="https://warpcast.com/letshaveaword"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-accent w-full flex items-center justify-center gap-2 py-4 px-6 text-base font-semibold"
+            >
+              <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
+              Play on Farcaster
+            </a>
+
+            {/* Wallet sign-in. The primary path now, not a footnote: a Base App
+              player has a wallet and no Farcaster account, and this is the only
+              door open to them. Hidden while the session check is in flight so
+              the button never flickers away under a tap.
+
+              The one control is Base's official button, driving the
+              Sign in with Base flow (wallet_connect + signInWithEthereum).
+              Deliberately no "other wallet" option: the supported doors are
+              Farcaster and Base App, exactly as the copy below says, and a
+              generic wallet link would invite a path we do not support. The
+              classic EOA dialect survives inside the hook as an internal
+              fallback for providers that cannot speak wallet_connect. */}
+          {walletSignIn.status !== 'checking' && (
+              <div className="space-y-2">
+                {walletSignIn.status === 'pending' ? (
+                  <button disabled className="btn-primary-lg w-full">
+                    Check your wallet...
+                  </button>
+                ) : (
+                  <SignInWithBaseButton
+                    align="center"
+                    variant="solid"
+                    colorScheme="light"
+                    onClick={() => void walletSignIn.signIn('base')}
+                  />
+                )}
+                {/* Below the button and styled as information, not as a
+                    warning: it explains what signing in will ask of you, and
+                    a player who has the $WORD should not read it as a refusal.
+                    The requirement itself is enforced by the reward gate. */}
+                <p className="flex items-start gap-2 text-left text-sm text-primary-700 bg-primary-50 border border-primary-200 rounded-lg px-3 py-2">
+                  <span aria-hidden="true">ℹ️</span>
+                  <span>
+                    Playing requires a wallet holding about <strong>$3 of $WORD</strong>. Sign
+                    in to prove the wallet is yours... it costs no gas.
+                  </span>
+                </p>
+                {walletSignIn.error && (
+                  <p className="text-sm text-red-600">{walletSignIn.error}</p>
+                )}
+              </div>
+          )}
+          </div>
+
           {/* $WORD Token Info */}
           <div className="bg-white rounded-xl shadow-card px-4 py-3 text-center space-y-1 border border-purple-200">
             <div className="flex items-center justify-center gap-1.5 text-sm">
@@ -2224,19 +2244,6 @@ function GameContent() {
               className="text-xs text-gray-400 hover:text-purple-600 font-mono break-all"
             >
               0x304e649e...07885fb4b
-            </a>
-          </div>
-
-          {/* CTA Button */}
-          <div>
-            <a
-              href="https://warpcast.com/letshaveaword"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-accent inline-flex items-center gap-2 px-6 py-3 text-base font-semibold"
-            >
-              <img src="/FC-arch-icon.png" alt="" className="w-4 h-4" />
-              Play on Farcaster
             </a>
           </div>
 
