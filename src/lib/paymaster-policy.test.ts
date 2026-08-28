@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ethers } from 'ethers';
-import { willSponsor, BUY_PACKS_SELECTOR } from './paymaster-policy';
+import { willSponsor, BUY_PACKS_SELECTOR, WORDMARK_MINT_SELECTOR } from './paymaster-policy';
 
 /**
  * This function is the spending authority for the paymaster endpoint. The URL
@@ -56,7 +56,10 @@ describe('willSponsor', () => {
     // The obvious attack: point the sponsored call somewhere else entirely.
     const decision = willSponsor(execute(OTHER, buyPacksCall()), SALES);
     expect(decision.allowed).toBe(false);
-    expect(decision.reason).toMatch(/only the pack sales contract/i);
+    // Wording only: the policy sponsors two contracts now, so the refusal no
+    // longer names the sales contract as the sole permitted one. The behaviour
+    // this test exists for is the line above.
+    expect(decision.reason).toMatch(/not a sponsored contract/i);
   });
 
   it('refuses a different function on the right contract', () => {
@@ -119,5 +122,98 @@ describe('willSponsor', () => {
   it('compares addresses without regard to checksum casing', () => {
     const decision = willSponsor(execute(SALES.toUpperCase().replace('0X', '0x'), buyPacksCall()), SALES);
     expect(decision.allowed).toBe(true);
+  });
+});
+
+/**
+ * Wordmark mints, the first widening of this policy since it was written.
+ *
+ * The trap: A REVERTING TRANSACTION STILL CONSUMES GAS THE PAYMASTER PAYS FOR.
+ * The Wordmarks contract reverts on a replayed mint, by design, so "targets our
+ * contract and calls mint" is not a sufficient rule on its own — anybody could
+ * loop failed mints and drain the balance without ever receiving a token.
+ *
+ * So the policy returns `requiresVouchers` and /api/paymaster must check each
+ * one against Redis before forwarding. An `allowed: true` that dropped that
+ * field would look finished and quietly reopen the hole, which is what these
+ * cases are here to prevent.
+ */
+const WORDMARKS = '0x3333333333333333333333333333333333333333';
+const SIG = '0x' + 'ab'.repeat(65);
+
+function mintCall(signature = SIG): string {
+  return (
+    WORDMARK_MINT_SELECTOR +
+    coder
+      .encode(
+        ['uint256', 'address', 'uint256', 'uint256', 'bytes'],
+        [6500n, OTHER, 10n, 1_800_000_000n, signature]
+      )
+      .slice(2)
+  );
+}
+
+describe('willSponsor: Wordmark mints', () => {
+  it('allows a mint but demands the voucher that authorised it', () => {
+    const decision = willSponsor(execute(WORDMARKS, mintCall()), SALES, WORDMARKS);
+    expect(decision.allowed).toBe(true);
+    expect(decision.requiresVouchers).toEqual([SIG]);
+  });
+
+  it('demands a voucher for every mint in a batch, not just the first', () => {
+    const a = '0x' + '11'.repeat(65);
+    const b = '0x' + '22'.repeat(65);
+    const decision = willSponsor(
+      executeBatch([
+        { target: WORDMARKS, data: mintCall(a) },
+        { target: WORDMARKS, data: mintCall(b) },
+      ]),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.requiresVouchers).toEqual([a, b]);
+  });
+
+  it('carries the requirement out of a batch that also buys packs', () => {
+    const decision = willSponsor(
+      executeBatch([
+        { target: SALES, data: buyPacksCall() },
+        { target: WORDMARKS, data: mintCall() },
+      ]),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.requiresVouchers).toEqual([SIG]);
+  });
+
+  it('leaves a plain pack purchase needing no voucher at all', () => {
+    const decision = willSponsor(execute(SALES, buyPacksCall()), SALES, WORDMARKS);
+    expect(decision.allowed).toBe(true);
+    expect(decision.requiresVouchers).toBeUndefined();
+  });
+
+  it('refuses a mint whose arguments do not decode', () => {
+    const decision = willSponsor(
+      execute(WORDMARKS, WORDMARK_MINT_SELECTOR + 'aabb'),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it('refuses any other function on the Wordmarks contract', () => {
+    // setAttestor is onlyOwner, so this would revert — and a revert is exactly
+    // what costs the paymaster money for nothing.
+    const setAttestor =
+      ethers.id('setAttestor(address)').slice(0, 10) + coder.encode(['address'], [OTHER]).slice(2);
+    const decision = willSponsor(execute(WORDMARKS, setAttestor), SALES, WORDMARKS);
+    expect(decision.allowed).toBe(false);
+  });
+
+  it('refuses mints before the contract is configured', () => {
+    // Unset must mean "sponsor nothing", never "sponsor anything".
+    expect(willSponsor(execute(WORDMARKS, mintCall()), SALES, null).allowed).toBe(false);
+    expect(willSponsor(execute(WORDMARKS, mintCall()), SALES, 'nope').allowed).toBe(false);
   });
 });

@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
 import { willSponsor } from '../../src/lib/paymaster-policy';
+import { redis } from '../../src/lib/redis';
+import { mintAuthKey } from './wordmarks/voucher';
 
 /**
  * POST /api/paymaster — ERC-7677 paymaster proxy
@@ -38,6 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const upstream = process.env.PAYMASTER_SERVICE_URL;
   const salesAddress =
     process.env.NEXT_PUBLIC_WORD_PACK_SALES_ADDRESS || process.env.WORD_PACK_SALES_ADDRESS || null;
+  const wordmarksAddress = process.env.NEXT_PUBLIC_WORDMARKS_ADDRESS || null;
 
   const { id, method, params } = (req.body ?? {}) as {
     id?: unknown;
@@ -57,11 +60,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // params[0] is the user operation for both ERC-7677 methods.
   const userOp = (params?.[0] ?? {}) as { callData?: string };
-  const decision = willSponsor(userOp.callData ?? '', salesAddress);
+  const decision = willSponsor(userOp.callData ?? '', salesAddress, wordmarksAddress);
 
   if (!decision.allowed) {
     console.warn(`[paymaster] Refused to sponsor: ${decision.reason}`);
     return res.status(200).json(rpcError(id, -32000, `Not sponsored: ${decision.reason}`));
+  }
+
+  // A Wordmark mint is only sponsored if this server issued its voucher minutes
+  // ago. Without this, the policy would happily pay for mints that REVERT — the
+  // contract rejects a replayed mint, and a revert still consumes gas — so a
+  // loop of failed mints could drain the balance without anybody receiving a
+  // token. willSponsor cannot check it: the lookup is async and the policy is
+  // kept pure, so the obligation lands here.
+  if (decision.requiresVouchers?.length) {
+    if (!redis) {
+      console.warn('[paymaster] Refusing a mint: no Redis to check the voucher against');
+      return res.status(200).json(rpcError(id, -32000, 'Not sponsored: cannot verify voucher'));
+    }
+    for (const signature of decision.requiresVouchers) {
+      const authorised = await redis.get(mintAuthKey(signature));
+      if (authorised === null || authorised === undefined) {
+        console.warn('[paymaster] Refusing a mint with no matching voucher');
+        return res
+          .status(200)
+          .json(rpcError(id, -32000, 'Not sponsored: no voucher for this mint'));
+      }
+    }
   }
 
   try {

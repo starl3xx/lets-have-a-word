@@ -24,6 +24,11 @@ import { ethers } from 'ethers';
 /** buyPacks(uint32,uint256) */
 export const BUY_PACKS_SELECTOR = '0x6a19e8b7';
 
+/** mint(uint256,address,uint256,uint256,bytes) on the Wordmarks contract. */
+export const WORDMARK_MINT_SELECTOR = ethers.id(
+  'mint(uint256,address,uint256,uint256,bytes)'
+).slice(0, 10);
+
 /** execute(address,uint256,bytes) */
 const EXECUTE_SELECTOR = '0xb61d27f6';
 
@@ -33,6 +38,19 @@ const EXECUTE_BATCH_SELECTOR = '0x34fcd5be';
 export interface SponsorDecision {
   allowed: boolean;
   reason: string;
+  /**
+   * Set when the decision is conditional: the caller must confirm these voucher
+   * signatures were issued by /api/wordmarks/voucher before forwarding.
+   *
+   * A reverting transaction still consumes gas the paymaster pays for, and the
+   * contract reverts on any replayed mint, so "targets our contract, calls
+   * mint" is NOT sufficient on its own — anybody could loop failed mints and
+   * drain sponsorship without ever receiving a token. The Redis lookup lives in
+   * the endpoint so this function stays pure and testable; the price of that is
+   * that a caller ignoring this field silently reopens the hole. Hence a field
+   * that must be read rather than an `allowed: true` that looks finished.
+   */
+  requiresVouchers?: string[];
 }
 
 interface InnerCall {
@@ -72,7 +90,11 @@ function decodeInnerCalls(callData: string): InnerCall[] | null {
  * this stays pure and testable — the decision that guards the money should not
  * depend on process state.
  */
-export function willSponsor(callData: string, salesAddress: string | null): SponsorDecision {
+export function willSponsor(
+  callData: string,
+  salesAddress: string | null,
+  wordmarksAddress: string | null = null
+): SponsorDecision {
   if (!salesAddress || !ethers.isAddress(salesAddress)) {
     return { allowed: false, reason: 'Pack sales contract not configured' };
   }
@@ -91,20 +113,66 @@ export function willSponsor(callData: string, salesAddress: string | null): Spon
     return { allowed: false, reason: 'No calls to sponsor' };
   }
 
+  const wordmarks =
+    wordmarksAddress && ethers.isAddress(wordmarksAddress)
+      ? wordmarksAddress.toLowerCase()
+      : null;
+  const vouchers: string[] = [];
+
   for (const call of calls) {
-    if (call.target.toLowerCase() !== salesAddress.toLowerCase()) {
-      return {
-        allowed: false,
-        reason: `Call targets ${call.target}, only the pack sales contract is sponsored`,
-      };
+    const target = call.target.toLowerCase();
+    const selector = call.data.slice(0, 10).toLowerCase();
+
+    if (target === salesAddress.toLowerCase()) {
+      if (selector !== BUY_PACKS_SELECTOR) {
+        return { allowed: false, reason: 'Only buyPacks is sponsored on the sales contract' };
+      }
+      continue;
     }
-    if (call.data.slice(0, 10).toLowerCase() !== BUY_PACKS_SELECTOR) {
-      return {
-        allowed: false,
-        reason: 'Only buyPacks is sponsored',
-      };
+
+    if (wordmarks && target === wordmarks) {
+      if (selector !== WORDMARK_MINT_SELECTOR) {
+        return { allowed: false, reason: 'Only mint is sponsored on the Wordmarks contract' };
+      }
+      const signature = decodeMintSignature(call.data);
+      if (!signature) {
+        return { allowed: false, reason: 'Malformed Wordmark mint call' };
+      }
+      vouchers.push(signature);
+      continue;
     }
+
+    return {
+      allowed: false,
+      reason: `Call targets ${call.target}, which is not a sponsored contract`,
+    };
+  }
+
+  if (vouchers.length > 0) {
+    return {
+      allowed: true,
+      reason: `Sponsoring ${calls.length} call(s), ${vouchers.length} needing a voucher`,
+      requiresVouchers: vouchers,
+    };
   }
 
   return { allowed: true, reason: `Sponsoring ${calls.length} pack purchase call(s)` };
+}
+
+/**
+ * Pull the attestor signature back out of a mint call.
+ *
+ * It is the thing that makes one mint distinguishable from another, so it is
+ * what the voucher endpoint keys its authorisation on.
+ */
+function decodeMintSignature(data: string): string | null {
+  try {
+    const [, , , , signature] = ethers.AbiCoder.defaultAbiCoder().decode(
+      ['uint256', 'address', 'uint256', 'uint256', 'bytes'],
+      '0x' + data.slice(10)
+    );
+    return typeof signature === 'string' && signature.length > 2 ? signature : null;
+  } catch {
+    return null;
+  }
 }
