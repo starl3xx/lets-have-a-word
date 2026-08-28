@@ -102,6 +102,8 @@ import { WagmiProvider, useAccount } from 'wagmi';
 import { useWalletSignIn } from '../src/hooks/useWalletSignIn';
 import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 import { noteServerBuildSha, reloadIfStale, useReloadHold } from '../src/lib/buildFreshness';
+import { LinkAccountPrompt, hasSeenLinkPrompt } from '../components/AccountLinkCard';
+import { isWalletFid } from '../src/lib/wallet-fid';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { config } from '../src/config/wagmi';
@@ -310,6 +312,7 @@ function GameContent() {
 
   // Install prompt modal state (post-guess prompt for non-installed users)
   const [showInstallPromptModal, setShowInstallPromptModal] = useState(false);
+  const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [hasMiniAppInstalled, setHasMiniAppInstalled] = useState<boolean | null>(null);
 
   // Winner share card state (Milestone 4.14)
@@ -995,8 +998,25 @@ function GameContent() {
    */
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // Don't process if loading or if any modal/sheet is open
-      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showWordSheet || showShareModal || showFirstTimeOverlay || showTutorial) {
+      // Don't process if loading or if any modal/sheet is open.
+      //
+      // EVERY modal with a text field must be listed here, or this handler
+      // preventDefaults A-Z and the field cannot be typed into. The link
+      // prompt is the case that proved it: its whole purpose is entering a
+      // code, and with it missing the only way in was the Paste button —
+      // which is deliberately silent when a host refuses clipboard access, so
+      // the prompt would simply have been unusable (Bugbot, PR #297).
+      if (
+        isLoading ||
+        showStatsSheet ||
+        showReferralSheet ||
+        showFAQSheet ||
+        showWordSheet ||
+        showShareModal ||
+        showFirstTimeOverlay ||
+        showTutorial ||
+        showLinkPrompt
+      ) {
         return;
       }
 
@@ -1033,7 +1053,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showWordSheet, showShareModal, showFirstTimeOverlay, showTutorial, hasActiveRound]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showWordSheet, showShareModal, showFirstTimeOverlay, showTutorial, showLinkPrompt, hasActiveRound]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
@@ -2018,6 +2038,28 @@ function GameContent() {
   // where the probe takes its longest path. In a real Farcaster host this
   // lasts well under a second (the host answers the first handshake), and the
   // probe hook hard-stops at 5s so this can never be terminal.
+  const walletPlayerReady = walletSignIn.status === 'signed-in' && walletSignIn.fid != null;
+
+  /**
+   * The one-time link offer, at the only moment it is free.
+   *
+   * MUST STAY ABOVE EVERY EARLY RETURN. It sat below the boot screen's return,
+   * so the first render skipped the hook and the next one ran it — React sees a
+   * changing hook count and crashes. Production traffic always passes through
+   * that boot screen while client dev mode skips it, so this would have been an
+   * outage that local testing could not reproduce (Bugbot, PR #297).
+   *
+   * Gated on isWalletFid rather than on being off-host: a player who has
+   * ALREADY linked resolves to their real Farcaster fid, and offering them the
+   * prompt again would ask them to solve a problem they just solved.
+   */
+  useEffect(() => {
+    if (!walletPlayerReady || !walletSignIn.fid) return;
+    if (!isWalletFid(walletSignIn.fid)) return;
+    if (hasSeenLinkPrompt()) return;
+    setShowLinkPrompt(true);
+  }, [walletPlayerReady, walletSignIn.fid]);
+
   if (!hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center p-6">
@@ -2041,7 +2083,7 @@ function GameContent() {
   // `status === 'checking'` deliberately still renders the fallback: it lasts
   // one fetch, and flashing the game before we know who anyone is would be
   // worse than the fallback appearing briefly.
-  const walletPlayerReady = walletSignIn.status === 'signed-in' && walletSignIn.fid != null;
+
 
   if (
     hasCheckedContext &&
@@ -2606,6 +2648,18 @@ function GameContent() {
           disabled={isLoading || !hasActiveRound || (superguessActive && !isSuperguessing)}
         />
       </div>
+
+      {/* One-time offer to bring an existing Farcaster account across */}
+      {showLinkPrompt && (
+        <LinkAccountPrompt
+          onLinked={() => {
+            // The session now names the Farcaster account, so everything on
+            // screen belongs to the wrong player until it reloads.
+            window.location.reload();
+          }}
+          onDismiss={() => setShowLinkPrompt(false)}
+        />
+      )}
 
       {/* Share Prompt Modal (Milestone 4.2) */}
       {showShareModal && pendingShareResult && (
