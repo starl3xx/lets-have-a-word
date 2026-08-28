@@ -135,19 +135,14 @@ export async function upsertUserFromFarcaster(params: UpsertUserParams): Promise
 }
 
 /**
- * Floor of the synthetic FID range used by wallet-native players.
+ * Re-exported from ./wallet-fid, which has no imports.
  *
- * Must match the START/MINVALUE of wallet_player_fid_seq in
- * migrations/0031_wallet_identity.sql. Real Farcaster FIDs are around 1-2M, and
- * users.fid is a Postgres `integer` capped at 2,147,483,647, so this reserves
- * ~1.1B ids with no collision risk in either direction.
+ * The definitions live there because THIS module imports the database layer,
+ * and client components need `isWalletFid` — importing it from here drags
+ * Postgres into the browser bundle and fails the build on `fs`.
  */
-export const WALLET_FID_MIN = 1_000_000_000;
-
-/** True when this FID was minted for a wallet player rather than issued by Farcaster. */
-export function isWalletFid(fid: number): boolean {
-  return fid >= WALLET_FID_MIN;
-}
+import { WALLET_FID_MIN, isWalletFid } from './wallet-fid';
+export { WALLET_FID_MIN, isWalletFid };
 
 export interface UpsertUserFromWalletParams {
   /** Address that produced a verified SIWE signature. Case-insensitive. */
