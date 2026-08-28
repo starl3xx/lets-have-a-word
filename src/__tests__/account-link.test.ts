@@ -141,3 +141,59 @@ describe('a stale link never breaks a sign-in', () => {
     expect(resolved.identityOrigin).toBe('wallet');
   });
 });
+
+describe('a pre-link session cannot outlive the link', () => {
+  /**
+   * Linking mints a new session, but the OLD one stays cryptographically valid
+   * for its full 30 days and we cannot reach it to revoke it: Base App's
+   * webview pins cookies it will not update. That is the same jar behaviour
+   * that caused the original lockout, cutting the other way — cookie-first
+   * resolution would keep answering with the synthetic identity the player just
+   * linked away from, while the client held the correct new token.
+   *
+   * So resolution asks who owns the address NOW rather than trusting the fid
+   * baked into the token. (Bugbot, PR #293.)
+   */
+  it('resolves an old wallet session to the account the wallet is linked to', async () => {
+    const { signPlayerSession } = await import('../lib/playerSession');
+    const { resolvePlayerSessionFromRequest } = await import('../lib/requestAuth');
+
+    const wallet = freshWallet('16');
+    const farcasterFid = freshFarcasterFid();
+    const walletFid = WALLET_FID_MIN + 900;
+    createdFids.push(farcasterFid, walletFid);
+
+    await db.insert(users).values({ fid: farcasterFid, username: 'veteran' });
+    await db.insert(users).values({
+      fid: walletFid,
+      identityOrigin: 'wallet',
+      signerWalletAddress: wallet,
+    });
+
+    const secret = process.env.ADMIN_SECRET || 'test-secret-not-a-real-one';
+    process.env.ADMIN_SECRET = secret;
+
+    // The token minted BEFORE linking, naming the synthetic account.
+    const staleToken = await signPlayerSession(
+      { fid: walletFid, origin: 'wallet', wallet },
+      secret
+    );
+
+    // Before the link it is exactly what it says it is.
+    const before = await resolvePlayerSessionFromRequest({
+      cookies: { lhaw_player_session: staleToken },
+      headers: {},
+    } as never);
+    expect(before.session?.fid).toBe(walletFid);
+
+    await db.insert(userAddresses).values({ fid: farcasterFid, address: wallet });
+
+    // After the link the SAME token resolves to the linked account.
+    const after = await resolvePlayerSessionFromRequest({
+      cookies: { lhaw_player_session: staleToken },
+      headers: {},
+    } as never);
+    expect(after.session?.fid).toBe(farcasterFid);
+    expect(after.session?.origin).toBe('farcaster');
+  });
+});
