@@ -198,6 +198,62 @@ export interface PlayerSessionResolution {
  * and /api/auth/me so the two can never disagree about who is signed in —
  * disagreement is precisely the stuck state: "me" says signed in, guess 401s.
  */
+/**
+ * A session names a WALLET; the wallet's current owner is the source of truth.
+ *
+ * Linking mints a fresh session for the Farcaster account, but the pre-link
+ * session stays cryptographically valid for its full 30 days — and we cannot
+ * reach it to revoke it. Base App's webview PINS cookies it will not update;
+ * that is the same jar behaviour that caused the original lockout, and here it
+ * cuts the other way: cookie-first resolution would keep answering with the
+ * synthetic identity the player just linked away from, for up to a month,
+ * while the client dutifully held the new token (Bugbot, PR #293).
+ *
+ * Rather than trying to invalidate a token we cannot touch, resolution asks the
+ * question that actually matters: who owns this address NOW. A stale session
+ * then resolves to the right player by itself, which also covers linking done
+ * on a different device or browser.
+ *
+ * One indexed lookup on a unique index, and only for wallet-origin sessions —
+ * a Farcaster Quick Auth request never reaches this path.
+ */
+async function applyAddressLink(session: PlayerSession): Promise<PlayerSession> {
+  if (session.origin !== 'wallet' || !session.wallet) return session;
+
+  try {
+    // Imported lazily so this module's importers do not all drag in the
+    // database layer.
+    const { db } = await import('../db');
+    const { userAddresses, users } = await import('../db/schema');
+    const { sql, eq } = await import('drizzle-orm');
+
+    // INNER JOIN, so a link pointing at a missing account cannot be honoured.
+    // upsertUserFromWallet already treats a dangling link as stale and mints
+    // normally; without the same rule here, sign-in would succeed while every
+    // later request — including with the freshly minted token — resolved to an
+    // account that does not exist (Bugbot, PR #293).
+    const [linked] = await db
+      .select({ fid: users.fid })
+      .from(userAddresses)
+      .innerJoin(users, eq(users.fid, userAddresses.fid))
+      .where(sql`lower(${userAddresses.address}) = ${session.wallet.toLowerCase()}`)
+      .limit(1);
+
+    if (linked && linked.fid !== session.fid) {
+      console.log(
+        `[requestAuth] Session for wallet ${session.wallet} resolves to linked FID ${linked.fid}`
+      );
+      return { ...session, fid: linked.fid, origin: 'farcaster' };
+    }
+  } catch (error) {
+    // A lookup failure must not cost a signed-in player their session. They
+    // stay who the token says they are, which is the pre-link behaviour.
+    console.error('[requestAuth] Address-link lookup failed:', error);
+  }
+
+  return session;
+}
+
 export async function resolvePlayerSessionFromRequest(
   req: NextApiRequest
 ): Promise<PlayerSessionResolution> {
@@ -211,7 +267,7 @@ export async function resolvePlayerSessionFromRequest(
       const inspection = await inspectPlayerSession(candidate.value, secret);
       if (inspection.ok) {
         return {
-          session: inspection.session,
+          session: await applyAddressLink(inspection.session),
           anyAuthenticExpired,
           candidates: tokens.length,
           refusedShapes: [],

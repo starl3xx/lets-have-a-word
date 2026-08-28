@@ -2639,6 +2639,7 @@ function GameContent() {
         <StatsSheet
           fid={effectiveFid}
           onClose={() => setShowStatsSheet(false)}
+          authToken={authToken}
         />
       )}
 

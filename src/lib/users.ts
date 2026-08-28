@@ -1,6 +1,7 @@
 import { db, users } from '../db';
 import { eq, sql } from 'drizzle-orm';
 import type { UserRow } from '../db/schema';
+import { userAddresses } from '../db/schema';
 import { logReferralEvent, AnalyticsEventTypes } from './analytics';
 import { resolveBasename } from './basename';
 
@@ -213,6 +214,40 @@ export async function upsertUserFromWallet(
   //
   // In production (2026-08-26) this affects exactly 2 wallets, each held by 2
   // FIDs, out of the whole table.
+  // AN EXPLICITLY LINKED ADDRESS WINS, and is checked first.
+  //
+  // This is the answer to "a returning Farcaster player becomes a brand-new
+  // account in Base App". Their Base Account is a different wallet from the
+  // Neynar-verified EOA in signer_wallet_address, so the column match below
+  // finds nothing and case 3 mints them a fresh synthetic FID — losing
+  // grandfathering, their Early Adopter Wordmark, XP and history. A row in
+  // user_addresses is that player having PROVEN both identities: a Quick Auth
+  // session issued the code, this wallet's SIWE session redeemed it.
+  //
+  // Checked ahead of the column match because it is the stronger claim: an
+  // explicit, two-sided proof beats a Neynar snapshot that may be stale.
+  const [linked] = await db
+    .select({ fid: userAddresses.fid })
+    .from(userAddresses)
+    .where(sql`lower(${userAddresses.address}) = ${wallet}`)
+    .limit(1);
+
+  if (linked) {
+    const [linkedUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.fid, linked.fid))
+      .limit(1);
+
+    if (linkedUser) {
+      console.log(`[WalletAuth] Wallet ${wallet} is linked to FID ${linked.fid}`);
+      return linkedUser;
+    }
+    // A link pointing at a row that no longer exists. Fall through and resolve
+    // normally rather than failing the sign-in over stale bookkeeping.
+    console.warn(`[WalletAuth] Link for ${wallet} points at missing FID ${linked.fid}`);
+  }
+
   // `fid > 0`: sentinel and test rows (a fid of -1 existed in production from
   // 2026-01) must never be a linkage target. A session minted for a
   // non-positive fid fails verifyPlayerSession's own validation, so linking to
