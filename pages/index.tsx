@@ -998,8 +998,25 @@ function GameContent() {
    */
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // Don't process if loading or if any modal/sheet is open
-      if (isLoading || showStatsSheet || showReferralSheet || showFAQSheet || showWordSheet || showShareModal || showFirstTimeOverlay || showTutorial) {
+      // Don't process if loading or if any modal/sheet is open.
+      //
+      // EVERY modal with a text field must be listed here, or this handler
+      // preventDefaults A-Z and the field cannot be typed into. The link
+      // prompt is the case that proved it: its whole purpose is entering a
+      // code, and with it missing the only way in was the Paste button —
+      // which is deliberately silent when a host refuses clipboard access, so
+      // the prompt would simply have been unusable (Bugbot, PR #297).
+      if (
+        isLoading ||
+        showStatsSheet ||
+        showReferralSheet ||
+        showFAQSheet ||
+        showWordSheet ||
+        showShareModal ||
+        showFirstTimeOverlay ||
+        showTutorial ||
+        showLinkPrompt
+      ) {
         return;
       }
 
@@ -1036,7 +1053,7 @@ function GameContent() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showWordSheet, showShareModal, showFirstTimeOverlay, showTutorial, hasActiveRound]);
+  }, [letters, isLoading, currentInputState, showStatsSheet, showReferralSheet, showFAQSheet, showWordSheet, showShareModal, showFirstTimeOverlay, showTutorial, showLinkPrompt, hasActiveRound]);
 
   /**
    * Auto-dismiss state error messages after 2 seconds
