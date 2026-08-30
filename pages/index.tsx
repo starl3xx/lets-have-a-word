@@ -801,7 +801,28 @@ function GameContent() {
         if (response.ok) {
           const data: WheelResponse = await response.json();
           if (data.words && data.words.length > 0) {
-            setWheelWords(data.words);
+            // MERGE, never blind-replace: the wheel is playable while this
+            // response is in flight, so a guess (local status update or the
+            // post-guess refetch) can land first — and a pre-guess snapshot
+            // replacing it would flip freshly guessed words back to
+            // unguessed until the next poll. Statuses only escalate within
+            // a round, so a word the client already knows as wrong/winner
+            // keeps that over an incoming 'unguessed'. Word order is
+            // identical on both sides (proven; same sorted list), so the
+            // index-aligned compare is safe — any shape mismatch falls back
+            // to trusting the server wholesale. The post-guess refetch
+            // keeps its blind replace: it is the fresh-round reset path.
+            setWheelWords((prev) => {
+              if (prev.length !== data.words.length) return data.words;
+              return data.words.map((incoming, i) => {
+                const known = prev[i];
+                return known.word === incoming.word &&
+                  incoming.status === 'unguessed' &&
+                  known.status !== 'unguessed'
+                  ? known
+                  : incoming;
+              });
+            });
           } else {
             console.warn('Wheel API returned empty words array');
           }
