@@ -20,9 +20,11 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* Favicon */}
-        <link rel="icon" type="image/png" href="/LHAW-icon.png" />
-        <link rel="apple-touch-icon" href="/LHAW-icon.png" />
+        {/* Favicon: the 192px variant, not the 291 KB 1024px original, which
+            exists for the Farcaster manifest iconUrl (that one must stay
+            1024x1024). */}
+        <link rel="icon" type="image/png" href="/LHAW-icon-192.png" />
+        <link rel="apple-touch-icon" href="/LHAW-icon-192.png" />
         {/* Base App verification */}
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
         {/* Viewport meta tag for iOS Safari safe area support */}

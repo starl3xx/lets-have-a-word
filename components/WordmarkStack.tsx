@@ -176,7 +176,7 @@ export default function WordmarkStack({
           onTouchStart={() => setTooltipText('$WORD Whale')}
         >
           <img
-            src="/LHAW-icon.png"
+            src="/LHAW-icon-192.png"
             alt="$WORD Whale"
             className="w-full h-full object-cover"
           />

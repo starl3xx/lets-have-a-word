@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, Cha
 import { formatPrize } from '../src/lib/prize-display';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import nextDynamic from 'next/dynamic';
 import type { SubmitGuessResult, WheelWord, WheelResponse } from '../src/types';
 import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
@@ -89,7 +90,10 @@ async function fetchWithRetry(
 }
 
 import { triggerHaptic, haptics } from '../src/lib/haptics';
-import { isValidGuess } from '../src/lib/word-lists';
+// word-validation, NOT word-lists: word-lists imports 'crypto' for answer
+// selection, and importing it from client code inlines Next's ~100 KB gz
+// crypto polyfill into the route bundle.
+import { isValidGuess } from '../src/lib/word-validation';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
@@ -104,7 +108,20 @@ import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 import { noteServerBuildSha, reloadIfStale, useReloadHold } from '../src/lib/buildFreshness';
 import { LinkAccountPrompt, hasSeenLinkPrompt } from '../components/AccountLinkCard';
 import { isWalletFid } from '../src/lib/wallet-fid';
-import { SignInWithBaseButton } from '@base-org/account-ui/react';
+// Dynamic, ssr:false, NOT a static import: @base-org/account-ui embeds the
+// BaseSans font as a 47 KB gz base64 chunk, and a static import puts it on
+// every player's first load — including miniapp players who can never see
+// this button. It renders only on the signed-out plain-web branch below.
+// The placeholder matches the sealed button's 56px height so nothing shifts.
+const SignInWithBaseButton = nextDynamic(
+  () => import('@base-org/account-ui/react').then((m) => m.SignInWithBaseButton),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-14 w-full rounded-[8px] bg-gray-200 animate-pulse" aria-hidden="true" />
+    ),
+  }
+);
 // Per-icon subpaths, not the '@phosphor-icons/react' barrel. Phosphor is not
 // in Next's default optimizePackageImports list (lucide-react is, and that is
 // now gone), so a barrel import pulls the whole 9,000-icon set into the dev
@@ -2072,8 +2089,12 @@ function GameContent() {
   if (!hasCheckedContext && !isInMiniApp && !isClientDevMode() && !hasSuperguessPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-accent-50 to-white flex items-center justify-center p-6">
+        {/* LHAW-icon-192, not LHAW-icon: the 1024px original is 291 KB and
+            this img is in the pre-hydration HTML, so it competes with the
+            route JS on every cold load. The 1024px file stays for the
+            manifest, which requires that size. */}
         <img
-          src="/LHAW-icon.png"
+          src="/LHAW-icon-192.png"
           alt="Let’s Have A Word"
           className="w-20 h-20 rounded-2xl shadow-lg animate-pulse"
         />
@@ -2121,7 +2142,7 @@ function GameContent() {
           {/* Identity: logo beside the title, not stacked above it. */}
           <div className="flex items-center gap-3.5">
             <img
-              src="/LHAW-icon.png"
+              src="/LHAW-icon-192.png"
               alt="Let’s Have A Word"
               className="w-14 h-14 rounded-btn shadow-lg flex-shrink-0"
             />
