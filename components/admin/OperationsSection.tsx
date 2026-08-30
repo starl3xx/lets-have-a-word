@@ -11,6 +11,7 @@ import FarmMonitor from "./FarmMonitor"
 import SimulationsCard from "./SimulationsCard"
 import RoundRepairCard from "./RoundRepairCard"
 import WordmarkBackfillCard from "./WordmarkBackfillCard"
+import WordmarkDeployCard from "./WordmarkDeployCard"
 import BonusDistributionsCard from "./BonusDistributionsCard"
 import ArchiveMaintenanceCard from "./ArchiveMaintenanceCard"
 import { adminFont as fontFamily } from "./ui"
@@ -2490,6 +2491,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           </div>
           {/* Round 34 launch: one-time wordmark backfill (delete after launch) */}
           {user?.fid && <WordmarkBackfillCard fid={user.fid} />}
+          {user?.fid && <WordmarkDeployCard fid={user.fid} />}
           {/* Manual XP Award Card */}
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>Manual XP Award</h2>
