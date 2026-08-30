@@ -39,7 +39,7 @@ export const config = createConfig({
     injected(),
     baseAccount({
       appName: 'Let’s Have A Word!',
-      appLogoUrl: 'https://www.letshaveaword.fun/LHAW-icon.png',
+      appLogoUrl: 'https://letshaveaword.fun/LHAW-icon.png',
     }),
   ],
   transports: {

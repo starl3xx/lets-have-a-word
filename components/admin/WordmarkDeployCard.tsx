@@ -76,7 +76,7 @@ export default function WordmarkDeployCard({ fid }: { fid: number }) {
   const [chain, setChain] = useState<'base-sepolia' | 'base'>('base-sepolia');
   const [owner, setOwner] = useState('');
   const [attestor, setAttestor] = useState('');
-  const [baseUri, setBaseUri] = useState('https://www.letshaveaword.fun/api/wordmarks/metadata/');
+  const [baseUri, setBaseUri] = useState('https://letshaveaword.fun/api/wordmarks/metadata/');
   const [phrase, setPhrase] = useState('');
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [busy, setBusy] = useState(false);
