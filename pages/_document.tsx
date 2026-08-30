@@ -25,6 +25,19 @@ export default function Document() {
             1024x1024). */}
         <link rel="icon" type="image/png" href="/LHAW-icon-192.png" />
         <link rel="apple-touch-icon" href="/LHAW-icon-192.png" />
+        {/* The five first-screen font weights, preloaded so cold-cache
+            downloads start with the HTML instead of after the CSS parses.
+            The wheel hides at opacity 0 until document.fonts.ready, so late
+            fonts are a late wheel. Exactly these five: 300 (TopTicker's
+            font-light labels) through 700; the italic and display weights
+            load on demand. crossOrigin is required — font preloads are
+            CORS-mode fetches even same-origin, and without it the preload
+            is re-fetched and wasted. */}
+        <link rel="preload" href="/fonts/soehne-leicht.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/soehne-buch.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/soehne-kraftig.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/soehne-halbfett.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/soehne-dreiviertelfett.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         {/* Base App verification */}
         <meta name="base:app_id" content="695205f8c63ad876c90817af" />
         {/* Viewport meta tag for iOS Safari safe area support */}

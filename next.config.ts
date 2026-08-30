@@ -14,6 +14,23 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Everything in public/ ships with Vercel's default max-age=0
+  // must-revalidate, so returning players re-validated every font file on
+  // every visit. Fonts are safe to mark immutable: THE RULE is that a
+  // changed font gets a NEW FILENAME (soehne-buch-v2.woff2), never an
+  // in-place edit — an in-place edit would be invisible to returning
+  // clients for a year. Scoped to /fonts only; images are left on the
+  // default until they get hashed names.
+  async headers() {
+    return [
+      {
+        source: '/fonts/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+    ];
+  },
   // A stray package-lock.json in the home directory otherwise makes
   // Turbopack infer the wrong workspace root
   turbopack: {

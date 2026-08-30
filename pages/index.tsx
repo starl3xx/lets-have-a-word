@@ -8,27 +8,39 @@ import type { UserStateResponse } from './api/user-state';
 import TopTicker from '../components/TopTicker';
 import Wheel from '../components/Wheel';
 import UserState from '../components/UserState';
-import SharePromptModal from '../components/SharePromptModal';
-import InstallPromptModal, { hasSeenInstallPrompt } from '../components/InstallPromptModal';
-import WinnerShareCard from '../components/WinnerShareCard';
+import { hasSeenInstallPrompt } from '../src/lib/install-prompt';
 import LetterBoxes from '../components/LetterBoxes';
 import ResultBanner, { type ResultBannerVariant } from '../components/ResultBanner';
 import FirstTimeOverlay from '../components/FirstTimeOverlay';
 import OnboardingManager from '../components/OnboardingManager';
-import StatsSheet from '../components/StatsSheet';
-import ReferralSheet from '../components/ReferralSheet';
-import FAQSheet from '../components/FAQSheet';
 import GameKeyboard from '../components/GameKeyboard';
 import RoundArchiveModal from '../components/RoundArchiveModal';
-// Milestone 6.3: New components
-import GuessPurchaseModal from '../components/GuessPurchaseModal';
-import WordBonusModal from '../components/WordBonusModal';
 // Bonus Words Feature (hidden until NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED=true)
 const BONUS_WORDS_UI_ENABLED = process.env.NEXT_PUBLIC_BONUS_WORDS_UI_ENABLED === 'true';
-import BonusWordWinModal from '../components/BonusWordWinModal';
+
+// EVERY flag-gated modal and sheet loads via next/dynamic, ssr:false.
+// They render only behind a click or a post-guess state flag, yet their
+// static imports put ~50 KB gz of source in the main chunk that gates
+// sdk.actions.ready() — pure splash-screen time for code nobody may open.
+// The chunk downloads on first open instead (a beat of delay on slow
+// networks, against every player's first load). Deliberately NOT dynamic:
+// RoundArchiveModal and SuperguessPurchaseModal (mounted unguarded with an
+// isOpen prop, so a bare conversion would fetch them right after hydration
+// AND risk their open/close transitions), GamePausedBanner (can be part of
+// the first paint on a paused day), and the always-mounted game chrome.
+const SharePromptModal = nextDynamic(() => import('../components/SharePromptModal'), { ssr: false });
+const InstallPromptModal = nextDynamic(() => import('../components/InstallPromptModal'), { ssr: false });
+const WinnerShareCard = nextDynamic(() => import('../components/WinnerShareCard'), { ssr: false });
+const StatsSheet = nextDynamic(() => import('../components/StatsSheet'), { ssr: false });
+const ReferralSheet = nextDynamic(() => import('../components/ReferralSheet'), { ssr: false });
+const FAQSheet = nextDynamic(() => import('../components/FAQSheet'), { ssr: false });
+// Milestone 6.3: New components
+const GuessPurchaseModal = nextDynamic(() => import('../components/GuessPurchaseModal'), { ssr: false });
+const WordBonusModal = nextDynamic(() => import('../components/WordBonusModal'), { ssr: false });
+const BonusWordWinModal = nextDynamic(() => import('../components/BonusWordWinModal'), { ssr: false });
 // Milestone 14: Burn word celebration + $WORD sheet
-import BurnWordModal from '../components/BurnWordModal';
-import WordSheet from '../components/WordSheet';
+const BurnWordModal = nextDynamic(() => import('../components/BurnWordModal'), { ssr: false });
+const WordSheet = nextDynamic(() => import('../components/WordSheet'), { ssr: false });
 // Milestone 9.5: Game paused banner
 import GamePausedBanner, { parseOperationalError } from '../components/GamePausedBanner';
 // Milestone 15: Superguess components
