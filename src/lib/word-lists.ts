@@ -13,15 +13,14 @@
 
 import { randomInt } from 'crypto';
 import { WORDS } from '../data/guess_words_clean';
+import { isValidGuess } from './word-validation';
 import type { WordLists } from '../types';
 
-/**
- * Pre-compute Set for O(1) lookup instead of O(n) includes()
- * CRITICAL: Using includes() on ~4000 words blocks input rendering!
- *
- * This Set is created once at module load time for optimal performance.
- */
-const WORDS_SET = new Set(WORDS);
+// isValidGuess lives in word-validation.ts (crypto-free, client-safe) and is
+// re-exported here so server-side callers keep their import path. Client code
+// must import it from word-validation directly: importing THIS module pulls
+// the 'crypto' import above, and with it ~100 KB gz of browser polyfill.
+export { isValidGuess };
 
 /**
  * Get all valid words (unified list)
@@ -55,16 +54,6 @@ export function getWordLists(): WordLists {
     answerWords: getAnswerWords(),
     guessWords: getGuessWords(),
   };
-}
-
-/**
- * Check if a word is a valid guess
- * Canonical list is UPPERCASE, so we normalize input to UPPERCASE
- * Uses Set for O(1) lookup instead of O(n) includes()
- */
-export function isValidGuess(word: string): boolean {
-  const normalized = word.toUpperCase().trim();
-  return WORDS_SET.has(normalized);
 }
 
 /**
