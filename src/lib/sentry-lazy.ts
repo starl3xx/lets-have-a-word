@@ -26,19 +26,48 @@ const SENTRY_ENABLED =
 
 let sentryPromise: Promise<SentryModule> | null = null;
 
+/**
+ * Stack-frame URL patterns for extension noise, used twice: as the SDK's
+ * denyUrls AND as the replay filter for buffered errors. The buffer must
+ * screen by the ErrorEvent's own filename because a cross-origin or
+ * extension script often delivers no error object — just a message — and an
+ * event with no stack frames sails straight past denyUrls. The pre-idle
+ * window is exactly when wallet-extension inpage collisions fire, so an
+ * unfiltered replay would reintroduce the noise denyUrls exists to drop.
+ */
+const EXTENSION_DENY_URLS = [
+  // Wallet extension injected scripts (inpage.js, inpage.iife.js, ...)
+  // Sentry rewrites the origin to app:///, so the filename survives.
+  /inpage\./i,
+  // Extension protocols, when the origin does reach us.
+  /^chrome-extension:\/\//i,
+  /^moz-extension:\/\//i,
+  /^safari-(web-)?extension:\/\//i,
+  /extensions\//i,
+];
+
+interface EarlyError {
+  payload: unknown;
+  /** ErrorEvent.filename — the URL of the script that threw, if known. */
+  sourceUrl: string | null;
+}
+
 /** Errors seen before the SDK loaded, replayed after init. Bounded. */
-const earlyErrors: unknown[] = [];
+const earlyErrors: EarlyError[] = [];
 const EARLY_ERROR_LIMIT = 20;
 
 function onEarlyError(event: ErrorEvent): void {
   if (earlyErrors.length < EARLY_ERROR_LIMIT) {
-    earlyErrors.push(event.error ?? event.message);
+    earlyErrors.push({
+      payload: event.error ?? event.message,
+      sourceUrl: event.filename || null,
+    });
   }
 }
 
 function onEarlyRejection(event: PromiseRejectionEvent): void {
   if (earlyErrors.length < EARLY_ERROR_LIMIT) {
-    earlyErrors.push(event.reason);
+    earlyErrors.push({ payload: event.reason, sourceUrl: null });
   }
 }
 
@@ -85,18 +114,10 @@ export function loadSentry(): Promise<SentryModule> {
          * is actually excluded. Every wallet extension injects an `inpage`
          * script into every page; two of them collide over minified globals
          * and throw from inpage.iife.js, attributed to us because
-         * window.onerror catches everything on the page.
+         * window.onerror catches everything on the page. The same list
+         * screens the pre-SDK buffer replay above, where no stack exists.
          */
-        denyUrls: [
-          // Wallet extension injected scripts (inpage.js, inpage.iife.js, ...)
-          // Sentry rewrites the origin to app:///, so the filename survives.
-          /inpage\./i,
-          // Extension protocols, when the origin does reach us.
-          /^chrome-extension:\/\//i,
-          /^moz-extension:\/\//i,
-          /^safari-(web-)?extension:\/\//i,
-          /extensions\//i,
-        ],
+        denyUrls: EXTENSION_DENY_URLS,
 
         beforeSend(event) {
           return event;
@@ -104,9 +125,19 @@ export function loadSentry(): Promise<SentryModule> {
       });
 
       // The SDK's own global handlers are live now; replay what they missed.
+      // Screened by source URL first: an extension error buffered without an
+      // error object has no stack frames for denyUrls to match, so the
+      // ErrorEvent's own filename is the only signal, and skipping here is
+      // what keeps pre-idle inpage noise out. Replays are marked unhandled —
+      // a startup crash is a crash, not a caught exception.
       detachEarlyHandlers();
-      for (const error of earlyErrors.splice(0)) {
-        Sentry.captureException(error, { tags: { caught: 'pre-sentry-buffer' } });
+      for (const entry of earlyErrors.splice(0)) {
+        const src = entry.sourceUrl;
+        if (src && EXTENSION_DENY_URLS.some((re) => re.test(src))) continue;
+        Sentry.captureException(entry.payload, {
+          mechanism: { handled: false, type: 'pre-sentry-buffer' },
+          captureContext: { tags: { caught: 'pre-sentry-buffer' } },
+        });
       }
 
       return Sentry;
