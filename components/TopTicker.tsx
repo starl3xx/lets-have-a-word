@@ -6,6 +6,29 @@ import type { RoundStatus } from '../src/lib/wheel';
 // Total words in the game dictionary (for percentage calculation)
 const TOTAL_WORD_COUNT = 4437;
 
+/**
+ * Round-state prefetch, started at MODULE EVALUATION — before hydration and
+ * before the mini app handshake. /api/round-state needs no auth and no host
+ * context, but this component mounts below the boot-screen early return, so
+ * its first fetch used to wait out the whole handshake (up to ~2s on a slow
+ * host) for public data the ticker could have been requesting the entire
+ * time. The first fetchRoundStatus() consumes this response; every later
+ * poll fetches normally. Single-use: nulled at first read, so a dev
+ * StrictMode double-mount or a remount can never re-read a spent body.
+ *
+ * Age-guarded: on the plain-web wallet path the ticker can mount minutes
+ * after page load (the player lingers on sign-in), and a minutes-old
+ * snapshot of the prize pool is worse than one fresh fetch. Older than one
+ * poll interval means it is discarded unconsumed.
+ */
+const PREFETCH_MAX_AGE_MS = 15_000;
+let prefetchStartedAt = 0;
+let prefetchedRoundState: Promise<Response | null> | null = null;
+if (typeof window !== 'undefined') {
+  prefetchStartedAt = Date.now();
+  prefetchedRoundState = fetch('/api/round-state').catch(() => null);
+}
+
 interface TopTickerProps {
   onRoundClick?: (roundId: number) => void;
   adminFid?: number; // Pass admin FID to enable start round button
@@ -137,7 +160,16 @@ export default function TopTicker({ onRoundClick, adminFid, onRoundStatusChange,
    */
   const fetchRoundStatus = async () => {
     try {
-      const response = await fetch('/api/round-state');
+      // First call: use the response the module-scope prefetch has been
+      // downloading since before the handshake — unless it has aged past a
+      // poll interval. A failed or stale prefetch falls through to a normal
+      // fetch.
+      const prefetch = prefetchedRoundState;
+      prefetchedRoundState = null;
+      const prefetchFresh = Date.now() - prefetchStartedAt < PREFETCH_MAX_AGE_MS;
+      const response =
+        (prefetch && prefetchFresh ? await prefetch : null) ??
+        (await fetch('/api/round-state'));
 
       // Before ANY status branching: this poll runs every 15s for as long as
       // the game is on screen, which makes it the stale-runtime detector — a

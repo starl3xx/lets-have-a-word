@@ -94,6 +94,10 @@ import { triggerHaptic, haptics } from '../src/lib/haptics';
 // selection, and importing it from client code inlines Next's ~100 KB gz
 // crypto polyfill into the route bundle.
 import { isValidGuess } from '../src/lib/word-validation';
+// The full public word list, already in this bundle via word-validation.
+// Used to paint the wheel instantly instead of waiting a round trip for
+// /api/wheel to send back the same words.
+import { WORDS } from '../src/data/guess_words_clean';
 import { getInputState, getErrorMessage, isGuessButtonEnabled, type InputState } from '../src/lib/input-state';
 import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
@@ -315,8 +319,15 @@ function GameContent() {
   }, [fid, walletSignIn.fid]);
 
   // Wheel state (Milestone 2.3, updated Milestone 4.10)
-  const [wheelWords, setWheelWords] = useState<WheelWord[]>([]);
-  const [isLoadingWheel, setIsLoadingWheel] = useState(true);
+  // Initialized from the bundled word list, every word unguessed — the
+  // exact shape /api/wheel serves between rounds, so nothing about the
+  // answer leaks that was not already public. The wheel paints immediately
+  // instead of showing "Loading..." for a full API round trip; the fetch
+  // below replaces this with the authoritative statuses when it lands.
+  // Lazy initializer, so the word objects allocate once, not every render.
+  const [wheelWords, setWheelWords] = useState<WheelWord[]>(() =>
+    WORDS.map((word) => ({ word, status: 'unguessed' as const }))
+  );
   const [wheelStartIndex, setWheelStartIndex] = useState<number | null>(null);
 
   // Milestone 6.7.1: Track wrong guess count to skip unnecessary updates
@@ -799,9 +810,8 @@ function GameContent() {
         }
       } catch (error) {
         console.error('Error fetching wheel words:', error);
-        // Don't clear wheelWords on error - keep existing words if any
-      } finally {
-        setIsLoadingWheel(false);
+        // Don't clear wheelWords on error - the instant all-unguessed wheel
+        // stays up, and the wrong-guess poll fills statuses in over time
       }
     };
 
@@ -2542,18 +2552,12 @@ function GameContent() {
                 contain: 'layout style', // Avoid paint containment to allow backdrop-filter
               }}
             >
-              {isLoadingWheel ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-gray-400 animate-pulse">Loading...</p>
-                </div>
-              ) : (
-                <Wheel
-                  words={wheelWords}
-                  currentGuess={wheelCurrentGuess}
-                  inputState={currentInputState}
-                  startIndex={wheelStartIndex}
-                />
-              )}
+              <Wheel
+                words={wheelWords}
+                currentGuess={wheelCurrentGuess}
+                inputState={currentInputState}
+                startIndex={wheelStartIndex}
+              />
             </div>
 
             {/* Background blocker - prevents words from flashing behind input boxes */}
