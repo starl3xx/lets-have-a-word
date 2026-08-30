@@ -17,6 +17,7 @@ import { getActiveRound } from './rounds';
 import type { DailyGuessStateRow, DailyGuessStateInsert } from '../db/schema';
 import type { SubmitGuessResult, GuessSourceState } from '../types';
 import { hasWordTokenBonus, getWordBonusTier, getWordBonusTierChecked } from './word-token';
+import { isAddress } from 'ethers';
 import { cacheGet, cacheSet, CacheKeys, CacheTTL } from './redis';
 import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
@@ -203,6 +204,53 @@ export async function getWordBonusTierForFid(fid: number): Promise<number> {
 }
 
 /**
+ * The holder tier for a CONNECTED wallet, Redis-cached for 5 minutes.
+ *
+ * /api/user-state calls this on every request that carries a walletAddress,
+ * and before the cache that meant 1-2 uncached Base RPC round trips per poll
+ * inside the hottest endpoint in the app. Same 5-minute staleness contract
+ * as getWordBonusTierForFid above: the tier feeds a daily allocation that
+ * only moves UP within a day, so a stale value delays an upgrade by minutes
+ * and can never take away granted guesses.
+ *
+ * Keyed by WALLET, not by (fid, day) — CacheKeys.wordTier above is computed
+ * from the user's STORED signer wallet, and the connected wallet can be a
+ * different address for the same fid. Sharing the key would let one wallet's
+ * tier answer for the other.
+ *
+ * Returns null when the chain could not be reached, and NEVER caches that
+ * case: the caller falls back to the database value, exactly as it did when
+ * the uncached read failed. Caching an outage zero would deny holders their
+ * bonus for the life of the entry (see getWordBonusTierForFid).
+ */
+export async function getWordBonusTierForConnectedWallet(
+  walletAddress: string | null
+): Promise<number | null> {
+  // A missing or malformed address is a real zero — and it costs no network
+  // call either, so skip the cache round trip entirely.
+  if (!walletAddress || !isAddress(walletAddress)) {
+    return 0;
+  }
+
+  const cacheKey = CacheKeys.wordTierByWallet(walletAddress);
+  try {
+    const cached = await cacheGet<number>(cacheKey);
+    if (typeof cached === 'number') {
+      return cached;
+    }
+  } catch {
+    // Cache unavailable — fall through to the live read.
+  }
+
+  const result = await getWordBonusTierChecked(walletAddress);
+  if (!result.determined) {
+    return null;
+  }
+  await cacheSet(cacheKey, result.tier, CacheTTL.wordTier).catch(() => {});
+  return result.tier;
+}
+
+/**
  * Get or create daily guess state for a user
  * If no state exists for today, creates it with appropriate allocations
  * Milestone 4.14: Now also initializes wheelStartIndex
@@ -381,7 +429,8 @@ export async function getOrCreateDailyState(
 export async function getOrGenerateWheelStartIndex(
   fid: number,
   roundId: number | undefined,
-  totalWords: number
+  totalWords: number,
+  prefetchedState?: DailyGuessStateRow
 ): Promise<number> {
   // Import dev mode check dynamically to avoid circular dependencies
   const { isDevModeEnabled } = await import('./devGameState');
@@ -395,9 +444,13 @@ export async function getOrGenerateWheelStartIndex(
     return randomIndex;
   }
 
-  // PRODUCTION: Stable per-day-per-user logic
+  // PRODUCTION: Stable per-day-per-user logic. A caller that already holds
+  // today's row (user-state fetches it once at the top of its handler) may
+  // pass it in; /api/user-state used to make this function re-read the same
+  // row it had just fetched, milliseconds apart.
   const dateStr = getTodayUTC();
-  const state = await getOrCreateDailyState(fid, dateStr, roundId);
+  const state =
+    prefetchedState ?? (await getOrCreateDailyState(fid, dateStr, roundId));
 
   // Check if we need to regenerate (per-round reset enabled and round changed)
   const needsRegeneration = roundId && state.wheelRoundId && state.wheelRoundId !== roundId;
@@ -723,9 +776,15 @@ export async function submitGuessWithDailyLimits(params: {
  * @param fid - Farcaster ID of the user
  * @returns GuessSourceState with detailed per-source tracking
  */
-export async function getGuessSourceState(fid: number): Promise<GuessSourceState> {
-  const dateStr = getTodayUTC();
-  const state = await getOrCreateDailyState(fid, dateStr);
+export async function getGuessSourceState(
+  fid: number,
+  prefetchedState?: DailyGuessStateRow
+): Promise<GuessSourceState> {
+  // Everything below is pure derivation from one row. A caller that already
+  // holds today's row may pass it in and skip the re-read (and the tier
+  // re-check inside getOrCreateDailyState, which the caller's own fetch
+  // already ran this request).
+  const state = prefetchedState ?? (await getOrCreateDailyState(fid, getTodayUTC()));
 
   // Total allocations for each source
   const freeTotal = state.freeAllocatedBase;

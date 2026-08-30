@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
-import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
+import { getOrCreateDailyState, getFreeGuessesRemaining, getOrGenerateWheelStartIndex, getGuessSourceState, getWordBonusTierForConnectedWallet, resetDevDailyStateForUser, DEV_MODE_FID } from '../../src/lib/daily-limits';
 import type { GuessSourceState } from '../../src/types';
 import { verifyFrameMessage, getUserByFid, type FarcasterContext } from '../../src/lib/farcaster';
 
@@ -37,7 +37,6 @@ function isWalletOwnedByFid(
     (user.verifiedAddresses ?? []).includes(w)
   );
 }
-import { hasWordTokenBonus, getWordBonusTier } from '../../src/lib/word-token';
 import { getGuessWords } from '../../src/lib/word-lists';
 import { db } from '../../src/db';
 import { users } from '../../src/db/schema';
@@ -322,22 +321,63 @@ export default async function handler(
     const paidRemaining = dailyState.paidGuessCredits;
     const totalRemaining = freeRemaining + paidRemaining;
 
-    // OPTIMIZATION: Run independent async operations in parallel
-    // These have no dependencies on each other, so parallelizing saves ~100-200ms
+    // OPTIMIZATION: Run ALL independent async operations in parallel.
+    //
+    // The superguess check and the reward-gate check used to run serially
+    // AFTER this block — and the reward gate is the expensive one: live in
+    // production, its cache-miss path reads the chain (checkPlayEligibility
+    // → getEffectiveBalanceChecked). Appended serially it added its full
+    // latency to every response; inside the Promise.all it overlaps the
+    // other reads. The wheel/source helpers take the already-fetched
+    // dailyState so they stop re-reading the same row (it was read three
+    // times per request), and the tier read is the wallet-keyed CACHED one
+    // — this endpoint paid 1-2 uncached serial RPC calls per poll before.
     const totalGuessWords = getGuessWords().length;
-    const [wordTierResult, wheelStartIndex, sourceState] = await Promise.all([
-      // Milestone 14: $WORD tier check (if wallet provided) — returns 0-3
-      walletAddress
-        ? getWordBonusTier(walletAddress).catch((err) => {
-            console.error('[user-state] $WORD tier check failed:', err);
-            return null; // Fallback to database value
-          })
-        : Promise.resolve(null),
-      // Wheel start index
-      getOrGenerateWheelStartIndex(fid, undefined, totalGuessWords),
-      // Source-level state for unified guess bar
-      getGuessSourceState(fid),
-    ]);
+    const [wordTierResult, wheelStartIndex, sourceState, isSuperguessing, rewardGate] =
+      await Promise.all([
+        // Milestone 14: $WORD tier check (if wallet provided) — returns 0-3,
+        // or null when the chain was unreachable (fall back to the DB value;
+        // an outage is never cached).
+        walletAddress
+          ? getWordBonusTierForConnectedWallet(walletAddress).catch((err) => {
+              console.error('[user-state] $WORD tier check failed:', err);
+              return null; // Fallback to database value
+            })
+          : Promise.resolve(null),
+        // Wheel start index (reuses the row fetched above)
+        getOrGenerateWheelStartIndex(fid, undefined, totalGuessWords, dailyState),
+        // Source-level state for unified guess bar (reuses the row fetched above)
+        getGuessSourceState(fid, dailyState),
+        // Milestone 15: Check if user is currently Superguessing. The two
+        // reads inside are dependent (session needs the round), so they stay
+        // serial to each other but run parallel to everything else.
+        (async (): Promise<boolean> => {
+          if (!isSuperguessFeatureEnabled()) return false;
+          const sgRound = await getActiveRoundForSuperguess();
+          if (!sgRound) return false;
+          const sgSession = await getActiveSuperguess(sgRound.id);
+          return sgSession !== null && sgSession.fid === fid;
+        })(),
+        // Reward gate status for the guess bar (round 34+). Cached read, same
+        // 5-minute posture as the tier; dormant while the flag is off. The
+        // gate itself stays server-authoritative and money points still run
+        // it uncached — this only changes WHEN the read happens, not what it
+        // decides.
+        (async (): Promise<UserStateResponse['rewardGate']> => {
+          const { checkPlayEligibility, isRewardGateEnabled } = await import(
+            '../../src/lib/reward-gate'
+          );
+          if (!isRewardGateEnabled()) {
+            return { enabled: false, locked: false, grandfathered: false };
+          }
+          const gate = await checkPlayEligibility(fid, { useCache: true });
+          return {
+            enabled: true,
+            locked: !gate.eligible,
+            grandfathered: gate.grandfathered,
+          };
+        })(),
+      ]);
 
     // Determine $WORD bonus: use live tier if available, otherwise database value
     const wordBonusTier = wordTierResult !== null
@@ -354,35 +394,6 @@ export default async function handler(
 
     // Milestone 6.3: Check if user has already shared today
     const hasSharedToday = dailyState.freeAllocatedShareBonus > 0;
-
-    // Milestone 15: Check if user is currently Superguessing
-    let isSuperguessing = false;
-    if (isSuperguessFeatureEnabled()) {
-      const sgRound = await getActiveRoundForSuperguess();
-      if (sgRound) {
-        const sgSession = await getActiveSuperguess(sgRound.id);
-        isSuperguessing = sgSession !== null && sgSession.fid === fid;
-      }
-    }
-
-    // Reward gate status for the guess bar (round 34+). Cached read, same
-    // 5-minute posture as the tier; dormant while the flag is off.
-    let rewardGate: UserStateResponse['rewardGate'] = {
-      enabled: false,
-      locked: false,
-      grandfathered: false,
-    };
-    {
-      const { checkPlayEligibility, isRewardGateEnabled } = await import('../../src/lib/reward-gate');
-      if (isRewardGateEnabled()) {
-        const gate = await checkPlayEligibility(fid, { useCache: true });
-        rewardGate = {
-          enabled: true,
-          locked: !gate.eligible,
-          grandfathered: gate.grandfathered,
-        };
-      }
-    }
 
     const response: UserStateResponse = {
       fid,

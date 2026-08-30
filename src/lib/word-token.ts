@@ -114,28 +114,46 @@ export async function getEffectiveBalance(walletAddress: string): Promise<number
   try {
     const provider = getBaseProvider();
     const contract = new ethers.Contract(WORD_TOKEN_ADDRESS, ERC20_ABI, provider);
-    const walletBalance = await contract.balanceOf(walletAddress);
 
-    // Add staked balance from WordManager if deployed
-    let stakedBalance = 0n;
-    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
-    if (wordManagerAddress && wordManagerAddress !== '') {
-      try {
-        const wordManager = new ethers.Contract(
-          wordManagerAddress,
-          ['function stakedBalance(address) view returns (uint256)'],
-          provider
-        );
-        stakedBalance = await wordManager.stakedBalance(walletAddress);
-      } catch {
-        // stakedBalance unavailable — use wallet balance only
-      }
-    }
+    // The two reads are independent, so they run CONCURRENTLY. They used to
+    // run serially, which put two full RPC round trips in front of every
+    // caller — and this sits inside /api/user-state's hot path. Promise.all
+    // rather than start-then-await-later, so a balanceOf rejection is
+    // observed immediately instead of sitting unhandled for the duration of
+    // the staked read; readStakedBalance itself never rejects.
+    const [walletBalance, stakedBalance] = await Promise.all([
+      contract.balanceOf(walletAddress) as Promise<bigint>,
+      readStakedBalance(provider, walletAddress),
+    ]);
 
     return parseFloat(ethers.formatUnits(walletBalance + stakedBalance, 18));
   } catch (error) {
     console.error(`[$WORD] Error getting effective balance for ${walletAddress}:`, error);
     return 0;
+  }
+}
+
+/**
+ * The staked $WORD balance, or 0n when WordManager is not deployed or cannot
+ * be reached. Staking is additive: an unreachable WordManager lowers the
+ * reading, it does not invalidate it — so this NEVER throws.
+ */
+async function readStakedBalance(
+  provider: ethers.Provider,
+  walletAddress: string
+): Promise<bigint> {
+  const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
+  if (!wordManagerAddress || wordManagerAddress === '') return 0n;
+  try {
+    const wordManager = new ethers.Contract(
+      wordManagerAddress,
+      ['function stakedBalance(address) view returns (uint256)'],
+      provider
+    );
+    return await wordManager.stakedBalance(walletAddress);
+  } catch {
+    // stakedBalance unavailable — use wallet balance only
+    return 0n;
   }
 }
 
@@ -172,6 +190,14 @@ export async function getEffectiveBalanceChecked(
           setTimeout(() => reject(new Error(`balance read timed out after ${ms}ms`)), ms)
         ),
       ]);
+    // Started BEFORE the wallet read so the two round trips overlap — they
+    // used to run serially, doubling the RPC time on the reward-gate path.
+    // readStakedBalance never rejects (staking is additive: an unreachable
+    // WordManager lowers the reading, it does not invalidate it — still a
+    // determined answer), so the promise is safe to leave in flight through
+    // the retry dance below.
+    const stakedBalancePromise = readStakedBalance(provider, walletAddress);
+
     let walletBalance: bigint;
     try {
       walletBalance = await raceTimeout(contract.balanceOf(walletAddress), 3_500);
@@ -180,22 +206,7 @@ export async function getEffectiveBalanceChecked(
       walletBalance = await raceTimeout(contract.balanceOf(walletAddress), 3_500);
     }
 
-    // Staking is additive: if WordManager is unreachable the wallet balance is
-    // still a real reading, just a lower one. That is a determined answer.
-    let stakedBalance = 0n;
-    const wordManagerAddress = process.env.WORD_MANAGER_ADDRESS?.trim();
-    if (wordManagerAddress && wordManagerAddress !== '') {
-      try {
-        const wordManager = new ethers.Contract(
-          wordManagerAddress,
-          ['function stakedBalance(address) view returns (uint256)'],
-          provider
-        );
-        stakedBalance = await wordManager.stakedBalance(walletAddress);
-      } catch {
-        // stakedBalance unavailable — use wallet balance only
-      }
-    }
+    const stakedBalance = await stakedBalancePromise;
 
     return {
       balance: parseFloat(ethers.formatUnits(walletBalance + stakedBalance, 18)),
