@@ -2,20 +2,20 @@
   "frame": {
     "name": "Let’s Have A Word!",
     "version": "1",
-    "iconUrl": "https://letshaveaword.fun/LHAW-icon.png",
+    "iconUrl": "https://www.letshaveaword.fun/LHAW-icon.png",
     "homeUrl": "https://letshaveaword.fun",
-    "imageUrl": "https://letshaveaword.fun/screenshot4.png",
+    "imageUrl": "https://www.letshaveaword.fun/screenshot4.png",
     "buttonTitle": "Play now",
-    "splashImageUrl": "https://letshaveaword.fun/LHAW-splash.png",
+    "splashImageUrl": "https://www.letshaveaword.fun/LHAW-splash.png",
     "splashBackgroundColor": "#8c81a8",
     "webhookUrl": "https://api.neynar.com/f/app/64ddc4ee-b993-4a64-bc76-b96af4a1ec32/event",
     "subtitle": "Global word game. Real prizes",
     "description": "Massively multiplayer word hunt! Wrong guesses are eliminated for the whole board and the first one to find the secret word wins the WORD token jackpot",
     "primaryCategory": "games",
     "screenshotUrls": [
-      "https://letshaveaword.fun/screenshot3.png"
+      "https://www.letshaveaword.fun/screenshot3.png"
     ],
-    "heroImageUrl": "https://letshaveaword.fun/LHAW-hero3.png",
+    "heroImageUrl": "https://www.letshaveaword.fun/LHAW-hero3.png",
     "tags": [
       "game",
       "wordgame",
@@ -26,7 +26,7 @@
     "tagline": "Find the word, win the pot",
     "ogTitle": "Let’s Have A Word!",
     "ogDescription": "A global word hunt where everyone eliminates wrong answers until one player hits the jackpot",
-    "ogImageUrl": "https://letshaveaword.fun/LHAW-hero3.png"
+    "ogImageUrl": "https://www.letshaveaword.fun/LHAW-hero3.png"
   },
   "baseBuilder": {
     "ownerAddress": "0x0Fc0F78fc939606db65F5BBF2F3715262C0b2F6E"
