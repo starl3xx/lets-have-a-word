@@ -323,8 +323,11 @@ function GameContent() {
   const lastWrongGuessCountRef = useRef<number>(0);
   const WRONG_GUESS_POLL_INTERVAL_MS = 60000; // 60 seconds
 
-  // User state refetch trigger (Milestone 4.1)
-  const [userStateKey, setUserStateKey] = useState(0);
+  // The full /api/user-state response, owned HERE and passed to UserState as
+  // a prop. There used to be a second, independent fetch inside UserState.tsx
+  // (see refreshUserState below for why that was a referral bug, not just
+  // waste); the remount-key trigger it needed is gone with it.
+  const [userStateData, setUserStateData] = useState<UserStateResponse | null>(null);
 
   // User guess count state (Milestone 4.6)
   const [hasGuessesLeft, setHasGuessesLeft] = useState(true);
@@ -861,74 +864,112 @@ function GameContent() {
   // Track whether this is the first user state fetch (for dev mode reset)
   const isFirstUserStateFetchRef = useRef(true);
 
+  // Monotonic sequences for user-state fetches. Responses can land out of
+  // order (a slow no-wallet fetch racing the with-wallet refetch), and a
+  // stale response applying last used to flip isWordTokenHolder back to
+  // false until the next guess. Two counters, not one: comparing against the
+  // latest ISSUED seq would discard an older success whenever the newest
+  // call failed — on cold load the mount fetch and the wallet-connect
+  // refetch overlap as the norm, and dropping the only good response left
+  // the bar on its empty fallback until the next user action. So a response
+  // applies iff nothing FRESHER has already applied.
+  const userStateReqSeqRef = useRef(0);
+  const userStateAppliedSeqRef = useRef(0);
+
   /**
-   * Fetch user state to check if user has guesses left (Milestone 4.6)
-   * Milestone 6.3: Also check share bonus eligibility, $WORD holder status, and pack purchase status
-   * Milestone 6.4.7: Apply dev persona overrides for QA testing
-   * Uses effectiveFid (real FID or dev fallback) for consistent FID handling
+   * THE one user-state fetch (Milestone 4.6 / 6.3; consolidated 2026-08-30).
+   *
+   * This used to be two independent callers — this effect and a second fetch
+   * inside UserState.tsx — firing up to 4 requests per cold load and 3 per
+   * incorrect guess. Worse than the waste: /api/user-state CREATES the user
+   * row on first sight, and only this caller sends the `ref` param, so when
+   * the ref-less duplicate won the creation race the row was born without
+   * referrerFid. The Farcaster guess path can backfill it later, so the 5%
+   * attribution was permanently lost whenever no ref-carrying guess followed
+   * (a referred visitor who never guessed counted for nobody). One caller,
+   * one request, always the superset params (ref + initialLoad + wallet).
+   *
+   * Returns the parsed response so the post-guess path can await THIS promise
+   * for its modal decision instead of fetching again; null on any failure.
    */
-  useEffect(() => {
-    const fetchUserGuessCount = async () => {
-      if (!effectiveFid) return;
+  const refreshUserState = useCallback(async (): Promise<UserStateResponse | null> => {
+    if (!effectiveFid) return null;
 
-      try {
-        // Only pass initialLoad=true on first fetch to trigger dev mode reset
-        const isInitialLoad = isFirstUserStateFetchRef.current;
-        isFirstUserStateFetchRef.current = false;
+    const seq = ++userStateReqSeqRef.current;
+    try {
+      // Only pass initialLoad=true on first fetch to trigger dev mode reset
+      const isInitialLoad = isFirstUserStateFetchRef.current;
+      isFirstUserStateFetchRef.current = false;
 
-        // Build URL with FID and wallet address for $WORD bonus check
-        const params = new URLSearchParams();
-        params.append('devFid', effectiveFid.toString());
-        if (isInitialLoad) params.append('initialLoad', 'true');
-        if (connectedWalletAddress) params.append('walletAddress', connectedWalletAddress);
+      // Build URL with FID and wallet address for $WORD bonus check
+      const params = new URLSearchParams();
+      params.append('devFid', effectiveFid.toString());
+      if (isInitialLoad) params.append('initialLoad', 'true');
+      if (connectedWalletAddress) params.append('walletAddress', connectedWalletAddress);
 
-        // Include referral parameter so user record is created with referrer
-        const storedRef = sessionStorage.getItem('referrerFid');
-        if (storedRef) {
-          const refFid = parseInt(storedRef, 10);
-          if (!isNaN(refFid) && refFid > 0) {
-            params.append('ref', refFid.toString());
-            console.log(`[Referral] Passing ref=${refFid} to user-state API`);
-          }
+      // Include referral parameter so user record is created with referrer
+      const storedRef = sessionStorage.getItem('referrerFid');
+      if (storedRef) {
+        const refFid = parseInt(storedRef, 10);
+        if (!isNaN(refFid) && refFid > 0) {
+          params.append('ref', refFid.toString());
+          console.log(`[Referral] Passing ref=${refFid} to user-state API`);
         }
+      }
 
-        const url = `/api/user-state?${params.toString()}`;
+      // fetchWithRetry, not bare fetch: the guess bar has no other data
+      // source, so one transient mobile network error at load must not
+      // strand it on the fallback until the next user action.
+      const response = await fetchWithRetry(`/api/user-state?${params.toString()}`, {}, 10000);
+      if (!response.ok) return null;
 
-        const response = await fetch(url);
-        if (response.ok) {
-          const data: UserStateResponse = await response.json();
+      const data: UserStateResponse = await response.json();
 
-          setHasGuessesLeft(data.totalGuessesRemaining > 0);
-          // Milestone 6.3: Check if user can still claim share bonus
-          setCanClaimShareBonus(!data.hasSharedToday);
-          // Milestone 6.3: Check if user is $WORD holder
-          setIsWordTokenHolder(data.isWordTokenHolder || false);
-          // Milestone 6.3: Track pack purchases for modal decision logic
-          setPaidPacksPurchased(data.paidPacksPurchased || 0);
-          setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
-          // Milestone 15: Bootstrap Superguess state on page load/refresh
-          if (data.isSuperguessing) {
-            setIsSuperguessing(true);
-            setSuperguessActive(false);
-          }
-          // Milestone 4.14 + dev mode: Set wheel start index ONLY on initial load
-          // In dev mode, preserve the session's random position across refetches
-          // (wheel should return to same position after guess, not get a new random)
-          setWheelStartIndex(prev => {
-            if (prev !== null) return prev; // Already set, keep session position
-            return data.wheelStartIndex ?? prev;
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching user guess count:', error);
-        // Default to true to avoid blocking the user
+      // A fresher response has already applied: hand the data to the
+      // awaiting caller, but do not overwrite the newer state.
+      if (seq <= userStateAppliedSeqRef.current) return data;
+      userStateAppliedSeqRef.current = seq;
+
+      setUserStateData(data);
+      setHasGuessesLeft(data.totalGuessesRemaining > 0);
+      // Milestone 6.3: Check if user can still claim share bonus
+      setCanClaimShareBonus(!data.hasSharedToday);
+      // Milestone 6.3: Check if user is $WORD holder
+      setIsWordTokenHolder(data.isWordTokenHolder || false);
+      // Milestone 6.3: Track pack purchases for modal decision logic
+      setPaidPacksPurchased(data.paidPacksPurchased || 0);
+      setMaxPaidPacksPerDay(data.maxPaidPacksPerDay || 3);
+      // Milestone 15: Bootstrap Superguess state on page load/refresh
+      if (data.isSuperguessing) {
+        setIsSuperguessing(true);
+        setSuperguessActive(false);
+      }
+      // Milestone 4.14 + dev mode: Set wheel start index ONLY on initial load
+      // In dev mode, preserve the session's random position across refetches
+      // (wheel should return to same position after guess, not get a new random)
+      setWheelStartIndex(prev => {
+        if (prev !== null) return prev; // Already set, keep session position
+        return data.wheelStartIndex ?? prev;
+      });
+      return data;
+    } catch (error) {
+      console.error('Error fetching user guess count:', error);
+      // Default to true to avoid blocking the user — but only when this is
+      // the newest call AND no fresher response has applied real data.
+      if (
+        seq === userStateReqSeqRef.current &&
+        seq > userStateAppliedSeqRef.current
+      ) {
         setHasGuessesLeft(true);
         setCanClaimShareBonus(true);
       }
-    };
+      return null;
+    }
+  }, [effectiveFid, connectedWalletAddress]);
 
-    fetchUserGuessCount();
-  }, [effectiveFid, userStateKey, connectedWalletAddress]); // Re-fetch when FID, state key, or wallet changes
+  useEffect(() => {
+    void refreshUserState();
+  }, [refreshUserState]); // Re-fetch when FID or wallet changes (its deps)
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
@@ -1550,9 +1591,11 @@ function GameContent() {
         }
       }
 
-      // Refetch user state after any guess (Milestone 4.1)
-      // This updates the guess counts in real-time
-      setUserStateKey(prev => prev + 1);
+      // Refetch user state after any guess (Milestone 4.1). ONE request: the
+      // guess bar updates the moment it lands, and the incorrect-guess path
+      // below awaits this same promise for its modal decision instead of
+      // fetching /api/user-state a second time.
+      const postGuessUserState = refreshUserState();
 
       // Milestone 6.3: Use modal decision logic for incorrect guesses
       // Winners get the WinnerShareCard instead
@@ -1561,21 +1604,9 @@ function GameContent() {
 
         // Delay showing the modal so user can see the guess result message
         setTimeout(async () => {
-          // Refetch user state to get updated guesses remaining
           try {
-            const stateParams = new URLSearchParams({ devFid: effectiveFid.toString() });
-            if (connectedWalletAddress) stateParams.append('walletAddress', connectedWalletAddress);
-            // Include referral for consistency (user should exist by now, but belt-and-suspenders)
-            const storedRefForState = sessionStorage.getItem('referrerFid');
-            if (storedRefForState) {
-              const refFidForState = parseInt(storedRefForState, 10);
-              if (!isNaN(refFidForState) && refFidForState > 0) {
-                stateParams.append('ref', refFidForState.toString());
-              }
-            }
-            const stateResponse = await fetch(`/api/user-state?${stateParams.toString()}`);
-            if (stateResponse.ok) {
-              const stateData: UserStateResponse = await stateResponse.json();
+            const stateData = await postGuessUserState;
+            if (stateData) {
               const guessesRemaining = stateData.totalGuessesRemaining;
 
               // Milestone 6.7.1: Start timer for faded transition if user has guesses remaining
@@ -1874,7 +1905,7 @@ function GameContent() {
    * Refetch user state to show updated share bonus
    */
   const handleShareSuccess = () => {
-    setUserStateKey(prev => prev + 1);
+    void refreshUserState();
     setCanClaimShareBonus(false);
   };
 
@@ -1892,7 +1923,7 @@ function GameContent() {
    */
   const handleInstallSuccess = () => {
     setHasMiniAppInstalled(true);
-    setUserStateKey(prev => prev + 1);
+    void refreshUserState();
   };
 
   /**
@@ -1901,7 +1932,7 @@ function GameContent() {
   const handlePackPurchaseSuccess = (packCount: number) => {
     console.log(`[GameContent] Pack purchase success: ${packCount} packs`);
     // Refetch user state to update guess counts
-    setUserStateKey(prev => prev + 1);
+    void refreshUserState();
     void haptics.packPurchased();
 
     // Close share modal if open (user chose to buy packs instead of sharing)
@@ -2394,8 +2425,7 @@ function GameContent() {
               </div>
             ) : (
               <UserState
-                key={userStateKey}
-                fid={effectiveFid}
+                userState={userStateData}
                 onGetMore={() => setShowGuessPurchaseModal(true)}
                 onWordHintTap={() => setShowWordModal(true)}
               />
@@ -2889,7 +2919,7 @@ function GameContent() {
         onPurchaseComplete={() => {
           setIsSuperguessing(true);
           setSuperguessActive(false);
-          setUserStateKey(prev => prev + 1); // Refresh user state
+          void refreshUserState();
         }}
         fid={effectiveFid}
         devFid={isClientDevMode() ? effectiveFid ?? undefined : undefined}
