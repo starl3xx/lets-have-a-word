@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { db } from '../../../src/db';
-import { guesses, rounds } from '../../../src/db/schema';
-import { eq, and, desc, isNull } from 'drizzle-orm';
 import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../../src/lib/devGameState';
 import { getGuessWords } from '../../../src/lib/word-lists';
 import { getWrongWordsForRound } from '../../../src/lib/guesses';
+import { getActiveRoundId } from '../../../src/lib/rounds';
+import { checkRateLimit, RateLimiters } from '../../../src/lib/redis';
 
 /**
  * Wrong Guesses Response
@@ -40,23 +39,38 @@ export default async function handler(
   }
 
   try {
+    // Same rate limiter as /api/wheel — this endpoint is polled by every
+    // open client and previously had no limit at all.
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const rateCheck = await checkRateLimit(RateLimiters.general, `wrong-guesses:${clientIp}`);
+    if (!rateCheck.success) {
+      res.setHeader('X-RateLimit-Limit', rateCheck.limit?.toString() || '60');
+      res.setHeader('X-RateLimit-Remaining', '0');
+      res.setHeader('X-RateLimit-Reset', rateCheck.reset?.toString() || '');
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
     // Both dev mode and production use real database queries
     // Dev mode needs real wrong guesses to stay in sync with actual submissions
 
-    // Get active round (newest unresolved round)
-    const [activeRound] = await db
-      .select({ id: rounds.id })
-      .from(rounds)
-      .where(isNull(rounds.resolvedAt))
-      .orderBy(desc(rounds.startedAt))
-      .limit(1);
+    // getActiveRoundId — the CANONICAL active-round definition, Redis-cached.
+    // This endpoint used to run its own select filtered on resolvedAt alone,
+    // which drifted from the canonical filter (no winner lock, no status, no
+    // dev-test exclusion): during a winner-locked or cancelled round it kept
+    // serving wrong guesses for a round /api/wheel no longer considered
+    // active, so the two public endpoints disagreed. Divergence between
+    // exactly these two responses has produced an answer disclosure before
+    // (see the comment below); one definition, one source.
+    const activeRoundId = await getActiveRoundId();
 
     const devMode = isDevModeEnabled();
     if (devMode) {
       console.log('🎮 Dev mode: Fetching real wrong guesses from DB + seeded wrong words');
     }
 
-    if (!activeRound) {
+    if (activeRoundId === null) {
       // In dev mode with no active round, still return seeded wrong words
       if (devMode) {
         const solution = getDevFixedSolution().toUpperCase();
@@ -70,6 +84,7 @@ export default async function handler(
           wrongGuesses: seededArray,
         });
       }
+      res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=5');
       return res.status(200).json({
         roundId: 0,
         count: 0,
@@ -94,7 +109,7 @@ export default async function handler(
     // Three call sites honoured that and this one did not, which is the
     // argument for calling the shared function instead of repeating its WHERE
     // clause a fourth time.
-    const realWrongGuesses = (await getWrongWordsForRound(activeRound.id)).map((word) =>
+    const realWrongGuesses = (await getWrongWordsForRound(activeRoundId)).map((word) =>
       word.toUpperCase()
     );
 
@@ -112,14 +127,20 @@ export default async function handler(
       console.log(`🎮 Dev mode: Merged ${realWrongGuesses.length} real + ${seededWrongWords.size} seeded = ${mergedArray.length} total wrong guesses`);
 
       return res.status(200).json({
-        roundId: activeRound.id,
+        roundId: activeRoundId,
         count: mergedArray.length,
         wrongGuesses: mergedArray,
       });
     }
 
+    // Global, answer-free public data (ineligible winners are already folded
+    // into the wrong list by getWrongWordsForRound), polled by every open
+    // client — the same edge-cache posture as /api/wheel. A shared CDN copy
+    // can leak nothing per-user.
+    res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=5');
+
     return res.status(200).json({
-      roundId: activeRound.id,
+      roundId: activeRoundId,
       count: realWrongGuesses.length,
       wrongGuesses: realWrongGuesses,
     });

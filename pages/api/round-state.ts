@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
-import { getActiveRoundStatus } from '../../src/lib/wheel';
+import { getRoundStatus } from '../../src/lib/wheel';
 import type { RoundStatus } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevRoundStatus } from '../../src/lib/devGameState';
@@ -13,11 +13,12 @@ import {
   checkRateLimit,
   RateLimiters,
 } from '../../src/lib/redis';
-import { getActiveRound } from '../../src/lib/rounds';
+import { getActiveRoundId } from '../../src/lib/rounds';
 import {
   isSuperguessFeatureEnabled,
   isSuperguessActive,
   hasUsedSuperguessThisRound,
+  hasUsedSuperguessThisRoundCached,
   SUPERGUESS_MIN_GUESS_COUNT,
 } from '../../src/lib/superguess';
 
@@ -120,10 +121,12 @@ export default async function handler(
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 
-    // Milestone 9.0: Get active round ID first for cache key
-    // We need to know the round ID to cache by round
-    const activeRound = await getActiveRound();
-    if (!activeRound) {
+    // Milestone 9.0: Get active round ID first for cache key.
+    // getActiveRoundId, not getActiveRound: this endpoint only needs the id,
+    // and the id-only read is Redis-cached (5s) — every poll was paying a
+    // Postgres query here even when the round-state cache below was hot.
+    const activeRoundId = await getActiveRoundId();
+    if (activeRoundId === null) {
       // No active round - return 204 No Content
       // TopTicker will show "Round #1 starting soon" splash
       return res.status(204).end();
@@ -132,11 +135,19 @@ export default async function handler(
     // Use cache-aside pattern for round state
     // Cache is keyed by roundId, so round transitions automatically get fresh data
     const roundStatus = await cacheAside<RoundStatus>(
-      CacheKeys.roundState(activeRound.id),
+      CacheKeys.roundState(activeRoundId),
       CacheTTL.roundState,
       async () => {
-        console.log(`[round-state] Cache miss, fetching from DB for round ${activeRound.id}`);
-        return getActiveRoundStatus();
+        console.log(`[round-state] Cache miss, fetching from DB for round ${activeRoundId}`);
+        // getRoundStatus(id), NEVER getActiveRoundStatus(): that wrapper
+        // calls ensureActiveRound(), which CREATES a round when none is
+        // active. Under a cached id, a poll landing in the few seconds
+        // between a win locking the round and the transition invalidation
+        // would otherwise mint a brand-new round — new answer, onchain
+        // commit, announcement — from an anonymous request, bypassing the
+        // auto-start cooldown. The id we hold is the round this request is
+        // about; use it and nothing else.
+        return getRoundStatus(activeRoundId);
       }
     );
 
@@ -144,10 +155,12 @@ export default async function handler(
     // Spread to avoid mutating the cached object
     const response = { ...roundStatus };
     if (isSuperguessFeatureEnabled()) {
-      const sgActive = await isSuperguessActive(activeRound.id);
+      const sgActive = await isSuperguessActive(activeRoundId);
       response.superguessActive = sgActive;
       if (!sgActive) {
-        const alreadyUsed = await hasUsedSuperguessThisRound(activeRound.id);
+        // The cached DISPLAY variant — the purchase endpoint keeps its own
+        // uncached checks (money points read uncached, always).
+        const alreadyUsed = await hasUsedSuperguessThisRoundCached(activeRoundId);
         response.superguessEligible =
           response.globalGuessCount >= SUPERGUESS_MIN_GUESS_COUNT && !alreadyUsed;
       } else {

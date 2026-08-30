@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import * as Sentry from '@sentry/nextjs';
-import { getActiveWheelData } from '../../src/lib/wheel';
+// getActiveWheelData (which auto-creates a round when none exists) is for
+// the DEV-MODE branch only; the production path below must never touch it.
+import { getWheelWordsForRound, getActiveWheelData } from '../../src/lib/wheel';
 import { ensureDevMidRound } from '../../src/lib/devMidRound';
 import { isDevModeEnabled, getDevFixedSolution, getDevModeSeededWrongWords } from '../../src/lib/devGameState';
 import { getGuessWords } from '../../src/lib/word-lists';
@@ -12,7 +14,7 @@ import {
   checkRateLimit,
   RateLimiters,
 } from '../../src/lib/redis';
-import { getActiveRound } from '../../src/lib/rounds';
+import { getActiveRoundId } from '../../src/lib/rounds';
 
 /**
  * GET /api/wheel
@@ -171,9 +173,12 @@ export default async function handler(
     // Milestone 4.5: Ensure dev mid-round test mode is initialized (dev only, no-op in prod)
     await ensureDevMidRound();
 
-    // Milestone 9.0: Get active round ID for cache key
-    const activeRound = await getActiveRound();
-    if (!activeRound) {
+    // Milestone 9.0: Get active round ID for cache key.
+    // getActiveRoundId, not getActiveRound: only the id is needed, the
+    // id-only read is Redis-cached (5s), and this endpoint runs on every
+    // mount — it was paying a Postgres query even on full cache hits.
+    const activeRoundId = await getActiveRoundId();
+    if (activeRoundId === null) {
       // No active round - return all words as "unguessed"
       // This allows the wheel to display even between rounds
       const allGuessWords = getGuessWords();
@@ -182,6 +187,16 @@ export default async function handler(
         status: 'unguessed' as WheelWordStatus,
       }));
       wheelWords.sort((a, b) => a.word.localeCompare(b.word));
+
+      // Identical global public data for every visitor (every word
+      // unguessed, no per-user fields), yet this branch served ~16 KB gz
+      // uncached from origin on every between-rounds load. s-maxage is the
+      // ONLY bound on how long a CDN edge can keep serving the
+      // between-rounds wheel after a round starts (createRound invalidates
+      // the id cache at origin, but not edge copies already handed out),
+      // so it stays short; the client's wrong-guess poll self-corrects
+      // within a minute regardless.
+      res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
 
       return res.status(200).json({
         roundId: 0, // Indicate no active round
@@ -193,11 +208,22 @@ export default async function handler(
     // Use cache-aside pattern for wheel data
     // Cache is keyed by roundId, invalidated on every guess
     const wheelData = await cacheAside<WheelResponse>(
-      CacheKeys.wheel(activeRound.id),
+      CacheKeys.wheel(activeRoundId),
       CacheTTL.wheel,
       async () => {
-        console.log(`[wheel] Cache miss, fetching from DB for round ${activeRound.id}`);
-        return getActiveWheelData();
+        console.log(`[wheel] Cache miss, fetching from DB for round ${activeRoundId}`);
+        // getWheelWordsForRound(id), NEVER getActiveWheelData(): that
+        // wrapper calls ensureActiveRound(), which CREATES a round when
+        // none is active. Under a cached id, a poll landing between a win
+        // locking the round and the transition invalidation would
+        // otherwise mint a new round from an anonymous request. The id we
+        // hold is the round this request is about; use it and nothing else.
+        const words = await getWheelWordsForRound(activeRoundId);
+        return {
+          roundId: activeRoundId,
+          totalWords: words.length,
+          words,
+        };
       }
     );
 
