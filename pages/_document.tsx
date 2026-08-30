@@ -3,14 +3,14 @@ import { Html, Head, Main, NextScript } from 'next/document';
 // Farcaster Mini App embed metadata (must be stringified JSON)
 const fcFrameEmbed = JSON.stringify({
   version: "1",
-  imageUrl: "https://letshaveaword.fun/LHAW-hero3.png",
+  imageUrl: "https://www.letshaveaword.fun/LHAW-hero3.png",
   button: {
     title: "Play now",
     action: {
       type: "launch_frame",
       name: "Let's Have A Word!",
       url: "https://letshaveaword.fun",
-      splashImageUrl: "https://letshaveaword.fun/LHAW-splash.png",
+      splashImageUrl: "https://www.letshaveaword.fun/LHAW-splash.png",
       splashBackgroundColor: "#8c81a8"
     }
   }
@@ -36,7 +36,7 @@ export default function Document() {
             and it outlives any one era of the prize pool. splash.tsx already said
             "the jackpot" — this was the copy that still said ETH. */}
         <meta property="og:description" content="A global word hunt where everyone eliminates wrong answers until one player hits the jackpot" />
-        <meta property="og:image" content="https://letshaveaword.fun/LHAW-hero3.png" />
+        <meta property="og:image" content="https://www.letshaveaword.fun/LHAW-hero3.png" />
         <meta property="og:url" content="https://letshaveaword.fun" />
         <meta property="og:type" content="website" />
         {/* Farcaster Mini App embed for rich sharing */}
