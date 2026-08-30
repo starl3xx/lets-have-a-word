@@ -33,7 +33,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   const def = WORDMARK_DEFINITIONS[type];
-  const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://www.letshaveaword.fun';
+  const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://letshaveaword.fun';
 
   // Immutable by construction: an id's meaning never changes, so this can be
   // cached hard. Wallets and indexers fetch it often and rarely re-check.

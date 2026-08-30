@@ -780,7 +780,7 @@ export default function RoundDetailPage() {
               <button
                 onClick={async () => {
                   if (inMiniApp || (!resolved && (await sdk.isInMiniApp()))) {
-                    sdk.actions.openUrl(`https://www.letshaveaword.fun/verify?round=${round.roundNumber}`);
+                    sdk.actions.openUrl(`https://letshaveaword.fun/verify?round=${round.roundNumber}`);
                   } else {
                     router.push(`/verify?round=${round.roundNumber}`);
                   }
