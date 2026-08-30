@@ -136,6 +136,15 @@ export const CacheKeys = {
   wordTier: (fid: number, dateKey: string) => `${CACHE_PREFIX}word-tier:${fid}:${dateKey}`,
 
   /**
+   * The $WORD tier of a CONNECTED wallet — a different key from wordTier
+   * above on purpose. That one is fid-keyed and computed from the user's
+   * STORED signer wallet; this one answers for whatever wallet the client
+   * currently has connected, which for the same fid can be a different
+   * address. Sharing a key would let one wallet's tier answer for the other.
+   */
+  wordTierByWallet: (wallet: string) => `${CACHE_PREFIX}word-tier-w:${wallet.toLowerCase()}`,
+
+  /**
    * Reward-gate play eligibility. Keyed by day like the tier: the cached copy
    * serves the guess path; every money point re-checks uncached.
    */
