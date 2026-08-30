@@ -8,7 +8,7 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
-import { getRedisClient, CACHE_PREFIX } from './redis';
+import { getRedisClient, CACHE_PREFIX, cacheDel, CacheKeys } from './redis';
 import { db } from '../db';
 import { rounds, operationalEvents, type OperationalEventType } from '../db/schema';
 import { eq, isNull, desc } from 'drizzle-orm';
@@ -297,6 +297,11 @@ export async function enableKillSwitch(params: {
         cancelledBy: params.adminFid,
       })
       .where(eq(rounds.id, activeRoundId));
+
+    // The cancel just changed which round is "active"; drop the cached id
+    // so the public endpoints stop serving the cancelled round within a
+    // request instead of a TTL.
+    await cacheDel(CacheKeys.activeRoundId()).catch(() => {});
 
     // Log operational event
     await logOperationalEvent({

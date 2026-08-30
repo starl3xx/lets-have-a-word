@@ -72,7 +72,17 @@ const SuperguessCacheKeys = {
   state: (roundId: number) => `${CACHE_PREFIX}superguess:state:${roundId}`,
   /** Guess log (Redis list, appended on each guess) */
   guessLog: (roundId: number) => `${CACHE_PREFIX}superguess:guesslog:${roundId}`,
+  /**
+   * The GLOBAL "has anyone used Superguess this round" boolean. Deliberately
+   * no fid in the key: the per-fid variant of hasUsedSuperguessThisRound
+   * answers a different question and must never share an entry with the
+   * global one.
+   */
+  used: (roundId: number) => `${CACHE_PREFIX}superguess:used:${roundId}`,
 };
+
+/** TTL for the global used-this-round boolean (seconds). */
+const SUPERGUESS_USED_TTL = 10;
 
 // ============================================================
 // Core State Functions
@@ -196,8 +206,11 @@ export async function startSuperguessSession(params: {
   await cacheSet(SuperguessCacheKeys.active(params.roundId), session, ttlSeconds);
 
 
-  // Invalidate state cache
+  // Invalidate state cache, and the global used-this-round boolean it just
+  // flipped — spectator polling is 3s, so waiting out a TTL here would show
+  // a buyable Superguess that no longer exists.
   await cacheDel(SuperguessCacheKeys.state(params.roundId));
+  await cacheDel(SuperguessCacheKeys.used(params.roundId)).catch(() => {});
 
   console.log(
     `🔴 [Superguess] Session started: FID ${params.fid}, round ${params.roundId}, tier ${params.tier}, expires ${expiresAt.toISOString()}`
@@ -351,11 +364,16 @@ export async function completeSuperguessSession(
 
   // Clear active/state caches — play resumes immediately
   // Keep guess log for 30s so spectators can poll the final guess before it's gone
+  // An admin CANCEL also flips the global used-this-round boolean back to
+  // false (cancels don't count), so its cache entry must go with it.
   await Promise.all([
     cacheDel(SuperguessCacheKeys.active(completed.roundId)),
     cacheDel(SuperguessCacheKeys.state(completed.roundId)),
     ...(status === 'cancelled'
-      ? [cacheDel(SuperguessCacheKeys.guessLog(completed.roundId))]
+      ? [
+          cacheDel(SuperguessCacheKeys.guessLog(completed.roundId)),
+          cacheDel(SuperguessCacheKeys.used(completed.roundId)),
+        ]
       : redis ? [redis.expire(SuperguessCacheKeys.guessLog(completed.roundId), 30)] : []),
   ]);
 
@@ -403,6 +421,37 @@ export async function hasUsedSuperguessThisRound(
     .limit(1);
 
   return !!result;
+}
+
+/**
+ * The GLOBAL used-this-round boolean, Redis-cached for 10 seconds — for the
+ * round-state DISPLAY path only, which ran the query serially on every 15s
+ * poll from every connected client for an answer that flips once per round.
+ *
+ * The cache is OPT-IN by being a separate function on purpose: the
+ * uncached hasUsedSuperguessThisRound above stays what every money point
+ * calls (superguess purchase included — money points read uncached, always).
+ * The two flip points (session creation, admin cancel) invalidate the
+ * entry, so the TTL only covers the no-Redis and racing cases; a stale
+ * `false` briefly shows a CTA that the purchase endpoint still rejects
+ * with its own uncached checks.
+ */
+export async function hasUsedSuperguessThisRoundCached(roundId: number): Promise<boolean> {
+  try {
+    const cached = await cacheGet<boolean | string>(SuperguessCacheKeys.used(roundId));
+    if (typeof cached === 'boolean') return cached;
+    // Upstash can round-trip primitives as strings in this deployment
+    // (commit 0a6299f); accept both spellings rather than silently missing
+    // on every request.
+    if (cached === 'true') return true;
+    if (cached === 'false') return false;
+  } catch {
+    // Cache unavailable — fall through to the query.
+  }
+
+  const used = await hasUsedSuperguessThisRound(roundId);
+  await cacheSet(SuperguessCacheKeys.used(roundId), used, SUPERGUESS_USED_TTL).catch(() => {});
+  return used;
 }
 
 /**

@@ -8,7 +8,7 @@ import type { RoundCommitmentData } from './commit-reveal';
 import { resolveRoundAndCreatePayouts, syncPrizePoolFromContract } from './economics';
 import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
-import { trackSlowQuery } from './redis';
+import { trackSlowQuery, cacheGet, cacheSet, cacheDel, CacheKeys, CacheTTL } from './redis';
 import { shouldBlockNewRoundCreation } from './operational-guard';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
 import { isDevModeEnabled } from './devGameState';
@@ -369,6 +369,11 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     bonusWordsEnabled,
   });
 
+  // A new round just became the active one; drop the cached id so the
+  // public endpoints pick it up within a request instead of waiting out
+  // the 5s TTL (and re-arming the CDN's between-rounds copy meanwhile).
+  await cacheDel(CacheKeys.activeRoundId()).catch(() => {});
+
   return {
     id: round.id,
     rulesetId: round.rulesetId,
@@ -389,6 +394,73 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
 }
 
 /**
+ * The one definition of "active round", shared by getActiveRound and
+ * getActiveRoundId so their WHERE clauses cannot drift. A drifted copy of
+ * this filter has already caused an answer disclosure once (see
+ * pages/api/wheel/wrong-guesses.ts): two public endpoints disagreeing about
+ * which round is active is not a cosmetic bug here.
+ */
+function activeRoundConditions() {
+  const conditions = [
+    isNull(rounds.resolvedAt),
+    isNull(rounds.winnerFid), // Round is locked once winner is set
+    eq(rounds.status, 'active'), // Exclude cancelled rounds
+  ];
+  // Only filter out dev test rounds when NOT in dev mode
+  if (!isDevModeEnabled()) {
+    conditions.push(eq(rounds.isDevTestRound, false));
+  }
+  return conditions;
+}
+
+/**
+ * The active round's ID ONLY, Redis-cached for CacheTTL.activeRoundId (5s).
+ *
+ * The hot public endpoints (round-state polled every 15s per client, wheel
+ * on every mount) only need the id to build their cache keys, yet each
+ * request paid a full getActiveRound() Postgres query even on complete
+ * Redis hits. The activeRoundId cache key existed for exactly this and was
+ * never read or written; invalidateOnRoundTransition already deletes it.
+ *
+ * NEVER cache the Round object itself: getActiveRound() returns the
+ * DECRYPTED answer, and a serialized copy in Redis would put the secret one
+ * cache read away from anything with Redis access. This function selects
+ * and stores the integer id (or a no-round sentinel) and nothing else.
+ */
+const NO_ACTIVE_ROUND_SENTINEL = 'none';
+
+export async function getActiveRoundId(): Promise<number | null> {
+  const key = CacheKeys.activeRoundId();
+  try {
+    const cached = await cacheGet<number | string>(key);
+    if (cached !== null && cached !== undefined) {
+      if (cached === NO_ACTIVE_ROUND_SENTINEL) return null;
+      // Coerce, don't typeof-guard: Upstash round-trips numbers as strings
+      // in exactly this deployment (the $WORD price bar froze for two days
+      // on a typeof check — commit 0a6299f, word-oracle.ts does the same
+      // coercion). A strict number check would silently miss on every
+      // request and nullify the cache while logging hits.
+      const id = Number(cached);
+      if (Number.isInteger(id) && id > 0) return id;
+      // Unexpected shape — fall through to the query and rewrite the entry.
+    }
+  } catch {
+    // Cache unavailable — fall through to the query.
+  }
+
+  const [row] = await db
+    .select({ id: rounds.id })
+    .from(rounds)
+    .where(and(...activeRoundConditions()))
+    .orderBy(desc(rounds.startedAt))
+    .limit(1);
+
+  const id = row?.id ?? null;
+  await cacheSet(key, id ?? NO_ACTIVE_ROUND_SENTINEL, CacheTTL.activeRoundId).catch(() => {});
+  return id;
+}
+
+/**
  * Get the current active round (latest unresolved round)
  *
  * Milestone 9.5: Excludes cancelled rounds - a cancelled round is not active
@@ -396,15 +468,7 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
  */
 export async function getActiveRound(): Promise<Round | null> {
   return trackSlowQuery('query:getActiveRound', async () => {
-    const conditions = [
-      isNull(rounds.resolvedAt),
-      isNull(rounds.winnerFid), // Round is locked once winner is set
-      eq(rounds.status, 'active'), // Exclude cancelled rounds
-    ];
-    // Only filter out dev test rounds when NOT in dev mode
-    if (!isDevModeEnabled()) {
-      conditions.push(eq(rounds.isDevTestRound, false));
-    }
+    const conditions = activeRoundConditions();
     const result = await db
       .select()
       .from(rounds)
