@@ -18,6 +18,17 @@ const nextConfig: NextConfig = {
   // Turbopack infer the wrong workspace root
   turbopack: {
     root: __dirname,
+    // @solana/web3.js arrives through @farcaster/miniapp-core's CJS star
+    // re-export (no sideEffects flag, so it cannot be tree-shaken) and cost
+    // every player ~60 KB gz on first load, in a Base-only game with zero
+    // Solana code. The stub exports every member miniapp-core (and
+    // @coinbase/cdp-sdk via @base-org/account) references, each throwing a
+    // clear error if a Solana path is ever actually driven. The alias is
+    // global to client AND server graphs. RE-CHECK on every
+    // @farcaster/miniapp-sdk and @base-org/* upgrade.
+    resolveAlias: {
+      '@solana/web3.js': './src/lib/solana-stub.ts',
+    },
   },
   // Uncomment and add your tunnel origin when testing the mini app against
   // `next dev` from a phone or tunnel (Next 16 blocks cross-origin dev asset

@@ -7,7 +7,11 @@
  */
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import * as Sentry from '@sentry/nextjs';
+// captureExceptionLazy, NOT a static @sentry/nextjs import: this component
+// is mounted from _app.tsx, so a static import here puts the whole ~123 KB
+// gz SDK back on every page's critical path. The lazy path force-loads the
+// SDK at catch time and holds the error until it arrives.
+import { captureExceptionLazy } from '../src/lib/sentry-lazy';
 
 interface Props {
   children: ReactNode;
@@ -31,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Report to Sentry with component stack
-    Sentry.captureException(error, {
+    captureExceptionLazy(error, {
       tags: { type: 'react-error-boundary' },
       extra: {
         componentStack: errorInfo.componentStack,
