@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { formatPrize } from '../src/lib/prize-display';
 import { useReloadHold } from '../src/lib/buildFreshness';
-import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS } from '../src/lib/hostActions';
+import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS, X_BUTTON_CLASS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
 import { playerSessionHeaders } from '../src/lib/playerSessionClient';
 import { X_HANDLE, FARCASTER_HANDLE } from '../config/economy';
@@ -376,17 +376,24 @@ export default function SharePromptModal({
 
         {/* Buttons */}
         <div className="flex flex-col gap-3">
-          {/* Primary CTA button */}
+          {/* Primary CTA button. Black with 𝕏 where it opens X, purple with
+              the arch where it casts: the handler above has branched off-host
+              to the X composer since PR #295, and the button must not claim a
+              destination the tap does not go to. Same branch as StatsSheet,
+              ReferralSheet and WordmarkDetailModal. */}
           <button
             onClick={handleShare}
             disabled={isSharing}
-            className={`btn-accent w-full text-lg flex items-center justify-center gap-3 ${
-              isSharing ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`w-full text-lg flex items-center justify-center gap-3 ${
+              inMiniApp ? 'btn-accent' : 'py-4 px-6 ' + X_BUTTON_CLASS
+            } ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {!isSharing && !hasOpenedComposer && (
-              <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
-            )}
+            {!isSharing && !hasOpenedComposer &&
+              (inMiniApp ? (
+                <img src="/FC-arch-icon.png" alt="Farcaster" className="w-3 h-3" />
+              ) : (
+                <span className="text-base leading-none">𝕏</span>
+              ))}
             <span>
               {isSharing
                 ? hasOpenedComposer

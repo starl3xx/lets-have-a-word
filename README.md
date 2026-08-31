@@ -212,6 +212,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-08-31 (during Round 34)
+
+- **The share-for-bonus button stops claiming Farcaster in Base App**: after a wrong guess, the share modal's CTA rendered the purple Farcaster arch for everyone, even though its tap has branched off-host to the X composer since the share bonus opened to wallet players (#295). It now takes the same branch the stats, referral and Wordmark share buttons took in #289/#291: black with 𝕏 where it opens X, purple with the arch where it casts. Notably this was never a revert... the modal predates the black-button sweep entirely: it was hidden from wallet players for exactly one day (#289), and came back the next (#295) with a working X handler and the old purple paint. The long-dead `AnotherGuessModal` (unmounted 2025-11) is deleted too, so its hard-coded purple share button cannot revive the bug.
+
 ### 2026-08-30 (during Round 34)
 
 - **Every self-URL moves to the apex, because the apex now serves directly**: Base App's search index never listed the app, and the registered domain was the suspect... `letshaveaword.fun` (the domain the manifest's `accountAssociation` signs, and the one registered in the Base Dashboard) answered every request with a 15-byte 307 to `www`. Base confirmed in Discord that Dashboard registration indexes automatically through a strict anti-spam filter, and a registered domain that serves no content of its own is exactly what a throwaway looks like to such a filter. The Vercel primary flipped to the apex, and this change moves all thirteen self-references (manifest images, embed images, `og:image`, the wallet `appLogoUrl`, the archive verify link, and the Wordmark metadata origins) back with it. The SIWE domain allowlist keeps accepting both hosts on purpose. This also closes the perf audit's last open item: every miniapp launch paid that 307 before the HTML could even be requested.
