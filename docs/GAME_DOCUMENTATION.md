@@ -1490,7 +1490,6 @@ Four sites deliberately carry **no** suffix, all plain ETH transfers where
   - Browser locale detection with English fallback
 - **Guess Pack System**:
   - `GuessPurchaseModal` - Pack selection (1-3 packs), pricing, daily limits
-  - `AnotherGuessModal` - "Want another guess?" popup with randomized interjections
   - `/api/guess-pack-pricing` - Pack pricing info endpoint
   - `/api/purchase-guess-pack` - Purchase processing with validation
   - 3-guesses per pack, unlimited purchases with volume pricing
@@ -3431,7 +3430,7 @@ function decideModal(params: ModalDecisionParams): ModalDecision {
 | `none` | No modal | User has guesses, can continue playing |
 | `share` | SharePromptModal | Offer to share for +1 free guess |
 | `pack` | GuessPurchaseModal | Offer to buy guess packs |
-| `out_of_guesses` | AnotherGuessModal | Show "out of guesses" state |
+| `out_of_guesses` | (none) | Out of options; no modal is shown (AnotherGuessModal removed 2025-11) |
 
 ### Session State Tracking
 
@@ -3505,7 +3504,7 @@ switch (decision) {
     setShowGuessPurchaseModal(true);
     break;
   case 'out_of_guesses':
-    setShowAnotherGuessModal(true);
+    // No modal - user is out of options
     break;
   case 'none':
   default:
@@ -3522,13 +3521,10 @@ const handleShareModalClose = () => {
   setShowShareModal(false);
   markShareModalSeen();
 
-  if (!hasGuessesLeft) {
-    // User closed without sharing - offer packs
-    if (paidPacksPurchased < maxPaidPacksPerDay) {
-      setShowGuessPurchaseModal(true);
-    } else {
-      setShowAnotherGuessModal(true);
-    }
+  // User closed without sharing - offer packs if available.
+  // If out of packs too, no modal: the user just can't play anymore.
+  if (!hasGuessesLeft && paidPacksPurchased < maxPaidPacksPerDay) {
+    setShowGuessPurchaseModal(true);
   }
 };
 
@@ -3536,10 +3532,6 @@ const handleShareModalClose = () => {
 onClose={() => {
   setShowGuessPurchaseModal(false);
   markPackModalSeen();
-
-  if (!hasGuessesLeft) {
-    setShowAnotherGuessModal(true);
-  }
 }}
 ```
 
@@ -3702,10 +3694,10 @@ Process pack purchase.
 - Daily limit indicator ("2 of 3 packs purchased today")
 - Purchase button with loading state
 
-**AnotherGuessModal** (`components/AnotherGuessModal.tsx`):
-- "Want another guess?" popup after wrong guess
-- Random interjection from 25 phrases
-- Two CTAs: "Share for Free Guess" and "Buy Pack"
+**AnotherGuessModal** (removed 2025-11, file deleted 2026-08-31):
+- Was the "Want another guess?" popup after a wrong guess
+- Unmounted from the game flow in 2025-11; out of options now means no modal
+- The randomized interjections live on in SharePromptModal
 
 ---
 
@@ -4119,7 +4111,7 @@ The "Want another guess?" popup displays one of 25 random interjections to keep 
 ```typescript
 import { useTranslation } from '../src/hooks/useTranslation';
 
-function AnotherGuessModal() {
+function SharePromptModal() {
   const { getRandomInterjection } = useTranslation();
   const interjection = getRandomInterjection();
 
