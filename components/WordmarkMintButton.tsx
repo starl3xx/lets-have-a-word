@@ -47,9 +47,16 @@ function paymasterUrl(): string | null {
 interface Props {
   wordmark: UserWordmark;
   fid: number;
+  /** Quick Auth token. The voucher endpoint authenticates, and a Farcaster
+   *  player's ONLY credential is this token — playerSessionHeaders() below
+   *  carries the wallet session, which a Farcaster player does not have.
+   *  Without it, every mint from a Farcaster host died on "Authentication
+   *  required" (found on the first real mainnet mint, 2026-09-08). Same
+   *  threading #295 gave the share bonus. */
+  authToken?: string | null;
 }
 
-export default function WordmarkMintButton({ wordmark, fid }: Props) {
+export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) {
   const { address, isConnected } = useAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,10 +164,13 @@ export default function WordmarkMintButton({ wordmark, fid }: Props) {
     resetSendCalls();
 
     try {
+      // Both credentials travel: authToken is the Farcaster carrier, the
+      // session header is the wallet carrier. resolveRequestFid tries every
+      // presented credential, so whichever kind of player this is, one works.
       const res = await fetch('/api/wordmarks/voucher', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...playerSessionHeaders() },
-        body: JSON.stringify({ address, wordmark: wordmark.id }),
+        body: JSON.stringify({ address, wordmark: wordmark.id, authToken }),
       });
       const v = await res.json().catch(() => null);
       if (!res.ok || !v?.signature) {
@@ -202,7 +212,10 @@ export default function WordmarkMintButton({ wordmark, fid }: Props) {
       setBusy(false);
       setError(err instanceof Error ? err.message : 'Could not mint');
     }
-  }, [address, isConnected, wordmark.id, id, canSponsor, sendCalls, writeContract, resetWrite, resetSendCalls]);
+    // authToken belongs in the deps: Quick Auth resolves AFTER first render,
+    // and a stale closure here would send the null from before it arrived —
+    // the same "Authentication required" this prop exists to fix (Bugbot).
+  }, [address, isConnected, wordmark.id, id, authToken, canSponsor, sendCalls, writeContract, resetWrite, resetSendCalls]);
 
   // Not deployed, not an onchain Wordmark, or not actually earned: say nothing.
   if (!WORDMARKS_ADDRESS || id === undefined || !wordmark.earned) return null;
