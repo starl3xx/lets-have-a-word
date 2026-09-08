@@ -32,16 +32,16 @@ import { and, eq } from 'drizzle-orm';
 import { resolveRequestFid } from '../../../src/lib/requestAuth';
 import { tokenIdFor } from '../../../src/lib/wordmark-tokens';
 import type { WordmarkType } from '../../../src/db/schema';
-import { redis } from '../../../src/lib/redis';
+import { redis, RateLimiters, checkRateLimit } from '../../../src/lib/redis';
 
 /** Ten minutes. Long enough to approve a wallet prompt, short enough that a
  *  voucher found in a log later is worthless. */
 const VOUCHER_TTL_SECONDS = 600;
 
-export const MINT_AUTH_PREFIX = 'lhaw:mintauth:';
+export const MINT_BUDGET_PREFIX = 'lhaw:mintbudget:';
 
 /**
- * How many sponsorships one voucher pays for.
+ * How many sponsorships one entitlement pays for.
  *
  * Not one. Three ordinary things ask for the same voucher twice: an upstream
  * paymaster timeout, a forwarded JSON-RPC error, and a wallet re-requesting
@@ -55,9 +55,19 @@ export const MINT_AUTH_PREFIX = 'lhaw:mintauth:';
  */
 export const MINT_SPONSOR_BUDGET = 3;
 
-/** The key /api/paymaster looks up. Exported so the two cannot drift apart. */
-export function mintAuthKey(signature: string): string {
-  return `${MINT_AUTH_PREFIX}${ethers.keccak256(signature)}`;
+/**
+ * The key /api/paymaster spends against. Exported so the two cannot drift.
+ *
+ * Keyed by (fid, id) — THE ENTITLEMENT — not by the voucher signature. The
+ * deadline moves every second, so every re-request signs a fresh voucher, and
+ * a signature-keyed budget minted a fresh budget with it: ~600 bankable
+ * vouchers per TTL window from one earned Wordmark, each worth
+ * MINT_SPONSOR_BUDGET sponsored reverts. A player only ever has one
+ * entitlement per (fid, id), so that is what the budget is bound to; the NX
+ * write below is what stops a re-issued voucher topping it back up.
+ */
+export function mintBudgetKey(fid: number | bigint, id: number | bigint): string {
+  return `${MINT_BUDGET_PREFIX}${fid}:${id}`;
 }
 
 interface VoucherResponse {
@@ -90,6 +100,15 @@ export default async function handler(
     return res.status(auth.status).json({ error: auth.error });
   }
   const fid = auth.fid;
+
+  // Issuance is metered per fid. Twelve Wordmarks plus honest retries fit in
+  // minutes; only a banking loop needs more. Fails open like every limiter
+  // here — the NX budget write below is the hard bound, this just keeps the
+  // signer from being a free computation service.
+  const limit = await checkRateLimit(RateLimiters.packPurchase, `wordmark-voucher:${fid}`);
+  if (!limit.success) {
+    return res.status(429).json({ error: 'Too many voucher requests. Try again in a minute.' });
+  }
 
   const { address, wordmark } = (req.body ?? {}) as {
     address?: string;
@@ -175,10 +194,16 @@ export default async function handler(
       { fid, to, id, deadline }
     );
 
-    // Authorise the gas for THIS voucher and nothing else, for a bounded number
-    // of attempts. Expires with the voucher, so an unused budget cannot be
-    // banked and spent later.
-    await redis.set(mintAuthKey(signature), MINT_SPONSOR_BUDGET, { ex: VOUCHER_TTL_SECONDS });
+    // Authorise the gas for THIS entitlement, for a bounded number of
+    // attempts. NX is the bound: a re-requested voucher (new deadline, new
+    // signature) must NOT refill a budget that spending or reverts already
+    // drained — without NX, issuance was a banking loop. The corollary is
+    // accepted and cheap: a player who burns the whole budget inside one TTL
+    // window mints unsponsored until the key expires, at their own ~$0.0015.
+    await redis.set(mintBudgetKey(fid, id), MINT_SPONSOR_BUDGET, {
+      nx: true,
+      ex: VOUCHER_TTL_SECONDS,
+    });
 
     console.log(`[wordmarks/voucher] Issued ${type} (id ${id}) for FID ${fid} to ${to}`);
 

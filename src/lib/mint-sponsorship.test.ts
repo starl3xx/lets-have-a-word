@@ -98,10 +98,58 @@ describe('a spend is refunded when nothing was sponsored', () => {
     // Defect 2: the spend happened before the upstream call, and an upstream
     // timeout left the voucher gone with an honest mint unable to retry.
     const redis = fakeRedis({ [K]: { value: 3, ttl: 600 } });
-    await spendBudget(redis, [K]);
+    const spend = await spendBudget(redis, [K]);
+    expect(spend).toEqual({ ok: true, spent: [K] });
     expect(redis.peek(K)!.value).toBe(2);
-    await refundBudget(redis, [K]);
+    await refundBudget(redis, spend.spent);
     expect(redis.peek(K)!.value).toBe(3);
+  });
+});
+
+describe('the DECR result is the arbiter — defect 4, the concurrency race', () => {
+  it('grants exactly budget-many spends however many raced past the GET', async () => {
+    // The GET pre-check cannot hold under concurrency: N requests all read
+    // budget 1 before any of them spends. Only the counter itself can
+    // arbitrate, so spendBudget must trust nothing but its own DECR.
+    const redis = fakeRedis({ [K]: { value: 1, ttl: 600 } });
+    const [first, second] = [await spendBudget(redis, [K]), await spendBudget(redis, [K])];
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(false);
+    // The loser compensated its own decrement: the counter sits at 0, not -1.
+    expect(redis.peek(K)!.value).toBe(0);
+  });
+
+  it('refuses a spend against a key that expired mid-flight, and leaves nothing immortal', async () => {
+    // The mirror of defect 3: DECR on a missing key creates it at -1 with no
+    // expiry. The refusal path must give that junk key an expiry so it dies.
+    const redis = fakeRedis(); // key absent: expired between check and spend
+    const spend = await spendBudget(redis, [K]);
+    expect(spend.ok).toBe(false);
+    const after = redis.peek(K)!;
+    expect(after.value).toBeLessThanOrEqual(0);
+    expect(after.ttl).toBeGreaterThan(0); // never -1: nothing lives forever
+  });
+
+  it('reports which keys were actually spent when a later key refuses', async () => {
+    const other = 'lhaw:mintbudget:6500:11';
+    const redis = fakeRedis({ [K]: { value: 3, ttl: 600 }, [other]: { value: 0, ttl: 600 } });
+    const spend = await spendBudget(redis, [K, other]);
+    expect(spend.ok).toBe(false);
+    // Only K was truly spent; refunding `spent` must not touch `other`, whose
+    // failed decrement spendBudget already compensated itself.
+    expect(spend.spent).toEqual([K]);
+    expect(redis.peek(other)!.value).toBe(0);
+  });
+
+  it('refuses without refunding when the store itself fails mid-spend', async () => {
+    // State unknown: a refund could conjure a unit that pays for a revert; a
+    // lost unit costs one retry. The cheaper loss is taken, and the caller is
+    // told which keys are safe to refund (none here).
+    const redis = fakeRedis({ [K]: { value: 2, ttl: 600 } });
+    const throwing: BudgetStore = { ...redis, decr: async () => { throw new Error('upstash 500'); } };
+    const spend = await spendBudget(throwing, [K]);
+    expect(spend).toEqual({ ok: false, spent: [] });
+    expect(redis.peek(K)!.value).toBe(2);
   });
 });
 
