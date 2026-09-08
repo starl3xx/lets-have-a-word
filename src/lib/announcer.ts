@@ -41,10 +41,14 @@ export const JACKPOT_MILESTONES = [0.1, 0.25, 0.5, 1.0]; // ETH
  *
  * USD also travels better across a price move: the point of a milestone is that
  * the prize got meaningfully bigger, not that the token went up. These are set
- * for a $20-seeded round rather than converted from the ETH figures, whose USD
- * equivalents (~$190 to ~$1,900) no round would ever reach.
+ * for a $40-seeded round (the ladder doubled with the seed on 2026-09-08 —
+ * the old $50 first rung sat $10 above a fresh round and would have fired
+ * before anyone guessed, the exact failure this constant exists to avoid).
+ * The first rung is 2.5x the seed, as it always was. Not converted from the
+ * ETH figures, whose USD equivalents (~$190 to ~$1,900) no round would ever
+ * reach.
  */
-export const JACKPOT_MILESTONES_USD_CENTS = [5000, 10000, 25000, 50000]; // $50 / $100 / $250 / $500
+export const JACKPOT_MILESTONES_USD_CENTS = [10000, 20000, 50000, 100000]; // $100 / $200 / $500 / $1000
 export const GUESS_MILESTONES = [1000, 2000, 3000, 4000];
 
 // Startup validation (fail fast in production if misconfigured)
@@ -564,7 +568,9 @@ async function checkWordJackpotMilestones(round: RoundRow, roundNumber: number) 
     const milestoneUsd = (milestoneCents / 100).toFixed(0);
     const poolWord = formatWordAmount(poolWei);
 
-    const text = milestoneCents >= 25000
+    // The escalated "getting serious" tone belongs to the top two rungs,
+    // same as it did on the old ladder.
+    const text = milestoneCents >= 50000
       ? `🚨 Prize pool just crossed $${milestoneUsd} in Let's Have A Word!
 
 Round #${roundNumber} is getting serious 👀 ${poolWord} $WORD on the line
