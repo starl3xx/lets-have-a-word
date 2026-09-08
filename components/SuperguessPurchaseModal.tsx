@@ -7,7 +7,7 @@
  * "Round pauses for all players" warning
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSuperguessPayment, type SuperguessPaymentPhase } from '../src/hooks/useSuperguessPayment';
 import { formatUnits } from 'viem';
 import sdk from '@farcaster/miniapp-sdk';
@@ -38,6 +38,8 @@ const TIER_LABELS: Record<string, string> = {
   tier_2: 'Enhanced',
   tier_3: 'Premium',
   tier_4: 'Ultra',
+  // $WORD rounds price at half the live prize pool, not a fixed tier.
+  pool_half: 'Half the pool',
 };
 
 export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, fid: userFid, devFid, authToken, preview }: Props) {
@@ -100,14 +102,56 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     }
   }, [phase, onPurchaseComplete, onClose, resetPayment]);
 
-  const handlePurchase = useCallback(() => {
-    if (!statusData?.tier || !statusData?.ethAmount) return;
+  // Held for the whole tap-to-payment span. A ref, not state: two taps in
+  // the same re-quote window would both read stale state, and the second
+  // ETH transfer lands onchain only to be refused by the one-Superguess-
+  // per-round rule — stranded money, not a double purchase (Bugbot, #317).
+  const purchaseInFlight = useRef(false);
+  const [requoting, setRequoting] = useState(false);
 
-    // The exact quote from the server, passed straight through. This used to
-    // parse a display string — "64M" back into 64000000 — to decide what to
-    // pay, which is a lossy round-trip on the amount being charged.
-    startPayment(statusData.ethAmount, statusData.roundId);
-  }, [statusData, startPayment]);
+  const handlePurchase = useCallback(async () => {
+    if (purchaseInFlight.current) return;
+    if (!statusData?.tier || !statusData?.ethAmount) return;
+    purchaseInFlight.current = true;
+    setRequoting(true);
+
+    // Re-quote immediately before paying. The server honors a served quote
+    // for five minutes; a modal left open longer (a Base App top-up, a cold
+    // wallet) would otherwise pay against an expired pin after the pool has
+    // grown, and the payment could land under the validation floor with the
+    // ETH already onchain. The refresh also catches a Superguess someone
+    // else bought while this modal sat open, BEFORE this player pays.
+    try {
+      let quote = statusData;
+      try {
+        const fidParam = userFid || devFid;
+        const res = await fetch(`/api/superguess/status${fidParam ? `?fid=${fidParam}` : ''}`);
+        const fresh = await res.json();
+        if (fresh && fresh.available === false) {
+          setStatusData(fresh);
+          return;
+        }
+        if (fresh?.tier && fresh?.ethAmount) {
+          quote = fresh;
+          setStatusData(fresh);
+        }
+      } catch {
+        // The opened quote stands; the server-side pin usually still covers it.
+      }
+
+      // The exact quote from the server, passed straight through. This used to
+      // parse a display string — "64M" back into 64000000 — to decide what to
+      // pay, which is a lossy round-trip on the amount being charged.
+      //
+      // startPayment flips phase synchronously (or surfaces its own error), so
+      // by the time the guard below releases, either the progress UI owns the
+      // screen or the button is legitimately tappable again.
+      startPayment(quote.ethAmount!, quote.roundId);
+    } finally {
+      purchaseInFlight.current = false;
+      setRequoting(false);
+    }
+  }, [statusData, startPayment, userFid, devFid]);
 
   const handleDevPurchase = useCallback(async () => {
     // Dev mode: skip onchain transfer, directly call purchase API
@@ -289,10 +333,10 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
                       ) : (
                         <button
                           onClick={handlePurchase}
-                          disabled={balanceNum === null}
+                          disabled={balanceNum === null || requoting}
                           className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Purchase Superguess
+                          {requoting ? 'Confirming price...' : 'Purchase Superguess'}
                         </button>
                       )}
                     </>

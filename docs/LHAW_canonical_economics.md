@@ -14,7 +14,7 @@ There are **no offchain payouts** and no manual intervention.
 ### Prize currency
 
 - **Rounds 1–33** — prize pool denominated in **ETH**, held by `JackpotManagerV3`.
-- **Round 34 onward** — prize pool denominated in **$WORD**, held by `WordJackpot`, seeded with **~$20 of $WORD** (oracle-priced at round start) drawn from a treasury tranche.
+- **Round 34 onward** — prize pool denominated in **$WORD**, held by `WordJackpot`, seeded with **~$40 of $WORD** (oracle-priced at round start; round 34 itself seeded at $20) drawn from a treasury tranche.
 
 **Guess packs are bought with ETH in both eras.** Only the prize changed. Each round records its own currency in `rounds.prize_currency`, and every split below applies identically to either asset — the arithmetic is currency-agnostic (`src/lib/prize-split.ts`).
 

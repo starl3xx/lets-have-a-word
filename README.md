@@ -54,7 +54,7 @@ One secret word. One winner. Provably fair.
 |----------|---------|
 | **Prize Currency** | **$WORD** from round 34 · ETH for rounds 1–33 · packs still bought with ETH |
 | **Prize Split** | 80% winner · 10% Top-10 · 5% seed · 5% referrer |
-| **Round Seed** | ~$20 of $WORD, oracle-priced at round start from a treasury tranche |
+| **Round Seed** | ~$40 of $WORD (round 34: $20), oracle-priced at round start from a treasury tranche |
 | **Guess Types** | Free (base) → $WORD bonus → Share bonus → Paid (consumed in order) |
 | **Daily Allocation** | 1 free + up to 3 $WORD + 1 share + unlimited paid |
 | **Pack Pricing** | 3 guesses per pack, uncapped. Stage: 0.0004 / 0.0006 / 0.0008 ETH by round progress. Volume: 1.0× / 1.5× / 2.0× by packs bought that day |
@@ -211,6 +211,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 ---
 
 ## Changelog
+
+### 2026-09-08 (during Round 34)
+
+- **Superguess costs half the pool, and the seed doubles to $40**: the fixed USD tiers priced Superguess at $90 against a $35 pool... negative EV even for a *guaranteed* win, since 80% of the pool plus the 64% of your own payment that flows back through the pool credit returns only $85.60. On a $WORD round the price is now **50% of the live pool's USD value with a $10 floor**, computed on exactly the basis the pool display uses (live cached $WORD price, seed snapshot fallback), so the quote is visibly half the number on screen at every pool size. At half the pool, the buy breaks even at ~45% win odds regardless of pool size, which makes the endgame a genuine sniping race (from roughly the last 170 remaining words for a sharp player who prunes 3x, ~56 under a uniform prior) while everything earlier is an honest drama purchase. The old tier ladder survives only as the fallback for non-$WORD rounds and missing price bases. Because a pool-linked price can rise while a buyer signs (every pack purchase grows the pool instantly), the status endpoint now **pins the lowest quote served per round for 5 minutes** and purchase validation charges the lower of pin and recompute... without this, an honest payment could land under the 90% floor after the ETH was already onchain. Separately, `WORD_SEED_USD_CENTS` defaults to **4000** ($40) so round 35 onward seeds at $40 of $WORD; the carry cap now reads the round's *own* recorded seed target rather than the env constant, so the raise cannot retroactively loosen round 34's cap at resolve.
 
 ### 2026-08-31 (during Round 34)
 

@@ -118,7 +118,7 @@ Pack purchases are **unlimited** — there's no daily cap. Volume multipliers re
 
 The prize pool accumulates as players purchase guess packs.
 
-From round 34 the prize pool is denominated in **$WORD**, and each round is seeded with roughly **$20 of $WORD** so it never starts empty. Rounds 1–33 paid in ETH.
+From round 34 the prize pool is denominated in **$WORD**, and each round is seeded with roughly **$40 of $WORD** so it never starts empty. Rounds 1–33 paid in ETH.
 
 Guess packs are still bought with **ETH** — only the prize changed.
 

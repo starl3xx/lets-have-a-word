@@ -734,8 +734,12 @@ export async function resolveRoundAndCreatePayouts(
   if (isWordRound) {
     const priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
     if (priceE18 > 0n) {
+      // The round's own recorded seed target, not the env constant: when the
+      // seed is raised (as at $20 → $40 for round 35), the constant would
+      // retroactively loosen the cap of the round resolving under the new
+      // deploy. The env fallback covers rows that predate the column.
       seedCapWei =
-        tokensForUsdCents(BigInt(WORD_SEED_USD_CENTS), priceE18) *
+        tokensForUsdCents(BigInt(round.seedUsdCents ?? WORD_SEED_USD_CENTS), priceE18) *
         BigInt(WORD_SEED_CARRY_MULTIPLE);
     } else {
       // No price snapshot means the round predates the column or was seeded

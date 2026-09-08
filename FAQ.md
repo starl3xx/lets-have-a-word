@@ -59,7 +59,7 @@ Superguess is a high-stakes late-game mechanic. After the round reaches **850 gu
 
 During a Superguess, all other players are paused and watch live as spectators. If the Superguesser finds the secret word, they win the jackpot. If they use all 25 guesses or time runs out, normal play resumes immediately.
 
-Tiers are priced in USD ($20–$90) and convert to ETH at purchase. On a $WORD round, 80% of the payment grows the prize pool. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
+The price is **half the current prize pool** (minimum $10) and converts to ETH at purchase. 80% of the payment grows the prize pool, so even a missed Superguess makes the round bigger for everyone. Purchasing a Superguess earns the **Showstopper** Wordmark. One Superguess per round.
 
 ## What are Wordmarks?
 

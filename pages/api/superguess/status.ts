@@ -16,7 +16,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import {
   isSuperguessFeatureEnabled,
   getActiveSuperguess,
-  getSuperguessCurrentTier,
+  getSuperguessQuote,
+  pinSuperguessQuote,
   hasUsedSuperguessThisRound,
   SUPERGUESS_MIN_GUESS_COUNT,
 } from '../../../src/lib/superguess';
@@ -39,8 +40,12 @@ export default async function handler(
       return res.status(200).json({ available: false, reason: 'feature_disabled' });
     }
 
-    // In dev mode, use the dev round (not the live production round)
+    // In dev mode, use the dev round (not the live production round). The
+    // round object is kept for pricing: pool-fraction pricing needs its
+    // prize_currency columns, and the dev round has none, so dev mode quotes
+    // from the legacy tier ladder.
     let roundId: number;
+    let round: Awaited<ReturnType<typeof getActiveRound>> = null;
     if (isDevModeEnabled()) {
       const { ensureDevRound } = await import('../../../src/lib/devGameState');
       roundId = await ensureDevRound();
@@ -49,6 +54,7 @@ export default async function handler(
       if (!activeRound) {
         return res.status(200).json({ available: false, reason: 'no_active_round' });
       }
+      round = activeRound;
       roundId = activeRound.id;
     }
 
@@ -91,10 +97,11 @@ export default async function handler(
       });
     }
 
-    // Available! Return tier + pricing
-    const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
+    // Available! Return the quote: half the live pool on a $WORD round,
+    // legacy tier ladder anywhere that basis is missing.
+    const quote = await getSuperguessQuote(round, globalGuessCount, totalDictionaryWords);
 
-    // Price the tier in ETH.
+    // Price the quote in ETH.
     //
     // Superguess is bought with ETH: players earn $WORD by playing — jackpot,
     // bonus words, top ten — and spend ETH to buy, so a first-time player does
@@ -107,18 +114,24 @@ export default async function handler(
     let ethAmount: string | null = null;
     let ethUsdRate: number | null = null;
 
-    if (tier) {
+    if (quote) {
       ethUsdRate = await getEthUsdPrice();
       if (ethUsdRate && ethUsdRate > 0) {
         // 6 dp is well under a cent at any plausible ETH price, and the server
         // accepts a floor below the quote anyway.
-        ethAmount = (tier.usdPrice / ethUsdRate).toFixed(6);
+        ethAmount = (quote.usdPrice / ethUsdRate).toFixed(6);
       }
+      // Honor this quote at purchase time even if the pool outgrows it while
+      // the buyer is signing — see pinSuperguessQuote.
+      await pinSuperguessQuote(roundId, quote.usdPrice);
     }
 
     return res.status(200).json({
       available: true,
-      tier: tier ? { id: tier.id, usdPrice: tier.usdPrice } : null,
+      // Still named `tier` in the response: the modal renders whatever id and
+      // usdPrice arrive here, and renaming the field would break older
+      // clients Base App resumes from memory.
+      tier: quote ? { id: quote.id, usdPrice: quote.usdPrice } : null,
       ethAmount,
       ethUsdRate,
       globalGuessCount,

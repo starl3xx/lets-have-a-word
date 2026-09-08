@@ -712,7 +712,11 @@ export async function runJackpotRunwaySimulation(options?: {
       const wordUsd = Number(priceE18) / 1e18;
       const unallocatedTokens = Number(unallocatedWei) / 1e18;
       const poolTokens = Number(poolWei) / 1e18;
-      const seedUsd = Number(process.env.WORD_SEED_USD_CENTS ?? '2000') / 100;
+      // The one home of the seed value, validation included. A hand-rolled
+      // env read here modeled a $20 seed while real rounds seeded $40, and
+      // the runway this dashboard exists to warn about read 2x too long.
+      const { WORD_SEED_USD_CENTS } = await import('../../../config/economy');
+      const seedUsd = WORD_SEED_USD_CENTS / 100;
       const seedTokens = seedUsd / wordUsd;
 
       // Historical paid-guess volume drives the credit inflow.

@@ -28,7 +28,8 @@ import { resolveRequestFid } from '../../../src/lib/requestAuth';
 import {
   isSuperguessFeatureEnabled,
   getActiveSuperguess,
-  getSuperguessCurrentTier,
+  getSuperguessQuote,
+  getPinnedSuperguessQuote,
   startSuperguessSession,
   hasUsedSuperguessThisRound,
   SUPERGUESS_MIN_GUESS_COUNT,
@@ -135,16 +136,32 @@ export default async function handler(
       return res.status(400).json({ error: 'Superguess has already been used this round' });
     }
 
-    // 5. Determine tier
+    // 5. Determine the price. Recomputed here rather than trusted from the
+    // client, then reconciled with the pinned quote: the pool only grows
+    // mid-round, so a pool-linked price can rise between the quote the buyer
+    // signed against and this recompute. Charging the LOWER of the two keeps
+    // an honest payment from landing under the floor after the ETH is
+    // already onchain. The pin lives at most 5 minutes and only one
+    // Superguess exists per round, so the discount is bounded to minutes of
+    // pool growth.
+    // Dev mode passes a null round, exactly as status.ts does, so the two
+    // endpoints price from the same (legacy ladder) basis in dev and the dev
+    // session row never records a pool-half price no dev UI displayed.
+    const isDevMode = isDevModeEnabled();
     const totalDictionaryWords = getGuessWords().length;
-    const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
+    const tier = await getSuperguessQuote(
+      isDevMode ? null : activeRound,
+      globalGuessCount,
+      totalDictionaryWords
+    );
     if (!tier) {
       return res.status(400).json({ error: 'Could not determine pricing tier' });
     }
+    const pinnedUsd = await getPinnedSuperguessQuote(activeRound.id);
+    const chargeUsd = pinnedUsd != null ? Math.min(tier.usdPrice, pinnedUsd) : tier.usdPrice;
 
     // 6. Verify txHash (skip in dev mode)
     const { txHash } = req.body;
-    const isDevMode = isDevModeEnabled();
 
     if (!isDevMode && !txHash) {
       return res.status(400).json({ error: 'txHash is required' });
@@ -212,7 +229,7 @@ export default async function handler(
         return res.status(503).json({ error: 'Could not price the purchase — try again shortly' });
       }
 
-      const expectedWei = BigInt(Math.floor((tier.usdPrice / ethUsd) * 1e18));
+      const expectedWei = BigInt(Math.floor((chargeUsd / ethUsd) * 1e18));
       const floorWei = (expectedWei * BigInt(SUPERGUESS_MIN_PAYMENT_BPS)) / 10000n;
       const paidWei = BigInt(verification.weiAmount ?? '0');
 
@@ -230,7 +247,7 @@ export default async function handler(
       paymentLogIndex = verification.logIndex ?? null;
 
       console.log(
-        `🔴 [Superguess] Verified ${ethAmountPaid} wei from ${verification.payer} (tier ${tier.id}, $${tier.usdPrice})`
+        `🔴 [Superguess] Verified ${ethAmountPaid} wei from ${verification.payer} (${tier.id}, charged $${chargeUsd}, quoted-now $${tier.usdPrice})`
       );
     }
 
@@ -243,7 +260,7 @@ export default async function handler(
         tier: tier.id,
         currency: 'eth',
         ethAmountPaid,
-        usdEquivalent: tier.usdPrice,
+        usdEquivalent: chargeUsd,
         txHash: isDevMode ? null : txHash,
         logIndex: paymentLogIndex,
       });
@@ -288,7 +305,7 @@ export default async function handler(
     await awardWordmark(fid, 'SHOWSTOPPER', {
       roundId: activeRound.id,
       tier: tier.id,
-      usdPrice: tier.usdPrice,
+      usdPrice: chargeUsd,
     }).catch((err) => {
       console.error('[superguess/purchase] Failed to award SHOWSTOPPER:', err);
     });
@@ -308,7 +325,7 @@ export default async function handler(
     }
 
     console.log(
-      `🔴 [Superguess] Purchase complete: FID ${fid}, round ${activeRound.id}, tier ${tier.id}, $${tier.usdPrice}`
+      `🔴 [Superguess] Purchase complete: FID ${fid}, round ${activeRound.id}, ${tier.id}, $${chargeUsd}`
     );
 
     return res.status(200).json({
