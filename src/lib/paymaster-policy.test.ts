@@ -133,8 +133,8 @@ describe('willSponsor', () => {
  * contract and calls mint" is not a sufficient rule on its own — anybody could
  * loop failed mints and drain the balance without ever receiving a token.
  *
- * So the policy returns `requiresVouchers` and /api/paymaster must check each
- * one against Redis before forwarding. An `allowed: true` that dropped that
+ * So the policy returns `requiresMints` and /api/paymaster must verify each
+ * voucher's signer and its Redis budget before forwarding. An `allowed: true` that dropped that
  * field would look finished and quietly reopen the hole, which is what these
  * cases are here to prevent.
  */
@@ -157,7 +157,10 @@ describe('willSponsor: Wordmark mints', () => {
   it('allows a mint but demands the voucher that authorised it', () => {
     const decision = willSponsor(execute(WORDMARKS, mintCall()), SALES, WORDMARKS);
     expect(decision.allowed).toBe(true);
-    expect(decision.requiresVouchers).toEqual([SIG]);
+    expect(decision.requiresMints?.map((m) => m.signature)).toEqual([SIG]);
+    // The full claim travels so the endpoint can recover the signer and key
+    // the budget by entitlement.
+    expect(decision.requiresMints?.[0]).toMatchObject({ fid: 6500n, id: 10n, to: OTHER });
   });
 
   it('demands a voucher for every mint in a batch, not just the first', () => {
@@ -171,7 +174,7 @@ describe('willSponsor: Wordmark mints', () => {
       SALES,
       WORDMARKS
     );
-    expect(decision.requiresVouchers).toEqual([a, b]);
+    expect(decision.requiresMints?.map((m) => m.signature)).toEqual([a, b]);
   });
 
   it('carries the requirement out of a batch that also buys packs', () => {
@@ -184,13 +187,13 @@ describe('willSponsor: Wordmark mints', () => {
       WORDMARKS
     );
     expect(decision.allowed).toBe(true);
-    expect(decision.requiresVouchers).toEqual([SIG]);
+    expect(decision.requiresMints?.map((m) => m.signature)).toEqual([SIG]);
   });
 
   it('leaves a plain pack purchase needing no voucher at all', () => {
     const decision = willSponsor(execute(SALES, buyPacksCall()), SALES, WORDMARKS);
     expect(decision.allowed).toBe(true);
-    expect(decision.requiresVouchers).toBeUndefined();
+    expect(decision.requiresMints).toBeUndefined();
   });
 
   it('refuses a batch that reuses one voucher across several mints', () => {
@@ -233,5 +236,57 @@ describe('willSponsor: Wordmark mints', () => {
     // Unset must mean "sponsor nothing", never "sponsor anything".
     expect(willSponsor(execute(WORDMARKS, mintCall()), SALES, null).allowed).toBe(false);
     expect(willSponsor(execute(WORDMARKS, mintCall()), SALES, 'nope').allowed).toBe(false);
+  });
+
+  it('refuses a signature that is not exactly 65 bytes', () => {
+    // Junk can never recover to the attestor; refuse it a layer early rather
+    // than letting a two-byte "signature" reach the Redis lookup and logs.
+    expect(willSponsor(execute(WORDMARKS, mintCall('0xabcd')), SALES, WORDMARKS).allowed).toBe(false);
+    expect(willSponsor(execute(WORDMARKS, mintCall('0x' + 'ab'.repeat(64))), SALES, WORDMARKS).allowed).toBe(false);
+  });
+});
+
+/**
+ * The shapes real clients actually send. Every sponsored call from the app
+ * carries the 29-byte ERC-8021 attribution suffix on the INNER calldata
+ * (WordmarkMintButton appends it to encodeFunctionData's output), and the
+ * decode tolerating those trailing bytes is what every sponsored mint rests
+ * on. Nothing pinned it until these cases.
+ */
+const ERC_8021_SUFFIX = '62635f6c756c34736c64770b0080218021802180218021802180218021';
+
+describe('willSponsor: real client shapes', () => {
+  it('sponsors a suffixed mint inside executeBatch, recovering the same signature', () => {
+    const decision = willSponsor(
+      executeBatch([{ target: WORDMARKS, data: mintCall() + ERC_8021_SUFFIX }]),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.requiresMints?.map((m) => m.signature)).toEqual([SIG]);
+  });
+
+  it('sponsors a suffixed pack purchase inside executeBatch', () => {
+    const decision = willSponsor(
+      executeBatch([{ target: SALES, data: buyPacksCall() + ERC_8021_SUFFIX, value: 400_000_000_000_000n }]),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.allowed).toBe(true);
+  });
+
+  it('refuses a batch wider than any honest flow produces', () => {
+    const calls = Array.from({ length: 5 }, () => ({ target: SALES, data: buyPacksCall() }));
+    const decision = willSponsor(executeBatch(calls), SALES, WORDMARKS);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toMatch(/batch too large/i);
+  });
+
+  it('survives non-string callData from an unauthenticated body', () => {
+    // The route feeds this straight from JSON; a number here used to throw on
+    // .startsWith and 500 the wallet instead of refusing gracefully.
+    expect(willSponsor(42 as unknown as string, SALES, WORDMARKS).allowed).toBe(false);
+    expect(willSponsor({} as unknown as string, SALES, WORDMARKS).allowed).toBe(false);
+    expect(willSponsor(null as unknown as string, SALES, WORDMARKS).allowed).toBe(false);
   });
 });

@@ -53,17 +53,54 @@ export async function hasBudget(store: BudgetStore, keys: string[]): Promise<boo
   return true;
 }
 
+export interface SpendResult {
+  /** Every key this call decremented and did not itself compensate. On a
+   *  refusal the caller must refund exactly these, and only these. */
+  spent: string[];
+  ok: boolean;
+}
+
 /**
- * Spend one unit against each voucher.
+ * Spend one unit against each voucher. THE DECR RESULT IS THE ARBITER.
  *
- * Deliberately BEFORE the upstream paymaster is called, because that call is
- * what costs money and two concurrent requests must not both find the budget
- * intact. Anything that turns out not to have been sponsored is refunded.
+ * hasBudget is a plain GET and cannot hold under concurrency: N parallel
+ * requests all read the same intact budget, and with auto-pipelining they do
+ * it in one batched round trip, so the race is deterministic, not a window.
+ * The only atomic primitive on this path is the counter itself — a spend
+ * counts only if its own DECR lands at zero or above. Exactly
+ * MINT_SPONSOR_BUDGET requests can ever win a voucher, whatever the
+ * concurrency.
+ *
+ * Still BEFORE the upstream paymaster is called, because that call is what
+ * costs money. Anything that turns out not to have been sponsored is
+ * refunded by the caller, from `spent`.
  */
-export async function spendBudget(store: BudgetStore, keys: string[]): Promise<void> {
+export async function spendBudget(store: BudgetStore, keys: string[]): Promise<SpendResult> {
+  const spent: string[] = [];
   for (const key of keys) {
-    await store.decr(key);
+    let left: number;
+    try {
+      left = await store.decr(key);
+    } catch (error) {
+      // State unknown: the decrement may or may not have landed, so refunding
+      // could conjure a unit that funds a sponsored revert, while not
+      // refunding costs the player at most one retry. Take the cheaper loss.
+      console.error('[mint-sponsorship] Could not spend a voucher:', error);
+      return { ok: false, spent };
+    }
+    if (left < 0) {
+      // Exhausted — or the key expired between the check and this spend, in
+      // which case the DECR just re-created it at -1 with NO expiry: the
+      // mirror of the INCR resurrection bug refundBudget guards against.
+      // refundBudget covers both: an exhausted key goes back to 0 with its
+      // own remaining life, a resurrected one gets the fallback expiry, so
+      // nothing immortal or spendable is left behind either way.
+      await refundBudget(store, [key]);
+      return { ok: false, spent };
+    }
+    spent.push(key);
   }
+  return { ok: true, spent };
 }
 
 /**
