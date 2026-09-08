@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   useAccount,
+  useConnect,
   useWriteContract,
   useWaitForTransactionReceipt,
   useReadContract,
@@ -58,6 +59,7 @@ interface Props {
 
 export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) {
   const { address, isConnected } = useAccount();
+  const { connectAsync, connectors } = useConnect();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsoredDone, setSponsoredDone] = useState(false);
@@ -152,14 +154,82 @@ export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) 
 
   const mint = useCallback(async () => {
     if (!WORDMARKS_ADDRESS || id === undefined) return;
-    if (!isConnected || !address) {
-      setError('Connect a wallet first');
-      return;
+    // Busy from the FIRST tap: the connect prompt below can sit open for a
+    // while, and a second tap during it would start a parallel
+    // connect-and-mint — two vouchers, two wallet prompts (Bugbot, #322).
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+
+    // Base App ALWAYS has a wallet, so "connect a wallet first" was a dead
+    // end there: the webview sheds wagmi's stored connection state while the
+    // session cookie survives, and a signed-in player has no other surface
+    // that offers to reconnect (reported from a Base App device,
+    // 2026-09-08). Connect in place instead, with the sign-in flow's own
+    // preference order: injected only when a provider actually exists (it
+    // carries Base App's wallet), Base Account for plain web. Never the
+    // Farcaster connector — in a host it is already auto-connected before
+    // this button can render.
+    let mintTo = address;
+    let sponsorNow = canSponsor;
+    if (!isConnected || !mintTo) {
+      const hasInjectedProvider =
+        typeof window !== 'undefined' &&
+        (window as unknown as { ethereum?: unknown }).ethereum != null;
+      const injectedConnector = connectors.find((c) => c.id === 'injected');
+      const baseConnector = connectors.find((c) => c.id.toLowerCase().includes('base'));
+      const candidates = [
+        ...(hasInjectedProvider && injectedConnector ? [injectedConnector] : []),
+        ...(baseConnector ? [baseConnector] : []),
+      ];
+      let connectedVia: (typeof candidates)[number] | null = null;
+      for (const connector of candidates) {
+        try {
+          const result = await connectAsync({ connector });
+          mintTo = result.accounts[0];
+          connectedVia = connector;
+          break;
+        } catch (err) {
+          // A rejection is a decision, and shopping it to the next connector
+          // would answer a dismissed popup with another popup (Bugbot, #322,
+          // matching useWalletSignIn's stop-on-rejection). Any other failure
+          // falls through to the next candidate.
+          if (/reject|denied|cancel/i.test(String((err as Error)?.message ?? ''))) {
+            setBusy(false);
+            setError('You cancelled the connection.');
+            return;
+          }
+        }
+      }
+      if (!mintTo || !connectedVia) {
+        setBusy(false);
+        setError('Connect a wallet first');
+        return;
+      }
+      // The render's `canSponsor` was computed with NO account, so it is
+      // false here even where the wallet advertises paymasterService — the
+      // same stale closure mintTo exists for, on the sponsorship axis
+      // (Bugbot, #322). Ask the freshly connected wallet directly; any
+      // failure just means self-paid, which every wallet can do.
+      sponsorNow = false;
+      if (paymasterUrl()) {
+        try {
+          const provider = (await connectedVia.getProvider()) as {
+            request: (args: { method: string; params: unknown[] }) => Promise<unknown>;
+          };
+          const caps = (await provider.request({
+            method: 'wallet_getCapabilities',
+            params: [mintTo],
+          })) as Record<string | number, { paymasterService?: { supported?: boolean } }> | null;
+          const chainCaps = caps?.[`0x${base.id.toString(16)}`] ?? caps?.[base.id];
+          sponsorNow = chainCaps?.paymasterService?.supported === true;
+        } catch {
+          // Self-paid it is.
+        }
+      }
     }
 
     void haptics.buttonTapMinor();
-    setBusy(true);
-    setError(null);
     resetWrite();
     resetSendCalls();
 
@@ -170,7 +240,9 @@ export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) 
       const res = await fetch('/api/wordmarks/voucher', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...playerSessionHeaders() },
-        body: JSON.stringify({ address, wordmark: wordmark.id, authToken }),
+        // mintTo, not the hook's address: a connection made two lines up is
+        // not in this render's closure yet.
+        body: JSON.stringify({ address: mintTo, wordmark: wordmark.id, authToken }),
       });
       const v = await res.json().catch(() => null);
       if (!res.ok || !v?.signature) {
@@ -180,7 +252,7 @@ export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) 
       const args = [BigInt(v.fid), v.to as `0x${string}`, BigInt(v.id), BigInt(v.deadline), v.signature as `0x${string}`] as const;
 
       const url = paymasterUrl();
-      if (canSponsor && url) {
+      if (sponsorNow && url) {
         sendCalls({
           calls: [
             {
@@ -215,7 +287,7 @@ export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) 
     // authToken belongs in the deps: Quick Auth resolves AFTER first render,
     // and a stale closure here would send the null from before it arrived —
     // the same "Authentication required" this prop exists to fix (Bugbot).
-  }, [address, isConnected, wordmark.id, id, authToken, canSponsor, sendCalls, writeContract, resetWrite, resetSendCalls]);
+  }, [address, isConnected, busy, wordmark.id, id, authToken, canSponsor, sendCalls, writeContract, resetWrite, resetSendCalls, connectAsync, connectors]);
 
   // Not deployed, not an onchain Wordmark, or not actually earned: say nothing.
   if (!WORDMARKS_ADDRESS || id === undefined || !wordmark.earned) return null;
