@@ -212,7 +212,10 @@ export default function WordmarkMintButton({ wordmark, fid, authToken }: Props) 
       setBusy(false);
       setError(err instanceof Error ? err.message : 'Could not mint');
     }
-  }, [address, isConnected, wordmark.id, id, canSponsor, sendCalls, writeContract, resetWrite, resetSendCalls]);
+    // authToken belongs in the deps: Quick Auth resolves AFTER first render,
+    // and a stale closure here would send the null from before it arrived —
+    // the same "Authentication required" this prop exists to fix (Bugbot).
+  }, [address, isConnected, wordmark.id, id, authToken, canSponsor, sendCalls, writeContract, resetWrite, resetSendCalls]);
 
   // Not deployed, not an onchain Wordmark, or not actually earned: say nothing.
   if (!WORDMARKS_ADDRESS || id === undefined || !wordmark.earned) return null;
