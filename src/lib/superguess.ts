@@ -2,9 +2,11 @@
  * Superguess — Core State Management
  * Milestone 15: High-stakes late-game mechanic
  *
- * After guess #850, a player pays $WORD tokens for an exclusive 25-guess,
- * 10-minute window. All other players are blocked and watch as spectators.
- * 50% of payment is burned, 50% goes to staking rewards.
+ * After guess #850, a player pays ETH for an exclusive 25-guess, 10-minute
+ * window. All other players are blocked and watch as spectators. 80% of the
+ * payment is credited to the round's $WORD prize pool on the same terms as a
+ * guess pack; 20% accumulates as treasury revenue. (The original $WORD-paid
+ * 50% burn / 50% staking split is legacy — see purchase.ts.)
  *
  * Feature flag: NEXT_PUBLIC_SUPERGUESS_ENABLED
  */
@@ -20,6 +22,7 @@ import {
   cacheDel,
   CACHE_PREFIX,
 } from './redis';
+import { usdCentsForTokens } from './word-amounts';
 
 // ============================================================
 // Configuration & Constants
@@ -37,8 +40,15 @@ export const SUPERGUESS_MAX_GUESSES = 25;
 export const SUPERGUESS_MIN_GUESS_COUNT = 850;
 
 /**
- * Pricing tiers based on remaining words in pool
+ * LEGACY pricing tiers based on remaining words in pool.
  * Pool size = total_dictionary_words - global_guess_count
+ *
+ * On a $WORD round the price is half the live pool (see getSuperguessQuote);
+ * this ladder remains only as the fallback for non-$WORD rounds and for a
+ * $WORD round with no usable price basis. Fixed USD tiers were retired because
+ * they cannot track the pool: round 34 quoted $90 against a $35 pool, where
+ * even a guaranteed win (80% of pool + 64% of your own payment back through
+ * the pool credit) returns $85.60.
  */
 export const SUPERGUESS_TIERS = [
   { id: 'tier_1', minRemaining: 3200, usdPrice: 20 },
@@ -48,6 +58,109 @@ export const SUPERGUESS_TIERS = [
 ] as const;
 
 export type SuperguessTierId = typeof SUPERGUESS_TIERS[number]['id'];
+
+/**
+ * Pool-fraction pricing ($WORD rounds): half the pool, floored.
+ *
+ * Half, because the buyer's rational-entry point then depends only on the
+ * remaining-word count, never on pool size: a win pays 80% of (pool + 80% of
+ * the payment), so at half the pool the purchase breaks even at ~45% win
+ * probability regardless of whether the pool is $40 or $400. A fixed-USD
+ * price cannot do that — too high it is a donation (the $90/$35 case), too
+ * low it goes +EV on carry-inflated pools and snipers drain the other
+ * players' pot.
+ *
+ * The floor prices the blocking externality (10 minutes of everyone else's
+ * round) when the pool is at its smallest; one-per-round already caps how
+ * often that can happen.
+ */
+export const SUPERGUESS_POOL_FRACTION_BPS = 5000n;
+export const SUPERGUESS_MIN_PRICE_USD_CENTS = 1000n; // $10.00
+
+/** Pure pricing rule, in cents: max(floor, pool × fraction). */
+export function superguessPriceUsdCents(poolUsdCents: bigint): bigint {
+  const priced = (poolUsdCents * SUPERGUESS_POOL_FRACTION_BPS) / 10_000n;
+  return priced > SUPERGUESS_MIN_PRICE_USD_CENTS
+    ? priced
+    : SUPERGUESS_MIN_PRICE_USD_CENTS;
+}
+
+export interface SuperguessQuote {
+  id: 'pool_half' | SuperguessTierId;
+  usdPrice: number;
+}
+
+/**
+ * The current Superguess price.
+ *
+ * On a $WORD round: half the pool's USD value, on exactly the same basis as
+ * the pool figure the player is looking at (live cached $WORD price when
+ * warm, the round's frozen seed snapshot otherwise — the wheel.ts pattern),
+ * so the quote is visibly half of the displayed number. Whole dollars.
+ *
+ * Anywhere that basis is missing (non-$WORD round, no price snapshot), the
+ * legacy fixed-USD ladder answers instead — era-gating, not dead code.
+ *
+ * The round object must carry prizeCurrency, prizePoolWord and seedPriceE18:
+ * pass the row getActiveRound() returns, never a hand-rebuilt subset.
+ */
+export async function getSuperguessQuote(
+  round: {
+    prizeCurrency?: string | null;
+    prizePoolWord?: string | null;
+    seedPriceE18?: string | null;
+  } | null,
+  globalGuessCount: number,
+  totalDictionaryWords: number
+): Promise<SuperguessQuote | null> {
+  if (globalGuessCount < SUPERGUESS_MIN_GUESS_COUNT) return null;
+
+  // A $WORD round whose object lacks the pool column is a rebuilt subset
+  // (the hand-written-field-list hazard — the schema defaults the real
+  // column to '0', so undefined means dropped, not empty). Quoting the $10
+  // floor against a real pool would be a silent 95% discount; the loud
+  // ladder is the safer wrong answer.
+  if (round?.prizeCurrency === 'word' && round.prizePoolWord != null) {
+    const snapshotE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+    let priceE18 = snapshotE18;
+    try {
+      const { getCachedWordPriceUsd } = await import('./word-oracle');
+      const { usdPriceToE18 } = await import('./word-amounts');
+      const livePriceUsd = await getCachedWordPriceUsd();
+      if (livePriceUsd && livePriceUsd > 0) {
+        let liveE18 = usdPriceToE18(livePriceUsd);
+        // Junk-low clamp: this quote SELLS at the price the oracle names,
+        // and the cached feed's first source has no cross-check — a 10x-low
+        // print would fire-sale the Superguess against the real pool for up
+        // to 30 minutes of cache TTL. Floor the basis at half the round's
+        // seed snapshot: a genuine 50% drawdown still halves the quote, a
+        // junk print is bounded to a 2x discount. Junk-HIGH needs no clamp —
+        // an overpriced quote just doesn't sell, and keep-min pinning stops
+        // it overcharging anyone.
+        if (snapshotE18 > 0n && liveE18 < snapshotE18 / 2n) {
+          liveE18 = snapshotE18 / 2n;
+        }
+        priceE18 = liveE18;
+      }
+    } catch {
+      // The frozen seed snapshot stands.
+    }
+
+    if (priceE18 > 0n) {
+      const poolWei = BigInt(round.prizePoolWord);
+      const priceCents = superguessPriceUsdCents(
+        usdCentsForTokens(poolWei, priceE18)
+      );
+      return {
+        id: 'pool_half',
+        usdPrice: Math.max(10, Math.round(Number(priceCents) / 100)),
+      };
+    }
+  }
+
+  const tier = getSuperguessCurrentTier(globalGuessCount, totalDictionaryWords);
+  return tier ? { id: tier.id, usdPrice: tier.usdPrice } : null;
+}
 
 // ============================================================
 // Feature Flag
@@ -79,10 +192,66 @@ const SuperguessCacheKeys = {
    * global one.
    */
   used: (roundId: number) => `${CACHE_PREFIX}superguess:used:${roundId}`,
+  /** Lowest USD quote served recently — see pinSuperguessQuote. */
+  quotePin: (roundId: number) => `${CACHE_PREFIX}superguess:quotepin:${roundId}`,
 };
 
 /** TTL for the global used-this-round boolean (seconds). */
 const SUPERGUESS_USED_TTL = 10;
+
+/**
+ * How long a served quote stays honored (seconds). Sized to a wallet flow:
+ * open modal, read, sign, confirm.
+ */
+const SUPERGUESS_QUOTE_PIN_TTL_S = 300;
+
+/**
+ * Remember the LOWEST quote served in the last few minutes, per round.
+ *
+ * Why: the pool only grows mid-round (every pack purchase credits it
+ * immediately), so a pool-linked price can rise between the quote a buyer
+ * signed against and the recompute at confirm time. Without the pin, that
+ * honest payment lands under the validation floor AFTER the ETH is onchain —
+ * the exact stuck-payment failure the 90% floor exists to prevent.
+ *
+ * Per-round rather than per-buyer because /api/superguess/status is
+ * unauthenticated and only one Superguess can ever be bought per round. The
+ * cost of keep-min is bounded: at most a few minutes of pool growth of
+ * discount, and 80% of whatever is actually paid still credits the pool.
+ * Best-effort: a cache outage just means validation uses the live price.
+ */
+export async function pinSuperguessQuote(
+  roundId: number,
+  usdPrice: number
+): Promise<void> {
+  const key = SuperguessCacheKeys.quotePin(roundId);
+  try {
+    // Upstash can round-trip numbers as strings in this deployment; coerce.
+    const existing = await cacheGet<number | string>(key);
+    const existingNum = existing == null ? NaN : Number(existing);
+    if (Number.isFinite(existingNum) && existingNum > 0 && existingNum <= usdPrice) {
+      return;
+    }
+    await cacheSet(key, usdPrice, SUPERGUESS_QUOTE_PIN_TTL_S);
+  } catch {
+    // Best-effort only.
+  }
+}
+
+/** The pinned quote for a round, or null if none is fresh. */
+export async function getPinnedSuperguessQuote(
+  roundId: number
+): Promise<number | null> {
+  try {
+    const cached = await cacheGet<number | string>(
+      SuperguessCacheKeys.quotePin(roundId)
+    );
+    const n = cached == null ? NaN : Number(cached);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
 
 // ============================================================
 // Core State Functions

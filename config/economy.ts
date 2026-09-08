@@ -145,7 +145,8 @@ export const X_HANDLE = process.env.NEXT_PUBLIC_X_HANDLE?.trim() || '@letshaveaw
 export const FARCASTER_HANDLE = '@letshaveaword';
 
 /**
- * USD target every $WORD round is seeded at, in cents. $20.00 by default.
+ * USD target every $WORD round is seeded at, in cents. $40.00 by default
+ * (raised from $20.00 for round 35 onward, 2026-09-08).
  *
  * Denominated in USD rather than tokens so a round is worth the same to a
  * player regardless of where $WORD is trading; WordJackpot converts it at its
@@ -160,11 +161,11 @@ export const FARCASTER_HANDLE = '@letshaveaword';
  */
 export const WORD_SEED_USD_CENTS = (() => {
   const raw = process.env.WORD_SEED_USD_CENTS?.trim();
-  if (!raw) return 2000;
+  if (!raw) return 4000;
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 100_000) {
-    console.warn(`[economy] Ignoring invalid WORD_SEED_USD_CENTS="${raw}" — using 2000 ($20.00)`);
-    return 2000;
+    console.warn(`[economy] Ignoring invalid WORD_SEED_USD_CENTS="${raw}" — using 4000 ($40.00)`);
+    return 4000;
   }
   return parsed;
 })();

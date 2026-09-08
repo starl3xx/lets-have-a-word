@@ -38,6 +38,8 @@ const TIER_LABELS: Record<string, string> = {
   tier_2: 'Enhanced',
   tier_3: 'Premium',
   tier_4: 'Ultra',
+  // $WORD rounds price at half the live prize pool, not a fixed tier.
+  pool_half: 'Half the pool',
 };
 
 export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseComplete, fid: userFid, devFid, authToken, preview }: Props) {
@@ -100,14 +102,37 @@ export default function SuperguessPurchaseModal({ isOpen, onClose, onPurchaseCom
     }
   }, [phase, onPurchaseComplete, onClose, resetPayment]);
 
-  const handlePurchase = useCallback(() => {
+  const handlePurchase = useCallback(async () => {
     if (!statusData?.tier || !statusData?.ethAmount) return;
+
+    // Re-quote immediately before paying. The server honors a served quote
+    // for five minutes; a modal left open longer (a Base App top-up, a cold
+    // wallet) would otherwise pay against an expired pin after the pool has
+    // grown, and the payment could land under the validation floor with the
+    // ETH already onchain. The refresh also catches a Superguess someone
+    // else bought while this modal sat open, BEFORE this player pays.
+    let quote = statusData;
+    try {
+      const fidParam = userFid || devFid;
+      const res = await fetch(`/api/superguess/status${fidParam ? `?fid=${fidParam}` : ''}`);
+      const fresh = await res.json();
+      if (fresh && fresh.available === false) {
+        setStatusData(fresh);
+        return;
+      }
+      if (fresh?.tier && fresh?.ethAmount) {
+        quote = fresh;
+        setStatusData(fresh);
+      }
+    } catch {
+      // The opened quote stands; the server-side pin usually still covers it.
+    }
 
     // The exact quote from the server, passed straight through. This used to
     // parse a display string — "64M" back into 64000000 — to decide what to
     // pay, which is a lossy round-trip on the amount being charged.
-    startPayment(statusData.ethAmount, statusData.roundId);
-  }, [statusData, startPayment]);
+    startPayment(quote.ethAmount!, quote.roundId);
+  }, [statusData, startPayment, userFid, devFid]);
 
   const handleDevPurchase = useCallback(async () => {
     // Dev mode: skip onchain transfer, directly call purchase API

@@ -231,8 +231,8 @@ describe('WORD_SEED_USD_CENTS', () => {
     vi.resetModules();
   });
 
-  it('defaults to $20.00 when unset', async () => {
-    expect(await loadWith(undefined)).toBe(2000);
+  it('defaults to $40.00 when unset (raised from $20 for round 35+)', async () => {
+    expect(await loadWith(undefined)).toBe(4000);
   });
 
   it('accepts a valid override', async () => {
@@ -240,23 +240,23 @@ describe('WORD_SEED_USD_CENTS', () => {
   });
 
   it('falls back on a non-numeric value', async () => {
-    expect(await loadWith('twenty dollars')).toBe(2000);
+    expect(await loadWith('twenty dollars')).toBe(4000);
   });
 
   it('falls back on zero, which would seed nothing', async () => {
-    expect(await loadWith('0')).toBe(2000);
+    expect(await loadWith('0')).toBe(4000);
   });
 
   it('falls back on a negative value', async () => {
-    expect(await loadWith('-500')).toBe(2000);
+    expect(await loadWith('-500')).toBe(4000);
   });
 
   it('falls back on a fractional value, since cents are integers', async () => {
-    expect(await loadWith('2000.5')).toBe(2000);
+    expect(await loadWith('2000.5')).toBe(4000);
   });
 
   it('falls back on an absurdly large value rather than draining the treasury', async () => {
-    expect(await loadWith('99999999')).toBe(2000);
+    expect(await loadWith('99999999')).toBe(4000);
   });
 
   it('ignores surrounding whitespace', async () => {

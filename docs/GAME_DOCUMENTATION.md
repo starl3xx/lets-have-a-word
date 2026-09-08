@@ -62,7 +62,7 @@ Each player gets a daily allocation of guesses:
 
 ### Prize Pool Economics (Updated August 2026)
 
-**Prize currency**: rounds 1–33 paid **ETH** from JackpotManagerV3. From round 34 the pool is denominated in **$WORD** and held by `WordJackpot`, seeded with ~$20 of $WORD (oracle-priced at round start) from a treasury tranche.
+**Prize currency**: rounds 1–33 paid **ETH** from JackpotManagerV3. From round 34 the pool is denominated in **$WORD** and held by `WordJackpot`, seeded with ~$40 of $WORD (oracle-priced at round start; round 34 itself seeded at $20) from a treasury tranche.
 
 Guess packs are still bought with **ETH** — only the prize changed. Each round reads its own currency from `rounds.prize_currency`, so the archive renders both eras side by side.
 
