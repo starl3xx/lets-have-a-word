@@ -32,6 +32,9 @@ interface WordmarkDetailModalProps {
   /** Whose Lexicon this is. Needed to mint, because a Wordmark is awarded to a
    *  fid and the contract's ledger is keyed on one. */
   fid?: number;
+  /** Quick Auth token, threaded to the mint button — a Farcaster player has
+   *  no other credential the voucher endpoint accepts. */
+  authToken?: string | null;
 }
 
 /** Uppercase a guessed word from metadata, defensively. */
@@ -172,7 +175,7 @@ function formatEarnedDate(earnedAt: Date | string | undefined): string | null {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function WordmarkDetailModal({ wordmark, onClose, fid }: WordmarkDetailModalProps) {
+export default function WordmarkDetailModal({ wordmark, onClose, fid, authToken }: WordmarkDetailModalProps) {
   const { inMiniApp, resolved } = useIsInMiniApp();
   const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
   const detail = wordmark.earned ? earnedDetail(wordmark) : null;
@@ -264,7 +267,7 @@ export default function WordmarkDetailModal({ wordmark, onClose, fid }: Wordmark
 
         {/* Renders nothing until the contract is deployed, and nothing for a
             Wordmark this player has not earned. */}
-        {fid ? <WordmarkMintButton wordmark={wordmark} fid={fid} /> : null}
+        {fid ? <WordmarkMintButton wordmark={wordmark} fid={fid} authToken={authToken} /> : null}
 
         {wordmark.earned ? (
           <div className="flex gap-3">
