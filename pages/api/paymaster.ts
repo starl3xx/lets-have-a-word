@@ -119,15 +119,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // params[0] is the user operation for both ERC-7677 methods.
   const userOp = (params?.[0] ?? {}) as { callData?: string; sender?: string };
 
-  // Metered per sender (an unauthenticated URL, so the sender claim plus the
-  // IP is the best identity there is). The voucher budget bounds mint spend;
-  // this bounds how hard the voucher-less buyPacks leg and the upstream's
-  // quota can be hammered. Fails open like every limiter here.
+  // Metered twice. The IP bucket is the bound that actually holds: `sender`
+  // is a body claim on an unauthenticated URL, so rotating it mints a fresh
+  // bucket per request and any limiter keyed on it alone is decorative
+  // (Bugbot, #321). The per-sender bucket exists only so one honest wallet
+  // behind a shared NAT does not starve its neighbours' allowance. The
+  // voucher budget bounds mint spend; this bounds how hard the voucher-less
+  // buyPacks leg and the upstream's quota can be hammered. Fails open like
+  // every limiter here.
   const sender = typeof userOp.sender === 'string' ? userOp.sender.toLowerCase() : 'unknown';
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
     || req.socket?.remoteAddress || 'unknown';
-  const limit = await checkRateLimit(RateLimiters.packPurchase, `paymaster:${sender}:${ip}`);
-  if (!limit.success) {
+  const ipLimit = await checkRateLimit(RateLimiters.general, `paymaster-ip:${ip}`);
+  if (!ipLimit.success) {
+    return res.status(200).json(rpcError(id, -32000, 'Not sponsored: too many requests'));
+  }
+  const senderLimit = await checkRateLimit(RateLimiters.packPurchase, `paymaster:${sender}:${ip}`);
+  if (!senderLimit.success) {
     return res.status(200).json(rpcError(id, -32000, 'Not sponsored: too many requests'));
   }
 
@@ -172,10 +180,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.warn('[paymaster] Refusing a mint: no attestor key to verify vouchers against');
       return res.status(200).json(rpcError(id, -32000, 'Not sponsored: cannot verify voucher'));
     }
+    const nowSeconds = Math.floor(Date.now() / 1000);
     for (const claim of mints) {
       if (!voucherIsGenuine(claim, wordmarksAddress!, attestor)) {
         console.warn('[paymaster] Refusing a mint whose voucher the attestor never signed');
         return res.status(200).json(rpcError(id, -32000, 'Not sponsored: invalid voucher'));
+      }
+      // The contract reverts a lapsed voucher, so sponsoring one buys a
+      // guaranteed revert. A genuine-but-expired signature outlives its own
+      // budget key: after a re-issue recreates the (fid, id) budget, the OLD
+      // signature would otherwise spend the NEW budget on nothing (Bugbot,
+      // #321). <= now, because a mint signed for this exact second cannot
+      // reach a block before it lapses either.
+      if (Number(claim.deadline) <= nowSeconds) {
+        console.warn('[paymaster] Refusing a mint whose voucher deadline has passed');
+        return res.status(200).json(rpcError(id, -32000, 'Not sponsored: expired voucher'));
       }
     }
 

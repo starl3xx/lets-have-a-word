@@ -141,13 +141,13 @@ describe('willSponsor', () => {
 const WORDMARKS = '0x3333333333333333333333333333333333333333';
 const SIG = '0x' + 'ab'.repeat(65);
 
-function mintCall(signature = SIG): string {
+function mintCall(signature = SIG, id = 10n): string {
   return (
     WORDMARK_MINT_SELECTOR +
     coder
       .encode(
         ['uint256', 'address', 'uint256', 'uint256', 'bytes'],
-        [6500n, OTHER, 10n, 1_800_000_000n, signature]
+        [6500n, OTHER, id, 1_800_000_000n, signature]
       )
       .slice(2)
   );
@@ -164,12 +164,14 @@ describe('willSponsor: Wordmark mints', () => {
   });
 
   it('demands a voucher for every mint in a batch, not just the first', () => {
+    // Two DIFFERENT entitlements: a batch repeating one (fid, id) is refused
+    // outright, whatever the signatures say.
     const a = '0x' + '11'.repeat(65);
     const b = '0x' + '22'.repeat(65);
     const decision = willSponsor(
       executeBatch([
-        { target: WORDMARKS, data: mintCall(a) },
-        { target: WORDMARKS, data: mintCall(b) },
+        { target: WORDMARKS, data: mintCall(a, 10n) },
+        { target: WORDMARKS, data: mintCall(b, 11n) },
       ]),
       SALES,
       WORDMARKS
@@ -199,9 +201,8 @@ describe('willSponsor: Wordmark mints', () => {
   it('refuses a batch that reuses one voucher across several mints', () => {
     // The hole this closes: one legitimately issued voucher, repeated N times
     // in a batch. The contract rejects the replays, so N-1 are guaranteed
-    // reverts, and a revert still consumes gas the paymaster pays for. Every
-    // signature passed the Redis check, because they were all the same
-    // signature. (Bugbot, PR #300.)
+    // reverts, and a revert still consumes gas the paymaster pays for.
+    // (Bugbot, PR #300.)
     const decision = willSponsor(
       executeBatch([
         { target: WORDMARKS, data: mintCall() },
@@ -211,7 +212,25 @@ describe('willSponsor: Wordmark mints', () => {
       WORDMARKS
     );
     expect(decision.allowed).toBe(false);
-    expect(decision.reason).toMatch(/reuse one Wordmark voucher/i);
+    expect(decision.reason).toMatch(/mint one Wordmark twice/i);
+  });
+
+  it('refuses two GENUINE vouchers for the same entitlement in one batch', () => {
+    // The signature-keyed dedupe missed this: the voucher endpoint signs a
+    // fresh deadline every request, so one player can hold two real
+    // signatures for one Wordmark — and the second mint in the batch can
+    // only revert AlreadyMinted. Dedupe follows the budget: by (fid, id).
+    // (Bugbot, #321.)
+    const decision = willSponsor(
+      executeBatch([
+        { target: WORDMARKS, data: mintCall('0x' + '11'.repeat(65), 10n) },
+        { target: WORDMARKS, data: mintCall('0x' + '22'.repeat(65), 10n) },
+      ]),
+      SALES,
+      WORDMARKS
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toMatch(/mint one Wordmark twice/i);
   });
 
   it('refuses a mint whose arguments do not decode', () => {

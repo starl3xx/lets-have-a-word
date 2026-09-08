@@ -157,12 +157,14 @@ export function willSponsor(
       if (!claim) {
         return { allowed: false, reason: 'Malformed Wordmark mint call' };
       }
-      // One voucher authorises one mint. A batch repeating the same signature
-      // is asking to be paid for N-1 guaranteed reverts, since the contract
-      // rejects the replay: exactly the drain the voucher check exists to stop,
-      // wearing a single valid voucher as cover (Bugbot, PR #300).
-      if (mints.some((m) => m.signature === claim.signature)) {
-        return { allowed: false, reason: 'A batch cannot reuse one Wordmark voucher' };
+      // One entitlement mints once. The dedupe keys on (fid, id), not the
+      // signature, because the budget does too: the voucher endpoint signs a
+      // fresh deadline on every request, so one player can hold two GENUINE
+      // signatures for the same Wordmark — and a batch carrying both would be
+      // paid for one mint and one AlreadyMinted revert. Same-signature replay
+      // is the same case with less effort (Bugbot, PR #300 and #321).
+      if (mints.some((m) => m.fid === claim.fid && m.id === claim.id)) {
+        return { allowed: false, reason: 'A batch cannot mint one Wordmark twice' };
       }
       mints.push(claim);
       continue;

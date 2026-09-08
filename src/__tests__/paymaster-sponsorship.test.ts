@@ -286,6 +286,18 @@ describe('sponsorship against the real client', () => {
     expect(upstream.requests).toHaveLength(0);
   });
 
+  it('refuses a GENUINE voucher whose deadline has passed, before any budget is touched', async () => {
+    // A signature outlives its own budget key: after a re-issue recreates
+    // the (fid, id) budget, an old genuine voucher would otherwise spend the
+    // new budget on a guaranteed VoucherExpired revert (Bugbot, #321).
+    await seed();
+    const v = await signVoucher({ deadline: Math.floor(Date.now() / 1000) - 60 });
+    const { body } = await run(paymasterBody(mintCallData(v)));
+    expect(body.error?.message).toMatch(/expired voucher/i);
+    expect(shim.commandCount('decr', 'mintbudget')).toBe(0);
+    expect(upstream.requests).toHaveLength(0);
+  });
+
   it('refuses a voucher the attestor never signed, before any budget is touched', async () => {
     await seed();
     const v = await signVoucher({ signer: '0x' + '77'.repeat(32) });
