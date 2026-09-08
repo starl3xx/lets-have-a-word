@@ -5,12 +5,15 @@
  * are the same strings the game shows, from one source. Nothing here is
  * per-player: an ERC-1155 id describes the achievement, not the holder.
  *
- * WHY THIS IS NOT THE baseUri THE CONTRACT SHIPS WITH. A generated image is
- * only as permanent as the domain, and a soulbound token nobody can re-mint is
- * a bad thing to point at a URL that might lapse. Before deploy the twelve
- * renders are pinned to IPFS and baseUri is set to the pinned directory. This
- * route stays as the app's own convenience and as the thing the pinning step
- * reads from.
+ * THIS IS THE baseUri THE CONTRACT SHIPS WITH — decided 2026-09-08, over the
+ * earlier pin-to-IPFS plan. The trade accepted: a generated image is only as
+ * permanent as the domain, so keeping letshaveaword.fun registered is now a
+ * duty the tokens depend on. The decision is recoverable without redeploying:
+ * setBaseUri is onlyOwner, so the owner can point uri() at a pinned IPFS
+ * directory later if that duty ever needs retiring.
+ *
+ * HEAD is answered because indexers preflight metadata URLs with it, and the
+ * CORS header is for browser-based viewers; server-side indexers ignore it.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -18,9 +21,11 @@ import { WORDMARK_DEFINITIONS } from '../../../../src/lib/wordmarks';
 import { wordmarkTypeForTokenId } from '../../../../src/lib/wordmark-tokens';
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
 
   // The path is `<id>.json`, because ERC-1155 consumers append the id to a
   // base and expect a file, so the suffix has to be tolerated here.

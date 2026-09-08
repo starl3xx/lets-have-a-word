@@ -174,6 +174,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const body = Buffer.from(await image.arrayBuffer());
   res.setHeader('Content-Type', 'image/png');
+  // The token metadata points here permanently (see metadata/[id].ts), so
+  // browser-based NFT viewers must be able to fetch it cross-origin.
+  res.setHeader('Access-Control-Allow-Origin', '*');
   // An id's artwork never changes, so this is safe to cache hard.
   res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, immutable');
   return res.status(200).send(body);
