@@ -104,6 +104,31 @@ function EarningsStat({
   );
 }
 
+/**
+ * One-time hint that Wordmarks can be minted, following the install-prompt
+ * seen-key idiom. Guarded reads: Base App's webview has thrown on storage
+ * accessors before, and a hint must never be what crashes the stats sheet.
+ */
+const MINT_HINT_SEEN_KEY = 'lhaw_seen_wordmark_mint_hint';
+
+function hasSeenMintHint(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    return localStorage.getItem(MINT_HINT_SEEN_KEY) === 'true';
+  } catch {
+    // Storage unavailable: cannot remember a dismissal, so never nag.
+    return true;
+  }
+}
+
+function markMintHintSeen(): void {
+  try {
+    localStorage.setItem(MINT_HINT_SEEN_KEY, 'true');
+  } catch {
+    // Dismissal simply will not stick this session.
+  }
+}
+
 export default function StatsSheet({ fid, onClose, authToken }: StatsSheetProps) {
   const { t } = useTranslation();
   const { inMiniApp, resolved } = useIsInMiniApp();
@@ -115,6 +140,13 @@ export default function StatsSheet({ fid, onClose, authToken }: StatsSheetProps)
   const [selectedWordmark, setSelectedWordmark] = useState<UserWordmark | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Initialized in an effect, not the initializer: localStorage must not run
+  // during SSR/hydration where server and client would disagree.
+  const [showMintHint, setShowMintHint] = useState(false);
+
+  useEffect(() => {
+    setShowMintHint(!hasSeenMintHint());
+  }, []);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -300,6 +332,37 @@ export default function StatsSheet({ fid, onClose, authToken }: StatsSheetProps)
                     Your Wordmarks · {wordmarksData.earnedCount}/{wordmarksData.totalCount}
                   </p>
                 </div>
+                {/* First-open hint that Wordmarks mint as NFTs. Shows until
+                    dismissed rather than flashing exactly once: the point is
+                    that the player learns it exists, not that we said it.
+                    Gated on the mint feature being live and on having
+                    something to mint, so nobody reads about a button they
+                    cannot see. */}
+                {showMintHint &&
+                  wordmarksData.earnedCount > 0 &&
+                  Boolean(process.env.NEXT_PUBLIC_WORDMARKS_ADDRESS) && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-btn border border-indigo-200 bg-white/70 p-3">
+                      <span className="text-base leading-none" role="img" aria-label="Sparkles">
+                        ✨
+                      </span>
+                      <p className="flex-1 text-xs leading-relaxed text-indigo-800">
+                        New: your earned Wordmarks can be minted as NFTs. Tap
+                        one to put it in your wallet, onchain. Totally
+                        optional, and it costs a fraction of a cent.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          markMintHintSeen();
+                          setShowMintHint(false);
+                        }}
+                        aria-label="Dismiss"
+                        className="text-indigo-400 transition hover:text-indigo-600"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 <div className="grid grid-cols-3 gap-4">
                   {wordmarksData.wordmarks.map((wordmark) => {
                     const colors = WORDMARK_COLORS[wordmark.color] || WORDMARK_COLOR_FALLBACK;
