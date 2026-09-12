@@ -15,9 +15,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '../../../../src/db';
 import { guesses, users, rounds } from '../../../../src/db/schema';
-import { eq, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
+import { eq, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { isAdminFid } from '../me';
 import { TOP10_LOCK_AFTER_GUESSES } from '../../../../src/lib/top10-lock';
+import { activeRoundConditions } from '../../../../src/lib/rounds';
 import {
   getGuessLogIntegrity,
   getFirstLoggedRound,
@@ -130,7 +131,17 @@ export default async function handler(
         resolvedAt: rounds.resolvedAt,
       })
       .from(rounds)
-      .where(requestedRoundId !== null ? eq(rounds.id, requestedRoundId) : isNull(rounds.resolvedAt))
+      .where(
+        requestedRoundId !== null
+          ? eq(rounds.id, requestedRoundId)
+          : // NOT a bare isNull(resolvedAt): a cancelled round keeps resolvedAt
+            // NULL, so after a kill switch releases a round and the cron starts
+            // its successor, two rows match that and this card would report on
+            // whichever the planner returned first. Same conditions the game
+            // itself uses, so the card and the players agree on which round is
+            // live.
+            and(...activeRoundConditions())
+      )
       .limit(1);
 
     if (!targetRound && requestedRoundId !== null) {

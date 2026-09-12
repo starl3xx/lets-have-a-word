@@ -752,7 +752,16 @@ async function createRoundUnderLock(opts?: CreateRoundOptions): Promise<Round> {
  * pages/api/wheel/wrong-guesses.ts): two public endpoints disagreeing about
  * which round is active is not a cosmetic bug here.
  */
-function activeRoundConditions() {
+/**
+ * What "the active round" means, in one place.
+ *
+ * Exported because a hand-rolled `isNull(resolvedAt)` is not the same query and
+ * Bugbot caught it being one: a kill-switched round keeps resolvedAt NULL by
+ * design (enableKillSwitch writes status 'cancelled' and nothing else), so once
+ * a successor auto-starts there are two rows with a null resolvedAt and a
+ * caller without these conditions can pick the dead one.
+ */
+export function activeRoundConditions() {
   const conditions = [
     isNull(rounds.resolvedAt),
     isNull(rounds.winnerFid), // Round is locked once winner is set
