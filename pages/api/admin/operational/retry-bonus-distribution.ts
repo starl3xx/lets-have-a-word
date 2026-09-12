@@ -35,13 +35,29 @@ async function rewardGateBlocks(
   // Retries can run days after the round: use the round's frozen seed price
   // like every other money point, and do not consume a (day, wallet) claim —
   // a retry is a re-send of an already-earned reward, not a new play.
-  let round: { id: number; seedPriceE18: string | null } | null = null;
+  //
+  // The currency columns travel with the price snapshot. checkPlayEligibility
+  // reads only seedPriceE18, so nothing behaves differently — but every field
+  // on RoundPriceSource is optional, which means a hand-written list that drops
+  // prizeCurrency type-checks and silently reads as an ETH round. That omission
+  // has caused four production bugs in this repo; carry the columns.
+  let round: {
+    id: number;
+    prizeCurrency: string | null;
+    prizePoolWord: string | null;
+    seedPriceE18: string | null;
+  } | null = null;
   if (roundId != null) {
     const { db } = await import('../../../../src/db');
     const { rounds } = await import('../../../../src/db/schema');
     const { eq } = await import('drizzle-orm');
     const [row] = await db
-      .select({ id: rounds.id, seedPriceE18: rounds.seedPriceE18 })
+      .select({
+        id: rounds.id,
+        prizeCurrency: rounds.prizeCurrency,
+        prizePoolWord: rounds.prizePoolWord,
+        seedPriceE18: rounds.seedPriceE18,
+      })
       .from(rounds)
       .where(eq(rounds.id, roundId))
       .limit(1);

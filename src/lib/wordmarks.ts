@@ -304,11 +304,14 @@ export async function checkAndAwardQuickdraw(
  * A new holder can appear every round, but the mark itself is a single item;
  * going first again is a no-op.
  *
- * Called at round resolution, the first race-free moment: guessIndexInRound
- * comes from an unlocked COUNT, so concurrent first guesses can all read
- * index 1, and any guess-time check races with in-flight inserts whose lower
- * ids are not yet visible. Once the round is locked, MIN(guesses.id) is the
- * final truth — the same basis as the rounds 1–33 backfill. Ineligible-winner
+ * Called at round resolution, the first race-free moment: any guess-time check
+ * races with in-flight inserts whose lower ids are not yet visible. Once the
+ * round is locked, MIN(guesses.id) is the final truth — the same basis as the
+ * rounds 1–33 backfill. guessIndexInRound is no basis for it either way:
+ * it came from an unlocked COUNT until the per-round advisory lock shipped
+ * (getNextGuessIndexInRound in guesses.ts, 2026-09-12), so concurrent first
+ * guesses could all read index 1, and the lock renumbers no row that already
+ * holds a duplicate. Ineligible-winner
  * audit rows never earn the mark. Idempotent: re-resolving a recovered round
  * is a no-op.
  */

@@ -13,6 +13,7 @@ import { getStakingInfo, getRewardInfo } from '../../src/lib/word-manager';
 import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD, getXpStakingTier, getMinStakeForBoost, XP_STAKING_TIERS } from '../../config/economy';
 import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
+import { getActiveWordMarketCapUsd } from '../../src/lib/reward-gate';
 import { getTotalXpForFid, getSevenDayXpRate } from '../../src/lib/xp';
 
 export interface WordBalanceResponse {
@@ -82,12 +83,25 @@ export default async function handler(
   }
 
   try {
+    // The tier SHOWN here has to be the tier the allocation path would GRANT.
+    // getWordBonusTier used to default its market cap to WORD_MARKET_CAP_USD —
+    // unset in production, so it fell to the $25,000 constant — while
+    // daily-limits prices the same ladder from getActiveWordMarketCapUsd (the
+    // round's frozen seed price, then the cached oracle price). The sheet could
+    // therefore show a holder a rung below the one they were actually given.
+    // Chained rather than added to the batch below because the tier read needs
+    // the market cap first; the ladder read is a cached round id, not an RPC,
+    // and the balance read still overlaps everything else in the batch.
+    const holderTierPromise = getActiveWordMarketCapUsd().then(({ marketCapUsd }) =>
+      getWordBonusTier(walletAddress, marketCapUsd)
+    );
+
     // Get wallet balance, staking info, reward info, holder tier, live price, and XP data in parallel
     const [walletBalanceWei, stakingInfo, rewardInfo, holderTier, liveMarketData, totalXp, xpRate] = await Promise.all([
       getWalletBalance(walletAddress),
       getStakingInfo(walletAddress),
       getRewardInfo(),
-      getWordBonusTier(walletAddress),
+      holderTierPromise,
       fetchWordTokenMarketCap().catch(() => null),
       fid ? getTotalXpForFid(fid) : Promise.resolve(0),
       fid ? getSevenDayXpRate(fid) : Promise.resolve({ totalInPeriod: 0, dailyAverage: 0 }),

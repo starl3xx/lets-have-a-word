@@ -54,8 +54,29 @@ export const WORD_TOTAL_SUPPLY_TOKENS = 99_900_000_000;
 export const WORD_MCAP_FALLBACK_USD = 25_000;
 
 /**
+ * The market cap a per-token price implies, for the threshold helpers below.
+ *
+ * The ladder is USD-denominated but every helper here takes a market cap, so
+ * a caller holding a real price (a round's frozen seed price, the oracle's
+ * cached price) needs this one multiplication to use it. Kept next to the
+ * supply constant so the two can never be paired with different numbers.
+ */
+export function wordMarketCapFromPriceUsd(priceUsd: number): number {
+  return priceUsd * WORD_TOTAL_SUPPLY_TOKENS;
+}
+
+/**
  * Get the tier thresholds (in whole tokens) for a given market cap.
  * USD targets divided by the implied token price (mcap / supply).
+ *
+ * PASS A RESOLVED MARKET CAP. Do not let this default to WORD_MARKET_CAP_USD
+ * anywhere a player's allocation depends on it: that env var is unset in
+ * production, so it resolves to WORD_MCAP_FALLBACK_USD, and a market cap below
+ * the real one implies a price below the real one, which makes every threshold
+ * MORE tokens than it should be. Round 35 was seeded at ~$34,200 while the
+ * constant said $25,000 — holders were short-changed on bonus guesses by 37%
+ * in token terms. `getActiveWordMarketCapUsd()` in src/lib/reward-gate.ts
+ * resolves the round's frozen price for exactly this.
  */
 export function getHolderTierThresholds(marketCapUsd: number): HolderTierThresholds {
   const mcap = marketCapUsd > 0 ? marketCapUsd : WORD_MCAP_FALLBACK_USD;
@@ -94,9 +115,22 @@ export function isRewardGateEnabled(): boolean {
 }
 
 /**
- * Current $WORD market cap in USD
- * Set via environment variable WORD_MARKET_CAP_USD
- * Updated by live oracle via cron job
+ * $WORD market cap in USD from the environment — ZERO IN PRODUCTION.
+ *
+ * The comment here used to say "updated by live oracle via cron job". It is
+ * not: the 15-minute oracle cron pushes the price to the WordJackpot contract
+ * and to a Redis key, never into the bundle, and WORD_MARKET_CAP_USD has never
+ * been set in Vercel. Every consumer that defaults to this therefore runs on
+ * WORD_MCAP_FALLBACK_USD, a build-time constant that was $25,000 against a
+ * real ~$34,200 during round 35.
+ *
+ * SETTING THE ENV VAR IS NOT THE FIX — it is a build-time constant either way,
+ * and it drifts again with the next price move. Anything that decides what a
+ * player gets must resolve a live figure instead:
+ * `getActiveWordMarketCapUsd()` (src/lib/reward-gate.ts) for thresholds, the
+ * round's own `seedPriceE18` for anything priced per round. This constant is
+ * kept only as the last-resort divisor that stops a divide-by-zero, and for
+ * display endpoints that already prefer live market data.
  */
 export const WORD_MARKET_CAP_USD = Number(
   process.env.WORD_MARKET_CAP_USD ?? '0'

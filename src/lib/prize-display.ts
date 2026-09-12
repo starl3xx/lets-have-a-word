@@ -195,10 +195,33 @@ export function formatArchiveJackpot(round: ArchiveRoundAmounts): string {
   });
 }
 
-/** Seed for an archived round, with its unit. */
+/**
+ * Rendered where an amount could not be recovered at all.
+ *
+ * A number is a measurement; the absence of one is not. Printing "0" for a
+ * missing value asserts a measurement that was never taken, which is how
+ * "0 $WORD" came to sit on the archive page beside a 117M final pool.
+ */
+export const UNRECOVERABLE_AMOUNT = 'Unknown';
+
+/**
+ * Seed for an archived round, with its unit — or UNRECOVERABLE_AMOUNT.
+ *
+ * A NULL seed column means "the opening pool could not be recovered", NOT "the
+ * round opened empty", and the two must not render alike. formatPrize coerces a
+ * missing $WORD amount with `BigInt(input.word ?? '0')`, so a null seed_word
+ * printed "0 $WORD" — a real-looking number, and a false one. archive.ts writes
+ * that NULL deliberately (and now raises a standing incident when it does) for a
+ * $WORD round whose seedUsdCents/seedPriceE18 pair cannot be priced; a round
+ * that genuinely opened empty carries a real "0" string and still renders as
+ * zero.
+ */
 export function formatArchiveSeed(round: ArchiveRoundAmounts): string {
+  const currency = archiveCurrency(round);
+  const seed = currency === 'word' ? round.seedWord : round.seedEth;
+  if (seed === null || seed === undefined || seed === '') return UNRECOVERABLE_AMOUNT;
   return formatPrize({
-    currency: archiveCurrency(round),
+    currency,
     eth: round.seedEth,
     word: round.seedWord,
   });

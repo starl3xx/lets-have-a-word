@@ -19,7 +19,7 @@ import { isWalletFid } from './wallet-fid';
 import { roundBurnWords, roundBonusWords, wordRewards, guesses, users, userBadges } from '../db/schema';
 import type { RoundBurnWordRow } from '../db/schema';
 import type { SubmitGuessResult } from '../types';
-import { eq, and, count, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, count, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
 import { hasWordTokenBonus } from './word-token';
 import { selectBonusWords } from './word-lists';
@@ -134,16 +134,34 @@ export async function handleBurnWordWin(
 
   // Use transaction to atomically update DB state
   await db.transaction(async (tx) => {
-    // Mirrors getNextGuessIndexInRound in guesses.ts. Not importable here:
-    // guesses.ts statically imports this module, so a value import back
-    // would create a runtime cycle. Burn rows carried a NULL index before
-    // this was added (2026-08-16); Trailblazer therefore reads
+    // Mirrors getNextGuessIndexInRound in guesses.ts, INCLUDING ITS LOCK. Not
+    // importable here: guesses.ts statically imports this module, so a value
+    // import back would create a runtime cycle. Burn rows carried a NULL index
+    // before this was added (2026-08-16); Trailblazer therefore reads
     // MIN(guesses.id), not guess_index_in_round.
-    const [guessCountRow] = await tx
-      .select({ count: count() })
-      .from(guesses)
-      .where(eq(guesses.roundId, roundId));
-    const guessIndexInRound = (guessCountRow?.count || 0) + 1;
+    //
+    // The first lock key MUST stay 0x4c484157 ('LHAW'), byte-identical to
+    // GUESS_INDEX_LOCK_NAMESPACE in guesses.ts. A different namespace is not a
+    // weaker lock, it is NO lock: the two allocators would take different locks
+    // and never exclude each other. Leaving this one on the old unlocked
+    // `count(*) + 1` had the same effect — a burn-word find racing a normal
+    // guess could still hand out a duplicate guess_index_in_round, and one
+    // duplicate is what makes collectPendingGuesses refuse a round's whole
+    // onchain log until a human repairs the sequence.
+    //
+    // MAX+1 rather than COUNT+1 for the reasons spelled out in guesses.ts: it
+    // is monotonic (legacy NULL-index rows stop manufacturing holes), it never
+    // re-issues an index a round already holds, and it is one index descent
+    // instead of a walk of every index entry in the round.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(${0x4c484157}::int4, ${roundId}::int4)`
+    );
+    const indexRows = await tx.execute<{ next: number }>(
+      sql`SELECT COALESCE(MAX(guess_index_in_round), 0) + 1 AS next
+          FROM guesses
+          WHERE round_id = ${roundId}`
+    );
+    const guessIndexInRound = Number(indexRows[0]?.next ?? 1);
 
     // Insert the guess with isBurnWord=true
     await tx.insert(guesses).values({

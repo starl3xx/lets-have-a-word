@@ -48,12 +48,52 @@ function getOperator(): ethers.Wallet {
 export interface PostResult {
   posted: boolean;
   reason?: string;
+  /**
+   * Why nothing was posted, as something other than prose.
+   *
+   * Callers have to tell "nothing new to commit", which is the healthy state
+   * most of the time, apart from "the table and the contract disagree", which
+   * means the log has stopped advancing and a person has to look. Both used to
+   * come back as `posted:false` with a sentence in `reason`, and the cron
+   * reported HTTP 200 for both.
+   *
+   * There is no `'failed'` member, deliberately. A genuine failure — an RPC
+   * error, a revert, or a gap in the index sequence — THROWS out of
+   * `postNextCheckpoint` rather than returning a result, and the call site
+   * classifies it with `instanceof GuessLogGapError`. A member no return path
+   * can produce invites a consumer to branch on it and get a branch that never
+   * runs.
+   */
+  reasonCode?: 'not-configured' | 'nothing-pending' | 'index-mismatch';
   roundId?: number;
   fromIndex?: number;
   toIndex?: number;
   root?: string;
   txHash?: string;
   checkpointId?: number;
+  /** Leaves the contract says it holds, on a mismatch. */
+  onchainLeaves?: number;
+  /** Leaves the local checkpoint table says it holds, on a mismatch. */
+  localLeaves?: number;
+}
+
+/**
+ * What the contract itself says about a round's log.
+ *
+ * `nextIndex` is the COUNT of leaves committed, for the 0-based/1-based reason
+ * spelled out in `postNextCheckpoint`. Exposed so the admin health check can
+ * show the contract's number next to the local table's without duplicating the
+ * ABI or that base-conversion note anywhere else.
+ */
+export async function getOnchainLogState(
+  roundId: number
+): Promise<{ leaves: number; checkpoints: number }> {
+  const readOnly = getContract();
+  const [leaves, checkpoints] = await Promise.all([
+    readOnly.nextIndex(roundId),
+    readOnly.checkpointCount(roundId),
+  ]);
+  return { leaves: Number(leaves), checkpoints: Number(checkpoints) };
 }
 
 /**
@@ -67,7 +107,7 @@ export interface PostResult {
  */
 export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   if (!isGuessLogConfigured()) {
-    return { posted: false, reason: 'GuessLog not configured' };
+    return { posted: false, reasonCode: 'not-configured', reason: 'GuessLog not configured' };
   }
 
   const readOnly = getContract();
@@ -85,6 +125,10 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   if (onchainNext !== localCommitted) {
     return {
       posted: false,
+      reasonCode: 'index-mismatch',
+      roundId,
+      onchainLeaves: onchainNext,
+      localLeaves: localCommitted,
       reason:
         `Checkpoint table and contract disagree for round ${roundId}: ` +
         `contract has ${onchainNext} leaves committed, local table has ${localCommitted}. ` +
@@ -94,7 +138,7 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
 
   const pending = await collectPendingGuesses(roundId);
   if (!pending) {
-    return { posted: false, reason: 'No new guesses to commit' };
+    return { posted: false, reasonCode: 'nothing-pending', roundId, reason: 'No new guesses to commit' };
   }
 
   const contract = getContract(getOperator());
@@ -139,6 +183,21 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
     checkpointId,
   };
 }
+
+/**
+ * There is no `postFinalCheckpoint` any more, and that is deliberate.
+ *
+ * It existed so `resolveRoundAndCreatePayouts` could commit a round's tail the
+ * instant the round closed. That call has been removed (see "NO GUESS-LOG
+ * CHECKPOINT ON THE RESOLVE PATH" in economics.ts): it was an unguarded
+ * mainnet write on a path with two "do not touch the chain" switches, it put an
+ * un-timed `tx.wait()` inside the winning player's request, and it raced the
+ * top-10 distribution for the operator nonce.
+ *
+ * The tail is committed by /api/cron/guess-log-checkpoint instead, which sweeps
+ * resolved rounds that are short of the highest index they handed out. Sentry
+ * reporting for a refused tail lives there now, on the cron's own error path.
+ */
 
 /** Checkpoints recorded locally for a round, oldest first. */
 export async function getCheckpointsForRound(roundId: number) {

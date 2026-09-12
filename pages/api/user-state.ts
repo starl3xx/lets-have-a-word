@@ -363,6 +363,15 @@ export default async function handler(
         // gate itself stays server-authoritative and money points still run
         // it uncached — this only changes WHEN the read happens, not what it
         // decides.
+        //
+        // No round is passed and none is needed: checkPlayEligibility resolves
+        // the ACTIVE round and prices the bar from its frozen seed price, so
+        // what the player is SHOWN here is the bar the guess path enforces.
+        // Until 2026-09-12 this one came from a build-time constant instead,
+        // and round-35 players holding $3.00–$4.11 of $WORD were told they
+        // were locked while /api/guess was accepting their guesses. Resolving
+        // the round costs one Redis GET of the 5-second active-round-id key,
+        // not a round query — see getActiveBarRound.
         (async (): Promise<UserStateResponse['rewardGate']> => {
           const { checkPlayEligibility, isRewardGateEnabled } = await import(
             '../../src/lib/reward-gate'

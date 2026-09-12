@@ -20,6 +20,7 @@ import { getCurrentJackpotOnChain } from './jackpot-contract';
 import { postTweet } from './twitter';
 import { notifyRoundStarted, notifyRoundResolved, type NotificationResult } from './notifications';
 import { formatWordAmountCompact } from './prize-display';
+import { getRoundPrizeFromRow, parseWordWei } from './round-prize';
 
 // Configuration from environment variables
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
@@ -150,6 +151,15 @@ export interface AnnouncerEventParams {
   text: string;
   replyToHash?: string;
   embeds?: { url: string }[];
+  /**
+   * Record the event WITHOUT publishing it.
+   *
+   * The row still takes the unique (eventType, roundId, milestoneKey) slot, so
+   * the event is permanently marked as handled and can never fire later. Used
+   * to collapse a backlog of milestone rungs into the single highest cast
+   * instead of one cast per rung — see checkWordJackpotMilestones.
+   */
+  skipCast?: boolean;
 }
 
 /**
@@ -157,6 +167,9 @@ export interface AnnouncerEventParams {
  *
  * This function ensures each event type/round/milestone combination is posted
  * at most once by checking the announcer_events table first.
+ *
+ * With `skipCast`, it records the event and posts nothing — the row still
+ * claims the slot, so the event is marked as handled for good.
  *
  * @param params - Event parameters
  * @returns The created event record and cast result
@@ -197,9 +210,25 @@ export async function recordAndCastAnnouncerEvent(params: AnnouncerEventParams) 
         eventType: params.eventType,
         roundId: params.roundId,
         milestoneKey,
-        payload: { text: params.text },
+        payload: params.skipCast
+          ? // The text is kept so an operator can see what was suppressed, and
+            // castHash/postedAt stay NULL because nothing was posted.
+            { text: params.text, suppressed: true }
+          : { text: params.text },
       })
       .returning();
+
+    if (params.skipCast) {
+      if (ANNOUNCER_DEBUG_LOGS) {
+        console.log(
+          '[announcer] event recorded without casting:',
+          params.eventType,
+          params.roundId,
+          milestoneKey
+        );
+      }
+      return { created: created[0], cast: null };
+    }
 
     // Publish the cast to Farcaster
     const cast = await castFromAnnouncer(params.text, {
@@ -274,9 +303,16 @@ export async function buildRoundStartedAnnouncement(round: RoundRow): Promise<{
 }> {
   const roundNumber = getRoundNumber(round);
 
-  // Read prize pool from onchain contract (source of truth)
-  // getRoundPrize reads WordJackpot for a $WORD round and JackpotManagerV3
-  // otherwise, and returns the amount with its unit already attached.
+  // Read prize pool from onchain contract (source of truth) — getRoundPrize
+  // reads WordJackpot for a $WORD round and JackpotManagerV3 otherwise, and
+  // returns the amount with its unit already attached.
+  //
+  // This is the ONE announcement that still reads the contract. At round start
+  // the contract pool is the seed and nothing has been purchased yet, so it
+  // agrees with prize_pool_word — and reading it independently is what would
+  // catch a seeding mismatch before the bot promises a prize the contract
+  // cannot pay. Every later surface reads the row instead, because a $WORD
+  // round's purchases do not reach the contract until the flush before resolve.
   const { getRoundPrize } = await import('./round-prize');
   const prize = (await getRoundPrize(round)).display;
 
@@ -435,9 +471,14 @@ export async function announceRoundResolved(
   const roundNumber = getRoundNumber(round);
   const answer = getPlaintextAnswer(round.answer).toUpperCase(); // Decrypt and uppercase
   const commitHash = round.commitHash;
-  const jackpotEth = formatEth(round.prizePoolEth);
-  const { getRoundPrize: getResolvedPrize } = await import('./round-prize');
-  const prize = (await getResolvedPrize(round)).display;
+  // The round row, never the contract. This runs AFTER the onchain resolveRound
+  // has paid the pool out, so a live read returns 0 — round 34's cast, push and
+  // tweet each announced that the winner had won "the 0 $WORD jackpot" while
+  // the real figure (104,888,922 $WORD) sat in prize_pool_word, written by
+  // economics.ts one statement before it called this. For an ETH round this is
+  // the pre-$WORD behaviour restored: the cast read prize_pool_eth off the row
+  // until the migration moved it onto the contract.
+  const prize = getRoundPrizeFromRow(round).display;
 
   // Shorten hash for display: first 10 chars + last 4 chars
   const shortHash = commitHash.length > 16
@@ -523,48 +564,66 @@ letshaveaword.fun`;
 }
 
 /**
- * Check and announce jackpot milestones
- *
- * @param round - The current round
- */
-/**
  * Milestone announcements for a $WORD round.
  *
- * Reads the pool from WordJackpot rather than JackpotManagerV3 — the ETH path
- * above reads the wrong contract for these rounds, and its DB fallback column
- * (prizePoolEth) is 0 on a $WORD round, so it would silently announce nothing.
+ * Reads prize_pool_word off the round row, NOT WordJackpot. The contract is
+ * frozen at the seed for the whole round — pack and Superguess purchases grow
+ * the database column (word-pool-credits.ts) and reach the contract in one
+ * batched top-up immediately before resolve — so a contract read pins the pool
+ * at the seed from the first guess to the last. Round 35 seeded at $39.99
+ * against a $100 first rung: no milestone could ever have fired. The row is
+ * also the number players are watching, since /api/round-state serves it
+ * (wheel.ts).
  *
- * Values the pool at the round's seed-time price snapshot, matching what the UI
- * shows. A live quote would let a thin market push a round past a milestone and
- * back again, casting each time.
+ * Values the pool at the round's seed-time price snapshot. This is deliberately
+ * NOT what the info bar shows — that floats with the live oracle (wheel.ts, user
+ * decision 2026-08-18) so a market move shows up in the prize's worth. A cast is
+ * permanent, and a live quote would let a thin market walk a round back and
+ * forth across a rung; the frozen snapshot means a milestone fires because the
+ * pool grew, not because the token moved.
  */
 async function checkWordJackpotMilestones(round: RoundRow, roundNumber: number) {
-  const priceE18 = round.seedPriceE18 ? BigInt(round.seedPriceE18) : 0n;
+  // Both columns are numeric(78,0) on the same row, so both are parsed the same
+  // way: parseWordWei names the column and the value in the log and yields 0,
+  // and a 0 in either column skips the check below. Guarding one and leaving
+  // the other bare is what an unparseable value would have turned into a
+  // swallowed stack trace out of submitGuess.
+  const priceE18 = parseWordWei(round.seedPriceE18, `round ${roundNumber} seedPriceE18`);
   if (priceE18 <= 0n) {
-    console.warn(`[announcer] Round ${roundNumber} has no seed price — skipping $WORD milestones`);
+    console.warn(`[announcer] Round ${roundNumber} has no usable seed price — skipping $WORD milestones`);
     return;
   }
 
-  let poolWei: bigint;
-  try {
-    const { getWordJackpotSolvency } = await import('./word-jackpot-contract');
-    poolWei = (await getWordJackpotSolvency()).poolWei;
-  } catch (err) {
-    console.error('[announcer] Failed to read WordJackpot pool, using database value:', err);
-    try {
-      poolWei = BigInt(round.prizePoolWord ?? '0');
-    } catch {
-      poolWei = 0n;
-    }
-  }
+  const poolWei = parseWordWei(round.prizePoolWord, `round ${roundNumber} prizePoolWord`);
   if (poolWei <= 0n) return;
 
   const { usdCentsForTokens, formatWordAmount } = await import('./word-amounts');
   const poolCents = usdCentsForTokens(poolWei, priceE18);
 
-  for (const milestoneCents of JACKPOT_MILESTONES_USD_CENTS) {
-    if (poolCents < BigInt(milestoneCents)) continue;
+  // Every rung the pool has passed, lowest first — but only the HIGHEST is
+  // cast. The ladder has never been reachable on a $WORD round (the contract
+  // read it replaced was pinned at the seed), so the first invocation after
+  // this ships meets a pool that may already sit several rungs up; and one
+  // Superguess, priced at half the live pool, can cross several rungs at once
+  // later on. Casting each of them would fire a burst of near-identical casts
+  // and tweets, serially, inside whichever player's guess request happened to
+  // run the check — four outbound HTTP calls per rung, on the critical path of
+  // a guess that has already been recorded.
+  //
+  // The rungs below the highest are still WRITTEN to announcer_events, which
+  // takes their (eventType, roundId, milestoneKey) slot, so they are marked
+  // handled and can never fire late either. Ascending order matters: the
+  // suppressed rows land before the cast, so an invocation that dies halfway
+  // still leaves the highest rung as the only thing left to say.
+  const crossedCents = JACKPOT_MILESTONES_USD_CENTS.filter(
+    (milestoneCents) => poolCents >= BigInt(milestoneCents)
+  );
+  if (crossedCents.length === 0) return;
+  // Math.max rather than the last element, so a reordered ladder can never cast
+  // the smallest rung the pool has passed.
+  const highestCrossedCents = Math.max(...crossedCents);
 
+  for (const milestoneCents of crossedCents) {
     const milestoneUsd = (milestoneCents / 100).toFixed(0);
     const poolWord = formatWordAmount(poolWei);
 
@@ -592,10 +651,18 @@ letshaveaword.fun`;
       roundId: round.id,
       milestoneKey: `jackpot_usd_${milestoneCents}`,
       text,
+      // A rung the pool has already left behind is not news; the rung it just
+      // reached is. Recording the rest keeps them from firing later.
+      skipCast: milestoneCents !== highestCrossedCents,
     });
   }
 }
 
+/**
+ * Check and announce jackpot milestones
+ *
+ * @param round - The current round
+ */
 export async function checkAndAnnounceJackpotMilestones(round: RoundRow) {
   const roundNumber = getRoundNumber(round);
 

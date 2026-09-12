@@ -439,6 +439,42 @@ function awardTrailblazerAtResolution(roundId: number): void {
 }
 
 /**
+ * NO GUESS-LOG CHECKPOINT ON THE RESOLVE PATH. Deliberate — please do not
+ * re-add one.
+ *
+ * A `postFinalCheckpoint(roundId)` call used to sit here and at the end of
+ * `resolveRoundAndCreatePayouts`. It was removed because it was wrong in three
+ * ways at once:
+ *
+ *  1. It was the only onchain write on this path not behind the two "do not
+ *     touch the chain" switches. The payout tx honours
+ *     `skipOnchainResolutionFlag`, every word-manager write honours
+ *     `isDevModeEnabled()`, and `sepoliaSimulationMode` redirects the rest —
+ *     the checkpoint honoured none of them, so a Sepolia simulation or a
+ *     skip-onchain resolve still sent a real Base MAINNET transaction from the
+ *     operator key, and a `npm test` run in a shell with OPERATOR_PRIVATE_KEY
+ *     and GUESS_LOG_ADDRESS exported would have done the same. Deleting the
+ *     call removes the exception; adding a fourth guard would only have left
+ *     one more thing for the next person to remember.
+ *  2. It put an awaited Base transaction — `postNextCheckpoint` does
+ *     `await tx.wait()` with no timeout — inside the WINNING PLAYER's
+ *     /api/guess request, ahead of the round-resolved announcement, the
+ *     archive write and the cache invalidation. One slow block would have
+ *     delayed or killed the winner's response and left the round unannounced
+ *     and unarchived.
+ *  3. It ran concurrently with the un-awaited top-10 distribution IIFE below,
+ *     from the same operator key, with no nonce coordination between them.
+ *
+ * The tail is committed by the checkpoint cron instead
+ * (`/api/cron/guess-log-checkpoint`, every 5 minutes), which sweeps resolved
+ * rounds whose committed leaf count is short of the highest index they handed
+ * out. The cost is that a round's last guesses reach the chain up to five
+ * minutes after it resolves rather than instantly. /verify is not a real-time
+ * surface — nobody opens it in the seconds after a win — so that is the right
+ * trade for keeping the player's request and the operator key out of it.
+ */
+
+/**
  * Resolve round and create payouts (Milestone 6.9 - Onchain multi-recipient)
  * Updated Economics (January 2026) - New 80/10/5/5 split
  *
@@ -671,6 +707,9 @@ export async function resolveRoundAndCreatePayouts(
       .where(eq(rounds.id, roundId));
 
     awardTrailblazerAtResolution(roundId);
+
+    // The guess log tail is committed by the checkpoint cron, not from here —
+    // see "NO GUESS-LOG CHECKPOINT ON THE RESOLVE PATH" above.
 
     return;
   }
@@ -1210,12 +1249,27 @@ export async function resolveRoundAndCreatePayouts(
       // number the contract never carried. The Milestone 4.9 helper that used
       // to reconcile this, `allocateToSeedAndCreator`, is still defined but no
       // longer called by anything.
+      //
+      // The POOL is written back for both currencies too, and for the same
+      // reason. `jackpotWei` is the figure the payouts were actually computed
+      // from — the contract's internal jackpot for an ETH round, the contract
+      // pool for a $WORD one. `prize_pool_eth` is otherwise synced from the
+      // contract only inside applyPaidGuessEconomicEffects, which runs when a
+      // paid guess is CONSUMED, not when a pack is bought; a pack bought and
+      // never spent therefore leaves the column below the pool that was paid
+      // out. Since announceRoundResolved now reads the row (the contract holds
+      // nothing once resolveRound has paid), a stale column would put a jackpot
+      // figure in the resolved cast that does not satisfy the 80/10 split
+      // against the top-10 total in the same cast. Harmless for rounds 1-33 —
+      // all resolved, cast once, never re-cast — and it closes the gap before
+      // any future ETH round can hit it.
       ...(isWordRound
         ? {
             prizePoolWord: jackpotWei.toString(),
             seedNextRoundWord: seedForNextRoundWei.toString(),
           }
         : {
+            prizePoolEth: ethers.formatEther(jackpotWei),
             seedNextRoundEth: ethers.formatEther(seedForNextRoundWei),
           }),
     })
@@ -1378,8 +1432,18 @@ async function getTop10Guessers(roundId: number, winnerFid: number): Promise<num
     return rankedFids.slice(0, 10);
   }
 
+  // The currency columns travel with the price snapshot. The gate reads only
+  // seedPriceE18 today, so this changes no behaviour — it closes the trap:
+  // RoundPriceSource's fields are all optional, so a hand-written field list
+  // that drops prizeCurrency type-checks and reads as an ETH round, and this
+  // one sits on the resolve-time money path where nothing would catch it.
   const [roundRow] = await db
-    .select({ id: rounds.id, seedPriceE18: rounds.seedPriceE18 })
+    .select({
+      id: rounds.id,
+      prizeCurrency: rounds.prizeCurrency,
+      prizePoolWord: rounds.prizePoolWord,
+      seedPriceE18: rounds.seedPriceE18,
+    })
     .from(rounds)
     .where(eq(rounds.id, roundId))
     .limit(1);
