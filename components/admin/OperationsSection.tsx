@@ -10,7 +10,6 @@ import { useOperationalStatus } from "./operational-status"
 import FarmMonitor from "./FarmMonitor"
 import SimulationsCard from "./SimulationsCard"
 import RoundRepairCard from "./RoundRepairCard"
-import WordmarkBackfillCard from "./WordmarkBackfillCard"
 import WordmarkDeployCard from "./WordmarkDeployCard"
 import BonusDistributionsCard from "./BonusDistributionsCard"
 import ArchiveMaintenanceCard from "./ArchiveMaintenanceCard"
@@ -112,6 +111,8 @@ interface ContractStateResponse {
 interface RoundHealthCheck {
   ok: boolean
   roundId: number | null
+  /** Which currency the inspected round pays in — carried on every rounds read. */
+  prizeCurrency: string | null
   checks: {
     legacyGuesses: {
       status: 'ok' | 'warning' | 'error'
@@ -139,6 +140,25 @@ interface RoundHealthCheck {
         eligibleGuesses: number
         top10LockThreshold: number
         isLocked: boolean
+      }
+    }
+    guessLog: {
+      status: 'ok' | 'warning' | 'error'
+      message: string
+      details: {
+        configured: boolean
+        totalGuesses: number
+        indexedGuesses: number
+        committedLeaves: number
+        uncommittedGuesses: number
+        checkpointCount: number
+        /** Null when Base could not be read — the local half still stands. */
+        onchainLeaves: number | null
+        onchainCheckpoints: number | null
+        duplicateIndexCount: number
+        duplicateIndexes: number[]
+        missingIndexCount: number
+        missingIndexes: number[]
       }
     }
   }
@@ -418,13 +438,27 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     fetchContractState()
   }, [fetchContractState])
 
-  const fetchRoundHealth = useCallback(async () => {
+  // Which round the health check is looking at. Empty means the active one,
+  // which is the only round the endpoint used to be able to report on — and a
+  // stalled guess log is normally noticed after the round it broke has already
+  // resolved, so a resolved round has to be reachable from here.
+  const [roundHealthRoundId, setRoundHealthRoundId] = useState('')
+
+  const fetchRoundHealth = useCallback(async (roundIdOverride?: string) => {
     if (!user?.fid) return
+
+    // Read from the argument rather than from state: the button that sets the
+    // input and the button that runs the check are the same click, and state
+    // is not applied until the next render.
+    const requested = (roundIdOverride ?? roundHealthRoundId).trim()
 
     try {
       setRoundHealthLoading(true)
       setRoundHealthError(null)
-      const res = await fetch(`/api/admin/operational/round-health?devFid=${user.fid}`)
+      const res = await fetch(
+        `/api/admin/operational/round-health?devFid=${user.fid}` +
+          (requested ? `&roundId=${encodeURIComponent(requested)}` : '')
+      )
       const data = await res.json()
 
       if (!res.ok) {
@@ -438,11 +472,15 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     } finally {
       setRoundHealthLoading(false)
     }
-  }, [user?.fid])
+  }, [user?.fid, roundHealthRoundId])
 
+  // Mount-time load only, and deliberately not keyed on fetchRoundHealth: that
+  // callback now changes with every keystroke in the round input, and keeping
+  // it in the dependency list would fire a request per character.
   useEffect(() => {
-    fetchRoundHealth()
-  }, [fetchRoundHealth])
+    if (user?.fid) fetchRoundHealth('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.fid])
 
 
   const handleEnableKillSwitch = async () => {
@@ -800,7 +838,31 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
   const handleRecoverStuckRound = async () => {
     if (!user?.fid || !recoverRoundId) return
-    if (!confirm(`Recover Round #${recoverRoundId}? This will execute onchain payouts and resolve the round.`)) return
+
+    // Two different recoveries behind one button, and the diagnosis says which.
+    // 'clear_onchain_round' does NOT pay anybody: it releases a round the
+    // contract is still holding after a failed start and returns the seed as
+    // carry. Telling the operator it "executes onchain payouts" would describe
+    // the wrong transaction, and the endpoint refuses it with a 400 unless the
+    // per-round confirmation string is in the body.
+    const roundIdNum = parseInt(recoverRoundId, 10)
+    const isClearOnchain = recoverDiagnosis?.recovery === 'clear_onchain_round'
+    // A cleared round is not necessarily an unplayed one: the kill switch
+    // cancels a round in the database without touching the contract, so the
+    // commonest wedge carries thousands of guesses. Say so before the operator
+    // sends, because the older copy read as “nobody was in this round”.
+    const playedGuesses = Number(recoverDiagnosis?.totalGuesses ?? 0)
+    const confirmMessage = isClearOnchain
+      ? `Release onchain round #${roundIdNum}? WordJackpot still holds it as its active round. ` +
+        `This sends an irreversible operator transaction: no payouts, the pool returns as carry ` +
+        `for the next round, and auto-start resumes.` +
+        (playedGuesses > 0
+          ? ` ${playedGuesses.toLocaleString()} guesses were played in this round before the ` +
+            `database gave up on it. They are refunded in ETH through the refund path; this ` +
+            `transaction pays nobody.`
+          : '')
+      : `Recover Round #${roundIdNum}? This will execute onchain payouts and resolve the round.`
+    if (!confirm(confirmMessage)) return
     try {
       setRecoverLoading(true)
       setRecoverResult(null)
@@ -808,7 +870,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
       const res = await fetch('/api/admin/operational/recover-stuck-round', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ devFid: user.fid, roundId: parseInt(recoverRoundId, 10) }),
+        body: JSON.stringify({
+          devFid: user.fid,
+          roundId: roundIdNum,
+          ...(isClearOnchain ? { confirm: `CLEAR_ONCHAIN_ROUND_${roundIdNum}` } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -1128,6 +1194,15 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
     }
   }
 
+  // The recovery card's palette, derived once. A 404 body carries no
+  // `isStuck` (handleDiagnoseStuckRound stores `data.diagnosis || data`), so
+  // keying the colours on isStuck alone painted “Round Not Found” green on a
+  // green card — the same signal as “Round OK”.
+  const recoverIsBad = Boolean(recoverDiagnosis?.error || recoverDiagnosis?.isStuck)
+  const recoverTone = recoverIsBad
+    ? { bg: '#fef2f2', border: '#fecaca', heading: '#dc2626' }
+    : { bg: '#f0fdf4', border: '#bbf7d0', heading: '#166534' }
+
   return (
     <div>
       {/* Alerts */}
@@ -1223,7 +1298,10 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           </div>
 
           {/* Round Health Check Card */}
-          {status.activeRoundId && (
+          {/* Rendered whether or not a round is live: the guess-log check below
+              is the diagnosis for a log that stopped advancing, and that is
+              normally looked at once the round it broke has already resolved. */}
+          {(
             <div style={styles.card}>
               <h2 style={styles.cardTitle}>
                 Round Health Check
@@ -1241,9 +1319,34 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 )}
               </h2>
 
-              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px' }}>
                 Pre-resolution checks to identify potential issues before the round ends.
+                Leave the round blank for the active round, or name a resolved one to inspect it.
               </p>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px' }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={roundHealthRoundId}
+                  onChange={(e) => setRoundHealthRoundId(e.target.value)}
+                  placeholder="Round # (blank = active)"
+                  style={{ ...styles.input, maxWidth: '220px' }}
+                />
+                <button
+                  onClick={() => fetchRoundHealth()}
+                  style={styles.btnSecondary}
+                  disabled={roundHealthLoading}
+                >
+                  {roundHealthLoading ? 'Checking...' : 'Check Round'}
+                </button>
+                {roundHealth?.roundId != null && (
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                    Showing round {roundHealth.roundId}
+                    {roundHealth.prizeCurrency === 'word' ? ' ($WORD)' : ' (ETH)'}
+                  </span>
+                )}
+              </div>
 
               {roundHealthError && (
                 <AlertBanner kind="error">{roundHealthError}</AlertBanner>
@@ -1337,9 +1440,74 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     </div>
                   </div>
 
+                  {/* Onchain Guess Log Check.
+                      /verify rests on this: the Merkle checkpoints are what make
+                      the guess ORDERING provable after the fact. Both of the
+                      checkpointer's stop conditions return HTTP 200 by design,
+                      so a stalled log is invisible in Vercel — this is where it
+                      becomes visible. */}
+                  {roundHealth.checks.guessLog && (
+                    <div style={{
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      background: roundHealth.checks.guessLog.status === 'ok' ? '#f0fdf4' :
+                                  roundHealth.checks.guessLog.status === 'warning' ? '#fffbeb' : '#fef2f2',
+                      border: `1px solid ${roundHealth.checks.guessLog.status === 'ok' ? '#bbf7d0' :
+                                            roundHealth.checks.guessLog.status === 'warning' ? '#fde68a' : '#fecaca'}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>
+                          {roundHealth.checks.guessLog.status === 'ok' ? '✅' :
+                           roundHealth.checks.guessLog.status === 'warning' ? '⚠️' : '❌'}
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: '14px' }}>Onchain Guess Log</span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#374151', marginBottom: '8px' }}>
+                        {roundHealth.checks.guessLog.message}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        Guesses: {roundHealth.checks.guessLog.details.indexedGuesses.toLocaleString()} indexed of{' '}
+                        {roundHealth.checks.guessLog.details.totalGuesses.toLocaleString()} |
+                        Committed: {roundHealth.checks.guessLog.details.committedLeaves.toLocaleString()} leaves in{' '}
+                        {roundHealth.checks.guessLog.details.checkpointCount} checkpoints |
+                        Uncommitted: {roundHealth.checks.guessLog.details.uncommittedGuesses.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                        {/* The contract's own count beside the local table's. A
+                            disagreement is the exact condition postNextCheckpoint
+                            refuses to post through. */}
+                        Contract: {roundHealth.checks.guessLog.details.onchainLeaves == null
+                          ? 'unreadable'
+                          : `${roundHealth.checks.guessLog.details.onchainLeaves.toLocaleString()} leaves, ${roundHealth.checks.guessLog.details.onchainCheckpoints?.toLocaleString() ?? '?'} checkpoints`}
+                        {!roundHealth.checks.guessLog.details.configured && ' (GuessLog not configured)'}
+                      </div>
+                      {(roundHealth.checks.guessLog.details.duplicateIndexCount > 0 ||
+                        roundHealth.checks.guessLog.details.missingIndexCount > 0) && (
+                        <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '6px', fontFamily: 'monospace' }}>
+                          {roundHealth.checks.guessLog.details.duplicateIndexCount > 0 && (
+                            <div>
+                              Duplicate indexes ({roundHealth.checks.guessLog.details.duplicateIndexCount}):{' '}
+                              {roundHealth.checks.guessLog.details.duplicateIndexes.join(', ')}
+                              {roundHealth.checks.guessLog.details.duplicateIndexCount >
+                                roundHealth.checks.guessLog.details.duplicateIndexes.length && ' …'}
+                            </div>
+                          )}
+                          {roundHealth.checks.guessLog.details.missingIndexCount > 0 && (
+                            <div>
+                              Missing indexes ({roundHealth.checks.guessLog.details.missingIndexCount}):{' '}
+                              {roundHealth.checks.guessLog.details.missingIndexes.join(', ')}
+                              {roundHealth.checks.guessLog.details.missingIndexCount >
+                                roundHealth.checks.guessLog.details.missingIndexes.length && ' …'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
                     <button
-                      onClick={fetchRoundHealth}
+                      onClick={() => fetchRoundHealth()}
                       style={styles.btnSecondary}
                       disabled={roundHealthLoading}
                     >
@@ -1352,7 +1520,7 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                 </div>
               ) : (
                 <button
-                  onClick={fetchRoundHealth}
+                  onClick={() => fetchRoundHealth()}
                   style={styles.btnPrimary}
                   disabled={roundHealthLoading}
                 >
@@ -1935,19 +2103,28 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
 
             {recoverDiagnosis && (
               <div style={{
-                background: recoverDiagnosis.isStuck ? '#fef2f2' : '#f0fdf4',
-                border: `1px solid ${recoverDiagnosis.isStuck ? '#fecaca' : '#bbf7d0'}`,
+                background: recoverTone.bg,
+                border: `1px solid ${recoverTone.border}`,
                 borderRadius: '8px',
                 padding: '16px',
                 marginBottom: '16px',
               }}>
-                <div style={{ fontWeight: 600, marginBottom: '12px', color: recoverDiagnosis.isStuck ? '#dc2626' : '#166534' }}>
-                  {recoverDiagnosis.isStuck ? 'Round IS Stuck' : 'Round OK'}
+                <div style={{ fontWeight: 600, marginBottom: '12px', color: recoverTone.heading }}>
+                  {recoverDiagnosis.error ? 'Round Not Found' : recoverDiagnosis.isStuck ? 'Round IS Stuck' : 'Round OK'}
                 </div>
 
                 {recoverDiagnosis.stuckReason && (
                   <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
                     {recoverDiagnosis.stuckReason}
+                  </div>
+                )}
+
+                {/* A 404 body used to land here and render as a green “Round OK”,
+                    which reads as the opposite of what happened. */}
+                {recoverDiagnosis.error && (
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
+                    {recoverDiagnosis.error}
+                    {recoverDiagnosis.hint ? ` ${recoverDiagnosis.hint}` : ''}
                   </div>
                 )}
 
@@ -1999,7 +2176,11 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
                     }}
                     disabled={recoverLoading}
                   >
-                    {recoverLoading ? 'Recovering...' : `Recover Round #${recoverRoundId} (Execute Payouts)`}
+                    {recoverLoading
+                      ? 'Recovering...'
+                      : recoverDiagnosis.recovery === 'clear_onchain_round'
+                        ? `Release Onchain Round #${recoverRoundId} (Returns Pool as Carry)`
+                        : `Recover Round #${recoverRoundId} (Execute Payouts)`}
                   </button>
                 )}
               </div>
@@ -2489,8 +2670,6 @@ export default function OperationsSection({ user }: OperationsSectionProps) {
           <div style={{ fontSize: '13px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0' }}>
             Player grants
           </div>
-          {/* Round 34 launch: one-time wordmark backfill (delete after launch) */}
-          {user?.fid && <WordmarkBackfillCard fid={user.fid} />}
           {user?.fid && <WordmarkDeployCard fid={user.fid} />}
           {/* Manual XP Award Card */}
           <div style={styles.card}>

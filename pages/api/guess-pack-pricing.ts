@@ -131,6 +131,16 @@ export default async function handler(
     // refused server-side (the payment verifies after it lands onchain, and
     // taking ETH to credit nothing is worse than crediting guesses that stay
     // locked until the bar clears) — the purchase UI uses this flag to warn.
+    //
+    // Deliberately NOT passing activeRoundId as the bar's round. That id comes
+    // from the `isNull(resolvedAt)` query above, which carries no status
+    // filter and so can name a cancelled or still-pending round — fine for
+    // resetting a volume tier, wrong for pricing a gate. checkPlayEligibility
+    // resolves the round through the shared active-round definition instead,
+    // which is the same one /api/guess enforces against. Until 2026-09-12 this
+    // call priced the bar from a build-time constant 37% above round 35's real
+    // bar, so players who could guess were told they could not buy their way
+    // in either.
     let rewardGateLocked = false;
     {
       const { checkPlayEligibility, isRewardGateEnabled } = await import('../../src/lib/reward-gate');

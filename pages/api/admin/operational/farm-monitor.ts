@@ -87,14 +87,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     //
     // reward_gate_claims is keyed (date, wallet) and written with
     // onConflictDoNothing, so round_id only ever records what the FIRST check
-    // of that wallet-day happened to know. That first check is almost always
-    // round-LESS: /api/user-state and the daily allocation both call
-    // checkPlayEligibility with no round in scope (user-state.ts,
-    // daily-limits.ts), and they run on app open, well before any guess. So
-    // the row lands stamped NULL, the later round-scoped insert from the guess
-    // path conflicts and changes nothing, and `where round_id = N` counted ~0
-    // claims for every round — including the enrichment wallet set, which is
-    // why ticking "Trace $WORD funding" could silently walk an empty list.
+    // of that wallet-day happened to know — and nothing ever corrects it
+    // afterwards. `where round_id = N` therefore counts whichever subset of a
+    // round's claims happened to be opened first inside that round, which
+    // counted ~0 claims for every round — including the enrichment wallet set,
+    // which is why ticking "Trace $WORD funding" could silently walk an empty
+    // list.
+    //
+    // Historically the stamp was almost always NULL, because the first check of
+    // a wallet-day is normally the app opening (/api/user-state, then the daily
+    // allocation) and both called checkPlayEligibility with no round in scope.
+    // Since 2026-09-12 those callers resolve the ACTIVE round themselves
+    // (reward-gate.ts, getActiveBarRound) so the stamp is usually a real round
+    // id now. THE BOUND DOES NOT CHANGE: a first check that straddles a round
+    // transition, predates a round, or happens between rounds still stamps the
+    // wrong id or none, and onConflictDoNothing means the guess path's
+    // round-scoped insert never repairs it. The window is the only bound that
+    // counts every claim made during a round.
     //
     // THE BOUNDS ARE COMPUTED IN SQL, NOT IN JAVASCRIPT. `created_at`,
     // `started_at`, `resolved_at` and `cancelled_at` are all naive `timestamp`

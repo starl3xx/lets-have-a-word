@@ -8,7 +8,16 @@ import type { RoundCommitmentData } from './commit-reveal';
 import { resolveRoundAndCreatePayouts, syncPrizePoolFromContract } from './economics';
 import { announceRoundStarted } from './announcer';
 import { logRoundEvent, AnalyticsEventTypes } from './analytics';
-import { trackSlowQuery, cacheGet, cacheSet, cacheDel, CacheKeys, CacheTTL } from './redis';
+import {
+  trackSlowQuery,
+  cacheGet,
+  cacheSet,
+  cacheDel,
+  getRedisClient,
+  CacheKeys,
+  CacheTTL,
+  CACHE_PREFIX,
+} from './redis';
 import { shouldBlockNewRoundCreation } from './operational-guard';
 import { encryptAndPack, getPlaintextAnswer } from './encryption';
 import { isDevModeEnabled } from './devGameState';
@@ -22,7 +31,14 @@ import { commitRoundOnChain } from './word-manager';
 import {
   isWordEconomyConfigured,
   startWordRoundOnChain,
+  getActiveWordRoundId,
   getWordJackpotConfig,
+  getWordJackpotReadOnly,
+  getSeedBounds,
+  getWordJackpotSolvency,
+  getWordPriceOnChain,
+  syncWordPriceOnChain,
+  tokensForUsdCents,
   formatWordAmount,
 } from './word-jackpot-contract';
 import { WORD_SEED_USD_CENTS, getRoundCooldownMs } from '../../config/economy';
@@ -50,12 +66,252 @@ export interface CreateRoundOptions {
 const BONUS_WORDS_COUNT = 10;
 
 /**
- * Create a new round
+ * The DB's view of the round WordJackpot currently calls active, as far as the
+ * start preflight needs it. The currency columns travel with every hand-written
+ * field list in this repo (CLAUDE.md) — the reason below names the era of the
+ * row holding the contract, and a dropped discriminator would report a $WORD
+ * wedge as an ETH one.
+ */
+export interface OnchainActiveRoundRow {
+  id: number;
+  status: string | null;
+  prizeCurrency: string | null;
+  prizePoolWord: string | null;
+  seedPriceE18: string | null;
+}
+
+/**
+ * Why a new $WORD round cannot be started right now, or null if it can.
+ *
+ * Pure on purpose: the decision is the part worth testing, and it needs neither
+ * a chain nor a database to make. `startWordRoundOnChain` runs the same
+ * activeRoundId check itself (word-jackpot-contract.ts), but it runs it AFTER
+ * the row is inserted — so an onchain round the DB does not know about turned
+ * every 5-minute tick into an inserted-then-cancelled row and a permanently
+ * burnt round id, because the public round number IS rounds.id.
+ *
+ * The two blocked cases are deliberately worded differently. One is the game
+ * working as designed; the other needs an operator.
+ */
+export function describeOnchainStartBlock(args: {
+  onchainActiveRoundId: number;
+  dbRow: OnchainActiveRoundRow | null;
+}): string | null {
+  const { onchainActiveRoundId, dbRow } = args;
+
+  if (onchainActiveRoundId === 0) return null;
+
+  if (dbRow?.status === 'active') {
+    // Both sides agree a round is live. getActiveRound() above normally
+    // catches this first; reaching here means the round started between that
+    // check and this one, which is a race closing correctly, not a fault.
+    return (
+      `Cannot start a new round: WordJackpot is running round ${onchainActiveRoundId}, ` +
+      `which the database also has active. Resolve it first.`
+    );
+  }
+
+  // The wedge. The contract is holding a round id that the database does not
+  // consider startable, so every future start fails the same way. Inserting a
+  // row here would burn one more id per tick and change nothing.
+  const dbState = dbRow
+    ? `status '${dbRow.status ?? 'unknown'}' (${dbRow.prizeCurrency ?? 'eth'} round)`
+    : 'no row at all';
+  return (
+    `Cannot start a new round: WordJackpot still holds round ${onchainActiveRoundId} as its ` +
+    `active round, but the database has ${dbState} for it and no active round. Refusing to ` +
+    `insert — the id would be burnt and the next start would fail identically. Clear the ` +
+    `contract with POST /api/admin/operational/recover-stuck-round ` +
+    `{ roundId: ${onchainActiveRoundId}, confirm: 'CLEAR_ONCHAIN_ROUND_${onchainActiveRoundId}' }.`
+  );
+}
+
+/**
+ * The chain-side numbers a $WORD start depends on, read one beat BEFORE the
+ * insert. Every field is something `startWordRoundOnChain` reads for itself —
+ * this does not replace the contract-side checks, it moves the knowable half
+ * of them in front of the row that would otherwise be burnt.
+ */
+export interface WordSeedReadiness {
+  seedUsdCents: number;
+  /**
+   * WordJackpot's OpenZeppelin pause flag. `startRound` is `whenNotPaused`
+   * (contracts/src/WordJackpot.sol:254), so this refuses exactly like a stale
+   * price does — and for as long as the owner leaves the contract paused.
+   */
+  paused: boolean;
+  priceE18: bigint;
+  priceIsStale: boolean;
+  priceUpdatedAt: Date | null;
+  maxPriceAgeSeconds: number;
+  /** Whether the one-shot oracle sync already ran, so the message can say so. */
+  priceSyncAttempted: boolean;
+  seedTokensWei: bigint;
+  minSeedWei: bigint;
+  maxSeedWei: bigint;
+  carryWei: bigint;
+  unallocatedWei: bigint;
+}
+
+/**
+ * Why WordJackpot would refuse to seed the next round, or null if it would not.
+ *
+ * Pure, like describeOnchainStartBlock above, and for the same reason: the
+ * decision is the part worth testing and it needs neither a chain nor a
+ * database. These are the refusals `startWordRoundOnChain` raises AFTER the
+ * insert — a paused contract, a stale price, a seed outside the contract
+ * bounds, an empty tranche — and every one of them is a standing condition,
+ * not a transient (a pause lasts as long as the incident that caused it). Left
+ * unguarded, a 6-hour oracle outage inserts and cancels a row every 5 minutes
+ * and the public round number (which IS rounds.id) advances 72 rounds without
+ * a round being played.
+ *
+ * NOT covered here: the contract's "round id has already been started"
+ * refusal. It is the one failure that needs the round id, and Postgres assigns
+ * that id on the insert this check runs before. Guessing it (max(id) + 1) can
+ * be wrong whenever the sequence is ahead of the table, and a preflight that
+ * refuses while WordJackpot is idle stops the game outright — a worse failure
+ * than the one burnt id it would save. It is also self-limiting: a started id
+ * burns one row and the next id is free, where the cases below repeat forever.
+ */
+export function describeWordSeedBlock(state: WordSeedReadiness): string | null {
+  const suffix =
+    'Refusing to insert — the round id would be burnt and the next tick would fail identically.';
+
+  // First, because it is the one refusal an operator deliberately caused:
+  // `startRound` is whenNotPaused, so every tick of a 6-hour pause used to
+  // burn a round id. `resolveRound` is deliberately NOT paused-gated, so the
+  // recovery arm still works while this is true.
+  if (state.paused) {
+    return (
+      `Cannot start a new round: WordJackpot is paused, and startRound is whenNotPaused. ` +
+      `Unpause the contract (owner-only) before a round can be seeded. ${suffix}`
+    );
+  }
+
+  if (state.priceE18 <= 0n) {
+    return (
+      `Cannot start a new round: WordJackpot has no $WORD price at all (priceE18 is 0) and the ` +
+      `oracle sync ${state.priceSyncAttempted ? 'did not take effect' : 'was not attempted'}. ${suffix}`
+    );
+  }
+
+  if (state.priceIsStale) {
+    return (
+      `Cannot start a new round: the onchain $WORD price is stale (last updated ` +
+      `${state.priceUpdatedAt?.toISOString() ?? 'never'}, max age ${state.maxPriceAgeSeconds}s) and ` +
+      `the oracle sync ${state.priceSyncAttempted ? 'returned no usable price' : 'was not attempted'}. ` +
+      `${suffix}`
+    );
+  }
+
+  if (state.seedTokensWei < state.minSeedWei || state.seedTokensWei > state.maxSeedWei) {
+    return (
+      `Cannot start a new round: a $${(state.seedUsdCents / 100).toFixed(2)} seed prices at ` +
+      `${formatWordAmount(state.seedTokensWei)} $WORD, outside the contract bounds ` +
+      `[${formatWordAmount(state.minSeedWei)}, ${formatWordAmount(state.maxSeedWei)}]. At this ` +
+      `price that usually means the oracle is wrong, not the bounds. ${suffix}`
+    );
+  }
+
+  // The contract spends carry first, then the unallocated tranche.
+  const fromCarry = state.carryWei >= state.seedTokensWei ? state.seedTokensWei : state.carryWei;
+  const needed = state.seedTokensWei - fromCarry;
+  if (needed > state.unallocatedWei) {
+    return (
+      `Cannot start a new round: seeding needs ${formatWordAmount(needed)} $WORD beyond the ` +
+      `${formatWordAmount(state.carryWei)} carry, but only ` +
+      `${formatWordAmount(state.unallocatedWei)} is unallocated. Fund WordJackpot from the ` +
+      `treasury. ${suffix}`
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Read what describeWordSeedBlock judges, including the one-shot price sync.
+ *
+ * The sync is not an optimisation: nothing keeps the onchain price warm
+ * between rounds (the market-cap cron only writes the DB), so a stale price at
+ * round start is the NORMAL case. startWordRoundOnChain syncs once and
+ * re-reads for exactly that reason; doing it here means the preflight refuses
+ * only when the oracle genuinely has nothing to say, and the seeding call a
+ * second later finds the price already fresh.
+ */
+export async function readWordSeedReadiness(seedUsdCents: number): Promise<WordSeedReadiness> {
+  const [bounds, solvency, paused] = await Promise.all([
+    getSeedBounds(),
+    getWordJackpotSolvency(),
+    getWordJackpotReadOnly().paused() as Promise<boolean>,
+  ]);
+  let price = await getWordPriceOnChain();
+  let priceSyncAttempted = false;
+
+  if (price.isStale) {
+    priceSyncAttempted = true;
+    console.log(
+      `[rounds] Onchain $WORD price stale before the insert ` +
+        `(last updated ${price.updatedAt?.toISOString() ?? 'never'}) — syncing from the oracle`
+    );
+    const synced = await syncWordPriceOnChain();
+    if (synced) price = await getWordPriceOnChain();
+  }
+
+  return {
+    seedUsdCents,
+    paused,
+    priceE18: price.priceE18,
+    priceIsStale: price.isStale,
+    priceUpdatedAt: price.updatedAt,
+    maxPriceAgeSeconds: price.maxPriceAgeSeconds,
+    priceSyncAttempted,
+    // tokensForUsdCents throws on a zero price; the zero case is reported by
+    // describeWordSeedBlock instead, so it must not throw on the way there.
+    seedTokensWei: price.priceE18 > 0n ? tokensForUsdCents(BigInt(seedUsdCents), price.priceE18) : 0n,
+    minSeedWei: bounds.minWei,
+    maxSeedWei: bounds.maxWei,
+    carryWei: solvency.carryWei,
+    unallocatedWei: solvency.unallocatedWei,
+  };
+}
+
+/**
+ * Create a new round.
+ *
+ * Serialized on the round-creation lock, at THIS level rather than in
+ * ensureActiveRound: the cron reaches round creation through ensureActiveRound
+ * but /api/admin/operational/start-round calls createRound directly, and
+ * admin-vs-cron is the concurrent pair this game actually has (round 34 was
+ * started by the admin button, round 35 by the cron). A lock one level up
+ * would serialise everything except the pair that exists. Wrapping here also
+ * covers src/scripts/* and any future caller.
+ *
+ * The whole body runs inside the lock, including the active-round check and
+ * the onchain preflight — a check-then-act is only worth anything if the check
+ * and the act are on the same side of the lock.
  *
  * @param opts Optional configuration
  * @returns The created round
+ * @throws RoundCreationInFlightError if another creation holds the lock
  */
 export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
+  const lockToken = await acquireRoundCreationLock();
+  if (!lockToken) {
+    // Deliberately not "wait and retry": the holder needs ~25 seconds, longer
+    // than a player request should live, and both of this function's callers
+    // run again within minutes.
+    throw new RoundCreationInFlightError();
+  }
+
+  try {
+    return await createRoundUnderLock(opts);
+  } finally {
+    await releaseRoundCreationLock(lockToken);
+  }
+}
+
+async function createRoundUnderLock(opts?: CreateRoundOptions): Promise<Round> {
   const rulesetId = opts?.rulesetId ?? 1;
   const forceAnswer = opts?.forceAnswer;
   const skipOnChainCommitment = opts?.skipOnChainCommitment ?? false;
@@ -174,8 +430,90 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
       onChainCommitmentTxHash = await startRoundWithCommitmentOnChain(commitHash);
       console.log(`[rounds] ✅ Onchain commitment successful: ${onChainCommitmentTxHash}`);
     }
+  } else if (useWordEconomy) {
+    // Not skipped, deferred: the $WORD path commits inside
+    // startWordRoundOnChain below, because the commitment travels with the
+    // round id and Postgres has not assigned one yet. Said out loud because
+    // this branch used to log "skipOnChainCommitment=true - FOR TESTING ONLY"
+    // on every production round start, which is the opposite of what happened.
+    console.log(`[rounds] Onchain commitment deferred to WordJackpot.startRound (needs the round id)`);
   } else {
     console.log(`[rounds] ⚠️ Skipping onchain commitment (skipOnChainCommitment=true) - FOR TESTING ONLY`);
+  }
+
+  // Refuse BEFORE the insert, not after the transaction fails.
+  //
+  // The $WORD path cannot commit before the row exists (the round id is the
+  // contract's identifier and Postgres assigns it), so a failure after the
+  // insert is unavoidable in general — that path is handled below by marking
+  // the row cancelled. What is avoidable is inserting when the answer is
+  // already knowable: if WordJackpot is still holding a round id, the seeding
+  // call ~a second later will throw on exactly that, and the only lasting
+  // effect of having tried is one burnt round id. Auto-start runs every 5
+  // minutes, so "try anyway" means burning an id every 5 minutes, forever,
+  // while the public round number marches away from reality.
+  if (useWordEconomy) {
+    let onchainActiveRoundId: number;
+    try {
+      onchainActiveRoundId = await getActiveWordRoundId();
+    } catch (error) {
+      // An unreadable contract is a refusal, not a shrug. startWordRoundOnChain
+      // reads the same value and would fail anyway — but by then a row exists.
+      // Failing here costs a retry in 5 minutes and no round id.
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Cannot start a new round: WordJackpot's active round could not be read (${reason}). ` +
+        `Refusing to insert a round that could not be seeded.`
+      );
+    }
+
+    if (onchainActiveRoundId !== 0) {
+      const [dbRow] = await db
+        .select({
+          id: rounds.id,
+          status: rounds.status,
+          prizeCurrency: rounds.prizeCurrency,
+          prizePoolWord: rounds.prizePoolWord,
+          seedPriceE18: rounds.seedPriceE18,
+        })
+        .from(rounds)
+        .where(eq(rounds.id, onchainActiveRoundId))
+        .limit(1);
+
+      const blocked = describeOnchainStartBlock({
+        onchainActiveRoundId,
+        dbRow: dbRow ?? null,
+      });
+      if (blocked) {
+        console.error(`[rounds] ❌ ${blocked}`);
+        throw new Error(blocked);
+      }
+    }
+
+    // The refusals that do not need a round id, asked before the insert
+    // instead of after it. An activeRoundId of 0 is not the only way the
+    // seeding call says no: a stale price, a seed outside the contract bounds
+    // and an empty tranche each refuse every 5 minutes for as long as the
+    // condition lasts, and each one used to cost a burnt round id per tick.
+    let readiness: WordSeedReadiness;
+    try {
+      readiness = await readWordSeedReadiness(WORD_SEED_USD_CENTS);
+    } catch (error) {
+      // Unreadable preconditions are a refusal for the same reason as an
+      // unreadable activeRoundId: retrying in 5 minutes costs nothing, and
+      // finding out after the insert costs a public round number.
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Cannot start a new round: WordJackpot's seeding preconditions could not be read ` +
+        `(${reason}). Refusing to insert a round that could not be seeded.`
+      );
+    }
+
+    const seedBlocked = describeWordSeedBlock(readiness);
+    if (seedBlocked) {
+      console.error(`[rounds] ❌ ${seedBlocked}`);
+      throw new Error(seedBlocked);
+    }
   }
 
   // Encrypt the answer for storage
@@ -350,7 +688,21 @@ export async function createRound(opts?: CreateRoundOptions): Promise<Round> {
     }
   }
 
-  // Milestone 5.1: Announce round started (non-blocking)
+  // Milestone 5.1: Announce round started.
+  //
+  // AWAITED, deliberately — the comment here used to say "non-blocking" above
+  // this same await, which is the more dangerous of the two ways to be wrong.
+  // On Vercel, work scheduled after the response can be frozen (word-oracle.ts
+  // documents the same trap for its cache warm), so fire-and-forget here would
+  // silently drop the round's public launch: the cast, the tweet and the push
+  // that tell players a round exists. The fire-and-forget Wordmark awards
+  // elsewhere in the codebase can afford that risk; a round nobody is told
+  // about cannot.
+  //
+  // Nothing is waiting on this call — the caller is a cron, not a player — so
+  // the only cost is invocation time, which is why /api/cron/auto-start-round
+  // and the admin start-round endpoint carry an explicit maxDuration in
+  // vercel.json (the whole path is ~20-25s of serial onchain and API work).
   if (opts?.skipAnnounce) {
     console.log(`[rounds] Round ${round.id}: announcement suppressed (skipAnnounce)`);
   } else {
@@ -558,11 +910,110 @@ export async function getActiveRoundForUpdate(tx: typeof db): Promise<Round | nu
 }
 
 /**
+ * Cross-invocation mutex around round creation.
+ *
+ * Round creation is a check-then-act — read "is there an active round", then
+ * create one — reached by three different kinds of caller: the 5-minute cron,
+ * the admin Start Round button (which calls createRound directly), and the hot
+ * path (pages/api/guess.ts, src/lib/wheel.ts), where between rounds two
+ * players guessing in the same second are two concurrent creators. Each would
+ * insert a row; the loser's seeding call reverts on the winner's round and its
+ * row is cancelled, which burns a public round id — the same cost the onchain
+ * preflight in createRound exists to avoid. Held by createRound itself so that
+ * every one of those callers is inside it.
+ *
+ * Held in Redis rather than Postgres because the guard must span serverless
+ * invocations that share no connection, and because a long-lived advisory lock
+ * would sit idle-in-transaction for the ~25 seconds a round start takes.
+ *
+ * FAIL-OPEN, matching the rate limiters: with Redis unavailable this behaves
+ * exactly as the unlocked code did. A lock that can block round creation
+ * outright would be a worse failure than the double-insert it prevents.
+ */
+const ROUND_CREATION_LOCK_KEY = `${CACHE_PREFIX}lock:create-round`;
+
+/**
+ * TTL, not a deadline. Long enough to cover the ~25s start path with room for
+ * a slow RPC, short enough that a crashed invocation (which never reaches the
+ * release) clears before the next 5-minute tick rather than wedging auto-start.
+ */
+const ROUND_CREATION_LOCK_TTL_S = 180;
+
+/**
+ * Thrown when another invocation is already creating a round.
+ *
+ * A distinct type because the two callers want opposite things from it:
+ * ensureActiveRound wants a round and can answer with the one the other
+ * creator is making, while the admin Start Round button asked for a NEW round
+ * and must be told it did not get one.
+ */
+export class RoundCreationInFlightError extends Error {
+  readonly code = 'ROUND_CREATION_IN_FLIGHT';
+
+  constructor() {
+    super(
+      'Cannot create new round: another round creation is already in flight. ' +
+      'Wait for it to finish — starting a second one would burn a round id.'
+    );
+    this.name = 'RoundCreationInFlightError';
+  }
+}
+
+/**
+ * Take the round-creation lock. Returns the token to release with, or null if
+ * someone else holds it. Returns a token when Redis is unavailable — see the
+ * fail-open note above.
+ */
+export async function acquireRoundCreationLock(): Promise<string | null> {
+  const redis = getRedisClient();
+  if (!redis) return 'no-redis';
+
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    const result = await redis.set(ROUND_CREATION_LOCK_KEY, token, {
+      nx: true,
+      ex: ROUND_CREATION_LOCK_TTL_S,
+    });
+    return result === 'OK' ? token : null;
+  } catch (error) {
+    console.error('[rounds] Round-creation lock unavailable, proceeding unlocked:', error);
+    return 'lock-error';
+  }
+}
+
+/**
+ * Release the round-creation lock, but only if we still hold it.
+ *
+ * The read-then-delete is not atomic. The race it leaves is deleting a lock
+ * that expired and was retaken between the two calls, which costs nothing the
+ * TTL expiry does not already cost — whereas an unconditional delete would let
+ * a slow invocation free the NEXT creator's lock.
+ */
+export async function releaseRoundCreationLock(token: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis || token === 'no-redis' || token === 'lock-error') return;
+
+  try {
+    const held = await redis.get<string>(ROUND_CREATION_LOCK_KEY);
+    if (held === token) {
+      await redis.del(ROUND_CREATION_LOCK_KEY);
+    }
+  } catch (error) {
+    console.error('[rounds] Failed to release the round-creation lock:', error);
+  }
+}
+
+/**
  * Ensure there is an active round, creating one if necessary
  *
  * Milestone 9.5: Will NOT create a new round if:
  * - Kill switch is active
  * - Dead day is enabled (current round finished, waiting to resume)
+ *
+ * The check-then-act here is serialized by createRound's own lock: this
+ * function is called from the guess and wheel paths as well as the cron, so
+ * between rounds two players guessing in the same second are two concurrent
+ * creators.
  *
  * @param opts Optional configuration for round creation
  * @returns The active round (existing or newly created)
@@ -584,8 +1035,19 @@ export async function ensureActiveRound(opts?: CreateRoundOptions): Promise<Roun
     );
   }
 
-  // Create new round
-  return createRound(opts);
+  // The lock lives inside createRound (which also re-reads the active round
+  // once it holds it), so this is a plain call.
+  try {
+    return await createRound(opts);
+  } catch (error) {
+    // This function's contract is "there is an active round", not "I created
+    // one". If the refusal was another creator winning the race — or any
+    // refusal that arrived after a round became visible — that round IS the
+    // answer. A refusal with no round behind it is real and must surface.
+    const raced = await getActiveRound();
+    if (raced) return raced;
+    throw error;
+  }
 }
 
 /**

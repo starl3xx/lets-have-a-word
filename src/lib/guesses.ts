@@ -1,7 +1,7 @@
 import { db, guesses, users, rounds, roundBonusWords, roundBurnWords, bonusWordClaims, userBadges, xpEvents, wordRewards } from '../db';
 import { eq, and, or, desc, sql, count, isNull } from 'drizzle-orm';
 import * as Sentry from '@sentry/nextjs';
-import type { SubmitGuessResult, SubmitGuessParams, TopGuesser } from '../types';
+import type { SubmitGuessResult, SubmitGuessParams, TopGuesser, Round } from '../types';
 import type { RoundBonusWordRow } from '../db/schema';
 import { checkBurnWordMatch, handleBurnWordWin } from './burn-words';
 import { getActiveRound, getActiveRoundForUpdate } from './rounds';
@@ -117,18 +117,142 @@ export async function getTotalGuessCountInRound(roundId: number): Promise<number
 }
 
 /**
- * Get the next guess index for a round (atomically)
- * Uses SELECT FOR UPDATE to prevent race conditions
- * Returns 1-based index (first guess = 1)
+ * Advisory-lock namespace for per-round guess-index allocation.
+ *
+ * pg_advisory_xact_lock takes two int4 keys. The first is this constant (ASCII
+ * 'LHAW') so the lock can never collide with an advisory lock some other part
+ * of the system might one day take on a bare round id; the second is the round
+ * id, so allocation in one round never waits on another round.
  */
-async function getNextGuessIndexInRound(roundId: number, tx?: typeof db): Promise<number> {
-  const database = tx || db;
-  const result = await database
-    .select({ count: count() })
-    .from(guesses)
-    .where(eq(guesses.roundId, roundId));
+const GUESS_INDEX_LOCK_NAMESPACE = 0x4c484157; // 'LHAW'
 
-  return (result[0]?.count || 0) + 1;
+/**
+ * Allocate the next guess index for a round. Returns a 1-based index
+ * (first guess = 1). MUST be called inside the transaction that performs the
+ * INSERT which uses the value — `tx` is required for that reason.
+ *
+ * WHY THE LOCK. This was `count(*) + 1` with no lock at all, under a comment
+ * that claimed it used SELECT FOR UPDATE. Two guesses landing in the same
+ * round in the same moment both read the same count and were both written
+ * with the same guess_index_in_round, and a duplicate index is exactly what
+ * makes collectPendingGuesses refuse a whole round ("Refusing to commit a log
+ * with a gap") — the leading explanation for round 34's onchain guess log
+ * stopping at 19 of 3,236 guesses. It is also the race that forces
+ * awardTrailblazerForRound to fall back to MIN(guesses.id) rather than trust
+ * index 1.
+ *
+ * WHY TWO STATEMENTS AND NOT ONE. A single `INSERT ... SELECT max(...) + 1`
+ * cannot replace this, even with the lock inside it. Under READ COMMITTED the
+ * statement's snapshot is taken when the statement begins, so a statement that
+ * waits for the advisory lock part-way through still reads a snapshot from
+ * before it waited and cannot see the row the other transaction committed
+ * while it waited. The lock has to finish in a statement of its own.
+ *
+ * WHY MAX+1 AND NOT COUNT+1 — it is both more correct and cheaper:
+ *  - monotonic, so rows with a NULL index (legacy rows that COUNT still
+ *    counted, pushing every later index past its true position) stop
+ *    manufacturing holes, which wedge the log exactly as duplicates do;
+ *  - it never re-issues an index that historical data already holds, so a
+ *    round that already contains duplicates simply continues past its
+ *    high-water mark. Nothing throws, nothing is renumbered;
+ *  - guesses_round_guess_index_idx is (round_id, guess_index_in_round), so
+ *    this is one index descent, where COUNT(*) walked every index entry in
+ *    the round — 3,236 of them late in round 34. The added lock round-trip is
+ *    paid back by the read it replaces.
+ *
+ * A UNIQUE (round_id, guess_index_in_round) constraint would be a stronger
+ * guard, but it cannot be built while the rounds that already contain
+ * duplicates still contain them, and it would mean a hand-run migration
+ * against a live table mid-round. The lock needs no migration.
+ *
+ * This is deliberately NOT the Redis mutex that rounds.ts uses for round
+ * creation. That one has to span serverless invocations sharing no connection
+ * and is held for the ~25 seconds a round start takes. This one is held for
+ * the few milliseconds between allocation and COMMIT, on the connection the
+ * transaction already owns, and it releases on ROLLBACK too — a failed guess
+ * cannot wedge the round.
+ *
+ * LOCK ORDER — TAKE THIS LOCK BEFORE ANY LOCK ON THE ROUNDS ROW. Not a style
+ * preference; it is the only order that cannot deadlock, and getting it wrong
+ * once already did (see acquireWinnerRoundLocks below). The reason the rounds
+ * row is involved at all is invisible in the source: `guesses.round_id`
+ * carries `guesses_round_id_rounds_id_fk`, so every INSERT INTO guesses takes
+ * FOR KEY SHARE on its rounds row to stop the parent key moving underneath it.
+ * FOR KEY SHARE conflicts with FOR UPDATE. So every guess path — the four that
+ * insert in this file (bonus, ineligible winner, winner, incorrect) and the
+ * burn-word path in burn-words.ts — already ends up holding (1) this advisory
+ * lock, then (2) a lock on the rounds row, whether or not its author knew
+ * about (2). Any caller that takes a rounds-row lock
+ * FIRST and this one SECOND therefore closes an ABBA cycle with every ordinary
+ * guess in flight, and PostgreSQL resolves that by killing one of them.
+ *
+ * Nothing here can be reordered away: the FK lock is implicit and a guess
+ * cannot be inserted without it, so this lock is the one that has to come
+ * first.
+ *
+ * Exported only so guess-index-atomicity.test.ts can drive two real concurrent
+ * transactions against it; the allocation itself is still internal to the
+ * guess paths below.
+ */
+export async function getNextGuessIndexInRound(roundId: number, tx: typeof db): Promise<number> {
+  // Serialise same-round allocation. Released by COMMIT or ROLLBACK.
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${GUESS_INDEX_LOCK_NAMESPACE}::int4, ${roundId}::int4)`
+  );
+
+  // Read the high-water mark under that lock, in a statement whose snapshot is
+  // therefore taken after every competing allocation has committed.
+  const rows = await tx.execute<{ next: number }>(
+    sql`SELECT COALESCE(MAX(guess_index_in_round), 0) + 1 AS next
+        FROM guesses
+        WHERE round_id = ${roundId}`
+  );
+
+  return Number(rows[0]?.next ?? 1);
+}
+
+/**
+ * Take both of the locks the winning guess needs, in the one order the rest of
+ * the codebase takes them: the per-round advisory lock first, the rounds row
+ * second. Returns the locked round (null if no round is active any more) and
+ * the guess index allocated under that advisory lock.
+ *
+ * WHY THIS EXISTS AS A FUNCTION. The winner transaction is the only place in
+ * the repo that locks a rounds row explicitly — `getActiveRoundForUpdate` is
+ * the codebase's sole SELECT ... FOR UPDATE and this is its sole caller — so it
+ * is the only place that can get the order wrong, and it did: it ran
+ * getActiveRoundForUpdate first and allocated second. That is the opposite of
+ * every other guess path, each of which takes the advisory lock and then hits
+ * the rounds row implicitly through the guesses → rounds foreign key (FOR KEY
+ * SHARE, which conflicts with FOR UPDATE). The result was a real ABBA
+ * deadlock, reproducible against a live database: an ordinary guess holding
+ * the advisory lock queued for the rounds row while the winner, holding the
+ * rounds row, queued for the advisory lock. PostgreSQL kills one of the pair,
+ * and when the victim was the winner, /api/guess answered HTTP 500 to the
+ * player who had just won 80% of the pool.
+ *
+ * Keeping both acquisitions inside one function is the point: the order is now
+ * stated in one place, and guess-index-atomicity.test.ts drives this function
+ * under real concurrency, so flipping the two lines back fails a test rather
+ * than shipping.
+ *
+ * SAFE TO ALLOCATE BEFORE THE ROUND IS RE-CHECKED. The allocator is MAX-based,
+ * not a sequence, so the ROUND_ALREADY_RESOLVED rollback that may follow burns
+ * no index, and pg_advisory_xact_lock is released by that ROLLBACK as surely
+ * as by COMMIT.
+ */
+export async function acquireWinnerRoundLocks(
+  roundId: number,
+  tx: typeof db
+): Promise<{ round: Round | null; guessIndexInRound: number }> {
+  // 1. Advisory lock. MUST stay above the rounds-row lock — see the lock-order
+  //    note on getNextGuessIndexInRound for why the order is not reversible.
+  const guessIndexInRound = await getNextGuessIndexInRound(roundId, tx);
+
+  // 2. Rounds row, FOR UPDATE. Blocks other winning guesses until we commit.
+  const round = await getActiveRoundForUpdate(tx);
+
+  return { round, guessIndexInRound };
 }
 
 /**
@@ -823,15 +947,20 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
     // Even if payouts fail later, the round is locked
     try {
       await db.transaction(async (tx) => {
-        // Re-check that round is still unresolved with FOR UPDATE lock
-        // This acquires a row-level lock, blocking other winning guesses until we commit
-        const currentRound = await getActiveRoundForUpdate(tx);
+        // Advisory lock + index allocation FIRST, rounds row FOR UPDATE
+        // SECOND. That order is load-bearing, not incidental — every other
+        // guess path takes the same two locks in exactly this order, and
+        // taking them the other way round here deadlocked the winning guess
+        // against any ordinary guess in flight. acquireWinnerRoundLocks holds
+        // the full explanation; do not inline it back.
+        const { round: currentRound, guessIndexInRound } = await acquireWinnerRoundLocks(round.id, tx);
+
+        // Re-check that the round is still unresolved, now under that row lock.
+        // Rolling back here costs nothing: MAX-based allocation burns no index
+        // and both locks release on ROLLBACK.
         if (!currentRound || currentRound.resolvedAt !== null || currentRound.winnerFid !== null) {
           throw new Error('ROUND_ALREADY_RESOLVED');
         }
-
-        // Get the next guess index atomically within transaction
-        const guessIndexInRound = await getNextGuessIndexInRound(round.id, tx);
 
         // Insert the winning guess with index
         await tx.insert(guesses).values({
@@ -845,6 +974,29 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
         });
 
         // Apply economic effects for paid guesses (Milestone 3.1)
+        //
+        // ⚠️ MUST MOVE OUT OF THIS TRANSACTION BEFORE ANY ETH ROUND RUNS
+        // AGAIN. This await is inside the transaction, but the callee runs on
+        // a different pooled connection (it uses the module-level `db`, not
+        // `tx`), and economics.ts updates rounds WHERE id = roundId — the very
+        // row this transaction holds FOR UPDATE. UPDATE needs FOR NO KEY
+        // UPDATE, which conflicts, so the callee waits on a lock held by the
+        // transaction that is waiting on the callee. Only one side of that
+        // cycle is a database lock waiter; the other is an application-level
+        // await, so PostgreSQL's deadlock detector cannot see it and the
+        // request hangs to statement timeout. Because this transaction also
+        // holds the round's advisory lock, every other guess in the round
+        // queues behind the hang for the life of the invocation.
+        //
+        // It is dormant, not fixed: economics.ts returns early for
+        // prizeCurrency === 'word' before any RPC or write, and rounds 34+ are
+        // $WORD. The repair is to give applyPaidGuessEconomicEffects a
+        // transaction handle — `(roundId, price, tx: typeof db = db)`, then
+        // `tx.update(rounds)` inside it — so it runs on THIS connection. The
+        // ineligible-winner path above calls the same function OUTSIDE its
+        // transaction and is the model for the alternative; that one trades
+        // the atomicity of the winning guess away, which is why it was not
+        // simply copied here.
         if (isPaidGuess) {
           await applyPaidGuessEconomicEffects(round.id, DAILY_LIMITS_RULES.paidGuessPackPriceEth);
         }

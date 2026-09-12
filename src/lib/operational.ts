@@ -12,6 +12,7 @@ import { getRedisClient, CACHE_PREFIX, cacheDel, CacheKeys } from './redis';
 import { db } from '../db';
 import { rounds, operationalEvents, type OperationalEventType } from '../db/schema';
 import { eq, isNull, desc } from 'drizzle-orm';
+import type { ContractTransactionResponse } from 'ethers';
 
 // ============================================================
 // Types
@@ -245,6 +246,236 @@ export async function getOperationalState(): Promise<OperationalState> {
 }
 
 // ============================================================
+// Releasing a $WORD round WordJackpot is still holding
+// ============================================================
+
+/**
+ * Send WordJackpot.resolveRound(roundId, [], [], pool), guarded.
+ *
+ * No recipients: the whole pool becomes carry for the next round. The
+ * contract's `total != pool` check passes because the carry alone equals the
+ * pool, `activeRoundId` goes back to 0 and the id is free again. Nobody is
+ * paid from here — the callers' guards are what keep the pool from being owed
+ * to anyone, and a cancelled round's players are refunded in ETH through the
+ * refund path, which this pool is not.
+ *
+ * The re-read lives immediately before the send, on purpose: any diagnosis
+ * that reached this point is a few hundred milliseconds old, and clearing a
+ * round that has meanwhile been resolved properly would burn the NEXT round's
+ * pool. Shared with the recovery endpoint
+ * (pages/api/admin/operational/recover-stuck-round.ts) so the two doors into
+ * this transaction cannot disagree about when it is safe to send.
+ *
+ * Returns the broadcast transaction rather than a receipt. Whether waiting for
+ * it is affordable is the caller's decision, not this function's.
+ *
+ * NOT reusable through resolveWordRoundOnChain: that helper runs
+ * validateWordPayouts, which rejects an empty recipient array outright — the
+ * exact array this release needs.
+ */
+export async function releaseHeldWordRound(
+  roundId: number
+): Promise<
+  | { ok: true; tx: ContractTransactionResponse; poolWei: bigint }
+  | { ok: false; activeRoundIdNow: number; reason: string }
+> {
+  const { getWordJackpotReadOnly, getWordRound, getWordJackpotWithOperator, formatWordAmount } =
+    await import('./word-jackpot-contract');
+  const { sendWithBuilderCode } = await import('./builder-code');
+
+  const jackpot = getWordJackpotReadOnly();
+  const [activeRoundIdRaw, poolWei, onchainRound] = await Promise.all([
+    jackpot.activeRoundId() as Promise<bigint>,
+    jackpot.pool() as Promise<bigint>,
+    getWordRound(roundId),
+  ]);
+
+  const activeRoundIdNow = Number(activeRoundIdRaw);
+  if (activeRoundIdNow !== roundId || !onchainRound.active) {
+    return {
+      ok: false,
+      activeRoundIdNow,
+      reason:
+        `WordJackpot is not holding round ${roundId} — its active round is ` +
+        `${activeRoundIdNow === 0 ? 'none' : activeRoundIdNow}` +
+        `${activeRoundIdNow === roundId ? ' and that round is already inactive' : ''}. ` +
+        `Nothing was sent.`,
+    };
+  }
+
+  console.log(
+    `[Ops] Releasing onchain round ${roundId} — pool ${formatWordAmount(poolWei)} $WORD ` +
+      `returns as carry for the next round`
+  );
+
+  const contract = getWordJackpotWithOperator();
+  const tx = await sendWithBuilderCode(contract, 'resolveRound', [roundId, [], [], poolWei]);
+  return { ok: true, tx, poolWei };
+}
+
+/** What enableKillSwitch did about the onchain round, for the log and Sentry. */
+export interface KillSwitchRelease {
+  /** False when the round was not a $WORD round, or the economy is not configured. */
+  attempted: boolean;
+  /** True once the transaction is broadcast. It is NOT waited for — see below. */
+  broadcast: boolean;
+  /**
+   * WordJackpot was not holding this id when asked, so there is nothing to
+   * release and nothing to alert about. Distinguished from a real failure
+   * because only a real failure leaves the next round blocked.
+   */
+  nothingHeld?: boolean;
+  txHash?: string;
+  reason?: string;
+}
+
+/**
+ * How long enableKillSwitch will spend on the chain before giving up.
+ *
+ * The kill-switch endpoint creates every refund record AFTER enableKillSwitch
+ * returns, so an unresponsive RPC here would cost the refunds their run. Three
+ * reads and a broadcast are ~1.5s on a healthy Base RPC; this is the ceiling,
+ * not the expectation.
+ */
+const KILL_SWITCH_RELEASE_TIMEOUT_MS = 6_000;
+
+/**
+ * Hand a just-cancelled $WORD round back to WordJackpot.
+ *
+ * PREVENTION for the wedge that recover-stuck-round.ts exists to dig out of.
+ * The kill switch used to set the row to 'cancelled' and make no onchain call
+ * at all, so WordJackpot kept holding the round id and every later start
+ * failed its "still active onchain" preflight — pulling the kill switch on
+ * round 35 bricked round 36 until an operator ran the recovery arm by hand.
+ *
+ * Four properties, because the kill switch is an emergency control that has to
+ * keep working when the chain does not:
+ *
+ *   1. It runs LAST. Every Redis flag and the 'cancelled' row are already
+ *      committed before this is called, so gameplay is stopped no matter what
+ *      happens in here.
+ *   2. It never throws. Every failure returns a reason instead.
+ *   3. It is time-boxed, and it does NOT wait for the receipt. The budget
+ *      belongs to the refund records that the endpoint creates next.
+ *   4. Failing leaves EXACTLY the state that exists today, which
+ *      recover-stuck-round.ts already handles. The failure mode is the old
+ *      behaviour, not a new one.
+ *
+ * The cost of (3) is that a broadcast this did not see confirmed cannot be
+ * distinguished from one that never landed, so both the log line and the
+ * Sentry event say to check the transaction before sending a second
+ * resolveRound from the recovery arm.
+ */
+async function releaseCancelledWordRound(
+  roundId: number,
+  adminFid: number
+): Promise<KillSwitchRelease> {
+  try {
+    // The currency discriminator decides whether there is anything onchain to
+    // release at all: an ETH-era round is JackpotManager's, and the kill
+    // switch has never touched that contract either. Read with the pool and
+    // the price snapshot beside it — a field list that drops prize_currency
+    // reads as an ETH round and silently skips this.
+    const [row] = await db
+      .select({
+        id: rounds.id,
+        prizeCurrency: rounds.prizeCurrency,
+        prizePoolWord: rounds.prizePoolWord,
+        seedPriceE18: rounds.seedPriceE18,
+      })
+      .from(rounds)
+      .where(eq(rounds.id, roundId))
+      .limit(1);
+
+    if (row?.prizeCurrency !== 'word') {
+      return { attempted: false, broadcast: false, reason: 'Not a $WORD round' };
+    }
+
+    const { isWordEconomyConfigured } = await import('./word-jackpot-contract');
+    if (!isWordEconomyConfigured()) {
+      return { attempted: false, broadcast: false, reason: 'WordJackpot is not configured' };
+    }
+
+    const timedOut: KillSwitchRelease = {
+      attempted: true,
+      broadcast: false,
+      reason:
+        `The release did not finish within ${KILL_SWITCH_RELEASE_TIMEOUT_MS}ms. It may still be ` +
+        `in flight — check WordJackpot's activeRoundId before sending another resolveRound ` +
+        `through /api/admin/operational/recover-stuck-round.`,
+    };
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = releaseHeldWordRound(roundId).then(
+      (result): KillSwitchRelease =>
+        result.ok
+          ? { attempted: true, broadcast: true, txHash: result.tx.hash }
+          : {
+              attempted: true,
+              broadcast: false,
+              // Holding a different id (or none) means the contract never had
+              // this round, or already let it go. Nothing is blocked, so this
+              // must not page anyone.
+              nothingHeld: result.activeRoundIdNow !== roundId,
+              reason: result.reason,
+            },
+      (error): KillSwitchRelease => ({
+        attempted: true,
+        broadcast: false,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    );
+
+    const outcome = await Promise.race([
+      attempt.finally(() => clearTimeout(timer)),
+      new Promise<KillSwitchRelease>((resolve) => {
+        timer = setTimeout(() => resolve(timedOut), KILL_SWITCH_RELEASE_TIMEOUT_MS);
+      }),
+    ]);
+
+    if (outcome.broadcast) {
+      console.log(
+        `[Ops] Kill switch released onchain round ${roundId} — tx ${outcome.txHash} (broadcast, ` +
+          `not waited for). The seed returns as carry for the next round.`
+      );
+      Sentry.captureMessage('Kill switch released the onchain round', {
+        level: 'warning',
+        tags: { type: 'operational', action: 'kill_switch_onchain_release' },
+        extra: { roundId, adminFid, txHash: outcome.txHash },
+      });
+    } else if (outcome.nothingHeld) {
+      console.log(
+        `[Ops] Kill switch had no onchain round to release for round ${roundId}: ${outcome.reason}`
+      );
+    } else if (outcome.attempted) {
+      console.error(
+        `[Ops] ⚠️ Kill switch could NOT release onchain round ${roundId}: ${outcome.reason} ` +
+          `WordJackpot may still be holding the id, which blocks the next round start. Clear it ` +
+          `with POST /api/admin/operational/recover-stuck-round ` +
+          `{ roundId: ${roundId}, confirm: 'CLEAR_ONCHAIN_ROUND_${roundId}' }.`
+      );
+      Sentry.captureMessage('Kill switch could not release the onchain round', {
+        level: 'warning',
+        tags: { type: 'operational', action: 'kill_switch_onchain_release_failed' },
+        extra: { roundId, adminFid, reason: outcome.reason },
+      });
+    }
+
+    return outcome;
+  } catch (error) {
+    // Property 2. Nothing in here may turn a successful kill switch into a
+    // failed one.
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error(`[Ops] ⚠️ Onchain release after kill switch threw for round ${roundId}: ${reason}`);
+    Sentry.captureException(error, {
+      tags: { type: 'operational', action: 'kill_switch_onchain_release_failed' },
+      extra: { roundId, adminFid },
+    });
+    return { attempted: true, broadcast: false, reason };
+  }
+}
+
+// ============================================================
 // Kill Switch Actions
 // ============================================================
 
@@ -253,11 +484,24 @@ export async function getOperationalState(): Promise<OperationalState> {
  * - Sets Redis flags
  * - Updates round status to 'cancelled'
  * - Logs operational event
+ * - Hands the round back to WordJackpot ($WORD rounds), so cancelling one
+ *   round does not block the next one from ever starting
  */
 export async function enableKillSwitch(params: {
   adminFid: number;
   reason: string;
-}): Promise<{ success: boolean; roundId?: number; error?: string }> {
+}): Promise<{
+  success: boolean;
+  roundId?: number;
+  error?: string;
+  /**
+   * What happened to the round onchain. Never a reason to report the kill
+   * switch itself as failed: the game is already stopped by the time this is
+   * decided, and a round left held is the state recover-stuck-round.ts exists
+   * for.
+   */
+  onchainRelease?: KillSwitchRelease;
+}> {
   const redis = getRedisClient();
   if (!redis) {
     return { success: false, error: 'Redis not available' };
@@ -333,9 +577,17 @@ export async function enableKillSwitch(params: {
       console.error('[Ops] Failed to cancel Superguess during kill switch:', sgErr);
     }
 
+    // LAST, and only now: every flag and every row above is already committed,
+    // so gameplay is stopped whatever the chain does from here. This hands a
+    // $WORD round's id back to WordJackpot — without it, cancelling round N
+    // leaves the contract holding N and blocks round N+1 from ever starting.
+    // It cannot throw, and it cannot report failure as failure of the kill
+    // switch itself.
+    const onchainRelease = await releaseCancelledWordRound(activeRoundId, params.adminFid);
+
     console.log(`[Ops] Kill switch ENABLED by FID ${params.adminFid} for round ${activeRoundId}: ${params.reason}`);
 
-    return { success: true, roundId: activeRoundId };
+    return { success: true, roundId: activeRoundId, onchainRelease };
   } catch (error) {
     console.error('[Ops] Failed to enable kill switch:', error);
     Sentry.captureException(error, {

@@ -1,5 +1,34 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "pages/api/cron/auto-start-round.ts": {
+      "maxDuration": 120
+    },
+    "pages/api/cron/oracle-update.ts": {
+      "maxDuration": 120
+    },
+    "pages/api/cron/guess-log-checkpoint.ts": {
+      "maxDuration": 120
+    },
+    "pages/api/cron/process-refunds.ts": {
+      "maxDuration": 300
+    },
+    "pages/api/cron/archive-sync.ts": {
+      "maxDuration": 300
+    },
+    "pages/api/admin/operational/start-round.ts": {
+      "maxDuration": 120
+    },
+    "pages/api/admin/operational/recover-stuck-round.ts": {
+      "maxDuration": 120
+    },
+    "pages/api/admin/operational/kill-switch.ts": {
+      "maxDuration": 60
+    },
+    "pages/api/guess.ts": {
+      "maxDuration": 120
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/oracle-update",

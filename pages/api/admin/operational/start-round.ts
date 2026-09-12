@@ -11,7 +11,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { formatPrize } from '../../../../src/lib/prize-display';
 import { ethers } from 'ethers';
 import { isAdminFid } from '../me';
-import { createRound, getActiveRound } from '../../../../src/lib/rounds';
+import { createRound, getActiveRound, RoundCreationInFlightError } from '../../../../src/lib/rounds';
 import { getJackpotManagerReadOnly, getContractRoundInfo, topUpJackpotOnChain, seedFromTreasuryOnChain } from '../../../../src/lib/jackpot-contract';
 import { isWordEconomyConfigured, getWordJackpotReadOnly } from '../../../../src/lib/word-jackpot-contract';
 
@@ -279,6 +279,20 @@ export default async function handler(
     });
   } catch (error) {
     console.error('[start-round] Error:', error);
+
+    // Losing the round-creation race is not a fault, and 500 "Failed to start
+    // round" reads like one — an admin whose click arrived a second after the
+    // 5-minute cron's would be told something broke and press the button
+    // again. 409 with the error's own message says the round is being started
+    // right now and to wait for it.
+    if (error instanceof RoundCreationInFlightError) {
+      return res.status(409).json({
+        success: false,
+        message: error.message,
+        error: error.code,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Failed to start round',

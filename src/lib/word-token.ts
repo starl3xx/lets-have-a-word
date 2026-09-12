@@ -11,7 +11,7 @@
 
 import { ethers } from 'ethers';
 import {
-  WORD_MARKET_CAP_USD,
+  WORD_MCAP_FALLBACK_USD,
   getHolderTierThresholds,
 } from '../../config/economy';
 
@@ -222,13 +222,24 @@ export async function getEffectiveBalanceChecked(
  * Get $WORD holder bonus tier (0-3) based on effective balance and market cap
  * Milestone 14: Replaces binary hasWordTokenBonus()
  *
+ * `marketCapUsd` IS REQUIRED, AND DELIBERATELY HAS NO DEFAULT. It used to
+ * default to WORD_MARKET_CAP_USD, an env var that is not set in production, so
+ * every caller that omitted it priced the $25 / $50 / $75 holder ladder at
+ * WORD_MCAP_FALLBACK_USD ($25,000) while round 35 was seeded at ~$34,200. A
+ * market cap below the real one implies a price below the real one, which makes
+ * every threshold MORE tokens: holders were handed fewer bonus guesses than they
+ * had bought, and nothing warned because the omission type-checked. Resolve the
+ * value first — reward-gate's getActiveWordMarketCapUsd() is the one resolver
+ * (the round's frozen seed price, then the cached oracle price, the constant
+ * only so nothing divides by zero), and it is what daily-limits allocates from.
+ *
  * @param walletAddress - Ethereum wallet address
- * @param marketCapUsd - Current market cap in USD (defaults to env var)
+ * @param marketCapUsd - Resolved market cap in USD; see above
  * @returns Tier level: 0 (none), 1, 2, or 3
  */
 export async function getWordBonusTier(
   walletAddress: string | null,
-  marketCapUsd: number = WORD_MARKET_CAP_USD
+  marketCapUsd: number
 ): Promise<number> {
   if (!walletAddress) return 0;
 
@@ -270,10 +281,13 @@ export async function getWordBonusTier(
  *
  * `determined: false` means the chain could not be reached, not that the wallet
  * is empty.
+ *
+ * `marketCapUsd` is required for the same reason as getWordBonusTier above: the
+ * default was the trap that mispriced the ladder for round 35.
  */
 export async function getWordBonusTierChecked(
   walletAddress: string | null,
-  marketCapUsd: number = WORD_MARKET_CAP_USD
+  marketCapUsd: number
 ): Promise<{ tier: number; determined: boolean }> {
   // A missing or malformed address is a real, cacheable zero: no network call
   // is involved and the answer will not change until the wallet does.
@@ -301,14 +315,46 @@ export async function getWordBonusTierChecked(
 }
 
 /**
+ * The market cap the holder ladder is priced at, resolved live.
+ *
+ * Dynamically imported because reward-gate imports getEffectiveBalanceChecked
+ * from this file, so a static import would be a cycle — the same reason
+ * daily-limits reaches for it this way. Resolving here rather than defaulting to
+ * the build-time constant is the whole point of the required parameter above.
+ *
+ * WORD_MCAP_FALLBACK_USD is the last resort and nothing else: it is the value
+ * getActiveWordMarketCapUsd itself ends on when no price source answers, and it
+ * keeps the thresholds from dividing by zero. It is never reached silently —
+ * the resolver reports its own degraded case to Sentry.
+ */
+async function resolveHolderLadderMarketCapUsd(): Promise<number> {
+  try {
+    const { getActiveWordMarketCapUsd } = await import('./reward-gate');
+    const { marketCapUsd } = await getActiveWordMarketCapUsd();
+    if (Number.isFinite(marketCapUsd) && marketCapUsd > 0) return marketCapUsd;
+  } catch (error) {
+    console.warn('[$WORD] Could not resolve the holder ladder market cap:', error);
+  }
+  return WORD_MCAP_FALLBACK_USD;
+}
+
+/**
  * Check if wallet has $WORD token bonus (backward compat wrapper)
  * @deprecated Use getWordBonusTier() for tier-specific logic
+ *
+ * Resolves the market cap itself so its callers — the whale badge on
+ * leaderboards, the archive and the bonus/burn word surfaces — keep their
+ * one-argument signature and still read the ladder the allocation path uses.
  *
  * @param walletAddress - Ethereum wallet address to check
  * @returns true if wallet qualifies for any bonus tier (1+)
  */
 export async function hasWordTokenBonus(walletAddress: string | null): Promise<boolean> {
-  const tier = await getWordBonusTier(walletAddress);
+  // A missing address is a zero without a network call — and without the
+  // market cap round trip either, which matters because the badge is checked
+  // once per listed wallet.
+  if (!walletAddress) return false;
+  const tier = await getWordBonusTier(walletAddress, await resolveHolderLadderMarketCapUsd());
   return tier > 0;
 }
 

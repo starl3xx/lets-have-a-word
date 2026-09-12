@@ -13,6 +13,11 @@
  * When enabled:
  * - Immediately blocks all gameplay mutations
  * - Cancels the active round
+ * - Hands a $WORD round's id back to WordJackpot, so cancelling round N does
+ *   not block round N+1 from ever starting (see releaseCancelledWordRound in
+ *   src/lib/operational.ts). Time-boxed and broadcast-only, so it can fail —
+ *   which is why its outcome is reported in the response rather than left in
+ *   the server log.
  * - Creates refund records for all pack purchases
  * - Triggers refund processing via cron
  */
@@ -83,6 +88,15 @@ export default async function handler(
         refundsCreated = createResult.created;
       }
 
+      // The onchain release is soft by design — it never blocks the
+      // cancellation — so a failure is only actionable if the operator is
+      // told. Left in the server log alone, they would discover it at the next
+      // round start instead, which is the wedge this whole thing exists to
+      // prevent. `nothingHeld` is not a failure: the contract was not holding
+      // this round, so nothing is blocked.
+      const release = result.onchainRelease;
+      const releaseFailed = Boolean(release?.attempted && !release.broadcast && !release.nothingHeld);
+
       // Report to Sentry
       Sentry.captureMessage('Kill switch enabled by admin', {
         level: 'warning',
@@ -92,6 +106,7 @@ export default async function handler(
           roundId: result.roundId,
           reason,
           refundsCreated,
+          onchainRelease: release ?? null,
         },
       });
 
@@ -104,7 +119,18 @@ export default async function handler(
           userCount: refundPreview.userCount,
           totalRefundEth: refundPreview.totalRefundEth,
         } : null,
-        message: 'Kill switch enabled. Gameplay is now blocked. Refunds will be processed.',
+        onchainRelease: release ?? null,
+        message:
+          'Kill switch enabled. Gameplay is now blocked. Refunds will be processed.' +
+          (releaseFailed
+            ? ` WordJackpot may still be holding round ${result.roundId}, which blocks the next` +
+              ` round from starting: ${release?.reason ?? 'no reason reported'} Clear it with POST` +
+              ` /api/admin/operational/recover-stuck-round { roundId: ${result.roundId},` +
+              ` confirm: 'CLEAR_ONCHAIN_ROUND_${result.roundId}' }.`
+            : release?.broadcast
+              ? ` Onchain round ${result.roundId} released (tx ${release.txHash}, broadcast but not` +
+                ` confirmed — check it before sending another resolveRound).`
+              : ''),
       });
     } else {
       // Disable kill switch

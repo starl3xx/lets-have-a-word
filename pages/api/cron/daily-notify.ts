@@ -1,8 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getActiveRound } from '../../../src/lib/rounds';
-import { getCurrentJackpotOnChain } from '../../../src/lib/jackpot-contract';
 import { notifyDailyReset } from '../../../src/lib/notifications';
-import { formatEth } from '../../../src/lib/announcer';
 
 /**
  * GET/POST /api/cron/daily-notify
@@ -53,13 +51,21 @@ export default async function handler(
 
     const roundNumber = activeRound.id;
 
-    // Reads WordJackpot for a $WORD round and JackpotManagerV3 otherwise, and
-    // returns the amount with its unit attached. The old path read the ETH
-    // contract unconditionally and fell back to prizePoolEth, which is 0 on a
-    // $WORD round — so a $WORD round would have pushed "0 ETH" to every player.
-    const { getRoundPrize } = await import('../../../src/lib/round-prize');
-    const prize = await getRoundPrize(activeRound);
-    const jackpotEth = prize.display;
+    // The pool as it stands right now, with its unit attached.
+    //
+    // getLivePoolPrize, not getRoundPrize: for a $WORD round the live pool is
+    // the database column, because pack and Superguess purchases do not reach
+    // WordJackpot until the single top-up before resolve. Reading the contract
+    // here pushed the SEED every morning for the whole round — round 34's pool
+    // grew $20.00 -> $26.65, so the last push understated it by 25%. An ETH
+    // round still reads JackpotManagerV3, which takes each purchase
+    // immediately and is the live number there.
+    //
+    // getActiveRound() returns the currency columns (prizeCurrency,
+    // prizePoolWord, seedPriceE18); without them this would take the ETH branch
+    // and push an ETH figure for a $WORD round.
+    const { getLivePoolPrize } = await import('../../../src/lib/round-prize');
+    const prize = await getLivePoolPrize(activeRound);
 
     const result = await notifyDailyReset(roundNumber, prize.display);
 
@@ -68,7 +74,12 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       roundNumber,
-      jackpotEth,
+      // `prize` and `currency`, not `jackpotEth`: the value carries its own
+      // unit and is $WORD from round 34 on. Nothing but the Vercel scheduler
+      // reads this body, and a field named for the wrong asset is how an
+      // operator ends up reading a $WORD figure as ETH.
+      prize: prize.display,
+      currency: prize.currency,
       notification: result,
     });
   } catch (error) {

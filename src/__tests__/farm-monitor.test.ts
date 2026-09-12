@@ -144,12 +144,17 @@ describe('computeAssessment', () => {
  * A per-round claim count must not be filtered on reward_gate_claims.round_id.
  *
  * The table is keyed (date, wallet) and written with onConflictDoNothing, so
- * round_id holds whatever the FIRST check of that wallet-day knew — and that
- * check is normally round-less, because /api/user-state and the daily
- * allocation both run checkPlayEligibility with no round in scope when the app
- * is opened, long before any guess. The row is stamped NULL, the guess path's
- * round-scoped insert conflicts and changes nothing, and the report read 0
- * claims for round 34 while the gate was live and passing players.
+ * round_id holds whatever the FIRST check of that wallet-day knew, and nothing
+ * repairs it afterwards: the guess path's round-scoped insert conflicts and
+ * changes nothing. The report read 0 claims for round 34 while the gate was
+ * live and passing players.
+ *
+ * Historically that first check was round-less — /api/user-state and the daily
+ * allocation ran checkPlayEligibility with no round in scope when the app was
+ * opened, long before any guess — so the row was stamped NULL. Since
+ * 2026-09-12 those callers resolve the active round themselves, so the stamp is
+ * usually a real id. The bound is unchanged: a check that straddles a round
+ * transition, or happens between rounds, still stamps the wrong id or none.
  *
  * This asserts the count against a row that is NULL exactly the way production
  * writes them. It fails on the round_id filter and passes on the window bound.

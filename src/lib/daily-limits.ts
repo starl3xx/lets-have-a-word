@@ -23,7 +23,6 @@ import { getGuessWords } from './word-lists';
 import { logGuessEvent, logReferralEvent, logAnalyticsEvent, AnalyticsEventTypes } from './analytics';
 import {
   getWordHolderBonusGuesses,
-  WORD_MARKET_CAP_USD,
   WORD_BONUS_GUESSES_TIER_HIGH,
   WORD_BONUS_GUESSES_TIER_LOW,
   MAX_PACKS_PER_DAY,
@@ -125,6 +124,50 @@ export function getTodayUTC(): string {
 }
 
 /**
+ * The market cap the holder ladder is priced at, resolved live.
+ *
+ * getWordBonusTierChecked USED TO default its market cap to
+ * WORD_MARKET_CAP_USD, an env var that is NOT SET in production — so until
+ * 2026-09-12 the $25 / $50 / $75 holder ladder was converted to tokens at
+ * WORD_MCAP_FALLBACK_USD ($25,000) while round 35 was seeded at ~$34,200. A
+ * market cap below the real one implies a price below the real one, which
+ * makes every threshold MORE tokens: holders were handed fewer bonus guesses
+ * than they had bought. Same defect as the reward gate's bar, same fix — the
+ * round's frozen seed price first, the cached oracle price next, the constant
+ * only so nothing divides by zero. That default is now GONE (word-token.ts):
+ * the parameter is required, so this resolver is the only way to call it and
+ * a caller cannot silently fall back to the constant again.
+ *
+ * Dynamically imported like every other reward-gate call here: reward-gate
+ * imports getTodayUTC from this module, so a static import would be a cycle.
+ *
+ * Resolved only on a tier cache MISS, never on the cached hot path.
+ */
+async function activeHolderLadderMarketCap(): Promise<{
+  marketCapUsd: number;
+  priced: boolean;
+}> {
+  const { getActiveWordMarketCapUsd } = await import('./reward-gate');
+  return getActiveWordMarketCapUsd();
+}
+
+/**
+ * How long a tier computed from UNPRICED thresholds may be remembered.
+ *
+ * `priced: false` means every price source was silent and the ladder fell back
+ * to the build-time constant, which understates the price and so overstates
+ * every threshold in tokens — the tier may be a rung too low. Not caching it
+ * at all is the wrong cure: the tier cache is the only thing keeping an
+ * onchain balance read off /api/user-state, the most-polled endpoint in the
+ * app, and a price outage would then be paid for in RPC calls per poll on top
+ * of itself. Remember it briefly instead, so the under-allocation is bounded
+ * in SECONDS rather than the usual five minutes and repairs itself as soon as
+ * any price source answers. Allocation only ever moves up within a day, so
+ * nothing is taken away in the meantime.
+ */
+const UNPRICED_TIER_TTL_S = 30;
+
+/**
  * $WORD Token Bonus Check
  * Milestone 4.1: Real onchain balance checking
  * @deprecated Use getWordBonusTierForFid() for tier-specific logic
@@ -191,10 +234,18 @@ export async function getWordBonusTierForFid(fid: number): Promise<number> {
     // try/catch here never sees them: caching on the non-throwing path would
     // store an outage as a real answer and deny holders their bonus guesses for
     // the life of the entry.
-    const result = await getWordBonusTierChecked(user.signerWalletAddress);
+    const { marketCapUsd, priced } = await activeHolderLadderMarketCap();
+    const result = await getWordBonusTierChecked(user.signerWalletAddress, marketCapUsd);
 
+    // `priced: false` is the ladder's version of `determined: false` — see
+    // UNPRICED_TIER_TTL_S: the answer still stands, it is just not trusted for
+    // the full five minutes.
     if (result.determined) {
-      await cacheSet(cacheKey, result.tier, CacheTTL.wordTier).catch(() => {});
+      await cacheSet(
+        cacheKey,
+        result.tier,
+        priced ? CacheTTL.wordTier : UNPRICED_TIER_TTL_S
+      ).catch(() => {});
     }
     return result.tier;
   } catch (error) {
@@ -242,11 +293,18 @@ export async function getWordBonusTierForConnectedWallet(
     // Cache unavailable — fall through to the live read.
   }
 
-  const result = await getWordBonusTierChecked(walletAddress);
+  const { marketCapUsd, priced } = await activeHolderLadderMarketCap();
+  const result = await getWordBonusTierChecked(walletAddress, marketCapUsd);
   if (!result.determined) {
     return null;
   }
-  await cacheSet(cacheKey, result.tier, CacheTTL.wordTier).catch(() => {});
+  // Thresholds struck from the build-time constant are remembered only
+  // briefly — see UNPRICED_TIER_TTL_S.
+  await cacheSet(
+    cacheKey,
+    result.tier,
+    priced ? CacheTTL.wordTier : UNPRICED_TIER_TTL_S
+  ).catch(() => {});
   return result.tier;
 }
 
@@ -277,6 +335,10 @@ export async function getOrCreateDailyState(
     // freeAllocatedBase 0 (unambiguous — everyone else gets the full base).
     // Re-check on each touch so buying $WORD upgrades within ~5 minutes, the
     // same only-upgrades-within-a-day contract the tier bump below follows.
+    // This is also what repairs a state gated under the PREVIOUS round's bar:
+    // the gate's verdict cache is keyed by round, so the first touch after a
+    // round starts re-decides against the new round's frozen bar rather than
+    // waiting out the 5-minute TTL.
     if (state.freeAllocatedBase === 0) {
       const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
       // Restore the base allocation when the player clears the bar — OR when
@@ -336,9 +398,14 @@ export async function getOrCreateDailyState(
   //
   // Reward gate: below the bar, the day starts with ZERO base guesses and no
   // tier bonus. freeAllocatedBase 0 doubles as the gated marker the
-  // existing-state path re-checks. The bar here uses the oracle-fallback
-  // conversion (no round in scope); the guess path and every money point
-  // check against the round's frozen seed price.
+  // existing-state path re-checks.
+  //
+  // No round is passed and none is needed: checkPlayEligibility resolves the
+  // ACTIVE round and prices the bar from its frozen seed price, so this
+  // allocation and the guess path decide on the same number. It did not always
+  // — until 2026-09-12 this call priced the bar from a build-time constant 37%
+  // above round 35's real bar, and handed zero guesses to players the guess
+  // path was letting in.
   let gatedToZero = false;
   {
     const { checkPlayEligibility, isRewardGateEnabled } = await import('./reward-gate');
@@ -371,10 +438,16 @@ export async function getOrCreateDailyState(
   try {
     const [created] = await db.insert(dailyGuessState).values(newState).returning();
 
-    // Use defined values for logging (TypeScript Insert type allows undefined due to DB defaults)
-    const baseGuesses = DAILY_LIMITS_RULES.freeGuessesPerDayBase;
+    // Report what was WRITTEN, not what the rule would have given. A
+    // reward-gated day is inserted with freeAllocatedBase 0, and this used to
+    // restate DAILY_LIMITS_RULES.freeGuessesPerDayBase instead — so a gated
+    // player read as "1 base" in the log line AND in GAME_SESSION_START,
+    // hiding the one allocation the gate actually decides. That is how a
+    // mispriced bar stays invisible in production.
+    const baseGuesses = created.freeAllocatedBase;
+    const bonusGuesses = created.freeAllocatedClankton; // Legacy column: the tier value
     console.log(
-      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${wordBonusTier} $WORD (tier ${wordBonusTier}) = ${baseGuesses + wordBonusTier} free guesses, wheelStartIndex: ${wheelStartIndex}`
+      `✅ Created daily state for FID ${fid} on ${dateStr}: ${baseGuesses} base + ${bonusGuesses} $WORD (tier ${bonusGuesses}) = ${baseGuesses + bonusGuesses} free guesses, wheelStartIndex: ${wheelStartIndex}`
     );
 
     // Analytics v2: Log game session start (non-blocking)
@@ -383,8 +456,8 @@ export async function getOrCreateDailyState(
       data: {
         date: dateStr,
         free_base: baseGuesses,
-        free_word_token: wordBonusTier,
-        word_bonus_tier: wordBonusTier,
+        free_word_token: bonusGuesses,
+        word_bonus_tier: bonusGuesses,
       },
     });
 

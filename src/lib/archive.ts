@@ -22,7 +22,7 @@ import {
   type RoundArchiveRow,
   type RoundArchiveErrorInsert,
 } from '../db/schema';
-import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, or, isNull } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, isNotNull, count, countDistinct, gte, lte, notInArray } from 'drizzle-orm';
 import { trackSlowQuery } from './redis';
 import { getPlaintextAnswer } from './encryption';
 import { getTop10LockForRound } from './top10-lock';
@@ -30,7 +30,7 @@ import { getTotalWordTokenDistributed } from './jackpot-contract';
 import { isRealFcUsername } from './farcaster';
 import { playerDisplay } from './player-display';
 import { isWalletFid } from './users';
-import { usdCentsForTokens } from './word-amounts';
+import { tokensForUsdCents, usdCentsForTokens } from './word-amounts';
 
 // Helper to extract rows from db.execute result (handles both array and {rows: []} formats)
 function getRows<T = any>(result: any): T[] {
@@ -38,6 +38,15 @@ function getRows<T = any>(result: any): T[] {
   if (result && Array.isArray(result.rows)) return result.rows;
   return [];
 }
+
+/**
+ * How many places the Top-10 ladder has, and therefore the most top-guesser
+ * payout rows one resolve can produce: getTop10Guessers returns at most ten
+ * distinct FIDs (economics.ts), and the no-other-guessers fallback writes a
+ * single row for the winner. Both the write-path anomaly check and the
+ * rendered list below read this, so "Top 10" means one number in one place.
+ */
+const TOP10_PAID_SLOTS = 10;
 
 /**
  * Data required to archive a round (can be passed explicitly or computed)
@@ -68,6 +77,24 @@ export interface ArchiveRoundResult {
  */
 export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRoundResult> {
   const { roundId, force } = data;
+
+  // Incidents this run raised about the row it is ABOUT to write, which a
+  // successful archive must NOT sweep away (see the auto-resolve block at the
+  // end of this function). Every other data-integrity failure here returns
+  // success:false, so the sweep never runs for it; these two conditions are
+  // ones the archive survives — it still writes a usable row — but that leave
+  // a number nothing will ever recompute, so somebody has to be told.
+  const standingIncidentIds: number[] = [];
+  const raiseStandingIncident = async (
+    errorType: string,
+    errorMessage: string,
+    errorData?: Record<string, any>
+  ) => {
+    const id = await logArchiveError(roundId, errorType, errorMessage, errorData);
+    if (id !== null) {
+      standingIncidentIds.push(id);
+    }
+  };
 
   try {
     console.log(`[archive] ========== ARCHIVING ROUND ${roundId} ==========`);
@@ -278,11 +305,18 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     }
 
     console.log(`[archive] Step 5: Getting payouts for round ${roundId}`);
-    // Get payouts for winner, referrer, seed from round_payouts
+    // Get payouts for winner, referrer, seed from round_payouts.
+    //
+    // Ordered by id, because that is the only record of top-guesser RANK that
+    // exists: round_payouts has no rank column, and resolveRoundAndCreatePayouts
+    // writes the whole array in one insert in rank order (economics.ts), so
+    // ascending id IS rank 1..N. An unordered select hands them back in
+    // whatever order Postgres finds convenient.
     const payoutRecords = await db
       .select()
       .from(roundPayouts)
-      .where(eq(roundPayouts.roundId, roundId));
+      .where(eq(roundPayouts.roundId, roundId))
+      .orderBy(asc(roundPayouts.id));
 
     const payoutsJson: RoundArchivePayouts = {
       topGuessers: [],
@@ -299,8 +333,6 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       ...(archiveIsWord ? { amountWord: p.amountWord ?? '0' } : {}),
     });
 
-    let topGuesserPoolEth = 0;
-    let topGuesserPoolWei = 0n;
     for (const payout of payoutRecords) {
       switch (payout.role) {
         case 'winner':
@@ -314,15 +346,33 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           }
           break;
         case 'top_guesser':
-          // Sum up what was allocated to top guessers (for calculating individual amounts)
-          if (archiveIsWord) {
-            try {
-              topGuesserPoolWei += BigInt(payout.amountWord ?? '0');
-            } catch {
-              // Skip an unparseable row rather than poisoning the whole pool.
-            }
-          } else {
-            topGuesserPoolEth += parseFloat(payout.amountEth ?? '0') || 0;
+          // Record WHO WAS PAID, at the amount they were paid — one archive
+          // entry per stored payout row, in payout (rank) order.
+          //
+          // This used to sum the top-guesser rows into a single pool, re-derive
+          // its own Top 10 from the guesses table, and re-split the pool across
+          // THAT list by the BPS ladder. The comment defending it said the
+          // archive should show the true ranking "not who was incorrectly
+          // paid", which was written when paid and ranked could only differ by
+          // a bug. They can now differ by design: getTop10Guessers applies the
+          // reward gate at resolve (economics.ts), dropping an ineligible FID
+          // and promoting the next eligible one, and the gate is enabled in
+          // production. Re-deriving therefore printed one player at a rank and
+          // handed them the tokens a different wallet had received. The
+          // re-split could not reproduce the amounts either: rank 1 takes the
+          // division remainder (top-guesser-payouts.ts), so the recomputed
+          // figure was always a few wei short of what moved.
+          //
+          // The winner's own fallback row — written when nobody else guessed,
+          // so the top-10 share goes to them — is kept, because it is money
+          // that moved. getArchivedRoundWithUsernames leaves it out of the
+          // ranked list, where the winner is already shown separately.
+          if (payout.fid) {
+            payoutsJson.topGuessers.push({
+              fid: payout.fid,
+              ...amt(payout),
+              rank: payoutsJson.topGuessers.length + 1,
+            });
           }
           break;
         case 'seed':
@@ -334,68 +384,36 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       }
     }
 
-    // CRITICAL: Compute correct Top 10 from guesses table (ALL guesses count, not just paid)
-    // This ensures the archive shows the TRUE ranking, not who was incorrectly paid
-    // Tiebreaker: who reached their count first (lowest max guessIndexInRound)
-    // Get the correct Top-10 lock threshold for this round (750 for rounds 1-3, 850 for 4+)
-    const top10LockThreshold = getTop10LockForRound(roundId);
+    console.log(
+      `[archive] Recorded ${payoutsJson.topGuessers.length} top-guesser payouts for round ${roundId} from round_payouts`
+    );
 
-    const topGuessersFromGuesses = await db
-      .select({
-        fid: guesses.fid,
-        guessCount: sql<number>`cast(count(${guesses.id}) as int)`,
-        lastGuessIndex: sql<number>`cast(max(${guesses.guessIndexInRound}) as int)`,
-      })
-      .from(guesses)
-      .where(
-        and(
-          eq(guesses.roundId, roundId),
-          // Only count guesses within the Top-10 lock window
-          or(
-            lte(guesses.guessIndexInRound, top10LockThreshold),
-            isNull(guesses.guessIndexInRound) // Legacy data
-          )
-        )
-      )
-      .groupBy(guesses.fid)
-      .orderBy(desc(sql`count(${guesses.id})`), asc(sql`max(${guesses.guessIndexInRound})`))
-      .limit(11); // Get 11 to exclude winner
-
-    // Filter out the winner and take top 10
-    const top10Fids = topGuessersFromGuesses
-      .filter(g => g.fid !== round.winnerFid)
-      .slice(0, 10);
-
-    // Tiered payout percentages (basis points out of 10000)
-    const TIER_BPS = [1900, 1600, 1400, 1100, 1000, 600, 600, 600, 600, 600];
-
-    // Calculate normalized percentages based on how many are in top 10
-    const numGuessers = top10Fids.length;
-    if (numGuessers > 0) {
-      const activeBps = TIER_BPS.slice(0, numGuessers);
-      const totalBps = activeBps.reduce((sum, bp) => sum + bp, 0);
-
-      top10Fids.forEach((guesser, index) => {
-        // Calculate this guesser's share of the pool
-        const normalizedBps = (activeBps[index] * 10000) / totalBps;
-        const amountEth = (topGuesserPoolEth * normalizedBps) / 10000;
-
-        payoutsJson.topGuessers.push({
-          fid: guesser.fid,
-          amountEth: amountEth.toFixed(18),
-          // Split in bigint wei: a top-10 bucket is ~1e25 wei, well past
-          // Number.MAX_SAFE_INTEGER, so the float path above would lose
-          // precision at the low end of every rank.
-          ...(archiveIsWord
-            ? {
-                amountWord: (
-                  (topGuesserPoolWei * BigInt(Math.round(normalizedBps))) /
-                  10000n
-                ).toString(),
-              }
-            : {}),
-          rank: index + 1,
-        });
+    // The paid list may legitimately be SHORT: a round with fewer than ten
+    // other guessers pays fewer than ten, and the ladder normalises for it. It
+    // can never legitimately be LONG, and it can never name the same FID twice
+    // — one resolve writes at most TOP10_PAID_SLOTS rows, one per distinct FID.
+    // A longer list means a SECOND set of payout rows was inserted, which
+    // happens when resolveRoundAndCreatePayouts re-runs against a round whose
+    // resolved_at is still null (its only idempotency guard, economics.ts) —
+    // exactly what /api/admin/operational/recover-stuck-round does to a resolve
+    // that died between the payout insert and the resolved flag.
+    //
+    // payoutsJson keeps every row: it is the record of money that moved, and
+    // hiding a duplicate payout there would be the opposite of a fix. So the
+    // anomaly is raised as a standing incident instead, and the public list
+    // renders each FID once, at most ten (getArchivedRoundWithUsernames).
+    const paidFids = payoutsJson.topGuessers.map((g) => g.fid);
+    const duplicatePaidFids = [...new Set(paidFids.filter((fid, i) => paidFids.indexOf(fid) !== i))];
+    if (paidFids.length > TOP10_PAID_SLOTS || duplicatePaidFids.length > 0) {
+      const errorMsg =
+        `Round ${roundId} has ${paidFids.length} top_guesser payout rows ` +
+        `(one resolve writes at most ${TOP10_PAID_SLOTS}, one per FID` +
+        (duplicatePaidFids.length > 0 ? `; repeated FIDs: ${duplicatePaidFids.join(', ')}` : '') +
+        `). Check round_payouts for a duplicate payout set before trusting the totals.`;
+      console.error(`[archive] ${errorMsg}`);
+      await raiseStandingIncident('top_guesser_payouts_anomalous', errorMsg, {
+        topGuesserRows: paidFids.length,
+        duplicateFids: duplicatePaidFids,
       });
     }
 
@@ -414,18 +432,79 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
       round.resolvedAt
     );
 
-    console.log(`[archive] Step 7: Getting previous round seed for round ${roundId}`);
-    // Compute seed ETH (this is the prize pool that existed at round start, i.e., from previous round's seed)
-    // We need to look at the previous round's seedNextRoundEth
+    console.log(`[archive] Step 7: Computing the opening pool for round ${roundId}`);
+    // The "seed" is the pool the round OPENED with.
+    //
+    // In the ETH era that is the previous round's carry, because the carry was
+    // the whole of the next round's opening pool — one number, two names.
+    //
+    // In the $WORD era they are different numbers, and using the carry here
+    // understates the opening pool by more than an order of magnitude. A $WORD
+    // round opens at a USD target: WordJackpot.startRound seeds
+    // `seedUsdCents * 1e34 / priceE18` tokens, and the previous round's carry is
+    // merely the first place the contract draws that seed FROM, before it
+    // touches the treasury tranche. Round 35 opened with 116,686,114 $WORD
+    // ($39.99) while round 34 carried 5,244,446 $WORD forward — labelling the
+    // carry "Seed" beside a 117M final pool is wrong by ~22x.
+    //
+    // So a $WORD round's seed is recomputed from its OWN two recorded columns,
+    // exactly the pair the contract priced it with, via the same helper the
+    // seeding path uses. rounds.prize_pool_word cannot stand in for it:
+    // economics.ts overwrites that column with the FINAL pool at resolve.
     let seedEth = '0';
-    // The $WORD sibling of seedEth, carried forward the same way. Null rather
-    // than '0' when there is nothing to carry: round 34 follows an ETH round,
-    // so no $WORD was seeded forward into it at all. Its opening pool came from
-    // the treasury tranche, which the round's own seedUsdCents records. Writing
-    // '0' would claim a carry-forward of zero happened, which is a different
-    // and untrue statement.
     let seedWord: string | null = null;
-    if (roundId > 1) {
+
+    if (archiveIsWord) {
+      if (round.seedUsdCents && round.seedPriceE18) {
+        try {
+          seedWord = tokensForUsdCents(
+            BigInt(round.seedUsdCents),
+            BigInt(round.seedPriceE18)
+          ).toString();
+        } catch (err) {
+          // Null is the honest value, but it is not a harmless one: nothing
+          // ever recomputes an archive row, so this round's opening pool is
+          // now unknowable. formatArchiveSeed no longer prints a null $WORD seed
+          // as "0 $WORD" — it renders the unknown case as such — but the number
+          // is still gone. Every other data-integrity failure in
+          // this function raises an archive error; this one used to warn into
+          // Vercel and return success:true, so the Archive tab stayed green
+          // over a permanently wrong number.
+          const errorMsg =
+            `Round ${roundId} is a $WORD round whose opening seed could not be priced ` +
+            `from its own columns (seedUsdCents=${round.seedUsdCents}, ` +
+            `seedPriceE18=${round.seedPriceE18}): ${err instanceof Error ? err.message : String(err)}. ` +
+            `Archived with no opening seed.`;
+          console.error(`[archive] ${errorMsg}`);
+          await raiseStandingIncident('seed_price_missing', errorMsg, {
+            reason: 'unpriceable',
+            seedUsdCents: round.seedUsdCents ?? null,
+            seedPriceE18: round.seedPriceE18 ?? null,
+            error: String(err),
+          });
+        }
+      } else {
+        // Null, not '0'. A round seeded outside the normal path (or predating
+        // the columns) has no recoverable opening token count, and '0' would
+        // assert it opened empty — a real measurement, and a false one.
+        // Flagged for the same reason as the catch above: the archive survives
+        // this, the number does not.
+        const errorMsg =
+          `Round ${roundId} is a $WORD round with no seed target/price snapshot ` +
+          `(seedUsdCents=${round.seedUsdCents}, seedPriceE18=${round.seedPriceE18}); ` +
+          `archived with no opening seed rather than a guessed one.`;
+        console.error(`[archive] ${errorMsg}`);
+        await raiseStandingIncident('seed_price_missing', errorMsg, {
+          reason: 'columns_missing',
+          seedUsdCents: round.seedUsdCents ?? null,
+          seedPriceE18: round.seedPriceE18 ?? null,
+        });
+      }
+    } else if (roundId > 1) {
+      // ETH rounds only. safeSeedEth is NULL for a $WORD round, so the lookup —
+      // and its corrupted-column guard, which fails the entire archive — has no
+      // business blocking a $WORD archive on the state of an ETH column that
+      // round never reads.
       const [previousRound] = await db
         .select()
         .from(rounds)
@@ -446,17 +525,6 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
           };
         }
         seedEth = previousRound.seedNextRoundEth;
-        // Keyed on what the PREVIOUS round actually paid, not on the column
-        // being null — seed_next_round_word is NOT NULL DEFAULT '0', so an ETH
-        // predecessor yields '0', never null. Recording '0' would assert "a
-        // $WORD carry-forward of zero happened", which is a different and
-        // untrue statement from "no $WORD was carried forward at all". Round 34
-        // follows an ETH round: its opening pool came from the treasury
-        // tranche, and null is what says so.
-        seedWord =
-          previousRound.prizeCurrency === 'word'
-            ? previousRound.seedNextRoundWord ?? null
-            : null;
       }
     }
 
@@ -628,11 +696,24 @@ export async function archiveRound(data: ArchiveRoundData): Promise<ArchiveRound
     // Without this, failures from before a repair sit unresolved forever and
     // the Archive tab reads as a standing incident — 377 stale rows from the
     // Dec 2025 Date-corruption incident did exactly that.
+    //
+    // Except the incidents THIS run raised. They describe the row that was just
+    // written — a $WORD round archived with no opening seed, a payout set
+    // larger than one resolve can produce — so the archive succeeding is not
+    // news that supersedes them, it is the thing that makes them permanent.
+    // Sweeping them would insert a row and hide it in the same function call.
     try {
+      const sweepConditions = [
+        eq(roundArchiveErrors.roundNumber, roundId),
+        eq(roundArchiveErrors.resolved, false),
+      ];
+      if (standingIncidentIds.length > 0) {
+        sweepConditions.push(notInArray(roundArchiveErrors.id, standingIncidentIds));
+      }
       await db
         .update(roundArchiveErrors)
         .set({ resolved: true, resolvedAt: new Date() })
-        .where(and(eq(roundArchiveErrors.roundNumber, roundId), eq(roundArchiveErrors.resolved, false)));
+        .where(and(...sweepConditions));
     } catch (resolveErr) {
       console.warn(`[archive] Could not auto-resolve stale errors for round ${roundId}:`, resolveErr);
     }
@@ -750,7 +831,10 @@ export interface ArchivedRoundWithUsernames extends RoundArchiveRow {
     origin: 'farcaster' | 'wallet';
     isAddressFallback: boolean;
     pfpUrl: string | null;
+    /** What this rank was actually paid. '0' on a $WORD round — see amountWord. */
     amountEth: string;
+    /** Set on a $WORD round, null on an ETH one. Never summed with amountEth. */
+    amountWord: string | null;
     guessCount: number;
     rank: number;
     hasWordTokenBadge?: boolean;
@@ -878,36 +962,164 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       }
     }
 
-    // Get top guesser FIDs only (for badge checks and guess counts)
-    // Query the actual top 10 guessers by guess count (excluding winner)
-    // IMPORTANT: Only count guesses within the Top-10 lock window (750 for rounds 1-3, 850 for 4+)
+    // Guess counts inside the Top-10 lock window (750 for rounds 1-3, 850 for 4+).
     // Uses a simple subquery: get first N guesses ordered by index/timestamp, then aggregate
     // Tiebreaker: who reached that count first (lower max guess_index = reached count earlier)
+    //
+    // No LIMIT 11 any more. The displayed list below is the PAID list, and the
+    // reward gate can promote someone who sits outside the first eleven by
+    // guess count, so their count has to be in this map too. The window holds
+    // at most `archiveTop10Threshold` guesses, so this is a few hundred rows in
+    // the worst case.
+    // The window is the union of the two definitions of "inside the lock", and
+    // it has to be, because the list rendered below was ranked under the other
+    // one. This query's half is positional — the first N rows by index, which
+    // is what a legacy round with NULL indices can be measured by at all.
+    // getTop10Guessers, which decided who was PAID and therefore who is shown,
+    // uses the value instead: guess_index_in_round <= the threshold
+    // (economics.ts). The two agree only while the index is contiguous and
+    // unique. getNextGuessIndexInRound (src/lib/guesses.ts) allocated it without
+    // a lock until the per-round advisory lock shipped, so duplicates exist in
+    // rounds played before that — round 34 certainly, round 35 possibly. The
+    // allocator is atomic now and hands out no new ones, but it renumbers no
+    // existing row either, so this union is still load-bearing for every round
+    // already archived: with duplicates, more than N rows
+    // carry an index <= N and the positional LIMIT drops the tail. A player
+    // paid for guesses in that tail would then render at a real rank with an
+    // understated count, or none at all.
+    //
+    // UNION rather than replacing the LIMIT with the value test: a legacy round
+    // whose indices are all NULL has no row matching the value test, so the
+    // value test alone would widen its window to the whole round and restate
+    // every ETH-era count on the page. This adds rows the payout window counted
+    // and nothing else, so a round with a clean index — every round whose data
+    // is sound — measures exactly as it did before.
     const archiveTop10Threshold = getTop10LockForRound(archived.roundNumber);
-    const actualTopGuessers = await db.execute<{ fid: number; guess_count: number }>(sql`
+    const windowGuessCounts = await db.execute<{ fid: number; guess_count: number }>(sql`
       SELECT fid, COUNT(*)::int as guess_count
       FROM (
-        SELECT id, fid, guess_index_in_round
-        FROM guesses
-        WHERE round_id = ${archived.roundNumber}
-        ORDER BY guess_index_in_round ASC NULLS LAST, created_at ASC
-        LIMIT ${archiveTop10Threshold}
-      ) first_n
+        (
+          SELECT id, fid, guess_index_in_round
+          FROM guesses
+          WHERE round_id = ${archived.roundNumber}
+          ORDER BY guess_index_in_round ASC NULLS LAST, created_at ASC
+          LIMIT ${archiveTop10Threshold}
+        )
+        UNION
+        (
+          SELECT id, fid, guess_index_in_round
+          FROM guesses
+          WHERE round_id = ${archived.roundNumber}
+            AND guess_index_in_round <= ${archiveTop10Threshold}
+        )
+      ) window_rows
       GROUP BY fid
       ORDER BY COUNT(*) DESC, MAX(guess_index_in_round) ASC
-      LIMIT 11
     `);
 
-    // Filter out the winner and take top 10
-    const top10Guessers = actualTopGuessers
-      .filter(g => g.fid !== archived.winnerFid)
-      .slice(0, 10);
-
-    const topGuesserFids = top10Guessers.map(g => g.fid);
     const guessCountMap = new Map<number, number>();
-    for (const g of top10Guessers) {
+    for (const g of windowGuessCounts) {
       guessCountMap.set(g.fid, g.guess_count);
     }
+
+    /** One rendered Top-10 row: who, how many guesses, and what they were paid. */
+    interface ArchiveTopGuesserRow {
+      fid: number;
+      guessCount: number;
+      rank: number;
+      amountEth: string;
+      amountWord: string | null;
+    }
+
+    // Who the archive shows at each rank, and what it says they received.
+    //
+    // The STORED payout rows win. round_payouts is the record of money that
+    // actually moved, and since the reward gate it is no longer reproducible
+    // from the guesses table: getTop10Guessers drops an ineligible FID at
+    // resolve and promotes the next eligible one (economics.ts). Re-deriving
+    // the list here would name the excluded player at a rank whose tokens went
+    // to a different wallet, and show a paid player nowhere at all.
+    //
+    // The winner is filtered out because the round renders them separately;
+    // their fallback top-guesser row — paid only when nobody else guessed —
+    // stays in payoutsJson, which the admin payout breakdown itemises.
+    //
+    // The guesses-derived ranking remains the fallback for a round with no
+    // top-guesser payout rows at all (an archive written before payouts
+    // existed, or a round that paid nobody), so those render exactly as before.
+    const paidTopGuessers = (archived.payoutsJson?.topGuessers ?? []).filter(
+      (p) => p.fid !== archived.winnerFid
+    );
+
+    // At most ten places, each FID once — the heading on the public page says
+    // "Top 10 early guessers" and this is the only thing that keeps it true.
+    // payoutsJson is deliberately uncapped (it is the money record, and a
+    // duplicate payout set belongs in it), so the cap lives here, on the render.
+    // Keeping the FIRST occurrence keeps the first-inserted, lowest-id payout
+    // set, which is the one the ladder ranked. archiveRound raises a standing
+    // archive incident when it writes a list that needs either of these, so a
+    // duplicate payout set is reported rather than quietly tidied away.
+    const seenPaidFids = new Set<number>();
+    const renderedPaidTopGuessers = paidTopGuessers
+      .filter((p) => {
+        if (seenPaidFids.has(p.fid)) return false;
+        seenPaidFids.add(p.fid);
+        return true;
+      })
+      .slice(0, TOP10_PAID_SLOTS);
+
+    if (renderedPaidTopGuessers.length < paidTopGuessers.length) {
+      console.warn(
+        `[archive] Round ${archived.roundNumber}: ${paidTopGuessers.length} stored top-guesser payout ` +
+          `entries rendered as ${renderedPaidTopGuessers.length}; the stored list exceeds ` +
+          `${TOP10_PAID_SLOTS} places or repeats a FID. See the round's archive errors.`
+      );
+    }
+
+    // A paid player with no count in the window map is a real inconsistency,
+    // not a zero: they were paid for guessing, so they guessed. After the union
+    // window above the only remaining cause is a legacy round whose payouts
+    // were ranked over ALL guesses because none of them carried an index, and
+    // whose player then sits outside the first N rows. It is said out loud here
+    // rather than absorbed; the rendered value stays 0 because the public page
+    // types guessCount as a plain number (TopGuesserWithUsername in
+    // pages/archive/[roundNumber].tsx) and rendering null there would blank
+    // the cell on rounds 1-33.
+    const paidFidsWithoutCount = renderedPaidTopGuessers
+      .filter((p) => !guessCountMap.has(p.fid))
+      .map((p) => p.fid);
+    if (paidFidsWithoutCount.length > 0) {
+      console.warn(
+        `[archive] Round ${archived.roundNumber}: paid top guesser(s) ${paidFidsWithoutCount.join(', ')} ` +
+          `have no guess inside the top-10 window (first ${archiveTop10Threshold} rows, or index <= ` +
+          `${archiveTop10Threshold}); their guess count renders as 0.`
+      );
+    }
+
+    const top10Guessers: ArchiveTopGuesserRow[] =
+      renderedPaidTopGuessers.length > 0
+        ? renderedPaidTopGuessers.map((p, index) => ({
+            fid: p.fid,
+            guessCount: guessCountMap.get(p.fid) ?? 0,
+            // The stored rank when the entry carries one, position otherwise.
+            // Both are payout order, which is the rank the ladder paid.
+            rank: p.rank ?? index + 1,
+            amountEth: p.amountEth ?? '0',
+            // Carried so a $WORD payout never reaches a caller as "0 ETH".
+            amountWord: p.amountWord ?? null,
+          }))
+        : windowGuessCounts
+            .filter((g) => g.fid !== archived.winnerFid)
+            .slice(0, TOP10_PAID_SLOTS)
+            .map((g, index) => ({
+              fid: g.fid,
+              guessCount: g.guess_count,
+              rank: index + 1,
+              amountEth: '0',
+              amountWord: null,
+            }));
+
+    const topGuesserFids = top10Guessers.map(g => g.fid);
 
     // Fetch user data for top guessers (usernames and wallets)
     if (topGuesserFids.length > 0) {
@@ -1029,12 +1241,11 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
       // Continue without $WORD badges on error
     }
 
-    // Build extended response with usernames and PFPs
-    // Use actual top guessers by guess count (not payout recipients)
-    const topGuessersWithUsernames = top10Guessers.map((guesser, index) => {
+    // Build extended response with usernames and PFPs.
+    // The list and its amounts are the payout record (see the note above it) —
+    // the rank shown is the rank that was paid.
+    const topGuessersWithUsernames = top10Guessers.map((guesser) => {
       const userData = userDataMap.get(guesser.fid);
-      // Find payout amount for this guesser (if any)
-      const payoutEntry = archived.payoutsJson?.topGuessers?.find(p => p.fid === guesser.fid);
       // One renderer for both player kinds, so the permanent record names a
       // Base App player by their basename rather than "fid:1000000001".
       const display = playerDisplay({
@@ -1052,9 +1263,10 @@ export async function getArchivedRoundWithUsernames(roundNumber: number): Promis
         origin: display.origin,
         isAddressFallback: display.isAddressFallback,
         pfpUrl: display.avatarUrl,
-        amountEth: payoutEntry?.amountEth || '0',
-        guessCount: guesser.guess_count,
-        rank: index + 1,
+        amountEth: guesser.amountEth,
+        amountWord: guesser.amountWord,
+        guessCount: guesser.guessCount,
+        rank: guesser.rank,
         hasWordTokenBadge: wordTokenHolderFids.has(guesser.fid),
         hasOgHunterBadge: ogHunterBadgeFids.has(guesser.fid),
         hasBonusWordBadge: bonusWordBadgeFids.has(guesser.fid),
@@ -1324,16 +1536,24 @@ async function logArchiveError(
   errorType: string,
   errorMessage: string,
   errorData?: Record<string, any>
-): Promise<void> {
+): Promise<number | null> {
   try {
-    await db.insert(roundArchiveErrors).values({
-      roundNumber,
-      errorType,
-      errorMessage,
-      errorData: errorData || null,
-    });
+    // The id comes back so archiveRound can keep an incident it raised about
+    // the row it just wrote out of its own auto-resolve sweep. Null on a
+    // logging failure, which callers treat as "nothing to protect".
+    const [row] = await db
+      .insert(roundArchiveErrors)
+      .values({
+        roundNumber,
+        errorType,
+        errorMessage,
+        errorData: errorData || null,
+      })
+      .returning({ id: roundArchiveErrors.id });
+    return row?.id ?? null;
   } catch (error) {
     console.error('[archive] Failed to log archive error:', error);
+    return null;
   }
 }
 
