@@ -86,9 +86,9 @@ describe('Word Lists - Milestone 4.13', () => {
  * on that round's wheel and let a player spend a paid guess on one.
  */
 describe('round 36 word list expansion', () => {
-  it('adds 145 words, all of them genuinely new', () => {
-    expect(ROUND_36_ADDITIONS).toHaveLength(145);
-    expect(new Set(ROUND_36_ADDITIONS).size).toBe(145);
+  it('adds 146 words, all of them genuinely new', () => {
+    expect(ROUND_36_ADDITIONS).toHaveLength(146);
+    expect(new Set(ROUND_36_ADDITIONS).size).toBe(146);
 
     const legacy = new Set(WORDS_THROUGH_ROUND_35);
     const alreadyThere = ROUND_36_ADDITIONS.filter(w => legacy.has(w));
@@ -101,9 +101,9 @@ describe('round 36 word list expansion', () => {
     expect(banned, `banned words in the additions: ${banned.join(', ')}`).toEqual([]);
   });
 
-  it('is purely additive: 4,438 becomes 4,583 and nothing is lost', () => {
+  it('is purely additive: 4,438 becomes 4,584 and nothing is lost', () => {
     expect(WORDS_THROUGH_ROUND_35).toHaveLength(4438);
-    expect(WORDS).toHaveLength(4583);
+    expect(WORDS).toHaveLength(4584);
     const current = new Set(WORDS);
     expect(WORDS_THROUGH_ROUND_35.every(w => current.has(w))).toBe(true);
   });
@@ -131,7 +131,7 @@ describe('round 36 word list expansion', () => {
 
   it('serves the wheel a round-sized list', () => {
     expect(getWordsForRound(35)).toHaveLength(4438);
-    expect(getWordsForRound(36)).toHaveLength(4583);
+    expect(getWordsForRound(36)).toHaveLength(4584);
     expect(getWordsForRound(35)).not.toContain('ABBOT');
     expect(getWordsForRound(36)).toContain('ABBOT');
   });
