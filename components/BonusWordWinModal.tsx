@@ -5,7 +5,7 @@
  * Features:
  * - Confetti celebration
  * - 🎣 badge animation
- * - 5M $WORD reward display
+ * - $WORD reward display, in the amount the find actually paid
  * - Link to BaseScan transaction
  *
  * Bonus Words Feature
@@ -14,11 +14,24 @@
 import { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { triggerHaptic } from '../src/lib/haptics';
+import { formatWordAmountCompact } from '../src/lib/prize-display';
 
 interface BonusWordWinModalProps {
   word: string;
-  tokenRewardAmount: string;
+  /**
+   * Wei the find paid, or null when the amount is not known here — the
+   * spectator replay watches another player's find and the guess log carries
+   * no amount. Null hides the figure rather than substituting a constant.
+   */
+  rewardWei: string | null;
   txHash: string | null;
+  /**
+   * True when this is somebody ELSE's find, replayed to a superguess
+   * spectator. The modal makes three claims that are only true for the
+   * finder — the delivery line, the XP and badge line, and the heading —
+   * and a spectator is shown none of them.
+   */
+  spectator?: boolean;
   onClose: () => void;
 }
 
@@ -72,19 +85,27 @@ function fireCelebration() {
 }
 
 /**
- * Format token reward amount with commas
+ * The reward in the app-wide three-significant-digit rule, or null when there
+ * is nothing to state. Guarded: a malformed amount must not take down the
+ * celebration for a find that really happened.
  */
-function formatTokenReward(amount: string): string {
-  const num = parseInt(amount, 10);
-  return num.toLocaleString('en-US');
+function rewardLabel(rewardWei: string | null): string | null {
+  if (!rewardWei) return null;
+  try {
+    return formatWordAmountCompact(BigInt(rewardWei));
+  } catch {
+    return null;
+  }
 }
 
 export default function BonusWordWinModal({
   word,
-  tokenRewardAmount,
+  rewardWei,
   txHash,
+  spectator = false,
   onClose,
 }: BonusWordWinModalProps) {
+  const reward = rewardLabel(rewardWei);
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
@@ -137,7 +158,7 @@ export default function BonusWordWinModal({
             Bonus word found!
           </h2>
           <p className="text-gray-600">
-            You found a secret bonus word
+            {spectator ? 'Another player found a secret bonus word' : 'You found a secret bonus word'}
           </p>
         </div>
 
@@ -158,18 +179,22 @@ export default function BonusWordWinModal({
             />
             <div>
               <div className="text-2xl font-bold text-purple-700">
-                +{formatTokenReward(tokenRewardAmount)} $WORD
+                {reward ? `+${reward} $WORD` : '$WORD reward'}
               </div>
-              <div className="text-sm text-purple-500">
-                Sent to your wallet
-              </div>
+              {!spectator && (
+                <div className="text-sm text-purple-500">
+                  {txHash ? 'Sent to your wallet' : 'On its way'}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className="text-xl">🏆</span>
             <span className="text-sm font-medium text-purple-600">
-              +250 XP &amp; 🎣 badge earned!
+              {spectator
+                ? '+250 XP & 🎣 badge for the finder'
+                : '+250 XP & 🎣 badge earned!'}
             </span>
           </div>
         </div>

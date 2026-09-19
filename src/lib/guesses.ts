@@ -25,6 +25,7 @@ import {
 import { logXpEvent } from './xp';
 import { getUserByFid as getNeynarUserByFid } from './farcaster';
 import { isRewardGateEnabled } from '../../config/economy';
+import { formatWordAmountCompact } from './prize-display';
 
 /**
  * Normalize a guess word
@@ -654,12 +655,21 @@ async function handleBonusWordWin(
     }
   }
 
+  // What the player is told must be what the transfer was funded with.
+  // `bonusRewardAmount` is the exact value passed to claimBonusRewardOnChain
+  // and written to the claim row; the '5000000' that used to sit here was the
+  // rounds 1-33 constant, so every find since round 34 has been announced
+  // about 0.7M short. The copy also stops promising delivery it cannot see:
+  // without a txHash the claim is pending or failed, not in a wallet.
+  const rewardLabel = formatWordAmountCompact(BigInt(bonusRewardAmount));
   return {
     status: 'bonus_word',
     word,
-    tokenRewardAmount: '5000000', // 5M (display format)
+    rewardWei: bonusRewardAmount,
     txHash,
-    message: 'You found a bonus word! 5M $WORD sent to your wallet!',
+    message: txHash
+      ? `You found a bonus word! ${rewardLabel} $WORD sent to your wallet!`
+      : `You found a bonus word! ${rewardLabel} $WORD is on its way.`,
   };
 }
 

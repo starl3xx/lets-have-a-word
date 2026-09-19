@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import PlayerAvatar from './PlayerAvatar';
 import { playerLabel } from '../src/lib/player-display';
-import { formatPrize, formatPrizeCompact, formatWordAmountCompact } from '../src/lib/prize-display';
+import {
+  bonusWordRewardRule,
+  formatPrize,
+  formatPrizeCompact,
+  formatWordAmountCompact,
+} from '../src/lib/prize-display';
 import Top10StatusChip from './Top10StatusChip';
 import BadgeStack from './BadgeStack';
 
@@ -616,7 +621,7 @@ export default function RoundArchiveModal({ isOpen, onClose, onOpenPurchaseModal
                       priced by oracle now, a flat 5M for every find before that.
                       Each row carries what it actually paid. */}
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {prizeCurrency === 'word' ? '$1.50 of $WORD each' : '5M $WORD each'}
+                    {bonusWordRewardRule(prizeCurrency)}
                   </p>
                 </div>
 

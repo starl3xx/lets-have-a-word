@@ -4,8 +4,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
-import { formatArchiveJackpot } from '../../src/lib/prize-display';
-import { formatWordAmount } from '../../src/lib/word-amounts';
+import {
+  formatArchiveJackpot,
+  formatWordAmountCompact,
+  UNRECOVERABLE_AMOUNT,
+} from '../../src/lib/prize-display';
 
 interface ArchivedRound {
   id: number;
@@ -45,7 +48,13 @@ interface ArchiveStats {
 const FONT_FAMILY = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-serif";
 
 /**
- * Format number in compact form (1.2K, 5.4M, etc.)
+ * Compact form for the all-time guess count.
+ *
+ * Deliberately not used for $WORD any more: it disagrees with the app-wide
+ * rule at two magnitudes — it prints "5.7M" where the shared helper prints
+ * "5.70M", and it has no billions tier at all, so 1.5e9 came out as "1500M"
+ * instead of "1.50B". Two $WORD chips sitting side by side must round by one
+ * rule.
  */
 function formatCompactNumber(num: number): string {
   if (num >= 1_000_000) {
@@ -57,6 +66,31 @@ function formatCompactNumber(num: number): string {
     return thousands >= 10 ? `${Math.round(thousands)}K` : `${thousands.toFixed(1)}K`;
   }
   return num.toLocaleString();
+}
+
+/**
+ * A $WORD total in wei, compacted for a chip.
+ *
+ * Guarded because this is the only BigInt on the archive's render path and the
+ * value is a SUM read straight out of the database: a malformed total must
+ * cost one chip, not the whole page. Everything inside prize-display.ts wraps
+ * its BigInt for the same reason.
+ */
+function compactWordWei(wei: string): string {
+  try {
+    return formatWordAmountCompact(BigInt(wei));
+  } catch {
+    return UNRECOVERABLE_AMOUNT;
+  }
+}
+
+/**
+ * A $WORD total the archive query already divided down to whole tokens, scaled
+ * back to wei so it rounds by the same rule as the chip beside it.
+ */
+function compactWordTokens(tokens: number): string {
+  if (!Number.isFinite(tokens) || tokens <= 0) return '0';
+  return formatWordAmountCompact(BigInt(Math.trunc(tokens)) * 10n ** 18n);
 }
 
 export default function ArchiveListPage() {
@@ -160,13 +194,13 @@ export default function ArchiveListPage() {
                   stats.totalJackpotDistributedWord !== '0' && (
                     <StatChip
                       label="$WORD jackpots"
-                      value={formatWordAmount(BigInt(stats.totalJackpotDistributedWord))}
+                      value={compactWordWei(stats.totalJackpotDistributedWord)}
                       variant="purple"
                     />
                   )}
                 <StatChip
                   label="$WORD bonuses"
-                  value={formatCompactNumber(stats.totalWordTokenBonuses)}
+                  value={compactWordTokens(stats.totalWordTokenBonuses)}
                   variant="purple"
                 />
               </div>
@@ -229,7 +263,7 @@ export default function ArchiveListPage() {
                       <div className="flex items-center gap-2 pl-3">
                         <div className="text-right">
                           <div className="font-bold text-green-600 text-sm">
-                            {formatArchiveJackpot(round)}
+                            {formatArchiveJackpot(round, { compact: true })}
                           </div>
                           <div className="text-xs text-gray-400">
                             {round.winnerUsername ? `@${round.winnerUsername}` : 'No winner'}

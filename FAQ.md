@@ -43,7 +43,7 @@ This commit–reveal process makes every round transparent, verifiable, and fair
 
 ## What are bonus words?
 
-Each round has **10 hidden bonus words**, randomly selected from the full word list. When you guess one, you automatically receive **5M $WORD tokens** (or **2.5M** when market cap is above $150K). You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet. You also earn **+250 XP** and the **Side Quest** Wordmark.
+Each round has **10 hidden bonus words**, randomly selected from the full word list. When you guess one, you automatically receive **$1.50 of $WORD**, priced the moment you find it, so the number of tokens moves with the market. You don't need to do anything special — just guess a 5-letter word as usual, and if it matches a bonus word, the reward is sent to your connected wallet. You also earn **+250 XP** and the **Side Quest** Wordmark.
 
 Bonus words are committed onchain as keccak256 hashes before the round starts, so no one (including the game's creator) can change them mid-round. When you find one, the contract verifies your word against the committed hash before releasing tokens.
 
@@ -125,7 +125,7 @@ Tap the **$WORD** button in the nav bar to view your balance, staking, and token
 $WORD is the game's token on Base. It ties into gameplay in a few ways:
 
 - **Bonus guesses**: Hold ~$25+ of $WORD to earn extra free guesses daily
-- **Bonus word rewards**: Find a bonus word and receive 5M $WORD
+- **Bonus word rewards**: Find a bonus word and receive $1.50 of $WORD
 - **Burn word deflation**: Burn words permanently destroy 5M $WORD from the supply
 - **Top 10 $WORD rewards**: The top 10 guessers in each round earn $WORD payouts on top of their share of the prize pool
 - **Staking**: Lock your $WORD in the WordManager contract to earn streaming staking rewards

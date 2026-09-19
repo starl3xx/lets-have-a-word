@@ -102,7 +102,12 @@ export type SubmitGuessResult =
   | { status: 'no_guesses_left_today' } // Milestone 2.2: Daily limits enforced
   | { status: 'duplicate_ignored'; word: string; message: string } // Milestone 9.6: Idempotent duplicate handling
   | { status: 'rate_limited'; message: string; retryAfterSeconds?: number } // Milestone 9.6: Rate limit soft block
-  | { status: 'bonus_word'; word: string; tokenRewardAmount: string; txHash?: string; message: string } // Bonus Words feature
+  // `rewardWei` is WEI, and it is what the transfer was funded with, not a
+  // constant: a flat 5M through round 33, $1.50 priced by oracle from round 34.
+  // It replaced `tokenRewardAmount`, a whole-token display string that was
+  // hardcoded to '5000000' at the return site while the real figure sat in
+  // scope three statements earlier.
+  | { status: 'bonus_word'; word: string; rewardWei: string; txHash?: string; message: string } // Bonus Words feature
   | { status: 'burn_word'; word: string; burnAmount: string; txHash?: string; message: string } // Milestone 14: Burn Words
   | { status: 'superguess_blocked'; guesserUsername: string; expiresAt: string }; // Milestone 15: Another player has Superguess active
 
@@ -213,7 +218,7 @@ export type XpEventType =
   | 'SHARE_CAST'            // +15 XP for sharing to Farcaster
   | 'PACK_PURCHASE'         // +20 XP per pack purchase
   | 'OG_HUNTER_AWARD'       // +500 XP for OG Hunter badge (prelaunch campaign)
-  | 'BONUS_WORD'            // +250 XP for finding a bonus word (5M $WORD)
+  | 'BONUS_WORD'            // +250 XP for finding a bonus word ($1.50 of $WORD, oracle-priced)
   | 'BURN_WORD';            // Milestone 14: +100 XP for discovering a burn word (tokens destroyed)
 
 /**
@@ -246,7 +251,7 @@ export const XP_VALUES: Record<XpEventType, number> = {
   SHARE_CAST: 15,
   PACK_PURCHASE: 20,
   OG_HUNTER_AWARD: 500,   // OG Hunter badge award (prelaunch campaign)
-  BONUS_WORD: 250,        // Finding a bonus word (5M $WORD)
+  BONUS_WORD: 250,        // Finding a bonus word ($1.50 of $WORD, oracle-priced)
   BURN_WORD: 100,         // Milestone 14: Discovering a burn word (tokens destroyed)
 };
 

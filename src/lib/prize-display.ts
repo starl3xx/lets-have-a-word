@@ -54,6 +54,20 @@ export function formatPrizeValue(input: PrizeAmountInput): string {
   return formatEthAmount(input.eth ?? '0');
 }
 
+/**
+ * How an archive surface wants its amounts rendered.
+ *
+ * `compact` is a property of the SURFACE, not of the round: the public archive
+ * rounds like the rest of the game, while the admin table keeps every digit so
+ * an operator can reconcile a row against the payout tx. ETH is unaffected
+ * either way — `formatPrizeCompact` and `formatPrize` both render an ETH
+ * amount as four decimals, so rounds 1-33 are byte-identical with the flag on
+ * or off, and `archive-currency.test.ts` pins that.
+ */
+export interface PrizeFormatOptions {
+  compact?: boolean;
+}
+
 /** The unit label: `ETH` or `$WORD`. */
 export function prizeUnit(currency: PrizeCurrency): string {
   return currency === 'word' ? '$WORD' : 'ETH';
@@ -161,6 +175,14 @@ export function wordUsdValue(
   }
 }
 
+/** The one place the compact flag is honoured, so no caller re-implements it. */
+function formatPrizeWithOptions(
+  input: PrizeAmountInput,
+  options?: PrizeFormatOptions
+): string {
+  return options?.compact ? formatPrizeCompact(input) : formatPrize(input);
+}
+
 /**
  * The shape every archive surface receives — the public archive page, the
  * in-game archive modal, and the admin archive table all read the same row from
@@ -187,12 +209,18 @@ export function archiveCurrency(round: { currency?: string | null }): PrizeCurre
  * The ETH columns are NULL on a $WORD archive row, so anything reading
  * finalJackpotEth unconditionally renders "NaN ETH" from round 34 on.
  */
-export function formatArchiveJackpot(round: ArchiveRoundAmounts): string {
-  return formatPrize({
-    currency: archiveCurrency(round),
-    eth: round.finalJackpotEth,
-    word: round.finalJackpotWord,
-  });
+export function formatArchiveJackpot(
+  round: ArchiveRoundAmounts,
+  options?: PrizeFormatOptions
+): string {
+  return formatPrizeWithOptions(
+    {
+      currency: archiveCurrency(round),
+      eth: round.finalJackpotEth,
+      word: round.finalJackpotWord,
+    },
+    options
+  );
 }
 
 /**
@@ -216,15 +244,21 @@ export const UNRECOVERABLE_AMOUNT = 'Unknown';
  * that genuinely opened empty carries a real "0" string and still renders as
  * zero.
  */
-export function formatArchiveSeed(round: ArchiveRoundAmounts): string {
+export function formatArchiveSeed(
+  round: ArchiveRoundAmounts,
+  options?: PrizeFormatOptions
+): string {
   const currency = archiveCurrency(round);
   const seed = currency === 'word' ? round.seedWord : round.seedEth;
   if (seed === null || seed === undefined || seed === '') return UNRECOVERABLE_AMOUNT;
-  return formatPrize({
-    currency,
-    eth: round.seedEth,
-    word: round.seedWord,
-  });
+  return formatPrizeWithOptions(
+    {
+      currency,
+      eth: round.seedEth,
+      word: round.seedWord,
+    },
+    options
+  );
 }
 
 /**
@@ -233,7 +267,11 @@ export function formatArchiveSeed(round: ArchiveRoundAmounts): string {
  * $WORD is split in bigint wei — a pool is ~1e26 wei, far past
  * Number.MAX_SAFE_INTEGER, so the float path used for ETH loses precision.
  */
-export function formatArchiveShare(round: ArchiveRoundAmounts, bps: number): string {
+export function formatArchiveShare(
+  round: ArchiveRoundAmounts,
+  bps: number,
+  options?: PrizeFormatOptions
+): string {
   if (archiveCurrency(round) === 'word') {
     let wei = 0n;
     try {
@@ -241,17 +279,43 @@ export function formatArchiveShare(round: ArchiveRoundAmounts, bps: number): str
     } catch {
       wei = 0n;
     }
-    return formatPrize({ currency: 'word', word: ((wei * BigInt(bps)) / 10000n).toString() });
+    return formatPrizeWithOptions(
+      { currency: 'word', word: ((wei * BigInt(bps)) / 10000n).toString() },
+      options
+    );
   }
   const eth = parseFloat(round.finalJackpotEth ?? '0') || 0;
-  return formatPrize({ currency: 'eth', eth: ((eth * bps) / 10000).toFixed(4) });
+  return formatPrizeWithOptions({ currency: 'eth', eth: ((eth * bps) / 10000).toFixed(4) }, options);
 }
 
 /** One payoutsJson entry, in the round's currency. */
 export function formatArchivePayoutEntry(
   entry: { amountEth?: string | null; amountWord?: string | null } | undefined,
-  currency: PrizeCurrency
+  currency: PrizeCurrency,
+  options?: PrizeFormatOptions
 ): string {
-  if (!entry) return formatPrize({ currency, eth: '0', word: '0' });
-  return formatPrize({ currency, eth: entry.amountEth, word: entry.amountWord });
+  if (!entry) return formatPrizeWithOptions({ currency, eth: '0', word: '0' }, options);
+  return formatPrizeWithOptions(
+    { currency, eth: entry.amountEth, word: entry.amountWord },
+    options
+  );
+}
+
+/**
+ * What a bonus word paid, stated as the RULE for the era being viewed rather
+ * than a number.
+ *
+ * A bonus word paid a flat 5,000,000 for every find in rounds 1-33 and has paid
+ * $1.50 priced by oracle since round 34, so a single number is wrong on one
+ * side of the boundary or the other — and the archive shows both eras. Each
+ * finder's row carries what that find actually transferred; this is only the
+ * caption above the list.
+ *
+ * The "$1.50" is spelled out rather than read from BONUS_WORD_USD_CENTS on
+ * purpose: this module is imported by the info bar on the game's first paint
+ * and must not pull `config/economy` into that bundle. prize-display.test.ts
+ * asserts the two agree, so the constant cannot move without the copy failing.
+ */
+export function bonusWordRewardRule(currency: PrizeCurrency): string {
+  return currency === 'word' ? '$1.50 of $WORD each' : '5M $WORD each';
 }

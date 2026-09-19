@@ -625,7 +625,7 @@ async function checkWordJackpotMilestones(round: RoundRow, roundNumber: number) 
 
   for (const milestoneCents of crossedCents) {
     const milestoneUsd = (milestoneCents / 100).toFixed(0);
-    const poolWord = formatWordAmount(poolWei);
+    const poolWord = formatWordAmountCompact(poolWei);
 
     // The escalated "getting serious" tone belongs to the top two rungs,
     // same as it did on the old ladder.

@@ -78,7 +78,11 @@ describe('the resolved round announces the pool it actually paid out', () => {
       wordRound({ prizePoolWord: R34_FINAL_WEI, seedPriceE18: R35_SEED_PRICE_E18 })
     );
 
-    expect(prize.display).toBe('104,888,922 $WORD');
+    // Compact since 2026-09-19, so a cast says the same number the info bar,
+    // the round modal and the archive say. The point of this assertion is
+    // unchanged: the figure comes from the row, not from the contract the
+    // resolve just emptied, which would read 0.
+    expect(prize.display).toBe('105M $WORD');
     expect(prize.display).not.toContain('0 $WORD jackpot');
     expect(prize.currency).toBe('word');
   });
@@ -96,7 +100,7 @@ describe('the resolved round announces the pool it actually paid out', () => {
   it('returns a null USD rather than a misleading $0.00 with no seed price', () => {
     const prize = getRoundPrizeFromRow(wordRound({ seedPriceE18: null }));
     expect(prize.usd).toBeNull();
-    expect(prize.display).toBe('116,686,114 $WORD');
+    expect(prize.display).toBe('117M $WORD');
   });
 
   it('renders 0 $WORD rather than throwing on an unparseable column', () => {
@@ -139,7 +143,7 @@ describe('the daily push reports the live pool, not the frozen contract', () => 
     const prize = await getLivePoolPrize(wordRound({ prizePoolWord: grown.toString() }));
 
     expect(solvency).not.toHaveBeenCalled();
-    expect(prize.display).toBe('303,383,896 $WORD');
+    expect(prize.display).toBe('303M $WORD');
   });
 
   it('still reads the contract for an ETH round, where it is the live number', async () => {
@@ -161,7 +165,7 @@ describe('the round-started cast keeps its independent contract read', () => {
     const prize = await getRoundPrize(wordRound({ prizePoolWord: (R35_SEED_WEI * 9n).toString() }));
 
     expect(solvency).toHaveBeenCalledTimes(1);
-    expect(prize.display).toBe('116,686,114 $WORD');
+    expect(prize.display).toBe('117M $WORD');
   });
 
   it('falls back to the $WORD column, never to the ETH one, when the RPC throws', async () => {
@@ -171,7 +175,7 @@ describe('the round-started cast keeps its independent contract read', () => {
 
     // The pre-#169 path fell back to prizePoolEth ('0' here), announcing a zero
     // prize rather than a stale one.
-    expect(prize.display).toBe('116,686,114 $WORD');
+    expect(prize.display).toBe('117M $WORD');
   });
 });
 
