@@ -12,7 +12,7 @@
  */
 
 import { randomInt } from 'crypto';
-import { WORDS } from '../data/guess_words_clean';
+import { WORDS, WORDS_THROUGH_ROUND_35, ROUND_36_ADDITIONS } from '../data/guess_words_clean';
 import { isValidGuess } from './word-validation';
 import type { WordLists } from '../types';
 
@@ -95,6 +95,26 @@ export function validateWordLists(): void {
     );
   }
 
+  // The expansion must be additive. A word that vanished from WORDS while
+  // still sitting in the legacy list would un-play itself mid-history, and a
+  // duplicate between the two would inflate every count that reads length.
+  const missing = WORDS_THROUGH_ROUND_35.filter(w => !wordsSet.has(w));
+  if (missing.length > 0) {
+    errors.push(
+      `${missing.length} word(s) in WORDS_THROUGH_ROUND_35 are absent from WORDS: ` +
+      missing.slice(0, 5).join(', ')
+    );
+  }
+
+  const legacySet = new Set(WORDS_THROUGH_ROUND_35);
+  const readded = ROUND_36_ADDITIONS.filter(w => legacySet.has(w));
+  if (readded.length > 0) {
+    errors.push(
+      `${readded.length} ROUND_36_ADDITIONS were already playable before round 36: ` +
+      readded.slice(0, 5).join(', ')
+    );
+  }
+
   // Throw if any errors found
   if (errors.length > 0) {
     throw new Error(
@@ -104,7 +124,9 @@ export function validateWordLists(): void {
 
   // Log success
   console.log('✅ Word list validation passed (Milestone 7.1):');
-  console.log(`   - WORDS: ${WORDS.length} words`);
+  console.log(`   - WORDS: ${WORDS.length} words (round 36+)`);
+  console.log(`   - WORDS_THROUGH_ROUND_35: ${WORDS_THROUGH_ROUND_35.length} words`);
+  console.log(`   - ROUND_36_ADDITIONS: ${ROUND_36_ADDITIONS.length} words`);
   console.log(`   - Single unified list for all game operations`);
   console.log(`   - No duplicates, all valid format`);
 }

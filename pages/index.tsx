@@ -105,7 +105,7 @@ import { triggerHaptic, haptics } from '../src/lib/haptics';
 // word-validation, NOT word-lists: word-lists imports 'crypto' for answer
 // selection, and importing it from client code inlines Next's ~100 KB gz
 // crypto polyfill into the route bundle.
-import { isValidGuess } from '../src/lib/word-validation';
+import { isValidGuessForRound, WORD_LIST_EXPANSION_ROUND } from '../src/lib/word-validation';
 // The full public word list, already in this bundle via word-validation.
 // Used to paint the wheel instantly instead of waiting a round trip for
 // /api/wheel to send back the same words.
@@ -1059,12 +1059,15 @@ function GameContent() {
 
   const currentInputState: InputState = useMemo(() => getInputState({
     letters,
-    isInGuessList: currentWord.length === 5 ? isValidGuess(currentWord) : true,
+    isInGuessList:
+      currentWord.length === 5
+        ? isValidGuessForRound(currentWord, currentRoundId ?? WORD_LIST_EXPANSION_ROUND)
+        : true,
     isAlreadyGuessed: isWordAlreadyGuessed,
     isSubmitting: isLoading,
     hasGuessesLeft,
     resultState: boxResultState,
-  }), [letters, currentWord, isWordAlreadyGuessed, isLoading, hasGuessesLeft, boxResultState]);
+  }), [letters, currentWord, currentRoundId, isWordAlreadyGuessed, isLoading, hasGuessesLeft, boxResultState]);
 
   // Centralized input handling for consistent tap/input behavior
   const guessInputControl = useGuessInput({
