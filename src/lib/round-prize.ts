@@ -27,17 +27,16 @@
  */
 
 import { getCurrentJackpotOnChain } from './jackpot-contract';
-import { formatWordAmount } from './word-amounts';
-import { formatPrize, wordUsdValue } from './prize-display';
+import { formatPrizeCompact, formatWordAmountCompact, wordUsdValue } from './prize-display';
 
 /**
  * Byte-for-byte the announcer's existing formatEth: 4 decimals, trailing zeros
  * stripped. Reproduced rather than reused so this module does not import the
  * announcer, and copied exactly so no existing ETH cast changes wording.
  *
- * Deliberately not prize-display's formatPrize for the ETH branch: that pads to
+ * Deliberately not prize-display's formatters for the ETH branch: they pad to
  * 4 decimals, and every existing cast and notification renders "0.02 ETH"
- * rather than "0.0200 ETH". The $WORD branches DO go through formatPrize, so
+ * rather than "0.0200 ETH". The $WORD branches DO go through prize-display, so
  * the unit and separators there match the app exactly.
  */
 function formatEthTrimmed(value: string | number): string {
@@ -99,6 +98,13 @@ export interface RoundPrize {
  * Render a $WORD pool. One place, so the three entry points below cannot drift
  * in separators, unit or USD rounding.
  *
+ * Compact, because a cast is read next to the app: the info bar, the round
+ * modal and the archive all say "105M $WORD", and a cast saying
+ * "104,888,922 $WORD" about the same pool reads as a different number. ETH
+ * casts are untouched — they never reach this function, formatEthTrimmed
+ * renders them.
+
+ *
  * The USD figure is valued at the round's SEED-time price snapshot, not a live
  * quote: an announcement is a permanent record of a moment, and re-reading the
  * oracle would make two messages about the same pool disagree.
@@ -106,7 +112,7 @@ export interface RoundPrize {
 function renderWordPool(poolWei: bigint, seedPriceE18: string | null | undefined): RoundPrize {
   const pool = poolWei.toString();
   return {
-    display: formatPrize({ currency: 'word', word: pool }),
+    display: formatPrizeCompact({ currency: 'word', word: pool }),
     usd: wordUsdValue(pool, seedPriceE18),
     currency: 'word',
   };
@@ -215,7 +221,7 @@ export function formatPayoutAmount(
 ): string {
   if (currency === 'word') {
     try {
-      return `${formatWordAmount(BigInt(row.amountWord ?? '0'))} $WORD`;
+      return `${formatWordAmountCompact(BigInt(row.amountWord ?? '0'))} $WORD`;
     } catch {
       return '0 $WORD';
     }
@@ -243,7 +249,7 @@ export function formatPayoutTotal(
         // Skip an unparseable row rather than failing the whole announcement.
       }
     }
-    return `${formatWordAmount(total)} $WORD`;
+    return `${formatWordAmountCompact(total)} $WORD`;
   }
   const total = rows.reduce((sum, r) => sum + (parseFloat(r.amountEth ?? '0') || 0), 0);
   return `${formatEthTrimmed(total)} ETH`;

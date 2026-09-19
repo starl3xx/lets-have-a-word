@@ -255,7 +255,7 @@ describe('guessWasRecorded classification', () => {
     const recorded: SubmitGuessResult[] = [
       { status: 'correct', word: WORD, roundId: 1, winnerFid: FID },
       { status: 'incorrect', word: WORD, totalGuessesForUserThisRound: 1 },
-      { status: 'bonus_word', word: WORD, tokenRewardAmount: '5000000', message: '' },
+      { status: 'bonus_word', word: WORD, rewardWei: '5000000000000000000000000', message: '' },
       { status: 'burn_word', word: WORD, burnAmount: '5000000', message: '' },
     ];
     for (const r of recorded) {

@@ -33,7 +33,7 @@
 - **Collaborative Elimination**: Wrong guesses are shared publicly, helping everyone
 - **Single Winner**: First person to guess correctly wins the entire prize pool
 - **Provably Fair**: Answer hash committed onchain before guessing begins, verifiable at `/verify`
-- **Bonus Words**: 10 hidden side-quest words per round — find one and earn 5M $WORD tokens
+- **Bonus Words**: 10 hidden side-quest words per round — find one and earn $1.50 of $WORD
 - **Burn Words**: 5 hidden burn words per round — find one and 5M $WORD tokens are destroyed forever
 
 ### Key Differentiators
@@ -2362,7 +2362,7 @@ const fid = verifyResult.sub; // Verified FID from JWT
 #### Bonus Words
 Each round includes **10 hidden bonus words** drawn from the full 4,438-word dictionary. These aren't the secret answer — they're side-quest discoveries that reward explorers.
 
-- Each bonus word is worth **5M $WORD tokens**, transferred directly to the finder's wallet
+- Each bonus word is worth **$1.50 of $WORD**, oracle-priced at the moment of the find and transferred directly to the finder's wallet. Rounds 1-33 paid a flat 5M
 - Detected automatically during guess submission — no special action required
 - Committed onchain before the round starts via `keccak256(abi.encodePacked(word, salt))`, so the game can't retroactively change them
 - Stored in the `round_bonus_words` table with encrypted words and per-word salts

@@ -204,7 +204,7 @@ export default function PreviewPage() {
       {showBonusModal && (
         <BonusWordWinModal
           word="CRANE"
-          tokenRewardAmount="5000000"
+          rewardWei="5860000000000000000000000"
           txHash="0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd"
           onClose={() => setShowBonusModal(false)}
         />

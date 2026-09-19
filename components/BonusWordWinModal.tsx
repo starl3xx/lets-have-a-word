@@ -5,7 +5,7 @@
  * Features:
  * - Confetti celebration
  * - 🎣 badge animation
- * - 5M $WORD reward display
+ * - $WORD reward display, in the amount the find actually paid
  * - Link to BaseScan transaction
  *
  * Bonus Words Feature
@@ -14,10 +14,16 @@
 import { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { triggerHaptic } from '../src/lib/haptics';
+import { formatWordAmountCompact } from '../src/lib/prize-display';
 
 interface BonusWordWinModalProps {
   word: string;
-  tokenRewardAmount: string;
+  /**
+   * Wei the find paid, or null when the amount is not known here — the
+   * spectator replay watches another player's find and the guess log carries
+   * no amount. Null hides the figure rather than substituting a constant.
+   */
+  rewardWei: string | null;
   txHash: string | null;
   onClose: () => void;
 }
@@ -72,19 +78,26 @@ function fireCelebration() {
 }
 
 /**
- * Format token reward amount with commas
+ * The reward in the app-wide three-significant-digit rule, or null when there
+ * is nothing to state. Guarded: a malformed amount must not take down the
+ * celebration for a find that really happened.
  */
-function formatTokenReward(amount: string): string {
-  const num = parseInt(amount, 10);
-  return num.toLocaleString('en-US');
+function rewardLabel(rewardWei: string | null): string | null {
+  if (!rewardWei) return null;
+  try {
+    return formatWordAmountCompact(BigInt(rewardWei));
+  } catch {
+    return null;
+  }
 }
 
 export default function BonusWordWinModal({
   word,
-  tokenRewardAmount,
+  rewardWei,
   txHash,
   onClose,
 }: BonusWordWinModalProps) {
+  const reward = rewardLabel(rewardWei);
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
@@ -158,10 +171,10 @@ export default function BonusWordWinModal({
             />
             <div>
               <div className="text-2xl font-bold text-purple-700">
-                +{formatTokenReward(tokenRewardAmount)} $WORD
+                {reward ? `+${reward} $WORD` : '$WORD reward'}
               </div>
               <div className="text-sm text-purple-500">
-                Sent to your wallet
+                {txHash ? 'Sent to your wallet' : 'On its way'}
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, ChangeEvent, KeyboardEvent, useTransition, type ReactNode } from 'react';
-import { formatPrize } from '../src/lib/prize-display';
+import { formatPrizeCompact, formatWordAmountCompact } from '../src/lib/prize-display';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import nextDynamic from 'next/dynamic';
@@ -166,6 +166,23 @@ const queryClient = new QueryClient();
  *
  * We detect these and POST to our backend proxy (which adds the API key).
  */
+/**
+ * " +5.70M $WORD" for a find whose amount is known, or "" when it is not.
+ *
+ * A bonus word paid a flat 5M through round 33 and has paid $1.50 priced by
+ * oracle since round 34, so there is no constant to fall back on. Returning ""
+ * states nothing rather than stating the old number. Guarded because the
+ * amount arrives as a string from the API.
+ */
+function bonusRewardSuffix(rewardWei: string | null | undefined): string {
+  if (!rewardWei) return '';
+  try {
+    return ` +${formatWordAmountCompact(BigInt(rewardWei))} $WORD`;
+  } catch {
+    return '';
+  }
+}
+
 function trackNotificationOpen(userFid: number, appFid?: number): void {
   if (typeof window === 'undefined') return;
 
@@ -427,7 +444,7 @@ function GameContent() {
   const [showWordModal, setShowWordModal] = useState(false);
   // Bonus Words Feature: Modal for bonus word win celebration
   const [showBonusWordWinModal, setShowBonusWordWinModal] = useState(false);
-  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; tokenRewardAmount: string; txHash: string | null } | null>(null);
+  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; rewardWei: string | null; txHash: string | null } | null>(null);
   // Milestone 14: Burn word modal state
   const [showBurnWordModal, setShowBurnWordModal] = useState(false);
   const [burnWordData, setBurnWordData] = useState<{ word: string; burnAmount: string; txHash: string | null } | null>(null);
@@ -1558,7 +1575,7 @@ function GameContent() {
         // Store bonus word data and show celebration modal
         setBonusWordWinData({
           word: data.word,
-          tokenRewardAmount: data.tokenRewardAmount || '5000000',
+          rewardWei: data.rewardWei ?? null,
           txHash: data.txHash || null,
         });
         setShowBonusWordWinModal(true);
@@ -1833,6 +1850,9 @@ function GameContent() {
             ),
           };
         }
+        // The banner states what this find paid. It was hardcoded to the
+        // rounds 1-33 constant while the response already carried the real
+        // figure.
         return {
           variant: 'success',
           icon: null,
@@ -1840,7 +1860,7 @@ function GameContent() {
             <>
               <span>🎣 Bonus word </span>
               <span className="font-bold">{result.word.toUpperCase()}</span>
-              <span> found! +5M $WORD</span>
+              <span> found!{bonusRewardSuffix(result.rewardWei)}</span>
             </>
           ),
         };
@@ -2068,7 +2088,9 @@ function GameContent() {
                   setShowWinnerShareCard(true);
                 } else if (latestGuess.result === 'bonus_word') {
                   setBoxResultState('correct');
-                  setBonusWordWinData({ word: latestGuess.word, tokenRewardAmount: '5000000', txHash: null });
+                  // The spectator guess log carries no amount, so the modal
+                  // shows none rather than the rounds 1-33 constant.
+                  setBonusWordWinData({ word: latestGuess.word, rewardWei: null, txHash: null });
                   setShowBonusWordWinModal(true);
                 } else if (latestGuess.result === 'burn_word') {
                   setBoxResultState('correct');
@@ -2241,7 +2263,7 @@ function GameContent() {
                 <span className="font-semibold text-gray-900">Round #{browserFallbackStats.roundId}</span>
                 <span className="text-gray-400">·</span>
                 <span className="font-semibold text-green-600">
-                  {formatPrize({
+                  {formatPrizeCompact({
                     currency: browserFallbackStats.prizeCurrency ?? 'eth',
                     eth: parseFloat(browserFallbackStats.prizePoolEth).toFixed(4),
                     word: browserFallbackStats.prizePoolWord,
@@ -2887,7 +2909,7 @@ function GameContent() {
       {BONUS_WORDS_UI_ENABLED && showBonusWordWinModal && bonusWordWinData && (
         <BonusWordWinModal
           word={bonusWordWinData.word}
-          tokenRewardAmount={bonusWordWinData.tokenRewardAmount}
+          rewardWei={bonusWordWinData.rewardWei}
           txHash={bonusWordWinData.txHash}
           onClose={() => {
             setShowBonusWordWinModal(false);

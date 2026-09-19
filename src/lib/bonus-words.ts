@@ -314,6 +314,16 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
   // ETH era and stopped being true at round 34: the reward is now $1.50 priced
   // by oracle, so it moves with the market (round 34's first find paid
   // 5,701,254). Keyed by wordIndex because a player can find more than one.
+  //
+  // CONFIRMED CLAIMS ONLY. A claim row is written on all three outcomes, and
+  // it carries the amount that WOULD have been sent in each: 'failed' when the
+  // transfer reverted, 'pending' when the finder had no wallet. The word is
+  // marked claimed before the transfer is attempted, so those finds still
+  // appear in this list — and reading their amount unfiltered stated a
+  // payment that never happened. A find with no confirmed claim now carries a
+  // null amount, which every surface renders as nothing rather than as a
+  // number. retry-bonus-distribution.ts flips the row to 'confirmed' when it
+  // pays, so the amount appears once the money actually moves.
   const rewardByWordIndex = new Map<number, string>();
   try {
     const claimRows = await db
@@ -323,12 +333,17 @@ export async function getBonusWordWinners(roundId: number): Promise<BonusWordWin
       })
       .from(bonusWordClaims)
       .innerJoin(roundBonusWords, eq(roundBonusWords.id, bonusWordClaims.bonusWordId))
-      .where(eq(roundBonusWords.roundId, roundId));
+      .where(
+        and(
+          eq(roundBonusWords.roundId, roundId),
+          eq(bonusWordClaims.txStatus, 'confirmed')
+        )
+      );
     for (const row of claimRows) {
       if (row.amountWei) rewardByWordIndex.set(row.wordIndex, row.amountWei);
     }
   } catch (error) {
-    // A missing amount renders as "—" rather than as a wrong number.
+    // A missing amount renders as nothing rather than as a wrong number.
     console.warn('[bonus-words] Could not read claim amounts:', error);
   }
 

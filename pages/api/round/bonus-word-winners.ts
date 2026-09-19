@@ -17,7 +17,7 @@
  *       "wordIndex": 2,
  *       "claimedAt": "2025-01-04T12:00:00Z",
  *       "txHash": "0x...",
- *       "tokenRewardAmount": "5000000"
+ *       "rewardWei": "5000000000000000000000000"
  *     }
  *   ]
  * }

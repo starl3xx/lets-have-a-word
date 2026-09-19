@@ -4,12 +4,13 @@
 import { useState, useEffect } from 'react';
 import {
   archiveCurrency,
+  bonusWordRewardRule,
   formatArchiveJackpot,
   formatArchiveSeed,
   formatArchiveShare,
   formatArchivePayoutEntry,
+  formatWordAmountCompact,
 } from '../../src/lib/prize-display';
-import { formatWordAmount } from '../../src/lib/word-amounts';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
@@ -26,6 +27,8 @@ interface TopGuesserWithUsername {
   username: string | null;
   pfpUrl: string | null;
   amountEth: string;
+  /** Set on a $WORD round, null on an ETH one. Never summed with amountEth. */
+  amountWord?: string | null;
   guessCount: number;
   rank: number;
   hasWordTokenBadge?: boolean;
@@ -65,7 +68,14 @@ interface BonusWordWinner {
   fid: number;
   word: string;
   wordIndex: number;
-  tokenRewardAmount: string;
+  /**
+   * Wei actually transferred for this find, or null when the claim row is
+   * missing. NOT a constant: a flat 5M through round 33, $1.50 priced by
+   * oracle from round 34. This is the field `getBonusWordWinners` sends
+   * (src/lib/bonus-words.ts); the `tokenRewardAmount` declared here before it
+   * was never on the wire, so every row read `undefined`.
+   */
+  rewardWei?: string | null;
   claimedAt?: string;
   txHash?: string;
   username?: string;
@@ -114,12 +124,21 @@ interface ArchivedRound {
   referrerUsername: string | null;
   referrerPfpUrl: string | null;
   topGuessersWithUsernames: TopGuesserWithUsername[];
+  // Every payout entry carries BOTH amounts: archiveRound writes amountWord
+  // on a $WORD round and amountEth on an ETH one. Declaring only the ETH half
+  // is how a reader ends up rendering `amountEth` on a round that never had
+  // one — the hand-written-field-list trap this repo keeps falling into.
   payoutsJson: {
-    winner?: { fid: number; amountEth: string };
-    referrer?: { fid: number; amountEth: string };
-    topGuessers: Array<{ fid: number; amountEth: string; rank: number }>;
-    seed?: { amountEth: string };
-    creator?: { amountEth: string };
+    winner?: { fid: number; amountEth: string; amountWord?: string | null };
+    referrer?: { fid: number; amountEth: string; amountWord?: string | null };
+    topGuessers: Array<{
+      fid: number;
+      amountEth: string;
+      amountWord?: string | null;
+      rank: number;
+    }>;
+    seed?: { amountEth: string; amountWord?: string | null };
+    creator?: { amountEth: string; amountWord?: string | null };
     bonusWordWinners?: BonusWordWinner[];
   };
   salt: string;
@@ -147,7 +166,9 @@ const FONT_FAMILY = "'Söhne', 'SF Pro Display', system-ui, -apple-system, sans-
 /**
  * One breakdown amount. ETH keeps its original flourish — leading "0." stripped
  * so the decimals read large — because rounds 1-33 must look unchanged. That
- * only works for sub-1 values, so $WORD renders as a plain separated number.
+ * only works for sub-1 values, so $WORD renders as its own compact number
+ * ("83.9M"), the same three significant digits the info bar and the in-game
+ * round modal use.
  */
 function BreakdownAmount({ value, currency }: { value: string; currency: 'eth' | 'word' }) {
   if (currency === 'word') {
@@ -163,6 +184,30 @@ function BreakdownAmount({ value, currency }: { value: string; currency: 'eth' |
       <span>.{value.replace('0.', '')}</span>
       <span className="text-sm font-medium opacity-50"> ETH</span>
     </>
+  );
+}
+
+/**
+ * What one bonus-word find actually transferred — the same arrow idiom the
+ * in-game round modal uses, so it cannot be misread as a balance.
+ *
+ * Renders nothing when the claim row is missing, because a find with no
+ * recoverable amount is not a find that paid zero. Guarded because the claim
+ * amount is a varchar column: a malformed row must cost one line, not the
+ * whole page.
+ */
+function BonusRewardTail({ rewardWei }: { rewardWei?: string | null }) {
+  if (!rewardWei) return null;
+  let label: string;
+  try {
+    label = formatWordAmountCompact(BigInt(rewardWei));
+  } catch {
+    return null;
+  }
+  return (
+    <span className="text-xs text-gray-400 font-mono whitespace-nowrap flex-shrink-0">
+      &rarr; {label} $WORD
+    </span>
   );
 }
 
@@ -260,13 +305,44 @@ export default function RoundDetailPage() {
       } catch {
         wei = 0n;
       }
-      return formatWordAmount((wei * BigInt(bps)) / 10000n);
+      return formatWordAmountCompact((wei * BigInt(bps)) / 10000n);
     }
     return (((parseFloat(round.finalJackpotEth ?? '0') || 0) * bps) / 10000).toFixed(4);
   };
 
+  /**
+   * The USD anchor beside a rounded $WORD share.
+   *
+   * Compacting to three significant digits drops real tokens from the display,
+   * and this page is the permanent record of what a round paid, so the figure
+   * that does not move gets to sit next to it. The value is the round's own
+   * finalJackpotUsdCents, priced at its seed-time snapshot when it was
+   * archived, which is what makes a $WORD round comparable to an ETH one years
+   * later. It is the same pairing the in-game round modal uses.
+   *
+   * ETH rounds return null and render exactly as they did: they never carried
+   * a USD line, and rounds 1-33 must not gain one now.
+   */
+  const usdShare = (bps: number): string | null => {
+    if (!round || archiveCur !== 'word') return null;
+    const cents = round.finalJackpotUsdCents ?? 0;
+    if (!Number.isFinite(cents) || cents <= 0) return null;
+    const dollars = (cents / 100) * (bps / 10000);
+    // Below half a dollar there is no anchor worth printing, and "$0 USD"
+    // beside a seven-figure token amount reads as an error.
+    if (dollars < 0.5) return null;
+    return `$${dollars.toFixed(0)} USD`;
+  };
+
   const breakdown = round
-    ? { jackpot: rawShare(8000), referrer: rawShare(500), topGuessers: rawShare(1000) }
+    ? {
+        jackpot: rawShare(8000),
+        referrer: rawShare(500),
+        topGuessers: rawShare(1000),
+        jackpotUsd: usdShare(8000),
+        referrerUsd: usdShare(500),
+        topGuessersUsd: usdShare(1000),
+      }
     : null;
 
   return (
@@ -333,8 +409,16 @@ export default function RoundDetailPage() {
           <div className="bg-white border-b border-gray-200">
             <div className="max-w-2xl mx-auto px-4 py-4">
               <div className="flex flex-wrap gap-2">
-                <StatChip label="prize pool" value={formatArchiveJackpot(round)} variant="green" />
-                <StatChip label="jackpot (80%)" value={formatArchiveShare(round, 8000)} variant="green" />
+                <StatChip
+                  label="prize pool"
+                  value={formatArchiveJackpot(round, { compact: true })}
+                  variant="green"
+                />
+                <StatChip
+                  label="jackpot (80%)"
+                  value={formatArchiveShare(round, 8000, { compact: true })}
+                  variant="green"
+                />
                 <StatChip label="guesses" value={round.totalGuesses.toLocaleString()} />
                 <StatChip label="players" value={round.uniquePlayers.toLocaleString()} />
                 <StatChip label="duration" value={formatDuration(round.startTime, round.endTime)} />
@@ -424,7 +508,11 @@ export default function RoundDetailPage() {
                         </button>
                         {round.payoutsJson.referrer && (
                           <span className="text-green-600 font-medium">
-                            (earned {formatArchivePayoutEntry(round.payoutsJson.referrer, archiveCur)})
+                            (earned{' '}
+                            {formatArchivePayoutEntry(round.payoutsJson.referrer, archiveCur, {
+                              compact: true,
+                            })}
+                            )
                           </span>
                         )}
                       </div>
@@ -448,6 +536,9 @@ export default function RoundDetailPage() {
                       <div className="mt-2 text-lg font-bold text-gray-900">
                         <BreakdownAmount value={breakdown.jackpot} currency={archiveCur} />
                       </div>
+                      {breakdown.jackpotUsd && (
+                        <div className="text-xs text-gray-400">({breakdown.jackpotUsd})</div>
+                      )}
                     </div>
                     {/* Referrer */}
                     <div className={`border-2 rounded-xl p-3 text-center ${
@@ -462,9 +553,14 @@ export default function RoundDetailPage() {
                         round.referrerFid ? 'text-purple-600/70' : 'text-gray-400'
                       }`}>(5%)</div>
                       {round.referrerFid ? (
-                        <div className="mt-2 text-lg font-bold text-gray-900">
-                          <BreakdownAmount value={breakdown.referrer} currency={archiveCur} />
-                        </div>
+                        <>
+                          <div className="mt-2 text-lg font-bold text-gray-900">
+                            <BreakdownAmount value={breakdown.referrer} currency={archiveCur} />
+                          </div>
+                          {breakdown.referrerUsd && (
+                            <div className="text-xs text-gray-400">({breakdown.referrerUsd})</div>
+                          )}
+                        </>
                       ) : (
                         <div className="mt-2 text-sm text-gray-400">
                           No referrer
@@ -478,6 +574,9 @@ export default function RoundDetailPage() {
                       <div className="mt-2 text-lg font-bold text-gray-900">
                         <BreakdownAmount value={breakdown.topGuessers} currency={archiveCur} />
                       </div>
+                      {breakdown.topGuessersUsd && (
+                        <div className="text-xs text-gray-400">({breakdown.topGuessersUsd})</div>
+                      )}
                     </div>
                   </div>
                 </Section>
@@ -541,7 +640,12 @@ export default function RoundDetailPage() {
               {/* Bonus Word Finders (for rounds >= 3 with bonus words) */}
               {round.bonusWordWinners && round.bonusWordWinners.length > 0 && (
                 <Section title="Bonus word finders">
-                  <p className="text-xs text-gray-500 mb-3">5M $WORD each</p>
+                  {/* The reward stopped being a constant at round 34: it is
+                      $1.50 priced by oracle now, a flat 5M for every find
+                      before that. Each row carries what it actually paid. */}
+                  <p className="text-xs text-gray-500 mb-3">
+                    {bonusWordRewardRule(archiveCur)}
+                  </p>
                   <div className="bg-white rounded-xl border border-cyan-200 overflow-hidden">
                     {[...round.bonusWordWinners]
                       .sort((a, b) => new Date(a.claimedAt || 0).getTime() - new Date(b.claimedAt || 0).getTime())
@@ -585,6 +689,8 @@ export default function RoundDetailPage() {
                             size="sm"
                           />
                         </div>
+                        {/* What this find actually paid */}
+                        <BonusRewardTail rewardWei={winner.rewardWei} />
                         {/* Word found */}
                         <span className="text-xs text-cyan-600 font-mono font-bold uppercase flex-shrink-0">
                           {winner.word}
@@ -708,7 +814,7 @@ export default function RoundDetailPage() {
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <InfoRow label="Started" value={formatDate(round.startTime)} />
                   <InfoRow label="Ended" value={formatDate(round.endTime)} />
-                  <InfoRow label="Seed" value={formatArchiveSeed(round)} />
+                  <InfoRow label="Seed" value={formatArchiveSeed(round, { compact: true })} />
                   <InfoRow label="$WORD bonuses" value={(round.clanktonBonusCount ?? 0).toString()} />
                   <InfoRow label="Referral signups" value={(round.referralBonusCount ?? 0).toString()} />
 

@@ -283,7 +283,7 @@ export default function FAQSheet({ onClose }: FAQSheetProps) {
       question: "What are bonus words?",
       answer: (
         <>
-          Each round has <strong>10 hidden bonus words</strong>, randomly selected from the full word list. If your guess matches one, you receive <strong>5M <WordTokenLink>$WORD</WordTokenLink> tokens</strong> (or 2.5M when market cap is above $150K) sent directly to your wallet, plus <strong>+250 XP</strong> and the <strong>Side Quest</strong> wordmark.
+          Each round has <strong>10 hidden bonus words</strong>, randomly selected from the full word list. If your guess matches one, you receive <strong>$1.50 of <WordTokenLink>$WORD</WordTokenLink></strong> sent directly to your wallet, plus <strong>+250 XP</strong> and the <strong>Side Quest</strong> wordmark. The reward is priced the moment you find it, so the number of tokens moves with the market.
           <p className="mt-2">Bonus words are committed onchain before the round starts, so they can't be changed mid-round. Your guess is verified against the committed hash before tokens are released.</p>
         </>
       ),

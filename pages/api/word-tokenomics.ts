@@ -13,7 +13,7 @@ import { isDevModeEnabled } from '../../src/lib/devGameState';
 import { WORD_MARKET_CAP_USD } from '../../config/economy';
 import { fetchWordTokenMarketCap } from '../../src/lib/word-oracle';
 import { db } from '../../src/db';
-import { wordRewards, roundBonusWords, roundBurnWords } from '../../src/db/schema';
+import { wordRewards, roundBonusWords, roundBurnWords, bonusWordClaims } from '../../src/db/schema';
 import { eq, and, isNotNull, sql } from 'drizzle-orm';
 
 export interface WordTokenomicsResponse {
@@ -93,7 +93,7 @@ export default async function handler(
 
     // DB aggregates for burn/bonus stats
     // Bonus: count claimed bonus words only in $WORD-era rounds (those with burn words = Milestone 14+)
-    const [burnStats, bonusStats] = await Promise.all([
+    const [burnStats, bonusStats, bonusTotals] = await Promise.all([
       db.select({
         count: sql<number>`count(*)`,
         total: sql<string>`coalesce(sum(cast(amount as numeric)), 0)`,
@@ -108,19 +108,37 @@ export default async function handler(
           sql`${roundBonusWords.roundId} IN (SELECT DISTINCT round_id FROM round_burn_words)`
         )
       ),
+      // Sum what was actually transferred, the same way the burn total above
+      // is summed. This used to be count x 5,000,000, a constant that stopped
+      // being one at round 34, so the figure drifted further under the truth
+      // with every find. Confirmed claims only: a 'failed' or 'pending' row
+      // carries the amount it WOULD have sent, and nothing was distributed.
+      db.select({
+        total: sql<string>`coalesce(sum(cast(${bonusWordClaims.clanktonAmount} as numeric)), 0)`,
+      })
+        .from(bonusWordClaims)
+        .innerJoin(roundBonusWords, eq(roundBonusWords.id, bonusWordClaims.bonusWordId))
+        .where(
+          and(
+            eq(bonusWordClaims.txStatus, 'confirmed'),
+            eq(roundBonusWords.rewardWithheld, false),
+            sql`${roundBonusWords.roundId} IN (SELECT DISTINCT round_id FROM round_burn_words)`
+          )
+        ),
     ]);
 
     const burnCount = Number(burnStats[0]?.count ?? 0);
     const burnTotal = burnStats[0]?.total ?? '0';
     const bonusCount = Number(bonusStats[0]?.count ?? 0);
-    // 5M $WORD per bonus word (constant)
-    const BONUS_TOKENS_PER_WORD = 5_000_000;
+    const bonusTotal = bonusTotals[0]?.total ?? '0';
 
     // Convert wei totals to whole tokens for display
     const burnTotalTokens = burnTotal !== '0'
       ? Math.floor(parseFloat(ethers.formatUnits(BigInt(burnTotal), 18))).toString()
       : '0';
-    const bonusTotalTokens = (bonusCount * BONUS_TOKENS_PER_WORD).toString();
+    const bonusTotalTokens = bonusTotal !== '0'
+      ? Math.floor(parseFloat(ethers.formatUnits(BigInt(bonusTotal), 18))).toString()
+      : '0';
 
     return res.status(200).json({
       totalSupply: Math.floor(totalSupply).toString(),

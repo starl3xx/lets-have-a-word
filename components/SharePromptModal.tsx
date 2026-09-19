@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { formatPrize } from '../src/lib/prize-display';
+import { formatPrizeCompact } from '../src/lib/prize-display';
 import { useReloadHold } from '../src/lib/buildFreshness';
 import { withHostTimeout, openXComposer, HOST_COMPOSE_TIMEOUT_MS, X_BUTTON_CLASS } from '../src/lib/hostActions';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
@@ -126,14 +126,18 @@ export default function SharePromptModal({
   };
 
   /**
-   * The prize with its unit, e.g. "0.0216 ETH" or "78,125,000 $WORD".
+   * The prize with its unit, e.g. "0.0216 ETH" or "105M $WORD".
    *
    * The unit is part of the value rather than hardcoded in the templates,
    * because the share text is public — a $WORD round advertising an ETH prize
    * would be wrong on nine different casts.
+   *
+   * $WORD is compact so the card matches the number in the app; ETH passes
+   * through unchanged, because formatPrizeCompact's ETH branch is the same
+   * four decimals formatPrize produced.
    */
   const formatJackpot = (): string =>
-    formatPrize({
+    formatPrizeCompact({
       currency: prizeCurrency,
       eth: prizePoolEth ? parseFloat(prizePoolEth).toFixed(4) : '0.0000',
       word: prizePoolWord,
