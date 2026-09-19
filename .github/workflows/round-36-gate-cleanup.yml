@@ -2,18 +2,22 @@ name: Round 36 gate cleanup reminder
 
 # ONE-INCIDENT WORKFLOW, BORN WITH AN EXPIRY.
 #
-# PR #326 added 145 words (now 146) playable from round 36 only, because round
-# 35 was live and its answer, bonus words and burn words were committed onchain
-# from the smaller list. The era gate that makes that safe is temporary: once
-# round 36 is underway nothing needs the old list, and leaving it in place
-# strands dead branches on the guess hot path that no test will exercise again.
+# PR #326 added words playable from round 36 only, because round 35 was live
+# and its answer, bonus words and burn words were committed onchain from the
+# smaller list. The era gate that makes that safe is temporary: once round 36
+# is underway nothing needs the old list, and leaving it in place strands dead
+# branches on the guess hot path that no test will exercise again.
 #
 # Round 34 ran 26 days, so "remember to delete it when round 36 starts" is not
-# a plan. This job watches the live round and opens an issue the day the
-# expansion actually takes effect.
+# a plan. This watches the live round and opens an issue the day the expansion
+# actually takes effect.
 #
-# DELETE THIS FILE as part of the cleanup it asks for. It is listed in the
-# checklist below so it removes itself.
+# The issue body lives in .github/round-36-cleanup-issue.md rather than in a
+# heredoc here. A heredoc's closing delimiter has to sit at column 0, which
+# ends the YAML block scalar early and leaves GitHub unable to parse the file
+# at all -- it registers with no name and no triggers, and fails silently.
+#
+# DELETE BOTH FILES as part of the cleanup this asks for.
 
 on:
   schedule:
@@ -24,11 +28,14 @@ on:
 
 permissions:
   issues: write
+  contents: read
 
 jobs:
   check-round:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Read the live round
         id: round
         run: |
@@ -43,50 +50,19 @@ jobs:
         if: steps.round.outputs.round != '0' && fromJSON(steps.round.outputs.round) >= 36
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           ROUND: ${{ steps.round.outputs.round }}
         run: |
           set -euo pipefail
-          TITLE="Delete the round-36 word list gate"
+          TITLE='Delete the round-36 word list gate'
 
-          # Idempotent: this job runs daily and must not open a new issue each
+          # Idempotent: this runs daily and must not open a new issue each
           # time. Search open AND closed, so a closed one is not reopened.
-          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state all \
-            --search "\"$TITLE\" in:title" --json number --jq 'length')
-          if [ "$EXISTING" != "0" ]; then
+          EXISTING=$(gh issue list --state all --search "\"$TITLE\" in:title" --json number --jq 'length')
+          if [ "$EXISTING" != '0' ]; then
             echo "Issue already exists, nothing to do."
             exit 0
           fi
 
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$(cat <<EOF
-Round **$ROUND** is underway, so the round-36 word list expansion has taken
-effect and its era gate is now dead weight on the guess hot path.
-
-Nothing needs the pre-36 list any more: guesses, the wheel and Superguess
-pricing only ever ask about the round being played, and every round from here
-is 36 or later.
-
-## Delete
-
-- [ ] \`WORDS_THROUGH_ROUND_35\` in \`src/data/guess_words_clean.ts\`
-- [ ] \`LEGACY_WORDS_SET\`, \`WORD_LIST_EXPANSION_ROUND\`, \`isValidGuessForRound\`, \`getWordsForRound\`, \`wordSetForRound\` in \`src/lib/word-validation.ts\`
-- [ ] the four call sites: \`src/lib/guesses.ts\` (step 5a), \`src/lib/wheel.ts\`, \`pages/api/superguess/status.ts\`, \`pages/api/superguess/purchase.ts\`
-- [ ] the additive checks in \`validateWordLists()\` (\`src/lib/word-lists.ts\`)
-- [ ] the two-era assertions in \`src/__tests__/word-lists.test.ts\`
-- [ ] the "through round 35" halves of the counts in \`CLAUDE.md\`, \`README.md\`, \`docs/GITBOOK.md\`, \`docs/GAME_DOCUMENTATION.md\`
-- [ ] **this workflow**, \`.github/workflows/round-36-gate-cleanup.yml\`
-
-## Keep
-
-\`ROUND_36_ADDITIONS\` can stay as its own array. It documents what was added
-and when, and costs nothing once \`WORDS\` is the only list again.
-
-## Do not re-derive
-
-Answer and bonus selection were never gated, because \`createRound\` refuses to
-run while a round is active. The client typing hint in \`pages/index.tsx\` is
-deliberately not gated either: \`currentRoundId\` there is the archive modal's
-round, not the live one.
-
-_Opened automatically by \`.github/workflows/round-36-gate-cleanup.yml\`._
-EOF
-)"
+          sed "s/__ROUND__/$ROUND/g" .github/round-36-cleanup-issue.md > /tmp/body.md
+          gh issue create --title "$TITLE" --body-file /tmp/body.md
