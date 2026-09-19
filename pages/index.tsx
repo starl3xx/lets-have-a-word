@@ -444,7 +444,7 @@ function GameContent() {
   const [showWordModal, setShowWordModal] = useState(false);
   // Bonus Words Feature: Modal for bonus word win celebration
   const [showBonusWordWinModal, setShowBonusWordWinModal] = useState(false);
-  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; rewardWei: string | null; txHash: string | null } | null>(null);
+  const [bonusWordWinData, setBonusWordWinData] = useState<{ word: string; rewardWei: string | null; txHash: string | null; spectator?: boolean } | null>(null);
   // Milestone 14: Burn word modal state
   const [showBurnWordModal, setShowBurnWordModal] = useState(false);
   const [burnWordData, setBurnWordData] = useState<{ word: string; burnAmount: string; txHash: string | null } | null>(null);
@@ -2088,9 +2088,10 @@ function GameContent() {
                   setShowWinnerShareCard(true);
                 } else if (latestGuess.result === 'bonus_word') {
                   setBoxResultState('correct');
-                  // The spectator guess log carries no amount, so the modal
-                  // shows none rather than the rounds 1-33 constant.
-                  setBonusWordWinData({ word: latestGuess.word, rewardWei: null, txHash: null });
+                  // Somebody else's find. The guess log carries neither the
+                  // amount nor the tx hash, so the modal shows no figure and
+                  // makes no promise about a wallet that is not the watcher's.
+                  setBonusWordWinData({ word: latestGuess.word, rewardWei: null, txHash: null, spectator: true });
                   setShowBonusWordWinModal(true);
                 } else if (latestGuess.result === 'burn_word') {
                   setBoxResultState('correct');
@@ -2910,6 +2911,7 @@ function GameContent() {
         <BonusWordWinModal
           word={bonusWordWinData.word}
           rewardWei={bonusWordWinData.rewardWei}
+          spectator={bonusWordWinData.spectator}
           txHash={bonusWordWinData.txHash}
           onClose={() => {
             setShowBonusWordWinModal(false);

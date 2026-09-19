@@ -25,6 +25,13 @@ interface BonusWordWinModalProps {
    */
   rewardWei: string | null;
   txHash: string | null;
+  /**
+   * True when this is somebody ELSE's find, replayed to a superguess
+   * spectator. The modal makes three claims that are only true for the
+   * finder — the delivery line, the XP and badge line, and the heading —
+   * and a spectator is shown none of them.
+   */
+  spectator?: boolean;
   onClose: () => void;
 }
 
@@ -95,6 +102,7 @@ export default function BonusWordWinModal({
   word,
   rewardWei,
   txHash,
+  spectator = false,
   onClose,
 }: BonusWordWinModalProps) {
   const reward = rewardLabel(rewardWei);
@@ -150,7 +158,7 @@ export default function BonusWordWinModal({
             Bonus word found!
           </h2>
           <p className="text-gray-600">
-            You found a secret bonus word
+            {spectator ? 'Another player found a secret bonus word' : 'You found a secret bonus word'}
           </p>
         </div>
 
@@ -173,16 +181,20 @@ export default function BonusWordWinModal({
               <div className="text-2xl font-bold text-purple-700">
                 {reward ? `+${reward} $WORD` : '$WORD reward'}
               </div>
-              <div className="text-sm text-purple-500">
-                {txHash ? 'Sent to your wallet' : 'On its way'}
-              </div>
+              {!spectator && (
+                <div className="text-sm text-purple-500">
+                  {txHash ? 'Sent to your wallet' : 'On its way'}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className="text-xl">🏆</span>
             <span className="text-sm font-medium text-purple-600">
-              +250 XP &amp; 🎣 badge earned!
+              {spectator
+                ? '+250 XP & 🎣 badge for the finder'
+                : '+250 XP & 🎣 badge earned!'}
             </span>
           </div>
         </div>
