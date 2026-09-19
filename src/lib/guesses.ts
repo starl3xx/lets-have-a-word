@@ -6,6 +6,7 @@ import type { RoundBonusWordRow } from '../db/schema';
 import { checkBurnWordMatch, handleBurnWordWin } from './burn-words';
 import { getActiveRound, getActiveRoundForUpdate } from './rounds';
 import { isValidGuess } from './word-lists';
+import { isValidGuessForRound } from './word-validation';
 import { applyPaidGuessEconomicEffects, resolveRoundAndCreatePayouts } from './economics';
 import { DAILY_LIMITS_RULES } from './daily-limits';
 import { checkAndAnnounceJackpotMilestones, checkAndAnnounceGuessMilestones, announceBonusWordFound } from './announcer';
@@ -719,6 +720,20 @@ export async function submitGuess(params: SubmitGuessParams): Promise<SubmitGues
   // Step 5: Check if round is already resolved
   if (round.resolvedAt !== null) {
     return { status: 'round_closed' };
+  }
+
+  // Step 5a: Re-check the dictionary for THIS round's era.
+  //
+  // Step 3 above rejects anything that is not a word at all, before touching
+  // the database. This second pass costs one Set lookup and catches the words
+  // added for round 36 being guessed in round 35, whose answer was committed
+  // from the smaller list. Same response as step 3, so no guess is consumed.
+  // Delete both this and WORD_LIST_EXPANSION_ROUND once round 36 is underway.
+  if (!isValidGuessForRound(word, round.id)) {
+    return {
+      status: 'invalid_word',
+      reason: 'not_in_dictionary',
+    };
   }
 
   // Step 5b: Superguess blocking (Milestone 15)

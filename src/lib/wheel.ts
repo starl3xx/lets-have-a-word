@@ -12,7 +12,7 @@
 import { db } from '../db';
 import { guesses, rounds, packPurchases } from '../db/schema';
 import { eq, and, sum, count } from 'drizzle-orm';
-import { getGuessWords } from './word-lists';
+import { getWordsForRound } from './word-validation';
 import { getActiveRound, ensureActiveRound } from './rounds';
 import type { WheelWord, WheelWordStatus, WheelResponse } from '../types';
 import { getEthUsdPrice } from './prices';
@@ -94,8 +94,10 @@ export function getEthUsdRate(): number {
 export async function getWheelWordsForRound(roundId: number): Promise<WheelWord[]> {
   console.log(`[getWheelWordsForRound] Fetching wheel words for round ${roundId}`);
 
-  // Get all guessable words (these form the complete wheel)
-  const allGuessWords = getGuessWords();
+  // Get all guessable words (these form the complete wheel).
+  // Round-aware: the 145 words added for round 36 must not appear on round
+  // 35's wheel, where they could never be the answer.
+  const allGuessWords = getWordsForRound(roundId);
   console.log(`[getWheelWordsForRound] Total GUESS_WORDS: ${allGuessWords.length}`);
 
   // Get all guesses for this round (both correct and incorrect).

@@ -23,7 +23,7 @@
 
 /**
  * Core common English vocabulary - everyday words suitable for gameplay
- * Total: 3934 words
+ * Total: 3847 words
  */
 export const CORE_COMMON: string[] = [
   "ABACK",
@@ -3942,7 +3942,7 @@ export const COMMON_NAMES: string[] = [
 
 /**
  * Words with inflectional suffixes (-ED forms)
- * Total: 402 words
+ * Total: 505 words
  */
 export const MORPHOLOGICAL: string[] = [
   "ACHED",
@@ -4454,7 +4454,7 @@ export const MORPHOLOGICAL: string[] = [
 
 /**
  * Acceptable slang and informal words
- * Total: 30 words
+ * Total: 38 words
  */
 export const SLANG_ALLOWLIST: string[] = [
   "AIGHT",
@@ -4502,7 +4502,7 @@ export const SLANG_ALLOWLIST: string[] = [
  * These are offensive slurs, highly inappropriate terms, and words
  * that should never appear in the game.
  * All entries must be exactly 5 letters, uppercase.
- * Total: 14 words
+ * Total: 16 words
  */
 export const BANNED_GUESSES: string[] = [
   // Racial/ethnic slurs
@@ -4527,20 +4527,198 @@ export const BANNED_GUESSES: string[] = [
 ];
 
 /**
- * MASTER WORD LIST
- * 
- * This is the SINGLE source of truth for the game.
- * - Secret words are selected from this list
- * - Guesses are validated against this list
- * - No other word list is used at runtime
- * 
- * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4437 words
+ * Words added for round 36 and onward.
+ *
+ * Ordinary English vocabulary, the same bar as CORE_COMMON. Kept as its own
+ * array rather than merged into the category lists so that what was added,
+ * and from which round it counts, stays readable a year from now.
+ *
+ * Total: 145 words
  */
-export const WORDS: string[] = [
+export const ROUND_36_ADDITIONS: string[] = [
+  "ABBOT",
+  "ABUZZ",
+  "AGLOW",
+  "ANNUL",
+  "ANTIC",
+  "APHID",
+  "ARDOR",
+  "ASHEN",
+  "BALER",
+  "BALSA",
+  "BASTE",
+  "BEADY",
+  "BEFIT",
+  "BEGET",
+  "BELAY",
+  "BELIE",
+  "BIPED",
+  "BLEAT",
+  "BOCCE",
+  "BOGGY",
+  "BRINY",
+  "BROIL",
+  "BYWAY",
+  "CAGEY",
+  "CARET",
+  "CAROL",
+  "CHAFE",
+  "CHIDE",
+  "CHIVE",
+  "CIVIC",
+  "COPSE",
+  "COYLY",
+  "CRIER",
+  "CROON",
+  "CURIO",
+  "DALLY",
+  "DEIGN",
+  "DIRGE",
+  "DIVOT",
+  "DOILY",
+  "DOWEL",
+  "DRAWL",
+  "EDIFY",
+  "ELATE",
+  "ELFIN",
+  "EMOTE",
+  "ENDOW",
+  "ENNUI",
+  "EXTOL",
+  "FETID",
+  "FILER",
+  "FILMY",
+  "FLOUT",
+  "FOAMY",
+  "FOIST",
+  "FRILL",
+  "FROND",
+  "GAZER",
+  "GEODE",
+  "GONER",
+  "GRIFT",
+  "GRUBS",
+  "GUPPY",
+  "HEEDS",
+  "HIDER",
+  "HONES",
+  "HOVEL",
+  "HOWDY",
+  "HUMUS",
+  "IDLER",
+  "IMBUE",
+  "IMPEL",
+  "INGOT",
+  "JOIST",
+  "JOULE",
+  "JOUST",
+  "JULEP",
+  "KAZOO",
+  "KILTS",
+  "LEACH",
+  "LICIT",
+  "LITHE",
+  "LIVID",
+  "LOTTO",
+  "LUTES",
+  "MANGY",
+  "MASON",
+  "MENDS",
+  "MIMIC",
+  "MISTY",
+  "MOREL",
+  "MOSEY",
+  "NEIGH",
+  "OAKEN",
+  "OASES",
+  "OCTET",
+  "OPINE",
+  "ORATE",
+  "OVOID",
+  "OWLET",
+  "OXBOW",
+  "PAEAN",
+  "PAVER",
+  "PAYEE",
+  "PETTY",
+  "POLYP",
+  "POUTY",
+  "PREEN",
+  "QUALM",
+  "RATER",
+  "RAVER",
+  "ROWDY",
+  "SANDY",
+  "SATYR",
+  "SCALD",
+  "SERVO",
+  "SHUCK",
+  "SIDLE",
+  "SINGE",
+  "SITAR",
+  "SKEIN",
+  "SOWER",
+  "SPLAY",
+  "STARK",
+  "STILT",
+  "STRUM",
+  "SWILL",
+  "TARRY",
+  "TENET",
+  "TILDE",
+  "TRIKE",
+  "UMBRA",
+  "UNBOX",
+  "UNLIT",
+  "UPEND",
+  "UVULA",
+  "VALET",
+  "VOGUE",
+  "WARTY",
+  "WAXEN",
+  "WEEPY",
+  "WISPY",
+  "WOOZY",
+  "YODEL",
+  "YOKEL",
+];
+
+/**
+ * The list rounds 1-35 played with.
+ *
+ * TEMPORARY, AND BORN WITH AN EXPIRY. Round 35 was live when the additions
+ * landed, and its answer, bonus words and burn words were all committed
+ * onchain from the smaller list. Letting 145 new words into that round would
+ * have put words on the wheel that could not be the answer, and let a player
+ * spend a paid guess on one. Nothing needs this list once round 36 is
+ * underway: delete it, delete WORD_LIST_EXPANSION_ROUND in word-validation.ts
+ * and the two call sites that read them, and let WORDS be the only list again.
+ *
+ * Total: 4438 words
+ */
+export const WORDS_THROUGH_ROUND_35: string[] = [
   ...CORE_COMMON,
   ...BIG_PLACES,
   ...COMMON_NAMES,
   ...MORPHOLOGICAL,
   ...SLANG_ALLOWLIST,
+].filter(w => !BANNED_GUESSES.includes(w)).sort();
+
+/**
+ * MASTER WORD LIST — round 36 onward.
+ * 
+ * This is the SINGLE source of truth for the game.
+ * - Secret words are selected from this list
+ * - Guesses are validated against this list
+ * - No other word list is used at runtime
+ *
+ * Round selection needs no era check: createRound refuses to run while a
+ * round is active, so every round created from here is 36 or later.
+ * 
+ * Derived from category arrays, filtered by BANNED_GUESSES.
+ * Total: 4583 words
+ */
+export const WORDS: string[] = [
+  ...WORDS_THROUGH_ROUND_35,
+  ...ROUND_36_ADDITIONS,
 ].filter(w => !BANNED_GUESSES.includes(w)).sort();
