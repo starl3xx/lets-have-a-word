@@ -4533,7 +4533,7 @@ export const BANNED_GUESSES: string[] = [
  * array rather than merged into the category lists so that what was added,
  * and from which round it counts, stays readable a year from now.
  *
- * Total: 145 words
+ * Total: 146 words
  */
 export const ROUND_36_ADDITIONS: string[] = [
   "ABBOT",
@@ -4674,6 +4674,7 @@ export const ROUND_36_ADDITIONS: string[] = [
   "UVULA",
   "VALET",
   "VOGUE",
+  "VOXEL",
   "WARTY",
   "WAXEN",
   "WEEPY",
@@ -4716,7 +4717,7 @@ export const WORDS_THROUGH_ROUND_35: string[] = [
  * round is active, so every round created from here is 36 or later.
  * 
  * Derived from category arrays, filtered by BANNED_GUESSES.
- * Total: 4583 words
+ * Total: 4584 words
  */
 export const WORDS: string[] = [
   ...WORDS_THROUGH_ROUND_35,

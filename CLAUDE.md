@@ -63,8 +63,8 @@ npm run oracle:cron            # Update $WORD market cap oracle
 Core tables: `users`, `rounds`, `guesses`, `daily_guess_state`, `round_payouts`, `pack_purchases`, `user_badges`, `game_rules`
 
 ### Word List (`/src/data/guess_words_clean.ts`)
-- **4,583 curated words from round 36** - unified list for guessing and answers. Rounds 1-35 played with 4,438; `WORDS_THROUGH_ROUND_35` preserves that list so the live round 35 was not changed under its players, and it is deletable once round 36 is underway.
-- Categories: CORE_COMMON (3,847), BIG_PLACES (19), COMMON_NAMES (32), MORPHOLOGICAL (505), SLANG_ALLOWLIST (38), ROUND_36_ADDITIONS (145)
+- **4,584 curated words from round 36** - unified list for guessing and answers. Rounds 1-35 played with 4,438; `WORDS_THROUGH_ROUND_35` preserves that list so the live round 35 was not changed under its players, and it is deletable once round 36 is underway.
+- Categories: CORE_COMMON (3,847), BIG_PLACES (19), COMMON_NAMES (32), MORPHOLOGICAL (505), SLANG_ALLOWLIST (38), ROUND_36_ADDITIONS (146)
 - BANNED_GUESSES (16 words) filtered out automatically
 - **Guess validation is round-aware.** `isValidGuessForRound(word, roundId)` is the authority; plain `isValidGuess` reads the current list and is only for answer-candidate checks at round creation and the client's first paint. Answer and bonus selection need no era check, because `createRound` refuses to run while a round is active, so every round created from here is 36 or later.
 - Uses `Set` for O(1) lookup performance

@@ -65,7 +65,7 @@ You can earn additional free guesses each day:
 ### Word Validation
 
 - Must be exactly **5 letters**
-- Must be in the game's dictionary (4,583 words from round 36; 4,438 through round 35)
+- Must be in the game's dictionary (4,584 words from round 36; 4,438 through round 35)
 - Cannot guess the same word twice in a round
 - Case-insensitive (BRAIN = brain = BrAiN)
 
@@ -259,7 +259,7 @@ The verification page shows:
 ### How a Round Works
 
 1. **Round Creation**
-   - A random word is selected from the 4,583-word dictionary
+   - A random word is selected from the 4,584-word dictionary
    - The word's hash is committed onchain
    - The round is announced on Farcaster
 
@@ -297,7 +297,7 @@ XP is tracked for every player. Currently, XP has no gameplay effect, but future
 
 ### How many possible words are there?
 
-Let's Have A Word uses a custom list of **4,583 five-letter words** (4,438 through round 35). This list is curated by the game's creator and is intentionally designed to keep gameplay fair, challenging, and fun.
+Let's Have A Word uses a custom list of **4,584 five-letter words** (4,438 through round 35). This list is curated by the game's creator and is intentionally designed to keep gameplay fair, challenging, and fun.
 
 ### What happens to my unused guesses?
 
