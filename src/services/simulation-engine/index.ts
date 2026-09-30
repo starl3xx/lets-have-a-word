@@ -13,6 +13,7 @@ import { db } from '../../db';
 import { rounds, guesses, users, roundPayouts } from '../../db/schema';
 import { eq, and, desc, gte, lte, count, sql } from 'drizzle-orm';
 import { logAnalyticsEvent } from '../../lib/analytics';
+import { WORDS } from '../../data/guess_words_clean';
 
 // Simulation event types
 export const SimulationEventTypes = {
@@ -568,7 +569,7 @@ export async function runFrontRunRiskSimulation(): Promise<FrontRunRiskResult> {
     riskLevel: 'low',
     mitigations: [
       '64-byte random salt makes pre-image attacks computationally infeasible',
-      'Answer space (2,279 words) is small but salt entropy compensates',
+      `Answer space (${WORDS.length.toLocaleString('en-US')} words) is small but salt entropy compensates`,
     ],
   });
 

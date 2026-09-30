@@ -143,22 +143,6 @@ export function markInputPainted(): void {
 }
 
 /**
- * Extreme wheel jump test positions
- * Can be used to force wheel to specific positions for testing
- */
-export const ExtremeJumpTests = {
-  // First letter positions (approximate for ~10,000 words)
-  A: 0,      // Words starting with A
-  B: 500,    // Words starting with B
-  C: 900,    // Words starting with C
-  Z: 10400,  // Words starting with Z
-  // Specific jump tests
-  AtoZ: { from: 0, to: 10400 },
-  ZtoA: { from: 10400, to: 0 },
-  MiddleJump: { from: 2000, to: 8000 },
-} as const;
-
-/**
  * Log a dev mode debug message (only in development)
  */
 export function devLog(category: string, ...args: unknown[]): void {

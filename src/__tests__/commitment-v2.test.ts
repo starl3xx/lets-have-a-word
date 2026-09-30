@@ -214,7 +214,7 @@ describe('Burn word selection (full word list)', () => {
       expect(allAnswerWords.has(word)).toBe(true);
     }
 
-    // With 20 trials * 5 words = 100 selections from 4,438 words,
+    // With 20 trials * 5 words = 100 selections from 4,584 words,
     // we should see far more than 18 unique words (old themed pool size)
     expect(allBurnWords.size).toBeGreaterThan(18);
   });

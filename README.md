@@ -140,7 +140,7 @@ src/
 │   ├── xp.ts              # XP event system
 │   └── appErrors.ts       # 40+ unified error codes
 ├── db/schema.ts           # Drizzle schema (all tables)
-├── data/guess_words_clean.ts  # 4,584 curated words (4,438 through round 35)
+├── data/guess_words_clean.ts  # 4,584 curated words
 └── services/              # Fairness monitor & simulation engine
 
 components/                # React UI components
@@ -211,6 +211,14 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 ---
 
 ## Changelog
+
+### 2026-09-30 (during Round 36)
+
+- **The round-36 word gate is gone, and `WORDS` is the only word list again**: Round 36 is live, and its wheel serves all 4,584 words, so the gate has no more work to do. This change deletes `WORDS_THROUGH_ROUND_35`, `isValidGuessForRound`, `getWordsForRound` and the second dictionary check in the guess path. Guesses, the wheel and Superguess pricing read the one list again. The reminder workflow that opened issue #330 is also deleted.
+
+- **Two guess percentages divided by an old word count**: The top ticker shows "Global Guesses (≈N%)" to every player. It divided by a hard-coded 4,437, so at 2,000 guesses it showed ≈45% where the true figure is ≈44%. The same number sets the colour of that figure. The admin status cast divided by 4,400. Both now divide by `WORDS.length`, so a change to the list cannot make them wrong again.
+
+- **Every stated count is now 4,584**: The in-app FAQ said 4,438; it now says 4,584, and so does `FAQ.md`. `CLAUDE.md`, `docs/GITBOOK.md` and `docs/GAME_DOCUMENTATION.md` no longer give a "through round 35" count. Code comments that said 10,516 words (a much older list) now say about 4,600. The security simulation report said the answer space was 2,279 words; it now reads the real count. `ExtremeJumpTests` in `perf-debug.ts` had no users and assumed about 10,000 words, so this change deletes it.
 
 ### 2026-09-19 (during Round 35)
 
@@ -1858,9 +1866,9 @@ Real-time ETH to USD conversion for the jackpot display using CoinGecko's free A
 Finalized integration of canonical word lists (later unified in Milestone 7.1):
 
 - **Unified Word List** (updated in 7.1)
-  - **WORDS**: 4,438 curated words (single list for guessing and answers)
+  - **WORDS**: 4,584 curated words (single list for guessing and answers)
   - Located in `src/data/guess_words_clean.ts`
-  - Categories: CORE_COMMON, BIG_PLACES, COMMON_NAMES, MORPHOLOGICAL, SLANG_ALLOWLIST
+  - Categories: CORE_COMMON, BIG_PLACES, COMMON_NAMES, MORPHOLOGICAL, SLANG_ALLOWLIST, ROUND_36_ADDITIONS
   - BANNED_GUESSES excluded automatically
   - All words in UPPERCASE for consistency
 

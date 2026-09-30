@@ -256,7 +256,7 @@ If you can't play and you're a real human, the most common cause is a brand-new 
 
 ## How many possible words are there?
 
-Let's Have A Word uses a custom list of **4,438** five-letter words.
+Let's Have A Word uses a custom list of **4,584** five-letter words.
 
 This list is curated by the game's creator and is not the same as Wordle's or any other off-the-shelf word list. Unlike Wordle, which uses separate lists for answers and valid guesses, Let's Have A Word uses a single canonical list.
 

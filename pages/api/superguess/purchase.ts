@@ -36,7 +36,7 @@ import {
 } from '../../../src/lib/superguess';
 import { getActiveRound } from '../../../src/lib/rounds';
 import { getTotalGuessCountInRound } from '../../../src/lib/guesses';
-import { getWordsForRound } from '../../../src/lib/word-validation';
+import { getGuessWords } from '../../../src/lib/word-lists';
 import { awardWordmark } from '../../../src/lib/wordmarks';
 import { db } from '../../../src/db';
 import { users, superguessSessions } from '../../../src/db/schema';
@@ -148,9 +148,7 @@ export default async function handler(
     // endpoints price from the same (legacy ladder) basis in dev and the dev
     // session row never records a pool-half price no dev UI displayed.
     const isDevMode = isDevModeEnabled();
-    // Same round-aware basis as status.ts, so the pinned quote and this
-    // recompute cannot disagree about how many words are left.
-    const totalDictionaryWords = getWordsForRound(activeRound.id).length;
+    const totalDictionaryWords = getGuessWords().length;
     const tier = await getSuperguessQuote(
       isDevMode ? null : activeRound,
       globalGuessCount,

@@ -84,7 +84,7 @@ Guess packs are still bought with **ETH** — only the prize changed. Each round
 
 ### Word Validation
 - Must be exactly **5 letters**
-- Must be in the **WORDS** dictionary (4,584 curated words from round 36; 4,438 through round 35)
+- Must be in the **WORDS** dictionary (4,584 curated words)
 - Unified list: same words for guessing and answers (Milestone 7.1)
 - Cannot guess the same word twice in a round
 - Case-insensitive (BRAIN = brain = BrAiN)
@@ -92,7 +92,7 @@ Guess packs are still bought with **ETH** — only the prize changed. Each round
 
 ### Per-User Per-Day Random Wheel Start Position
 
-The word wheel displays all possible guess words for the round being played, 4,584 from round 36 and 4,438 through round 35. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
+The word wheel displays all 4,584 possible guess words. To provide variety and prevent pattern recognition, each user sees a different starting position in the wheel.
 
 **Production Behavior:**
 - Random starting index generated **once per day** at 11:00 UTC per user
@@ -888,7 +888,7 @@ haptics.wrongGuess()      // Subtle feedback
 
 ### Unified Word List (Milestone 7.1)
 
-#### WORDS (4,584 words from round 36; 4,438 through round 35)
+#### WORDS (4,584 words)
 Single curated word list for both guessing and answers.
 - **File**: `/src/data/guess_words_clean.ts`
 - **Format**: UPPERCASE array, derived from category arrays
@@ -1347,12 +1347,12 @@ Four sites deliberately carry **no** suffix, all plain ETH transfers where
 - Real layout gap for input boxes
 
 ### Milestone 4.11: Final Word List Integration & Virtualization
-- **Unified Word List**: WORDS (4,584 curated words from round 36)
+- **Unified Word List**: WORDS (4,584 curated words)
 - **UPPERCASE Normalization**: All words stored and validated in UPPERCASE
 - **Deprecated SEED_WORDS**: No longer used in game logic
 - **Virtual Scrolling**: Renders ~100 visible words (99.5% DOM reduction)
 - **Binary Search**: O(log n) alphabetical positioning (750x faster)
-- **Performance**: 60 FPS with 4,438 words
+- **Performance**: 60 FPS with the full word list
 - **Fast Rotation**: 150ms animated scroll with visible wheel rotation
 - **Dynamic Gap**: 10vh responsive gap height
 - **Single List Architecture**: One unified list for guessing and answers
@@ -1573,7 +1573,6 @@ Four sites deliberately carry **no** suffix, all plain ETH transfers where
   - `markKeydown()` / `markInputPainted()` for input timing
   - `logWheelAnimationStart()` / `logWheelAnimationEnd()` for wheel timing
   - Measures keydown-to-paint and keydown-to-wheel-animation times
-  - `ExtremeJumpTests` for testing A↔Z wheel rotations
 - **Wheel Component Optimizations** (`components/Wheel.tsx`):
   - Console.log statements gated behind `devLog()` utility
   - Performance logs use `perfLog()` (only when PERF_DEBUG enabled)
@@ -1590,7 +1589,7 @@ Four sites deliberately carry **no** suffix, all plain ETH transfers where
 #### Performance Metrics
 - Input boxes re-render only affected slot (not all 5)
 - Wheel animation capped at 100-250ms regardless of distance
-- Virtual scrolling renders ~100 words instead of 4,438
+- Virtual scrolling renders ~100 words instead of all 4,584
 - Binary search O(log n) for alphabetical positioning
 
 #### Environment Variables
@@ -2360,7 +2359,7 @@ const fid = verifyResult.sub; // Verified FID from JWT
 - **Goal**: Integrate $WORD token rewards and penalties into round gameplay, with onchain commitment and verification via the WordManager contract (upgraded to V3 with Synthetix streaming staking)
 
 #### Bonus Words
-Each round includes **10 hidden bonus words** drawn from the full 4,438-word dictionary. These aren't the secret answer — they're side-quest discoveries that reward explorers.
+Each round includes **10 hidden bonus words** drawn from the full 4,584-word dictionary. These aren't the secret answer — they're side-quest discoveries that reward explorers.
 
 - Each bonus word is worth **$1.50 of $WORD**, oracle-priced at the moment of the find and transferred directly to the finder's wallet. Rounds 1-33 paid a flat 5M
 - Detected automatically during guess submission — no special action required

@@ -7,7 +7,7 @@ import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '.
  * Wheel Component - Milestone 4.11 with 4.5 animation behavior restored + 6.4.5 uniform jump UX + 6.4.8 alive animation
  *
  * Animation behavior: Exact match to milestone 4.5 (proven perfect)
- * Performance: Virtualization + binary search for 10,516 words
+ * Performance: Virtualization + binary search for ~4,600 words
  *
  * Key behaviors from 4.5:
  * - Native smooth scrolling feel
@@ -18,7 +18,7 @@ import { devLog, perfLog, logWheelAnimationStart, logWheelAnimationEnd } from '.
  *
  * Performance optimizations:
  * - Binary search O(log n) instead of findIndex O(n)
- * - Renders only ~100 visible words instead of all 10,516
+ * - Renders only ~100 visible words instead of all ~4,600
  * - useDeferredValue to keep input responsive
  *
  * Milestone 6.4: Animation performance tuning
@@ -230,7 +230,7 @@ export default function Wheel({ words, currentGuess, inputState, startIndex }: W
 
   /**
    * Calculate visible range for virtualization (Performance optimization)
-   * Only render ~100 words instead of all 10,516
+   * Only render ~100 words instead of all ~4,600
    * CRITICAL: Always include gapIndex to ensure gap can be scrolled to
    */
   const visibleRange = useMemo(() => {

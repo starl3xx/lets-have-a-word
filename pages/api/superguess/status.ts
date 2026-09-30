@@ -23,7 +23,7 @@ import {
 } from '../../../src/lib/superguess';
 import { getActiveRound } from '../../../src/lib/rounds';
 import { getTotalGuessCountInRound } from '../../../src/lib/guesses';
-import { getWordsForRound } from '../../../src/lib/word-validation';
+import { getGuessWords } from '../../../src/lib/word-lists';
 import { isDevModeEnabled } from '../../../src/lib/devGameState';
 import { getEthUsdPrice } from '../../../src/lib/prices';
 
@@ -59,9 +59,7 @@ export default async function handler(
     }
 
     const realGuessCount = await getTotalGuessCountInRound(roundId);
-    // Round-aware: the legacy ladder buckets on (dictionary - guesses), so a
-    // round 35 quote must not count the 145 words added for round 36.
-    const totalDictionaryWords = getWordsForRound(roundId).length;
+    const totalDictionaryWords = getGuessWords().length;
 
     // In dev mode, use a synthetic guess count above threshold so the UI is always testable
     const globalGuessCount = isDevModeEnabled()
