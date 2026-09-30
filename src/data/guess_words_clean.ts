@@ -13,6 +13,7 @@
  * - COMMON_NAMES: Common first names (primarily used as names)
  * - MORPHOLOGICAL: Words with inflectional suffixes (-ED, -ER, -EST, etc.)
  * - SLANG_ALLOWLIST: Acceptable slang/informal words
+ * - ROUND_36_ADDITIONS: Ordinary vocabulary added from round 36
  * - BANNED_GUESSES: Words that should never be valid (blacklist)
  * 
  * Secret word selection: Uses WORDS only
@@ -4685,41 +4686,23 @@ export const ROUND_36_ADDITIONS: string[] = [
 ];
 
 /**
- * The list rounds 1-35 played with.
+ * MASTER WORD LIST
  *
- * TEMPORARY, AND BORN WITH AN EXPIRY. Round 35 was live when the additions
- * landed, and its answer, bonus words and burn words were all committed
- * onchain from the smaller list. Letting 145 new words into that round would
- * have put words on the wheel that could not be the answer, and let a player
- * spend a paid guess on one. Nothing needs this list once round 36 is
- * underway: delete it, delete WORD_LIST_EXPANSION_ROUND in word-validation.ts
- * and the two call sites that read them, and let WORDS be the only list again.
- *
- * Total: 4438 words
- */
-export const WORDS_THROUGH_ROUND_35: string[] = [
-  ...CORE_COMMON,
-  ...BIG_PLACES,
-  ...COMMON_NAMES,
-  ...MORPHOLOGICAL,
-  ...SLANG_ALLOWLIST,
-].filter(w => !BANNED_GUESSES.includes(w)).sort();
-
-/**
- * MASTER WORD LIST — round 36 onward.
- * 
  * This is the SINGLE source of truth for the game.
  * - Secret words are selected from this list
  * - Guesses are validated against this list
  * - No other word list is used at runtime
  *
- * Round selection needs no era check: createRound refuses to run while a
- * round is active, so every round created from here is 36 or later.
- * 
+ * Rounds 1-35 played without ROUND_36_ADDITIONS (4438 words).
+ *
  * Derived from category arrays, filtered by BANNED_GUESSES.
  * Total: 4584 words
  */
 export const WORDS: string[] = [
-  ...WORDS_THROUGH_ROUND_35,
+  ...CORE_COMMON,
+  ...BIG_PLACES,
+  ...COMMON_NAMES,
+  ...MORPHOLOGICAL,
+  ...SLANG_ALLOWLIST,
   ...ROUND_36_ADDITIONS,
 ].filter(w => !BANNED_GUESSES.includes(w)).sort();

@@ -43,7 +43,7 @@ import {
 // $WORD at 2.56e-7 USD → priceE18 = 2.56e11. $40 of tokens = 156.25M tokens.
 const PRICE_E18 = '256000000000';
 const POOL_40_USD_WEI = '156250000000000000000000000';
-const DICT = 4437;
+const DICT = 4584;
 
 function wordRound(overrides: Record<string, string | null> = {}) {
   return {
@@ -110,7 +110,7 @@ describe('getSuperguessQuote', () => {
       900,
       DICT
     );
-    // 4437 - 900 = 3537 remaining → tier_1.
+    // 4584 - 900 = 3684 remaining → tier_1.
     expect(quote).toEqual({ id: 'tier_1', usdPrice: 20 });
   });
 
@@ -120,7 +120,7 @@ describe('getSuperguessQuote', () => {
       3000,
       DICT
     );
-    // 1437 remaining → tier_4. Loud legacy pricing beats a silent $0 quote.
+    // 1584 remaining → tier_4. Loud legacy pricing beats a silent $0 quote.
     expect(quote).toEqual({ id: 'tier_4', usdPrice: 90 });
   });
 

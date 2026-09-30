@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { formatPrizeCompact } from '../src/lib/prize-display';
 import { noteServerBuildSha } from '../src/lib/buildFreshness';
 import type { RoundStatus } from '../src/lib/wheel';
+// Already in this route's bundle via pages/index.tsx, so the count costs nothing.
+import { WORDS } from '../src/data/guess_words_clean';
 
 // Total words in the game dictionary (for percentage calculation)
-const TOTAL_WORD_COUNT = 4437;
+const TOTAL_WORD_COUNT = WORDS.length;
 
 /**
  * Round-state prefetch, started at MODULE EVALUATION — before hydration and

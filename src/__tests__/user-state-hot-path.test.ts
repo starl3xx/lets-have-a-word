@@ -158,7 +158,7 @@ describe('prefetched daily state', () => {
   });
 
   it('getOrGenerateWheelStartIndex returns the handed row’s index without touching the database', async () => {
-    const index = await getOrGenerateWheelStartIndex(GHOST_FID, undefined, 4437, row({}));
+    const index = await getOrGenerateWheelStartIndex(GHOST_FID, undefined, 4584, row({}));
     expect(index).toBe(1234);
 
     const created = await db

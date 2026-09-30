@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertBanner, Module } from "./ui"
 import { formatPrizeCompact } from "../../src/lib/prize-display"
+import { WORDS } from "../../src/data/guess_words_clean"
 import { adminFont as fontFamily } from "./ui"
 
 // =============================================================================
@@ -128,8 +129,8 @@ export default function SocialSection({ user }: SocialSectionProps) {
       const globalGuesses = globalGuessCount.toLocaleString()
       const playerCount = topGuessersData.uniqueGuessersCount?.toLocaleString() || "0"
 
-      // Calculate percentage of valid words guessed (total valid words ≈ 4400)
-      const totalValidWords = 4400
+      // Calculate percentage of valid words guessed
+      const totalValidWords = WORDS.length
       const guessPercentage = Math.round((globalGuessCount / totalValidWords) * 100)
 
       let topGuessersStr = ""

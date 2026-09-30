@@ -7,13 +7,7 @@ import {
   validateWordLists,
 } from '../lib/word-lists';
 import {
-  isValidGuessForRound,
-  getWordsForRound,
-  WORD_LIST_EXPANSION_ROUND,
-} from '../lib/word-validation';
-import {
   WORDS,
-  WORDS_THROUGH_ROUND_35,
   ROUND_36_ADDITIONS,
   BANNED_GUESSES,
 } from '../data/guess_words_clean';
@@ -78,21 +72,15 @@ describe('Word Lists - Milestone 4.13', () => {
 });
 
 /**
- * The round-36 expansion.
+ * The words added from round 36.
  *
- * Round 35 was live when these landed, and its answer, bonus words and burn
- * words were committed onchain from the smaller list. A new word can never be
- * round 35's answer, so letting one through would have put impossible words
- * on that round's wheel and let a player spend a paid guess on one.
+ * Rounds 1-35 played with 4,438 words. From round 36, WORDS is the only list,
+ * so every addition is a valid guess and a possible answer.
  */
-describe('round 36 word list expansion', () => {
-  it('adds 146 words, all of them genuinely new', () => {
+describe('round 36 word list additions', () => {
+  it('adds 146 distinct words', () => {
     expect(ROUND_36_ADDITIONS).toHaveLength(146);
     expect(new Set(ROUND_36_ADDITIONS).size).toBe(146);
-
-    const legacy = new Set(WORDS_THROUGH_ROUND_35);
-    const alreadyThere = ROUND_36_ADDITIONS.filter(w => legacy.has(w));
-    expect(alreadyThere, `already playable before round 36: ${alreadyThere.join(', ')}`).toEqual([]);
   });
 
   it('keeps every word 5 uppercase letters and none of them banned', () => {
@@ -101,45 +89,10 @@ describe('round 36 word list expansion', () => {
     expect(banned, `banned words in the additions: ${banned.join(', ')}`).toEqual([]);
   });
 
-  it('is purely additive: 4,438 becomes 4,584 and nothing is lost', () => {
-    expect(WORDS_THROUGH_ROUND_35).toHaveLength(4438);
+  it('makes WORDS the canonical 4,584, additions included', () => {
     expect(WORDS).toHaveLength(4584);
-    const current = new Set(WORDS);
-    expect(WORDS_THROUGH_ROUND_35.every(w => current.has(w))).toBe(true);
-  });
-
-  it('refuses a new word in round 35 and accepts it in round 36', () => {
-    // ABBOT is in the additions; BRAIN was always playable.
-    expect(isValidGuessForRound('ABBOT', 35)).toBe(false);
-    expect(isValidGuessForRound('ABBOT', WORD_LIST_EXPANSION_ROUND)).toBe(true);
-    expect(isValidGuessForRound('ABBOT', 99)).toBe(true);
-
-    expect(isValidGuessForRound('BRAIN', 35)).toBe(true);
-    expect(isValidGuessForRound('BRAIN', 36)).toBe(true);
-  });
-
-  it('normalises case the same way in both eras', () => {
-    expect(isValidGuessForRound('abbot', 36)).toBe(true);
-    expect(isValidGuessForRound('  Abbot  ', 36)).toBe(true);
-    expect(isValidGuessForRound('abbot', 35)).toBe(false);
-  });
-
-  it('rejects a non-word in every round', () => {
-    expect(isValidGuessForRound('xyzab', 35)).toBe(false);
-    expect(isValidGuessForRound('xyzab', 36)).toBe(false);
-  });
-
-  it('serves the wheel a round-sized list', () => {
-    expect(getWordsForRound(35)).toHaveLength(4438);
-    expect(getWordsForRound(36)).toHaveLength(4584);
-    expect(getWordsForRound(35)).not.toContain('ABBOT');
-    expect(getWordsForRound(36)).toContain('ABBOT');
-  });
-
-  it('leaves answer selection on the current list, because every new round is 36+', () => {
-    // createRound refuses while a round is active, so the next round created
-    // is 36 or later and its answer may come from the additions.
-    expect(isValidAnswer('ABBOT')).toBe(true);
-    expect(isValidGuess('ABBOT')).toBe(true);
+    expect(getGuessWords()).toHaveLength(4584);
+    const missing = ROUND_36_ADDITIONS.filter(w => !isValidGuess(w) || !isValidAnswer(w));
+    expect(missing, `additions not playable: ${missing.join(', ')}`).toEqual([]);
   });
 });

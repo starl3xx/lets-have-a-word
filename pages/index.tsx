@@ -1033,7 +1033,7 @@ function GameContent() {
 
   /**
    * CRITICAL: Create memoized Set of wrong guesses for O(1) lookup
-   * Using wheelWords.some() would be O(n) through 10,516 words on every keystroke!
+   * Using wheelWords.some() would be O(n) through ~4,600 words on every keystroke!
    * This must be defined BEFORE the useEffects that use it.
    */
   const wrongGuessesSet = useMemo(() => {
@@ -1059,18 +1059,6 @@ function GameContent() {
 
   const currentInputState: InputState = useMemo(() => getInputState({
     letters,
-    // Deliberately NOT round-gated, unlike the server check.
-    //
-    // There is no live round id in this component: `currentRoundId` is the
-    // ARCHIVE MODAL's round, written only by TopTicker's onRoundClick, so
-    // feeding it here would validate the player's typing against whatever
-    // historical round they last opened — marking real words invalid in a
-    // later round, the answer included. Holding the live id instead would put
-    // a fetch dependency on the typing path for a check this file's own
-    // header calls "UX only": /api/guess re-validates every submission and
-    // remains the authority. The bounded cost is that during round 35 one of
-    // the 145 round-36 words types as valid and is refused on submit, with no
-    // guess consumed. That ends when round 36 starts.
     isInGuessList: currentWord.length === 5 ? isValidGuess(currentWord) : true,
     isAlreadyGuessed: isWordAlreadyGuessed,
     isSubmitting: isLoading,
