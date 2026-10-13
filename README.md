@@ -212,6 +212,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-10-13 (during Round 37)
+
+- **A Farcaster guess asks for a fresh sign-in token every time**: The page fetched its Quick Auth token once, when the Farcaster context arrived, and never asked again. On 2026-10-13 Farcaster's `/verify-siwf` answered 500 for at least one player (Sentry LETS-HAVE-A-WORD-32), so the page held no token, and every guess went out with a bare `miniAppFid`, which `/api/guess` refuses by design. The player, who had just bought three guesses, saw "Please refresh the app to sign in securely" on every try. No guess was spent, but paid guesses expire at 11:00 UTC. The guess path now calls the new `requestQuickAuthToken` in `src/lib/hostActions.ts` on each submit. The SDK returns its cached token while it is valid, so this costs nothing when all is well, and it also replaces a token that has expired, which the copy in React state never did. If no token arrives within 8 seconds, the guess is not sent, and the player reads "Farcaster sign-in didn’t go through, so this guess wasn’t used. Wait a moment, then try again." A token that arrives after the timeout is kept for the next guess.
+
 ### 2026-09-30 (during Round 36)
 
 - **The round-36 word gate is gone, and `WORDS` is the only word list again**: Round 36 is live, and its wheel serves all 4,584 words, so the gate has no more work to do. This change deletes `WORDS_THROUGH_ROUND_35`, `isValidGuessForRound`, `getWordsForRound` and the second dictionary check in the guess path. Guesses, the wheel and Superguess pricing read the one list again. The reminder workflow that opened issue #330 is also deleted.

@@ -115,6 +115,7 @@ import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
 import { useGuessInput } from '../src/hooks/useGuessInput';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
+import { requestQuickAuthToken } from '../src/lib/hostActions';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
@@ -1393,14 +1394,19 @@ function GameContent() {
       // Build request body with appropriate authentication
       const requestBody: any = { word };
 
-      if (isInMiniApp && fid && authToken) {
-        // In mini app context: use Quick Auth token for verified authentication
-        requestBody.authToken = authToken;
-      } else if (isInMiniApp && fid) {
-        // Fallback: mini app without auth token (shouldn't happen normally)
-        // This will be rejected by the server for security
-        console.warn('[Guess] No auth token available, request may be rejected');
-        requestBody.miniAppFid = fid;
+      if (isInMiniApp && fid) {
+        // Ask for the token now instead of trusting the one fetched at load,
+        // which may have failed or expired. See requestQuickAuthToken.
+        const token = await requestQuickAuthToken(() => quickAuth.getToken(), setAuthToken);
+        if (!token) {
+          // Without a token /api/guess refuses the guess by design, so do not
+          // send one it will refuse. Nothing has been spent at this point.
+          setErrorMessage('Farcaster sign-in didn’t go through, so this guess wasn’t used. Wait a moment, then try again.');
+          triggerHaptic('error');
+          triggerShake();
+          return;
+        }
+        requestBody.authToken = token;
       } else if (isClientDevMode() && effectiveFid) {
         // Local development: use devFid
         requestBody.devFid = effectiveFid;
