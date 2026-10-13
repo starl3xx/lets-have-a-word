@@ -10,12 +10,20 @@ import { getBaseProvider } from './word-token';
 import { db } from '../db';
 import { guessLogCheckpoints } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import { collectPendingGuesses, lastCommittedIndex } from './guess-log';
+import {
+  collectPendingGuesses,
+  lastCommittedIndex,
+  planCheckpointReconcile,
+  rebuildCheckpointRange,
+  type OnchainCheckpoint,
+} from './guess-log';
 
 const GUESS_LOG_ABI = [
   'function postRoot(uint256 roundId, uint64 fromIndex, uint64 toIndex, bytes32 root) returns (uint256)',
   'function nextIndex(uint256 roundId) view returns (uint64)',
   'function checkpointCount(uint256 roundId) view returns (uint256)',
+  'function getCheckpoints(uint256 roundId) view returns (tuple(uint64 fromIndex, uint64 toIndex, uint64 postedAt, bytes32 root)[])',
+  'event RootPosted(uint256 indexed roundId, uint256 indexed checkpointId, uint64 fromIndex, uint64 toIndex, bytes32 root)',
   // Declared so reverts decode into something readable rather than a raw
   // 4-byte selector in the logs.
   'error NotOperator()',
@@ -75,6 +83,8 @@ export interface PostResult {
   onchainLeaves?: number;
   /** Leaves the local checkpoint table says it holds, on a mismatch. */
   localLeaves?: number;
+  /** Checkpoint rows this call copied in or renumbered from the contract first. */
+  reconciled?: { inserted: number[]; renumbered: Array<{ from: number; to: number }> };
 }
 
 /**
@@ -103,7 +113,9 @@ export async function getOnchainLogState(
  * trusting the local checkpoint table. The two can disagree — a send that
  * landed onchain but failed to record locally would otherwise make us build the
  * next root over a range already committed, and the contract would reject it.
- * Comparing first turns that into a clear message instead of a revert.
+ * When the contract is ahead, the table is first repaired from it (see
+ * reconcileWithContract); anything the repair cannot prove is refused with a
+ * clear message instead of a revert.
  */
 export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   if (!isGuessLogConfigured()) {
@@ -122,23 +134,41 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   // Round 34's first checkpoint proved this the hard way: posting the
   // 1-based fromIndex raw produced NonContiguous(expected 0, got 1) on
   // every cron run.
+  let reconciled: PostResult['reconciled'];
   if (onchainNext !== localCommitted) {
-    return {
-      posted: false,
-      reasonCode: 'index-mismatch',
-      roundId,
-      onchainLeaves: onchainNext,
-      localLeaves: localCommitted,
-      reason:
-        `Checkpoint table and contract disagree for round ${roundId}: ` +
-        `contract has ${onchainNext} leaves committed, local table has ${localCommitted}. ` +
-        `Not posting until this is reconciled.`,
-    };
+    // The contract AHEAD of the table is the known drift: a root that landed
+    // onchain without its row. Try to repair it. The table ahead of the
+    // contract is not something a repair can explain, so it still refuses.
+    const repair =
+      onchainNext > localCommitted ? await reconcileWithContract(roundId, readOnly) : null;
+    const repairedTo = repair?.ok ? await lastCommittedIndex(roundId) : localCommitted;
+
+    if (!repair?.ok || repairedTo !== onchainNext) {
+      return {
+        posted: false,
+        reasonCode: 'index-mismatch',
+        roundId,
+        onchainLeaves: onchainNext,
+        localLeaves: repairedTo,
+        reason:
+          `Checkpoint table and contract disagree for round ${roundId}: ` +
+          `contract has ${onchainNext} leaves committed, local table has ${repairedTo}. ` +
+          (repair && !repair.ok ? `Repair refused: ${repair.reason} ` : '') +
+          `Not posting until this is reconciled.`,
+      };
+    }
+    reconciled = { inserted: repair.inserted, renumbered: repair.renumbered };
   }
 
   const pending = await collectPendingGuesses(roundId);
   if (!pending) {
-    return { posted: false, reasonCode: 'nothing-pending', roundId, reason: 'No new guesses to commit' };
+    return {
+      posted: false,
+      reasonCode: 'nothing-pending',
+      roundId,
+      reason: 'No new guesses to commit',
+      ...(reconciled ? { reconciled } : {}),
+    };
   }
 
   const contract = getContract(getOperator());
@@ -153,7 +183,20 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
   );
   const receipt = await tx.wait();
 
-  const checkpointId = Number(await readOnly.checkpointCount(roundId)) - 1;
+  // The id comes from the receipt's own RootPosted event, never from a second
+  // read: a read after tx.wait() can reach a node one block behind and return
+  // the count from before this post. That is how rounds 34 to 37 each lost a
+  // row (see planCheckpointReconcile).
+  const checkpointId = checkpointIdFromReceipt(receipt, roundId);
+  if (checkpointId === null) {
+    // Landed, but the receipt does not say where. Recording a guessed id is
+    // what broke the table before. The next tick's repair inserts this row
+    // from the contract, with its real id.
+    throw new Error(
+      `Round ${roundId}: postRoot ${tx.hash} has no RootPosted event in its receipt. ` +
+        'The next tick reconciles the table from the contract.'
+    );
+  }
 
   await db.insert(guessLogCheckpoints).values({
     roundId,
@@ -181,7 +224,123 @@ export async function postNextCheckpoint(roundId: number): Promise<PostResult> {
     root: pending.root,
     txHash: tx.hash,
     checkpointId,
+    ...(reconciled ? { reconciled } : {}),
   };
+}
+
+const GUESS_LOG_INTERFACE = new ethers.Interface(GUESS_LOG_ABI);
+
+/** The checkpoint id this round's RootPosted event reports, or null. */
+export function checkpointIdFromReceipt(
+  receipt: Pick<ethers.TransactionReceipt, 'logs'> | null,
+  roundId: number
+): number | null {
+  const address = getGuessLogAddress()?.toLowerCase();
+  for (const log of receipt?.logs ?? []) {
+    if (log.address.toLowerCase() !== address) continue;
+    const parsed = GUESS_LOG_INTERFACE.parseLog(log);
+    if (parsed?.name === 'RootPosted' && Number(parsed.args.roundId) === roundId) {
+      return Number(parsed.args.checkpointId);
+    }
+  }
+  return null;
+}
+
+/**
+ * Bring the local checkpoint table in line with the contract: add the rows for
+ * roots that landed onchain without one, and correct ids recorded wrong.
+ *
+ * Writes nothing unless EVERY missing root, rebuilt from the guesses table,
+ * equals the root the contract holds. A row is only ever a copy of something
+ * already public and already provable, so the table cannot gain a claim the
+ * chain does not back.
+ *
+ * Sends no transaction. The contract is append-only, so a mismatch that is the
+ * contract's side cannot be fixed from here, and is refused instead.
+ */
+async function reconcileWithContract(
+  roundId: number,
+  readOnly: ethers.Contract
+): Promise<
+  | { ok: true; inserted: number[]; renumbered: Array<{ from: number; to: number }> }
+  | { ok: false; reason: string }
+> {
+  const raw: Array<{ fromIndex: bigint; toIndex: bigint; postedAt: bigint; root: string }> =
+    await readOnly.getCheckpoints(roundId);
+  const onchain: OnchainCheckpoint[] = raw.map((cp, checkpointId) => ({
+    checkpointId,
+    // 0-based onchain → 1-based table; see the base note in postNextCheckpoint.
+    fromIndex: Number(cp.fromIndex) + 1,
+    toIndex: Number(cp.toIndex) + 1,
+    root: cp.root,
+    postedAt: Number(cp.postedAt),
+  }));
+
+  const plan = planCheckpointReconcile(onchain, await getCheckpointsForRound(roundId));
+  if (!plan.ok) return plan;
+
+  // Every root is checked before anything is written.
+  const rows: Array<typeof guessLogCheckpoints.$inferInsert> = [];
+  for (const cp of plan.missing) {
+    const rebuilt = await rebuildCheckpointRange(roundId, cp.fromIndex, cp.toIndex);
+    if (!rebuilt) {
+      return {
+        ok: false,
+        reason:
+          `Onchain checkpoint ${cp.checkpointId} covers ${cp.fromIndex}..${cp.toIndex}, ` +
+          'which is not exactly one guess per index locally.',
+      };
+    }
+    if (rebuilt.root.toLowerCase() !== cp.root.toLowerCase()) {
+      return {
+        ok: false,
+        reason:
+          `Onchain checkpoint ${cp.checkpointId} holds root ${cp.root} for ${cp.fromIndex}..${cp.toIndex}, ` +
+          `but the guesses table rebuilds ${rebuilt.root}.`,
+      };
+    }
+    rows.push({
+      roundId,
+      checkpointId: cp.checkpointId,
+      fromIndex: cp.fromIndex,
+      toIndex: cp.toIndex,
+      fromGuessId: rebuilt.fromGuessId,
+      toGuessId: rebuilt.toGuessId,
+      root: cp.root,
+      // Unknown without a log search, and nullable for that reason. /verify
+      // proves inclusion against the root, which needs no hash.
+      txHash: null,
+      postedAt: new Date(cp.postedAt * 1000),
+    });
+  }
+
+  await db.transaction(async (tx) => {
+    // (round_id, checkpoint_id) is unique and not deferrable, so a row moving
+    // onto an id another row is leaving would collide mid-update. Park every
+    // row that moves on an id no real checkpoint can have, then set the real
+    // one.
+    for (const move of plan.renumber) {
+      await tx
+        .update(guessLogCheckpoints)
+        .set({ checkpointId: -1_000_000 - move.id })
+        .where(eq(guessLogCheckpoints.id, move.id));
+    }
+    for (const move of plan.renumber) {
+      await tx
+        .update(guessLogCheckpoints)
+        .set({ checkpointId: move.to })
+        .where(eq(guessLogCheckpoints.id, move.id));
+    }
+    if (rows.length > 0) await tx.insert(guessLogCheckpoints).values(rows);
+  });
+
+  const inserted = rows.map((r) => r.checkpointId as number);
+  const renumbered = plan.renumber.map(({ from, to }) => ({ from, to }));
+  console.log(
+    `[guess-log] Round ${roundId}: reconciled the checkpoint table from the contract. ` +
+      `Inserted ${JSON.stringify(inserted)}, renumbered ${JSON.stringify(renumbered)}.`
+  );
+  return { ok: true, inserted, renumbered };
 }
 
 /**

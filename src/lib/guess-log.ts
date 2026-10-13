@@ -577,3 +577,127 @@ export async function findResolvedRoundsWithUncommittedGuesses(): Promise<Uncomm
 
   return short;
 }
+
+/**
+ * One checkpoint as the contract holds it, with indices already moved to the
+ * table's 1-based convention (see the base note in postNextCheckpoint).
+ */
+export interface OnchainCheckpoint {
+  checkpointId: number;
+  fromIndex: number;
+  toIndex: number;
+  root: string;
+  /** Block timestamp, in seconds. */
+  postedAt: number;
+}
+
+/** The fields of a local checkpoint row that reconciling compares. */
+export interface LocalCheckpoint {
+  id: number;
+  checkpointId: number;
+  fromIndex: number;
+  toIndex: number;
+  root: string;
+}
+
+export type CheckpointReconcilePlan =
+  | {
+      ok: true;
+      /** Onchain checkpoints with no local row, to be rebuilt and inserted. */
+      missing: OnchainCheckpoint[];
+      /** Local rows that match an onchain checkpoint but carry the wrong id. */
+      renumber: Array<{ id: number; from: number; to: number }>;
+    }
+  | { ok: false; reason: string };
+
+/**
+ * Work out how to bring the local checkpoint table in line with the contract,
+ * or say why it cannot be done safely.
+ *
+ * WHY THE TWO DRIFT. postNextCheckpoint used to read `checkpointCount` again
+ * after `tx.wait()` to learn the new checkpoint's id. A load-balanced RPC can
+ * answer that read from a node one block behind, so the count came back from
+ * BEFORE the post: the id was one too low. Usually that collided with the row
+ * before it on (round_id, checkpoint_id), the insert failed, and the root sat
+ * onchain with no row. When there was no row before it, the insert succeeded
+ * with id -1. Rounds 34 to 37 each lost one row this way, and from then on
+ * every tick refused with "index-mismatch".
+ *
+ * Pure, so every refusal below is tested without a chain or a database. The
+ * caller still has to rebuild each missing root from the guesses table and
+ * compare it with the onchain root before it writes anything.
+ *
+ * The contract is the authority. It is append-only and nothing here can change
+ * it, so the plan only ever moves the table toward it, and it refuses whenever
+ * the table holds something the contract does not.
+ */
+export function planCheckpointReconcile(
+  onchain: OnchainCheckpoint[],
+  local: LocalCheckpoint[]
+): CheckpointReconcilePlan {
+  const rangeKey = (from: number, to: number) => `${from}..${to}`;
+  const onchainByRange = new Map(onchain.map((cp) => [rangeKey(cp.fromIndex, cp.toIndex), cp]));
+  const matched = new Set<number>();
+  const renumber: Array<{ id: number; from: number; to: number }> = [];
+
+  for (const row of local) {
+    const cp = onchainByRange.get(rangeKey(row.fromIndex, row.toIndex));
+    if (!cp) {
+      return {
+        ok: false,
+        reason:
+          `Local checkpoint ${row.checkpointId} covers ${rangeKey(row.fromIndex, row.toIndex)}, ` +
+          'which the contract has no checkpoint for.',
+      };
+    }
+    if (matched.has(cp.checkpointId)) {
+      return {
+        ok: false,
+        reason: `Two local rows cover ${rangeKey(row.fromIndex, row.toIndex)}.`,
+      };
+    }
+    if (row.root.toLowerCase() !== cp.root.toLowerCase()) {
+      return {
+        ok: false,
+        reason:
+          `Local checkpoint ${row.checkpointId} covers ${rangeKey(row.fromIndex, row.toIndex)} ` +
+          `with root ${row.root}, but the contract holds ${cp.root} for that range.`,
+      };
+    }
+    matched.add(cp.checkpointId);
+    if (row.checkpointId !== cp.checkpointId) {
+      renumber.push({ id: row.id, from: row.checkpointId, to: cp.checkpointId });
+    }
+  }
+
+  return {
+    ok: true,
+    missing: onchain.filter((cp) => !matched.has(cp.checkpointId)),
+    renumber,
+  };
+}
+
+/**
+ * Rebuild one already-posted range from the guesses table.
+ *
+ * Returns null when the rows for [fromIndex, toIndex] are not exactly one per
+ * index, because a root over anything else could not match what was posted.
+ */
+export async function rebuildCheckpointRange(
+  roundId: number,
+  fromIndex: number,
+  toIndex: number
+): Promise<{ root: string; fromGuessId: number; toGuessId: number } | null> {
+  const all = await readGuesses(roundId, fromIndex - 1);
+  const leaves = all.filter((l) => l.index <= toIndex);
+  const contiguous =
+    leaves.length === toIndex - fromIndex + 1 &&
+    leaves.every((l, position) => l.index === fromIndex + position);
+  if (!contiguous) return null;
+
+  return {
+    root: buildGuessTree(leaves).root,
+    fromGuessId: leaves[0].guessId,
+    toGuessId: leaves[leaves.length - 1].guessId,
+  };
+}
