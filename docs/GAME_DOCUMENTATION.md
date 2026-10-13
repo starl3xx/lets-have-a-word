@@ -986,7 +986,7 @@ if (result.added && result.notificationDetails) {
 **Flow:**
 1. App loads in Farcaster mini app
 2. SDK provides user context with FID (used for UI display only)
-3. Client calls `quickAuth.getToken()` to get cryptographically signed JWT
+3. Client calls `quickAuth.getToken()` to get cryptographically signed JWT. The guess path asks again on every submit through `requestQuickAuthToken` (`src/lib/hostActions.ts`), so a failed first fetch or an expired token does not block guesses; the SDK returns its cached token while it is valid. If no token arrives within 8 seconds, the guess is not sent and the player is told it was not used.
 4. JWT token sent with API requests as `authToken` in request body
 5. Server verifies JWT using `@farcaster/quick-auth` package
 6. FID extracted from verified JWT payload (`sub` field)

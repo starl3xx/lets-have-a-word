@@ -146,3 +146,40 @@ export function openXComposer(text: string, url?: string): void {
  */
 export const X_BUTTON_CLASS =
   'bg-black hover:bg-gray-800 active:scale-95 text-white font-bold rounded-btn shadow-btn transition-all duration-fast';
+
+/**
+ * Ask the host for a Quick Auth token, bounded, and never throw.
+ *
+ * CALLED PER GUESS, NOT ONCE AT LOAD. The page used to fetch the token one
+ * time, when the Farcaster context arrived, and keep it in React state. Two
+ * things break that:
+ *   - The fetch fails. On 2026-10-13 Farcaster's /verify-siwf answered 500
+ *     (Sentry LETS-HAVE-A-WORD-32), the page kept no token, and every guess
+ *     went out with a bare miniAppFid, which /api/guess refuses by design. The
+ *     player saw "Please refresh the app to sign in securely" with three paid
+ *     guesses in hand, and nothing on the page ever asked again.
+ *   - The token expires. The SDK renews its own copy 15s before expiry; the
+ *     copy in React state never changes.
+ * The SDK's getToken returns its cached token while it is valid and joins a
+ * request already in flight, so asking per guess costs nothing when all is
+ * well.
+ *
+ * A late answer still counts: `onToken` runs even after the timeout has fired,
+ * so a slow host fixes the NEXT guess instead of being thrown away.
+ */
+export async function requestQuickAuthToken(
+  getToken: () => Promise<{ token?: string | null }>,
+  onToken: (token: string) => void,
+  timeoutMs: number = HOST_ACTION_TIMEOUT_MS
+): Promise<string | null> {
+  try {
+    const pending = getToken().then(({ token }) => {
+      if (token) onToken(token);
+      return token || null;
+    });
+    return await withHostTimeout(pending, 'quickAuth.getToken', timeoutMs);
+  } catch (error) {
+    console.error('[QuickAuth] Could not get a token:', error);
+    return null;
+  }
+}
