@@ -986,7 +986,7 @@ if (result.added && result.notificationDetails) {
 **Flow:**
 1. App loads in Farcaster mini app
 2. SDK provides user context with FID (used for UI display only)
-3. Client calls `quickAuth.getToken()` to get cryptographically signed JWT. The guess path asks again on every submit through `requestQuickAuthToken` (`src/lib/hostActions.ts`), so a failed first fetch or an expired token does not block guesses; the SDK returns its cached token while it is valid. If no token arrives within 8 seconds, the guess is not sent and the player is told it was not used.
+3. Client calls `quickAuth.getToken()` to get cryptographically signed JWT. The guess path asks again on every submit through `requestQuickAuthToken` (`src/lib/hostActions.ts`), so a failed first fetch or an expired token does not block guesses; the SDK returns its cached token while it is valid. If no token arrives within 8 seconds, the guess path uses the fallback below.
 4. JWT token sent with API requests as `authToken` in request body
 5. Server verifies JWT using `@farcaster/quick-auth` package
 6. FID extracted from verified JWT payload (`sub` field)
@@ -1003,6 +1003,17 @@ const { authToken } = req.body;
 const verifyResult = await quickAuthClient.verifyJwt({ token: authToken });
 const fid = verifyResult.sub; // Verified FID
 ```
+
+**Fallback when Quick Auth is down (guesses only):**
+
+Quick Auth depends on Farcaster's server at `auth.farcaster.xyz`. On 2026-10-14 its `/verify-siwf` answered 500 to every player from 01:00 UTC, and no Farcaster player could guess. When the guess path gets no token, `requestFarcasterFallbackSession` (`src/lib/hostActions.ts`) signs the player in through our own server:
+
+1. `GET /api/auth/nonce` issues a one-time nonce, kept in Redis for 5 minutes.
+2. `sdk.actions.signIn({ nonce, acceptAuthAddress: true })` has the host sign a Sign In With Farcaster message. This is the same signature Quick Auth asks for, with our nonce.
+3. `POST /api/auth/verify` with `playerSession: true` spends the nonce and checks the signature with `@farcaster/auth-client` against the Farcaster registries on Optimism: the signer must be the FID's custody address or an auth address listed for it, and the domain must be `letshaveaword.fun`. It then creates the user row if needed and returns a one-hour player session (`origin: 'farcaster'`) in the response body. It never sets a cookie for it.
+4. The guess goes out with that token in the `x-player-session` header. `resolveRequestFid` accepts it as a `player_session`.
+
+The client refuses a session whose FID differs from the FID on screen. It keeps the session in memory for the page and reuses it until 5 minutes before it expires. A 401 on a guess makes it sign in again on the next try. If the fallback also fails within 8 seconds, the guess is not sent, and the player reads that it was not used. Admin sign-in through `/api/auth/verify` is unchanged: without `playerSession: true` it returns no player session. Set `OPTIMISM_RPC_URL` in production so the check does not use the public Optimism RPC.
 
 **Why Quick Auth?**
 - **Prevents FID spoofing**: Anyone could previously submit guesses as any user

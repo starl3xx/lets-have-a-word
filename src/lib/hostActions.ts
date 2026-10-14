@@ -26,6 +26,8 @@
  * will never settle, not a latency budget for a host that is merely slow.
  */
 
+import { FARCASTER_FALLBACK_SESSION_TTL_SECONDS } from './playerSession';
+
 /**
  * For actions the host answers BY ITSELF: viewToken, viewProfile,
  * getCapabilities. Long enough that no real host trips it, short enough that a
@@ -180,6 +182,106 @@ export async function requestQuickAuthToken(
     return await withHostTimeout(pending, 'quickAuth.getToken', timeoutMs);
   } catch (error) {
     console.error('[QuickAuth] Could not get a token:', error);
+    return null;
+  }
+}
+
+/** The host's sign-in action, as `sdk.actions.signIn` provides it. */
+export type HostSignIn = (options: {
+  nonce: string;
+  acceptAuthAddress: boolean;
+}) => Promise<{ message: string; signature: string }>;
+
+/** The fallback session for this page. In memory only, never in storage. */
+let fallbackSession: { token: string; fid: number; reuseUntil: number } | null = null;
+
+/** Forget the fallback session, after the server refuses it with a 401. */
+export function forgetFarcasterFallbackSession(): void {
+  fallbackSession = null;
+}
+
+/**
+ * Sign in WITHOUT Farcaster's Quick Auth server, for when that server is down.
+ *
+ * Quick Auth has two steps. The host signs a Sign In With Farcaster message,
+ * then Farcaster's server at auth.farcaster.xyz checks the signature and
+ * returns a JWT. From 01:00 UTC on 2026-10-14 that server answered 500 to every
+ * player who opened the game (Sentry LETS-HAVE-A-WORD-32 and -3P), while the
+ * host still signed. So this asks the host for the same signature with OUR
+ * nonce, and /api/auth/verify checks it against the Farcaster registry on
+ * Optimism by itself. The answer is a one-hour player session, which
+ * resolveRequestFid already accepts.
+ *
+ * Never throws. Returns null on any failure. It also returns null when the
+ * signature belongs to an FID other than the one the page shows, so a guess
+ * cannot go out under an account the player cannot see.
+ *
+ * The session is reused until five minutes before it expires, so a run of
+ * guesses during an outage costs one signature. As with Quick Auth, a session
+ * that arrives after the timeout is kept for the next guess.
+ */
+export async function requestFarcasterFallbackSession(
+  signIn: HostSignIn,
+  expectedFid: number,
+  options: {
+    referrerFid?: number | null;
+    fetchImpl?: typeof fetch;
+    timeoutMs?: number;
+    now?: () => number;
+  } = {}
+): Promise<string | null> {
+  const {
+    referrerFid = null,
+    fetchImpl = fetch,
+    timeoutMs = HOST_ACTION_TIMEOUT_MS,
+    now = Date.now,
+  } = options;
+
+  if (fallbackSession && fallbackSession.fid === expectedFid && now() < fallbackSession.reuseUntil) {
+    return fallbackSession.token;
+  }
+
+  const signInThroughOurServer = async (): Promise<string | null> => {
+    const nonceResponse = await fetchImpl('/api/auth/nonce');
+    if (!nonceResponse.ok) return null;
+    const { nonce } = (await nonceResponse.json()) as { nonce?: unknown };
+    if (typeof nonce !== 'string' || !nonce) return null;
+
+    const { message, signature } = await signIn({ nonce, acceptAuthAddress: true });
+
+    const verifyResponse = await fetchImpl('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        signature,
+        nonce,
+        playerSession: true,
+        ref: referrerFid ?? undefined,
+      }),
+    });
+    if (!verifyResponse.ok) return null;
+    const data = (await verifyResponse.json()) as { fid?: unknown; sessionToken?: unknown };
+    if (typeof data.sessionToken !== 'string' || !data.sessionToken) return null;
+    if (data.fid !== expectedFid) {
+      console.error(
+        `[SignInFallback] The signature is for FID ${String(data.fid)}, but the page shows FID ${expectedFid}. Not using it.`
+      );
+      return null;
+    }
+
+    fallbackSession = {
+      token: data.sessionToken,
+      fid: expectedFid,
+      reuseUntil: now() + (FARCASTER_FALLBACK_SESSION_TTL_SECONDS - 5 * 60) * 1000,
+    };
+    return data.sessionToken;
+  };
+
+  try {
+    return await withHostTimeout(signInThroughOurServer(), 'Sign-in fallback', timeoutMs);
+  } catch (error) {
+    console.error('[SignInFallback] Could not sign in without Quick Auth:', error);
     return null;
   }
 }

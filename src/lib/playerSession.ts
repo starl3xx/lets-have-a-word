@@ -41,6 +41,13 @@ const encoder = new TextEncoder();
  */
 export const PLAYER_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 
+/**
+ * One hour, for the session /api/auth/verify gives a Farcaster player when
+ * Quick Auth is down. That player can sign again with no prompt, so a short
+ * life costs them nothing, and the token is held only in the page's memory.
+ */
+export const FARCASTER_FALLBACK_SESSION_TTL_SECONDS = 60 * 60;
+
 export const PLAYER_SESSION_COOKIE = 'lhaw_player_session';
 
 /**
