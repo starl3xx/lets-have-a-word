@@ -55,6 +55,18 @@ export const HOST_ACTION_TIMEOUT_MS = 8_000;
 export const HOST_COMPOSE_TIMEOUT_MS = 180_000;
 
 /**
+ * For the Quick Auth fallback: a nonce fetch, `sdk.actions.signIn`, and our
+ * check of the signature on Optimism.
+ *
+ * The Farcaster app signs with an auth address and shows no prompt, in about
+ * half a second. Another host can show a sign-in prompt and wait for the
+ * player, and an 8s bound would then drop the guess while the prompt is still
+ * open (Bugbot, PR #334). A minute is enough for a prompt, and short enough
+ * that a host that never answers still frees the button.
+ */
+export const HOST_SIGN_IN_TIMEOUT_MS = 60_000;
+
+/**
  * Bound a host action so it always settles.
  *
  * Rejects with a labelled error on timeout, so callers keep their existing
@@ -195,6 +207,9 @@ export type HostSignIn = (options: {
 /** The fallback session for this page. In memory only, never in storage. */
 let fallbackSession: { token: string; fid: number; reuseUntil: number } | null = null;
 
+/** The sign-in now in flight, so a second tap joins it instead of repeating it. */
+let fallbackInFlight: { fid: number; promise: Promise<string | null> } | null = null;
+
 /** Forget the fallback session, after the server refuses it with a 401. */
 export function forgetFarcasterFallbackSession(): void {
   fallbackSession = null;
@@ -217,8 +232,11 @@ export function forgetFarcasterFallbackSession(): void {
  * cannot go out under an account the player cannot see.
  *
  * The session is reused until five minutes before it expires, so a run of
- * guesses during an outage costs one signature. As with Quick Auth, a session
- * that arrives after the timeout is kept for the next guess.
+ * guesses during an outage costs one signature. A sign-in still in flight is
+ * joined, not repeated: after a timeout frees the button, a second tap would
+ * otherwise put a second prompt over the first and spend a second nonce
+ * (Bugbot, PR #334). A session that arrives after the timeout is kept for the
+ * next guess.
  */
 export async function requestFarcasterFallbackSession(
   signIn: HostSignIn,
@@ -233,7 +251,7 @@ export async function requestFarcasterFallbackSession(
   const {
     referrerFid = null,
     fetchImpl = fetch,
-    timeoutMs = HOST_ACTION_TIMEOUT_MS,
+    timeoutMs = HOST_SIGN_IN_TIMEOUT_MS,
     now = Date.now,
   } = options;
 
@@ -278,10 +296,26 @@ export async function requestFarcasterFallbackSession(
     return data.sessionToken;
   };
 
+  let inFlight = fallbackInFlight;
+  if (!inFlight || inFlight.fid !== expectedFid) {
+    const entry = {
+      fid: expectedFid,
+      promise: signInThroughOurServer().catch((error: unknown) => {
+        console.error('[SignInFallback] Could not sign in without Quick Auth:', error);
+        return null;
+      }),
+    };
+    inFlight = entry;
+    fallbackInFlight = entry;
+    void entry.promise.finally(() => {
+      if (fallbackInFlight === entry) fallbackInFlight = null;
+    });
+  }
+
   try {
-    return await withHostTimeout(signInThroughOurServer(), 'Sign-in fallback', timeoutMs);
+    return await withHostTimeout(inFlight.promise, 'Sign-in fallback', timeoutMs);
   } catch (error) {
-    console.error('[SignInFallback] Could not sign in without Quick Auth:', error);
+    console.error('[SignInFallback] Gave up waiting for sign-in:', error);
     return null;
   }
 }

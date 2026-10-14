@@ -191,6 +191,58 @@ describe('requestFarcasterFallbackSession', () => {
     expect(signIn).toHaveBeenCalledTimes(2);
   });
 
+  it('joins a sign-in in flight instead of starting a second one', async () => {
+    const { fetchImpl } = fakeServer();
+    const signIn = hostSignIn();
+
+    const [a, b] = await Promise.all([
+      requestFarcasterFallbackSession(signIn, FID, { fetchImpl }),
+      requestFarcasterFallbackSession(signIn, FID, { fetchImpl }),
+    ]);
+
+    expect([a, b]).toEqual(['session-1', 'session-1']);
+    expect(signIn).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // one nonce, one verify
+  });
+
+  it('after a timeout, a second tap joins the open prompt and spends no second nonce', async () => {
+    vi.useFakeTimers();
+    const { fetchImpl } = fakeServer();
+    let sign!: () => void;
+    const signIn = vi.fn<HostSignIn>(
+      ({ nonce }) =>
+        new Promise((resolve) => {
+          sign = () => resolve({ message: `signed ${nonce}`, signature: '0xsig' });
+        })
+    );
+
+    const first = requestFarcasterFallbackSession(signIn, FID, { fetchImpl, timeoutMs: 1_000 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await first).toBeNull();
+
+    const retry = requestFarcasterFallbackSession(signIn, FID, { fetchImpl, timeoutMs: 1_000 });
+    sign();
+    expect(await retry).toBe('session-1');
+    expect(signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits past 8 seconds by default, for a host that prompts the player', async () => {
+    vi.useFakeTimers();
+    const { fetchImpl } = fakeServer();
+    let sign!: () => void;
+    const signIn = vi.fn<HostSignIn>(
+      ({ nonce }) =>
+        new Promise((resolve) => {
+          sign = () => resolve({ message: `signed ${nonce}`, signature: '0xsig' });
+        })
+    );
+
+    const result = requestFarcasterFallbackSession(signIn, FID, { fetchImpl });
+    await vi.advanceTimersByTimeAsync(20_000);
+    sign();
+    expect(await result).toBe('session-1');
+  });
+
   it('gives up at the timeout, and keeps a session that arrives late', async () => {
     vi.useFakeTimers();
     const { fetchImpl } = fakeServer();
