@@ -115,7 +115,12 @@ import { useInputStateHaptics } from '../src/lib/input-state-haptics';
 import { useModalDecision } from '../src/hooks/useModalDecision';
 import { useGuessInput } from '../src/hooks/useGuessInput';
 import { useIsInMiniApp } from '../src/hooks/useIsInMiniApp';
-import { requestQuickAuthToken } from '../src/lib/hostActions';
+import {
+  requestQuickAuthToken,
+  requestFarcasterFallbackSession,
+  forgetFarcasterFallbackSession,
+} from '../src/lib/hostActions';
+import { PLAYER_SESSION_HEADER } from '../src/lib/playerSession';
 import { markKeydown, markInputPainted } from '../src/lib/perf-debug';
 import sdk, { quickAuth } from '@farcaster/miniapp-sdk';
 import confetti from 'canvas-confetti';
@@ -1394,19 +1399,34 @@ function GameContent() {
       // Build request body with appropriate authentication
       const requestBody: any = { word };
 
+      // Set only when Quick Auth failed and our own server signed the player
+      // in. See requestFarcasterFallbackSession.
+      let fallbackSessionToken: string | null = null;
+
       if (isInMiniApp && fid) {
         // Ask for the token now instead of trusting the one fetched at load,
         // which may have failed or expired. See requestQuickAuthToken.
         const token = await requestQuickAuthToken(() => quickAuth.getToken(), setAuthToken);
-        if (!token) {
-          // Without a token /api/guess refuses the guess by design, so do not
-          // send one it will refuse. Nothing has been spent at this point.
-          setErrorMessage('Farcaster sign-in didn’t go through, so this guess wasn’t used. Wait a moment, then try again.');
-          triggerHaptic('error');
-          triggerShake();
-          return;
+        if (token) {
+          requestBody.authToken = token;
+        } else {
+          // Farcaster's Quick Auth server failed. Get the same signature from
+          // the host and have our server check it instead.
+          const storedRefFid = parseInt(sessionStorage.getItem('referrerFid') ?? '', 10);
+          fallbackSessionToken = await requestFarcasterFallbackSession(
+            (options) => sdk.actions.signIn(options),
+            fid,
+            { referrerFid: storedRefFid > 0 ? storedRefFid : null }
+          );
+          if (!fallbackSessionToken) {
+            // Without a credential /api/guess refuses the guess by design, so
+            // do not send one it will refuse. Nothing has been spent yet.
+            setErrorMessage('Farcaster sign-in didn’t go through, so this guess wasn’t used. Wait a moment, then try again.');
+            triggerHaptic('error');
+            triggerShake();
+            return;
+          }
         }
-        requestBody.authToken = token;
       } else if (isClientDevMode() && effectiveFid) {
         // Local development: use devFid
         requestBody.devFid = effectiveFid;
@@ -1444,6 +1464,8 @@ function GameContent() {
           // sign-in cookie and then never sends it back, so the request would
           // otherwise arrive with no credential at all.
           ...playerSessionHeaders(),
+          // A Farcaster player's fallback session, when Quick Auth failed.
+          ...(fallbackSessionToken ? { [PLAYER_SESSION_HEADER]: fallbackSessionToken } : {}),
         },
         body: JSON.stringify(requestBody),
       });
@@ -1504,6 +1526,8 @@ function GameContent() {
           // means the session is gone, which is recoverable by signing in again
           // rather than by retrying the same request forever.
           if (response.status === 401) {
+            // The next try signs in again instead of sending the same token.
+            if (fallbackSessionToken) forgetFarcasterFallbackSession();
             const expiredMessage =
               errorData.message || 'Your session has expired. Sign in again to keep playing.';
             if (!isInMiniApp) {
