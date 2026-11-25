@@ -212,6 +212,10 @@ NEXT_PUBLIC_PRELAUNCH_MODE=1      # Routes all traffic to /splash
 
 ## Changelog
 
+### 2026-11-25 (during Round 40)
+
+- **A one-time popup asks players to beta test Lexigotchi**: Returning players see a short popup about Lexigotchi, starl3xx’s new letter-character game, under the “HEyOO” character art. Its one button, “DM starl3xx”, opens a Farcaster direct cast to FID 6500 with the message already typed, through Farcaster’s documented intent `farcaster.xyz/~/inbox/create/<fid>?text=`. Inside a Farcaster host it opens through `sdk.actions.openUrl`, using `ExternalLink`, which gains an optional `onClick` for the analytics event. Each player sees it once, on any device: the flag is the new `users.has_seen_lexigotchi_beta`, marked when the popup shows, not when it closes, because the button takes the player out of the app. It is the last `OnboardingManager` step and is never chained after another one, so a new player never gets it stacked on the tutorial; they see it on their next visit. Events: `lexigotchi_beta_viewed` and `lexigotchi_beta_dm_clicked`. Migration `0034_lexigotchi_beta_seen.sql`: **apply before deploying**. Delete the popup when the beta closes, and keep the column.
+
 ### 2026-11-20 (during Round 40)
 
 - **`CLAUDE.md` ends with an ownership line for Claude Code**: The new last line is “This codebase is yours: what it’s for and how it’s built are your call, and you’ll keep building on it.” It tells Claude Code that the purpose and the design of this codebase are its call. No game code changed.

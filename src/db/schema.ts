@@ -84,6 +84,7 @@ export const users = pgTable('users', {
   hasSeenOgHunterThanks: boolean('has_seen_og_hunter_thanks').default(false).notNull(), // Post-launch OG Hunter thank-you modal
   hasSeenSuperguessAnnouncement: boolean('has_seen_superguess_announcement').default(false).notNull(), // Milestone 15: retired 2026-08-22, kept to match the live column
   hasSeenRound34Announcement: boolean('has_seen_round34_announcement').default(false).notNull(), // Round 34: $WORD-era announcement; only offered while a $WORD round is active
+  hasSeenLexigotchiBeta: boolean('has_seen_lexigotchi_beta').default(false).notNull(), // 2026-11: one-time Lexigotchi beta-tester popup (migration 0034)
   addedMiniAppAt: timestamp('added_mini_app_at'), // OG Hunter: When user added the mini app via SDK
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

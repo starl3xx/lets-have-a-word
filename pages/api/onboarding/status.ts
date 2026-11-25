@@ -7,6 +7,7 @@
  * - hasSeenOgHunterThanks: Whether user has seen the OG Hunter thank-you modal
  * - isOgHunter: Whether user is eligible as an OG Hunter (added mini app + verified cast)
  * - ogHunterAwarded: Whether user has already claimed their OG Hunter badge
+ * - hasSeenLexigotchiBeta: Whether user has seen the Lexigotchi beta-tester popup
  *
  * Used by OnboardingManager to decide which modals to show post-launch.
  */
@@ -23,6 +24,8 @@ export interface OnboardingStatusResponse {
   hasSeenIntro: boolean;
   hasSeenOgHunterThanks: boolean;
   hasSeenRound34Announcement: boolean;
+  /** Whether user has seen the one-time Lexigotchi beta-tester popup */
+  hasSeenLexigotchiBeta: boolean;
   /**
    * True only while the ACTIVE round pays $WORD. This is the leak guard: the
    * round-34 announcement is never offered before round 34 actually starts,
@@ -73,6 +76,7 @@ export default async function handler(
           hasSeenIntro: true,
           hasSeenOgHunterThanks: true,
           hasSeenRound34Announcement: true,
+          hasSeenLexigotchiBeta: true,
           firstGuessRound: true,
           addedMiniAppAt: true,
         },
@@ -103,6 +107,7 @@ export default async function handler(
         hasSeenIntro: false,
         hasSeenOgHunterThanks: false,
         hasSeenRound34Announcement: false,
+        hasSeenLexigotchiBeta: false,
         wordEraActive,
         grandfathered: false,
         earlyAdopter: false,
@@ -120,6 +125,7 @@ export default async function handler(
       hasSeenIntro: user.hasSeenIntro,
       hasSeenOgHunterThanks: user.hasSeenOgHunterThanks,
       hasSeenRound34Announcement: user.hasSeenRound34Announcement,
+      hasSeenLexigotchiBeta: user.hasSeenLexigotchiBeta,
       wordEraActive,
       grandfathered:
         user.firstGuessRound != null &&
