@@ -19,9 +19,14 @@ interface ExternalLinkProps {
   href: string;
   className?: string;
   children: React.ReactNode;
+  /**
+   * Runs on every click, before the link opens, on host and off. For side
+   * effects only (analytics, closing a modal); it cannot cancel the link.
+   */
+  onClick?: () => void;
 }
 
-export default function ExternalLink({ href, className, children }: ExternalLinkProps) {
+export default function ExternalLink({ href, className, children, onClick }: ExternalLinkProps) {
   const { inMiniApp } = useIsInMiniApp();
 
   return (
@@ -31,6 +36,7 @@ export default function ExternalLink({ href, className, children }: ExternalLink
       rel="noopener noreferrer"
       className={className}
       onClick={(event) => {
+        onClick?.();
         // Intercept only on a CONFIRMED host. Anywhere else — plain web and
         // non-host webviews such as in-app browsers — the real anchor is the
         // path that works, and openUrl would never settle; nothing here may

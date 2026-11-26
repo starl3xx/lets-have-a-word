@@ -5,6 +5,7 @@
  * 1. "How It Works" modal (FirstTimeOverlay) - shown to all new users
  * 2. "Hey, OG Hunter!" modal - shown only to OG Hunters after step 1
  * 3. Round 34 announcement - only while a $WORD round is active
+ * 4. Lexigotchi beta-tester popup - returning players only, see below
  *
  * The Superguess announcement used to sit between steps 2 and 3. It was a
  * feature-launch notice, and everyone it was written for has long since been
@@ -17,6 +18,11 @@
  * - Shows modals in order, one at a time
  * - Marks each modal as seen via /api/onboarding/mark-seen
  * - OG Hunters who already claimed still see the thanks modal once
+ * - The Lexigotchi popup is never chained after another step: it is offered
+ *   only when it is the FIRST thing to show, so a new player never gets a
+ *   promo stacked on the tutorial (they see it on their next visit). It is
+ *   marked seen the moment it shows, so a player who closes the app without
+ *   tapping anything still never sees it again.
  *
  * Integration:
  * - Render this component in the main game layout
@@ -28,6 +34,7 @@ import { useState, useEffect, useCallback } from 'react';
 import FirstTimeOverlay from './FirstTimeOverlay';
 import OgHunterThanksModal from './OgHunterThanksModal';
 import Round34AnnouncementModal from './Round34AnnouncementModal';
+import LexigotchiBetaModal from './LexigotchiBetaModal';
 import type { OnboardingStatusResponse } from '../pages/api/onboarding/status';
 
 interface OnboardingManagerProps {
@@ -37,7 +44,15 @@ interface OnboardingManagerProps {
   disabled?: boolean;
 }
 
-type OnboardingStep = 'loading' | 'howItWorks' | 'ogHunterThanks' | 'round34Announcement' | 'done';
+type OnboardingStep =
+  | 'loading'
+  | 'howItWorks'
+  | 'ogHunterThanks'
+  | 'round34Announcement'
+  | 'lexigotchiBeta'
+  | 'done';
+
+type SeenKey = 'intro' | 'ogHunterThanks' | 'round34Announcement' | 'lexigotchiBeta';
 
 export default function OnboardingManager({
   fid,
@@ -75,6 +90,8 @@ export default function OnboardingManager({
           setStep('ogHunterThanks');
         } else if (data.wordEraActive && !data.hasSeenRound34Announcement) {
           setStep('round34Announcement');
+        } else if (!data.hasSeenLexigotchiBeta) {
+          setStep('lexigotchiBeta');
         } else {
           setStep('done');
         }
@@ -88,7 +105,7 @@ export default function OnboardingManager({
   }, [fid, disabled]);
 
   // Mark a modal as seen
-  const markSeen = useCallback(async (key: 'intro' | 'ogHunterThanks' | 'round34Announcement') => {
+  const markSeen = useCallback(async (key: SeenKey) => {
     try {
       await fetch('/api/onboarding/mark-seen', {
         method: 'POST',
@@ -140,6 +157,19 @@ export default function OnboardingManager({
     setStep('done');
   }, [markSeen]);
 
+  // The Lexigotchi popup counts as seen once it shows, not when it closes:
+  // the DM button takes the player out of the app, and "only once" should
+  // hold even if they never come back to dismiss it.
+  useEffect(() => {
+    if (step === 'lexigotchiBeta') {
+      markSeen('lexigotchiBeta');
+    }
+  }, [step, markSeen]);
+
+  const handleLexigotchiBetaDismiss = useCallback(() => {
+    setStep('done');
+  }, []);
+
   // Don't render anything while loading or when done
   if (step === 'loading' || step === 'done') {
     return null;
@@ -170,6 +200,13 @@ export default function OnboardingManager({
           onDismiss={handleRound34AnnouncementDismiss}
           grandfathered={status?.grandfathered ?? false}
           earlyAdopter={status?.earlyAdopter ?? false}
+        />
+      )}
+
+      {step === 'lexigotchiBeta' && (
+        <LexigotchiBetaModal
+          fid={fid}
+          onDismiss={handleLexigotchiBetaDismiss}
         />
       )}
     </>

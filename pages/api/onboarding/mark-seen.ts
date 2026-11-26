@@ -6,7 +6,7 @@
  *
  * Request body:
  * - fid: number
- * - key: 'intro' | 'ogHunterThanks'
+ * - key: 'intro' | 'ogHunterThanks' | 'round34Announcement' | 'lexigotchiBeta'
  *
  * Used by OnboardingManager after user dismisses or completes a modal.
  */
@@ -16,7 +16,14 @@ import { db } from '../../../src/db';
 import { users } from '../../../src/db/schema';
 import { eq } from 'drizzle-orm';
 
-type OnboardingKey = 'intro' | 'ogHunterThanks' | 'round34Announcement';
+type OnboardingKey = 'intro' | 'ogHunterThanks' | 'round34Announcement' | 'lexigotchiBeta';
+
+const ONBOARDING_KEYS: readonly OnboardingKey[] = [
+  'intro',
+  'ogHunterThanks',
+  'round34Announcement',
+  'lexigotchiBeta',
+];
 
 interface MarkSeenRequest {
   fid: number;
@@ -39,8 +46,8 @@ export default async function handler(
   }
 
   // Validate key
-  if (!key || !['intro', 'ogHunterThanks', 'round34Announcement'].includes(key)) {
-    return res.status(400).json({ error: 'Invalid key. Must be "intro", "ogHunterThanks", or "round34Announcement"' });
+  if (!key || !ONBOARDING_KEYS.includes(key)) {
+    return res.status(400).json({ error: `Invalid key. Must be one of: ${ONBOARDING_KEYS.join(', ')}` });
   }
 
   try {
@@ -49,6 +56,7 @@ export default async function handler(
       intro: { hasSeenIntro: true },
       ogHunterThanks: { hasSeenOgHunterThanks: true },
       round34Announcement: { hasSeenRound34Announcement: true },
+      lexigotchiBeta: { hasSeenLexigotchiBeta: true },
     };
     const columnUpdate = columnMap[key];
 
